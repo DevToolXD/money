@@ -24,6 +24,7 @@
     for (const [key, el] of screens) {
       const on = key === name;
       el.classList.toggle("is-active", on);
+      if (on) app.dataset.screen = key;
       el.inert = !on;
     }
   };
@@ -75,11 +76,12 @@
   const list = document.getElementById("chat-list");
   const emptyMsg = document.getElementById("chat-empty");
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const renderChats = (q = "") => {
-    const shown = chats.filter((c) => c.name.includes(q) || c.last.includes(q));
+  let filter = "all";
+  const renderChats = (q = document.getElementById("chat-search").value.trim()) => {
+    const shown = chats.filter((c) => (c.name.includes(q) || c.last.includes(q)) && (filter === "all" || c.unread));
     list.innerHTML = shown
       .map(
-        (c) => `<li><button class="row chat-row" type="button" data-id="${c.id}"><span class="avatar" style="width:48px;height:48px;background:${c.color}">${esc(c.name[0])}</span><span class="row-main"><b>${esc(c.name)}</b><span>${esc(c.last)}</span></span><span class="chat-side"><span class="meta">${c.time}</span>${c.unread ? '<i class="dot"></i>' : ""}</span></button></li>`
+        (c) => `<li><div class="row chat-row" role="button" tabindex="0" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${esc(c.name[0])}</span><span class="row-main"><b>${esc(c.name)}</b><span>${esc(c.last)}</span></span><span class="chat-side"><span class="meta">${c.time}</span>${c.unread ? '<i class="dot"></i>' : ""}</span><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
     emptyMsg.hidden = shown.length > 0;
@@ -117,8 +119,26 @@
     tabbar.requestRender();
   };
   list.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      chats.splice(chats.findIndex((c) => c.id === del.dataset.del), 1);
+      renderChats();
+      return;
+    }
     const row = e.target.closest(".chat-row");
-    if (row) open(row.dataset.id);
+    if (row && !list.classList.contains("editing")) open(row.dataset.id);
+  });
+  document.querySelectorAll("[data-filter]").forEach((b) =>
+    b.addEventListener("click", () => {
+      filter = b.dataset.filter;
+      document.querySelectorAll("[data-filter]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+      renderChats();
+    })
+  );
+  const editChats = document.getElementById("edit-chats");
+  editChats.addEventListener("click", () => {
+    const on = list.classList.toggle("editing");
+    editChats.textContent = on ? "완료" : "편집";
   });
   document.getElementById("compose").addEventListener("click", () => open("minji"));
   document.getElementById("thread-back").addEventListener("click", close);
@@ -154,6 +174,7 @@
     // 이름을 바꾸면 기본 프로필(회색 사람 모양) 대신 이름의 첫 글자가 보여요
     const custom = name !== "내 계정";
     avatarEl.className = custom ? "avatar" : "avatar-default";
+    avatarEl.style.width = avatarEl.style.height = "";
     avatarEl.textContent = custom ? name[0] : "";
   };
   applyProfile();
@@ -166,11 +187,13 @@
     dim.classList.toggle("is-open", on);
     app.classList.toggle("sheet-open", on);
   };
-  document.getElementById("edit-profile").addEventListener("click", () => {
-    editName.value = nameEl.textContent;
-    editBio.value = store.get("profile-bio", "");
-    sheetOpen(true);
-  });
+  document.querySelectorAll(".js-edit-profile").forEach((b) =>
+    b.addEventListener("click", () => {
+      editName.value = nameEl.textContent;
+      editBio.value = store.get("profile-bio", "");
+      sheetOpen(true);
+    })
+  );
   document.getElementById("sheet-cancel").addEventListener("click", () => sheetOpen(false));
   dim.addEventListener("click", () => sheetOpen(false));
   document.getElementById("sheet-save").addEventListener("click", () => {
