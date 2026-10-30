@@ -1,19 +1,10 @@
 /* 앱 틀: 모바일 한 칼럼, 화면 5개, 아래에 떠 있는 리퀴드 글라스 탭 바 */
 
 :root {
-  --dock-h: 64px;
-  --dock-bottom: max(env(safe-area-inset-bottom, 0px), 14px);
-  --dock-clearance: calc(var(--dock-h) + var(--dock-bottom) + 28px);
-}
-
-/* 탭 바 색을 이 사이트 토큰에 맞춰요. 라이브러리 기본값보다 우선하도록 선택자를 한 단계 높였어요 */
-html,
-html[data-theme="light"],
-html[data-theme="dark"] {
-  --lg-accent: var(--blue500);
-  --lg-surface: var(--background);
-  --lg-label: var(--grey900);
-  --lg-label-2: var(--grey600);
+  --bar-h: 76px;
+  --dock-side: 25px;
+  --dock-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 8px), 16px);
+  --dock-clearance: calc(var(--bar-h) + var(--dock-bottom) + 28px);
 }
 
 * { box-sizing: border-box; }
@@ -123,21 +114,39 @@ body {
 .row-text small { margin-top: 2px; font-size: 15px; color: var(--grey600); }
 .row-value { flex: none; font-size: 17px; font-weight: 600; color: var(--grey900); }
 
-/* 아직 내용이 없는 자리: 동그라미 하나와 줄 두 개를 72px마다 되풀이해요 */
-.skeletons {
-  height: calc(var(--rows, 8) * 72px);
-  background-image:
-    radial-gradient(circle at 44px 36px, var(--grey100) 19.5px, transparent 20.5px),
-    linear-gradient(to bottom, transparent 22px, var(--grey100) 22px, var(--grey100) 36px, transparent 36px),
-    linear-gradient(to bottom, transparent 42px, var(--grey100) 42px, var(--grey100) 54px, transparent 54px);
-  background-size: 100% 72px, 52% 72px, 32% 72px;
-  background-position: 0 0, 80px 0, 80px 0;
-  background-repeat: repeat-y;
+/* 아직 내용이 없는 자리 (줄은 app.js가 만들어 줘요) */
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 72px;
+  padding: 0 var(--gutter);
 }
+.skeleton-row i {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--grey100);
+}
+/* 동그라미에 색을 조금씩 돌려 입혀요. 스크롤할 때 막대 유리에 색이 비쳐 보여요 */
+.skeleton-row:nth-child(4n + 1) i { background: var(--blue100); }
+.skeleton-row:nth-child(4n + 2) i { background: var(--red100); }
+.skeleton-row:nth-child(4n + 3) i { background: var(--yellow100); }
+.skeleton-row:nth-child(4n) i { background: var(--green100); }
+.skeleton-row span { flex: 1 1 auto; display: grid; gap: 8px; }
+.skeleton-row b {
+  display: block;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--grey200);
+}
+.skeleton-row b + b { width: 56%; height: 12px; }
 
 /* ---------- 하단 탭 바 ----------
-   탭 다섯 개가 한 nav 안에 있고, 눈에 보이는 판(platter)만 둘로 나뉘어요.
-   그래서 렌즈 하나가 알약형 탭과 검색 버튼을 모두 오갈 수 있어요. */
+   막대 유리·아이콘·글자·선택 알약·렌즈는 모두 캔버스(app/tabbar.js)가 그려요.
+   뒤 화면 사진이 아직 없거나 WebGL을 못 쓸 때만 CSS 유리 판(.platter)과 알약(.pill)이 대신해요.
+   버튼은 눌림과 접근성을 위해 그대로 두고 글자만 투명하게 해요. */
 
 .dock {
   position: absolute;
@@ -145,83 +154,155 @@ body {
   right: 0;
   bottom: var(--dock-bottom);
   z-index: 50;
-  padding: 0 21px;
-}
-
-.dock .lg-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 72px;
-  grid-auto-flow: row;
-  height: var(--dock-h);
-  /* 판 사이 빈틈과 판 바깥은 화면을 막지 않아요. 버튼만 눌려요 */
+  padding: 0 var(--dock-side);
   pointer-events: none;
 }
-.dock .lg-tabs::before { content: none; }
-.dock .lg-tabs > button { pointer-events: auto; }
-.dock .lg-tabs > button[data-group="search"] { margin-left: 16px; }
+
+.tabbar {
+  /* 색은 캔버스가 읽어 가요. 밝은 테마 기준이에요 */
+  --tab-ink: #000000;
+  --tab-accent: var(--blue500);
+  --tab-base: #fdfdfe;
+  --tab-pill: rgba(0, 0, 0, 0.075);
+  --tab-tint: rgba(255, 255, 255, 0.3);
+  --tab-edge: rgba(80, 64, 66, 0.28);
+  --tab-shadow: 0.08;
+  --tab-platter: rgba(255, 255, 255, 0.58);
+  --tab-platter-ring: rgba(0, 0, 0, 0.1);
+  /* 막대 유리(캔버스)가 읽어 가는 값 */
+  --tab-glass-base: #fcfcfe;
+  --tab-glass-keep: 0.34;
+  --tab-glass-desat: 0.22;
+  --tab-line: rgba(70, 66, 72, 0.3);
+  --tab-plat-shadow: 0.09;
+  --tab-plat-rim: 0.75;
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 84px;
+  height: var(--bar-h);
+  padding: 4px;
+  pointer-events: none;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html[data-theme="dark"] .tabbar {
+  --tab-ink: #ffffff;
+  --tab-base: #1d1d22;
+  --tab-pill: rgba(255, 255, 255, 0.15);
+  --tab-tint: rgba(255, 255, 255, 0.05);
+  --tab-edge: rgba(255, 255, 255, 0.3);
+  --tab-shadow: 0.5;
+  --tab-platter: rgba(36, 36, 42, 0.5);
+  --tab-platter-ring: rgba(255, 255, 255, 0.14);
+  --tab-glass-base: #35353d;
+  --tab-glass-keep: 0.42;
+  --tab-glass-desat: 0.5;
+  --tab-line: rgba(255, 255, 255, 0.22);
+  --tab-plat-shadow: 0.45;
+  --tab-plat-rim: 0.3;
+}
 
 .platter {
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: -2;
+  z-index: -3;
   border-radius: 999px;
-  background: var(--lg-platter);
-  -webkit-backdrop-filter: blur(14px) saturate(1.6);
-  backdrop-filter: blur(14px) saturate(1.6);
+  background: var(--tab-platter);
+  -webkit-backdrop-filter: blur(22px) saturate(1.9);
+  backdrop-filter: blur(22px) saturate(1.9);
   box-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.22),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
-    0 0 0 0.5px rgb(0 0 0 / 0.06),
-    0 10px 30px rgb(0 0 0 / 0.25);
-  transition: scale 0.3s cubic-bezier(0.3, 1.25, 0.5, 1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 0.5px var(--tab-platter-ring),
+    0 8px 28px rgba(0, 0, 0, 0.14);
+  transition: scale 0.32s cubic-bezier(0.3, 1.25, 0.5, 1);
 }
-.platter-main { left: 0; right: 72px; }
-.platter-search { right: 0; width: 64px; }
+html[data-theme="dark"] .platter {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 0.5px var(--tab-platter-ring),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.platter-main { left: 0; right: 84px; }
+.platter-search { right: 0; width: var(--bar-h); }
 
-/* 누르면 눌린 쪽 판만 3.55% 부풀어요 */
-.lg-tabs.pressing[data-press="main"] .platter-main,
-.lg-tabs.pressing[data-press="search"] .platter-search { scale: 1.0355; }
+/* 뒤 화면 사진이 준비되면 캔버스가 막대 유리를 직접 그려요. 캔버스 유리가 다 나타난 뒤(0.28초)에 CSS 판을 걷어요.
+   사진이 없어지면 이 클래스도 빠지면서 CSS 판이 바로 돌아와요. */
+.tabbar.has-glass .platter {
+  opacity: 0;
+  transition: opacity 0s linear 0.3s;
+  scale: 1 !important;
+}
 
-.dock .lg-tabs > button {
-  height: 100%;
-  padding: 0;
+/* CSS 판일 때는 눌린 쪽 판만 살짝 부풀어요 */
+.tabbar.is-pressed[data-press="main"] .platter-main,
+.tabbar.is-pressed[data-press="search"] .platter-search { scale: 1.035; }
+
+.tabbar-canvas {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.tab {
+  position: relative;
+  display: grid;
+  justify-items: center;
   align-content: center;
-  gap: 2px;
+  row-gap: 3px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--tab-ink);
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab[aria-current] { color: var(--tab-accent); }
+.tab-search { margin-left: 16px; }
+.tab:focus-visible { outline: 2px solid var(--tab-accent); outline-offset: -2px; }
+
+.tab-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+.tab-icon svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.tab-label {
+  font-size: 11px;
   line-height: 13px;
   font-weight: 600;
   letter-spacing: 0;
-  transition: color 0.2s ease;
-}
-.dock .lg-tabs svg {
-  width: 28px;
-  height: 28px;
-  overflow: visible;
+  white-space: nowrap;
 }
 
-/* 렌즈 안에는 화면 전체의 복사본이 들어가요. 거기서는 모든 탭을 강조색으로 칠해 렌즈가 지나는 자리만 파랗게 보이게 해요 */
-[data-glass-copy] .lg-tabs > button { color: var(--lg-accent); }
-[data-glass-copy] .lg-pill,
-[data-glass-copy] .lg-glowbox { display: none; }
-/* 렌즈는 판 위에 얹힌 맑은 유리라서, 복사본 속 판은 거의 투명하게 둬요. 뒤의 화면이 또렷이 비쳐요 */
-[data-glass-copy] .platter {
-  background: rgb(255 255 255 / 0.3);
-  box-shadow: none;
-}
-html[data-theme="dark"] [data-glass-copy] .platter { background: rgb(28 28 31 / 0.24); }
+/* 캔버스가 그릴 때는 DOM 아이콘과 글자를 숨겨요 (스크린 리더와 눌림은 그대로) */
+.tabbar.is-gl .tab { color: transparent; }
+.tabbar.is-gl .tab-icon svg { visibility: hidden; }
 
-/* 밝은 테마의 판: 그림자를 줄이고 가장자리를 또렷하게 */
-html[data-theme="light"] .platter {
-  box-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.9),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.55),
-    0 0 0 0.5px rgb(0 0 0 / 0.08),
-    0 8px 24px rgb(0 0 0 / 0.12);
+/* WebGL을 못 쓰는 기기: 알약과 색만 CSS로 */
+.pill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -2;
+  border-radius: 999px;
+  background: var(--tab-pill);
+  pointer-events: none;
+  transition: transform 0.38s cubic-bezier(0.3, 1.2, 0.5, 1), width 0.38s cubic-bezier(0.3, 1.2, 0.5, 1);
 }
+.tabbar.is-gl .pill { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dock .lg-tabs > button,
-  .platter { transition: none; }
+  .platter,
+  .pill { transition: none; }
 }
