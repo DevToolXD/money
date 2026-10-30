@@ -2,9 +2,11 @@
 
    - 막대(알약형 탭 줄, 둥근 검색 버튼)는 그 자체가 리퀴드 글라스예요. Backdrop이 찍어 둔 뒤 화면 사진을 스크롤 위치만큼 밀어 읽어서
      확대하고, 가장자리에서 안쪽 내용을 끌어와 휘어 보이게 해요. 사진이 아직 없으면 CSS 유리 판(backdrop-filter)이 대신해요.
-   - 선택 알약과 렌즈는 같은 물체예요. 누르면 알약이 떠올라 렌즈가 되고, 움직이다가 도착하면 다시 알약으로 내려앉아요.
-   - 렌즈 가장자리는 굴절 모양을 직접 설계했고(안쪽 내용을 길게 끌어오는 번짐), 빨강·초록·파랑이 보는 자리를 다르게 줘서 프리즘 색이 생겨요.
-   - 움직임은 해석해로 푸는 스프링이라 프레임 간격이 들쭉날쭉해도 떨리지 않아요.
+   - 선택 알약과 렌즈는 같은 물체예요. 누르면 알약이 떠올라 렌즈가 되고, 움직이다가 도착하기 직전에 다시 알약으로 내려앉아요.
+     렌즈는 늘 막대 유리 안에 머물러요(끝 탭에서는 좁아지고, 그림자도 막대 안에만 드리워요).
+   - 렌즈 가장자리에서는 뒤 화면(유리)만 휘어요. 빨강·초록·파랑이 보는 자리를 다르게 줘서 프리즘 색이 생기고, 글자와 아이콘은 확대만 해요.
+   - 렌즈가 떠 있는 동안에는 막대 전체가 더 투명해지고 가장자리에 프리즘 선이 돌아요(excite).
+   - 움직임은 감쇠비 1인 스프링을 해석해로 풀어서, 되튀지 않고 프레임 간격이 들쭉날쭉해도 떨리지 않아요.
    - WebGL을 못 쓰면 DOM 아이콘과 CSS 알약으로 대신 보여줘요. */
 (() => {
   "use strict";
@@ -20,15 +22,18 @@
   const PAD_TOP = 30;
   const PAD_BOTTOM = 48;
 
-  // 아이폰 26에서 잰 스프링 값을 (진동수 rad/s, 감쇠비)로 옮겼어요. stiffness k, damping c → w = sqrt(k), z = c / (2w)
+  // 움직임은 모두 (진동수 rad/s, 감쇠비)로 정해요. 감쇠비 1(임계 감쇠)이라 되튀거나 흔들리지 않고, 값이 클수록 짧게 끝나요.
+  // 90%까지 가는 데 걸리는 시간은 대략 3.9 / w 초예요.
   const SPRING = {
-    lift: { w: 25.14, z: 1.0 }, // 떠오르고 내려앉을 때: 임계 감쇠
-    move: { w: 15.52, z: 0.85 }, // 탭 사이를 움직일 때
-    trail: { w: 24.0, z: 0.75 }, // 손가락을 끌고 갈 때
-    stretch: { w: 15.0, z: 0.7 }, // 빨리 움직일 때 길쭉해지는 정도
-    press: { w: 25.14, z: 1.0 }, // 누르는 동안 살짝 부푸는 정도
+    lift: { w: 26, z: 1.0 }, // 렌즈가 떠오르고 내려앉아요 (0.15초)
+    move: { w: 21, z: 1.0 }, // 탭 사이를 옮겨 가요 (0.19초)
+    trail: { w: 30, z: 1.0 }, // 손가락을 끌고 갈 때 바짝 따라와요
+    stretch: { w: 18, z: 1.0 }, // 빨리 움직일 때 살짝 길쭉해져요
+    press: { w: 26, z: 1.0 }, // 누르는 동안 막대가 살짝 부풀어요
+    excite: { w: 13, z: 1.0 }, // 렌즈가 떠 있는 동안 막대 전체에 프리즘이 켜졌다 꺼져요 (0.3초)
   };
-  const HANG_MS = 150; // 도착한 뒤 렌즈를 잠깐 들고 있다가 내려놓는 시간
+  const LAND_PX = 8; // 렌즈가 목표까지 이만큼 남으면 내려앉기 시작해요. 도착할 때까지 들고 있지 않아요
+  const LENS_INSET = 4; // 렌즈가 막대 유리 가장자리에서 떨어져 있는 최소 거리 (막대 안쪽 여백과 같아요)
   const GLASS_FADE = 0.28; // 막대 유리가 처음 나타날 때 CSS 유리 판에서 넘어오는 시간(초). app.css의 지연과 맞춰요
 
   /* ---------- 스프링 ---------- */
@@ -140,6 +145,7 @@ uniform vec2 uPageSize;
 uniform vec4 uBarA;         // 알약형 막대: 중심 x, y, 반폭, 반높이 (css px)
 uniform vec4 uBarB;         // 둥근 검색 버튼
 uniform vec2 uPress;        // 눌림으로 부푼 정도 (막대, 검색 버튼)
+uniform float uExcite;      // 렌즈가 떠 있는 동안 막대 전체가 얼마나 들떠 있나 (0~1): 더 투명해지고 프리즘이 켜져요
 uniform vec4 uGlassOpt;     // 가장자리 폭, 가장자리에서 끌어오는 거리, 감쇠, 확대
 uniform vec4 uGlassLook;    // 디테일 대비 남기는 정도, 밝게/어둡게 덮는 정도, 막대 흐림, 알약 흐림
 uniform vec3 uGlassBase;    // 유리가 밝게/어둡게 덮는 색
@@ -152,12 +158,11 @@ uniform vec4 uLens;         // 중심 x, y, 반폭, 반높이 (css px)
 uniform float uExp;         // 모양 지수: 2 = 타원, 클수록 네모에 가까운 둥근 사각형
 uniform float uLift;        // 0 = 알약, 1 = 렌즈
 uniform float uZoom;
-uniform vec4 uOptics;       // 가장자리 폭, 안쪽 내용 끌어오는 거리, 감쇠 지수, 흐림
+uniform vec3 uOptics;       // 가장자리 폭, 안쪽 내용 끌어오는 거리, 감쇠 지수
 uniform vec4 uDisp;         // 색 번짐(세로), 색 번짐(가로), 빛 쪽 줄이기, 가로 방향 비율
 uniform vec4 uLook;         // 반짝임, 둘레 빛, 무지개, 속 밝기
 uniform vec3 uInk;
 uniform vec3 uAccent;
-uniform vec3 uBase;         // 뒤 사진이 없을 때 막대 유리의 대략적인 색
 uniform vec4 uPill;
 uniform vec4 uTint;
 uniform vec4 uEdge;
@@ -193,14 +198,13 @@ float cover(vec2 css) {
   return texture2D(uMask, css / uSize).a;
 }
 
-// 한 색깔 채널이 보는 곳을 약간 흐려서 모아요 (가장자리 가까울수록 더 흐려져요)
-float tap(vec2 pos, vec2 e, vec2 t, float rt, float re) {
-  float c = cover(pos) * 0.4;
-  c += cover(pos + t * rt) * 0.15;
-  c += cover(pos - t * rt) * 0.15;
-  c += cover(pos + e * re) * 0.15;
-  c += cover(pos - e * re) * 0.15;
-  return c;
+// 프리즘 색: 하늘색 → 연보라 → 분홍 → 노랑 → 하늘색으로 부드럽게 돌아요 (h가 1 늘면 한 바퀴)
+vec3 prism(float h) {
+  float k = fract(h) * 4.0;
+  vec3 r = mix(vec3(0.40, 0.78, 1.00), vec3(0.72, 0.60, 1.00), smoothstep(0.0, 1.0, k));
+  r = mix(r, vec3(1.00, 0.62, 0.82), smoothstep(1.0, 2.0, k));
+  r = mix(r, vec3(1.00, 0.88, 0.50), smoothstep(2.0, 3.0, k));
+  return mix(r, vec3(0.40, 0.78, 1.00), smoothstep(3.0, 4.0, k));
 }
 
 // ---- 뒤 화면 사진
@@ -217,13 +221,13 @@ vec3 pageColor(vec2 cp, float soft) {
 }
 
 // 막대(알약·원) 유리 안의 한 점이 보여주는 색: 중심에서 확대하고 가장자리 쪽에서는 안쪽 내용을 끌어와 휘어 보여요
-vec3 barSample(vec2 pos, vec4 pl, float soft, float shiftScale) {
+vec3 barSample(vec2 pos, vec4 pl, float soft, float shiftScale, float zoomScale) {
   vec2 q = pos - pl.xy;
   float d = sdRound(q, pl.zw, pl.w);
   vec2 e = -gradRound(q, pl.zw, pl.w);
   float x = clamp(max(-d, 0.0) / uGlassOpt.x, 0.0, 1.0);
   float shift = uGlassOpt.y * pow(1.0 - x, uGlassOpt.z) * shiftScale;
-  vec2 sp = pl.xy + q / uGlassOpt.w + e * shift;
+  vec2 sp = pl.xy + q / (uGlassOpt.w * zoomScale) + e * shift;
   return pageColor(sp, soft);
 }
 
@@ -236,11 +240,13 @@ void main() {
 
   // ====== 1. 막대 유리 (뒤 화면 사진이 있을 때만)
   vec4 outside = vec4(0.0);
-  vec4 barA = vec4(uBarA.xy, uBarA.zw * (1.0 + 0.035 * uPress.x));   // 반지름은 반높이(.w)와 같아요
-  vec4 barB = vec4(uBarB.xy, uBarB.zw * (1.0 + 0.035 * uPress.y));
+  vec4 barA = vec4(uBarA.xy, uBarA.zw * (1.0 + 0.02 * uPress.x));   // 반지름은 반높이(.w)와 같아요
+  vec4 barB = vec4(uBarB.xy, uBarB.zw * (1.0 + 0.02 * uPress.y));
+  float dA = sdRound(p - barA.xy, barA.zw, barA.w);
+  float dB = sdRound(p - barB.xy, barB.zw, barB.w);
+  float platIn = clamp(0.5 - min(dA, dB) * uDpr, 0.0, 1.0);   // 막대 안이면 1. 렌즈 그림자를 막대 안에만 드리우는 데 써요
+  float ex = uExcite;
   if (uGlass > 0.5) {
-    float dA = sdRound(p - barA.xy, barA.zw, barA.w);
-    float dB = sdRound(p - barB.xy, barB.zw, barB.w);
     bool useA = dA < dB;
     vec4 pl = useA ? barA : barB;
     float dP = useA ? dA : dB;
@@ -256,16 +262,31 @@ void main() {
       vec2 ep = -gradRound(qp, pl.zw, pl.w);
       float sP = max(-dP, 0.0);
       float ch = uPlatRim.z;
+      // 들떠 있는 동안에는 빨강은 더 크게, 파랑은 더 작게 확대해서 막대 전체에 프리즘 색 번짐이 생겨요 (바깥쪽일수록 많이 벌어져요)
+      float zk = ex * 0.02;
       vec3 c = vec3(
-        barSample(p, pl, uGlassLook.z, 1.0 + ch).r,
-        barSample(p, pl, uGlassLook.z, 1.0).g,
-        barSample(p, pl, uGlassLook.z, 1.0 - ch).b
+        barSample(p, pl, uGlassLook.z, 1.0 + ch, 1.0 + zk).r,
+        barSample(p, pl, uGlassLook.z, 1.0, 1.0).g,
+        barSample(p, pl, uGlassLook.z, 1.0 - ch, 1.0 - zk).b
       );
       float fac = 0.5 + 0.5 * dot(-ep, uLight);
       // 안쪽 가장자리를 따라 도는 하이라이트와, 가장자리에서 퍼지는 은은한 빛
       float hu = (sP - 2.1) / 0.9;   // pow()는 음수 밑이 정의되지 않아서 직접 제곱해요
       c += vec3(exp(-hu * hu) * (0.25 + 0.75 * fac) * uPlatRim.x);
       c += vec3(exp(-sP / 4.5) * (0.2 + 0.8 * fac) * uPlatRim.y);
+      if (ex > 0.002) {
+        // 막대 가장자리를 따라 얇은 막 같은 무지개 선이 돌아요. 색은 렌즈 위치를 따라 흘러요
+        float angP = atan(ep.y, ep.x);
+        vec3 hue = prism(angP * 0.17 + (uLens.x - pl.x) * 0.0045 + 0.1);
+        float l1 = (sP - 2.4) / 1.2;
+        float l2 = (sP - 5.0) / 1.5;
+        float l3 = (sP - 9.0) / 3.5;
+        float film = exp(-l1 * l1) + 0.6 * exp(-l2 * l2) + 0.22 * exp(-l3 * l3);
+        c = mix(c, hue, clamp(film * uPlatRim.w * ex * (0.3 + 0.7 * fac), 0.0, 0.75));
+        // 렌즈 둘레로 빛이 갈라져 퍼지는 은은한 색 번짐
+        float dx = (p.x - uLens.x) / max(uLens.z * 2.4, 1.0);
+        c = mix(c, prism(dx * 0.4 + 0.15), 0.1 * ex * exp(-dx * dx));
+      }
       // 바깥 가는 선
       float line = (1.0 - smoothstep(0.0, 1.0, abs(dP + 0.55))) * uPlatLine.a;
       c = mix(c, uPlatLine.rgb, line);
@@ -277,10 +298,10 @@ void main() {
   float aOut = cover(p);
   outside = outside * (1.0 - aOut) + vec4(uInk * aOut, aOut);
 
-  // 렌즈가 드리우는 그림자
+  // 렌즈가 드리우는 그림자: 막대 유리 안에만 드리워요 (막대 밖으로 새지 않게)
   vec2 gs;
   float ds = seDist(q - vec2(0.0, uShadow.y), hb, uExp, gs);
-  float sh = uShadow.x * uLift * exp(-max(ds, 0.0) / uShadow.z);
+  float sh = uShadow.x * uLift * exp(-max(ds, 0.0) / uShadow.z) * platIn;
   outside = outside * (1.0 - sh) + vec4(0.0, 0.0, 0.0, sh);
 
   if (d > 1.5) {
@@ -301,19 +322,14 @@ void main() {
   float shift = uOptics.y * pow(w, uOptics.z) * (1.0 - uDisp.z * facing) * mix(1.0, uDisp.w, abs(e.x)) * uLift;
 
   vec2 base = uLens.xy + q / uZoom;
-  float rt = uOptics.w * w * uLift;
-  float re = rt * 0.5;
   float kr = 1.0 + uDisp.x;
   float kb = 1.0 - uDisp.x;
   vec2 posR = base + e * (shift * kr) - t * (shift * uDisp.y);
   vec2 posG = base + e * shift;
   vec2 posB = base + e * (shift * kb) + t * (shift * uDisp.y);
-  vec3 cov;
-  if (x >= 1.0) {
-    cov = vec3(cover(base));
-  } else {
-    cov = vec3(tap(posR, e, t, rt, re), tap(posG, e, t, rt, re), tap(posB, e, t, rt, re));
-  }
+  // 글자와 아이콘은 휘지 않고 확대만 해요. 가장자리로 끌어와 늘이면 글자 아랫부분이 렌즈 테두리 쪽으로 흘러내려 보여서,
+  // 휘는 것은 뒤 화면(유리)만 맡고 글자는 늘 또렷하게 렌즈 안에 머물러요. 맨 가장자리에서는 서서히 지워져요.
+  float cov = cover(base) * smoothstep(0.0, 0.3, x);
 
   vec4 fill = mix(uPill, uTint, uLift);
   float fa = fill.a;
@@ -324,16 +340,15 @@ void main() {
     vec4 pl = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
     float soft = mix(uGlassLook.w, uGlassLook.z * 0.5, uLift);
     vec3 bg = vec3(
-      barSample(posR, pl, soft, 1.0).r,
-      barSample(posG, pl, soft, 1.0).g,
-      barSample(posB, pl, soft, 1.0).b
+      barSample(posR, pl, soft, 1.0, 1.0).r,
+      barSample(posG, pl, soft, 1.0, 1.0).g,
+      barSample(posB, pl, soft, 1.0, 1.0).b
     );
     prem = (bg * (1.0 - fa) + fill.rgb * fa) * (1.0 - cov) + uAccent * cov;
     alpha = 1.0;
   } else {
-    float am = max(cov.r, max(cov.g, cov.b));
-    prem = uBase * (1.0 - fa) * (am - cov) + fill.rgb * fa * (1.0 - cov) + uAccent * cov;
-    alpha = fa + (1.0 - fa) * am;
+    prem = fill.rgb * fa * (1.0 - cov) + uAccent * cov;
+    alpha = fa + (1.0 - fa) * cov;
   }
 
   // ---- 빛
@@ -356,11 +371,10 @@ void main() {
 
   // 얇은 막에서 보이는 것 같은 무지개 선 두 줄: 가장자리에서 2.5px, 5px 안쪽
   float ang = atan(e.y, e.x);
-  vec3 film = 0.5 + 0.5 * cos(6.2831853 * (vec3(0.0, 0.33, 0.67) + ang * 0.17 + 0.1));
+  vec3 film = prism(ang * 0.17 + 0.1);
   float lu1 = (s - 2.6) / 1.1;
   float lu2 = (s - 5.4) / 1.3;
   float lines = exp(-lu1 * lu1) + 0.7 * exp(-lu2 * lu2);
-  light += film * lines * uLook.z * (0.25 + 0.75 * facing);
 
   // 속 밝기: 위쪽이 살짝 더 밝아요
   light += vec3(uLook.w * (0.5 + 0.5 * dot(q / max(hb, vec2(1.0)), -uLight)));
@@ -369,6 +383,11 @@ void main() {
   float la = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
   prem = prem * (1.0 - la) + light;
   alpha = alpha + (1.0 - alpha) * la;
+
+  // 무지개 선은 더하지 않고 섞어서, 하얀 유리 위에서도 색이 보이게 해요
+  float fa2 = clamp(lines * uLook.z * (0.25 + 0.75 * facing), 0.0, 0.85) * uLift;
+  prem = prem * (1.0 - fa2) + film * fa2;
+  alpha = alpha + (1.0 - alpha) * fa2;
 
   // 테두리 가는 선
   float line = 1.0 - smoothstep(0.0, 1.0, abs(d + 0.55));
@@ -405,7 +424,6 @@ void main() {
         bezel: 13, // 굴절이 일어나는 가장자리 폭
         shift: 16, // 맨 가장자리에서 안쪽으로 가져오는 거리
         power: 2.2, // 안쪽으로 갈수록 줄어드는 정도
-        blur: 1.6, // 가장자리에서의 흐림
         chroma: 0.16, // 빨강·파랑이 갈라지는 정도 (세로)
         tangent: 0.1, // 빨강·파랑이 갈라지는 정도 (가로)
         asym: 0.5, // 빛 쪽 가장자리에서 굴절을 얼마나 줄일지
@@ -413,7 +431,7 @@ void main() {
         zoom: 1.2,
         ...options.optics,
       };
-      this.look = { specular: 0.2, rim: 0.08, film: 0.05, glow: 0.0, ...options.look };
+      this.look = { specular: 0.2, rim: 0.08, film: 0.22, glow: 0.0, ...options.look };
       // 막대 유리: 뒤 화면을 확대해서 보여주고 가장자리에서 휘어요
       this.glass = {
         bezel: 12, // 휘는 가장자리 폭
@@ -427,13 +445,17 @@ void main() {
         lineGain: 1.0, // 바깥 가는 선 진하기 배율
         barBlur: 0.1, // 막대 유리가 뒤 화면을 얼마나 흐리게 보여줄지 (0 = 또렷, 1 = 흐린 사진)
         pillBlur: 0.88, // 선택 알약은 훨씬 뿌옇게
+        // 렌즈가 떠 있는 동안 막대 전체가 들뜨는 정도 (excite 0 → 1)
+        film: 0.46, // 가장자리를 도는 무지개 선의 진하기
+        exciteChroma: 1.5, // 가장자리 색 번짐이 늘어나는 배율 (1 + 이 값 × excite)
+        exciteKeep: 0.3, // 뒤 화면 디테일이 더 또렷해지는 정도. 너무 크면 뒤 글자가 탭 글자와 겹쳐 읽기 어려워요
+        exciteWhiten: 0.35, // 하얗게 덮는 정도가 줄어드는 비율 → 뒤 화면 색이 더 비쳐서 투명해 보여요
         ...options.glass,
       };
 
       this.current = Math.max(0, this.tabs.findIndex((t) => t.hasAttribute("aria-current")));
       this.press = null;
       this.releasing = false;
-      this.arrivedAt = 0;
       this.lastPointerAt = -Infinity;
       this.geo = [];
       this.running = false;
@@ -446,6 +468,7 @@ void main() {
       this.lift = new Spring(0, SPRING.lift, 0.002);
       this.grab = new Spring(0, SPRING.press, 0.002);
       this.stretch = new Spring(0, SPRING.stretch, 0.002);
+      this.excite = new Spring(0, SPRING.excite, 0.002);
 
       this.buildIcons();
       this.bind();
@@ -541,10 +564,10 @@ void main() {
 
       this.u = {};
       for (const name of [
-        "uMask", "uBack", "uBlur", "uPx", "uDpr", "uSize", "uGlass", "uGlassMix", "uPageOff", "uPageSize", "uBarA", "uBarB", "uPress",
+        "uMask", "uBack", "uBlur", "uPx", "uDpr", "uSize", "uGlass", "uGlassMix", "uPageOff", "uPageSize", "uBarA", "uBarB", "uPress", "uExcite",
         "uGlassOpt", "uGlassLook", "uGlassBase", "uPlatLine", "uPlatRim", "uPlatShadow",
         "uLens", "uExp", "uLift", "uZoom", "uOptics", "uDisp", "uLook",
-        "uInk", "uAccent", "uBase", "uPill", "uTint", "uEdge", "uLight", "uShadow",
+        "uInk", "uAccent", "uPill", "uTint", "uEdge", "uLight", "uShadow",
       ]) {
         this.u[name] = gl.getUniformLocation(prog, name);
       }
@@ -617,7 +640,7 @@ void main() {
 
     // 알약이 떠 있거나 움직이는 동안은 무거운 일(화면 사진 찍기)을 미뤄요
     busy() {
-      return Boolean(this.press || this.releasing || this.lift.x > 0.02 || this.running);
+      return Boolean(this.press || this.releasing || this.lift.x > 0.02 || this.excite.x > 0.02 || this.running);
     }
 
     /* ----- 배치와 그리기 재료 ----- */
@@ -628,7 +651,6 @@ void main() {
       this.theme = {
         ink: get("--tab-ink"),
         accent: get("--tab-accent"),
-        base: get("--tab-base"),
         pill: get("--tab-pill"),
         tint: get("--tab-tint"),
         edge: get("--tab-edge"),
@@ -677,16 +699,19 @@ void main() {
         };
       });
 
-      // 탭마다 알약과 렌즈의 크기: 알약은 칸 크기 그대로, 렌즈는 훨씬 넓고 높이는 막대와 거의 같아요
+      // 탭마다 알약과 렌즈의 크기: 알약은 칸 크기 그대로(막대 안쪽 여백 4px), 렌즈는 조금 더 넓고 높이는 알약과 거의 같아요.
+      // 막대 끝에서는 렌즈가 막대 유리 밖으로 나가지 못해서 shape()가 폭을 줄여요.
       const barH = nr.height;
       this.sizes = this.geo.map((g) => {
         const round = g.w >= g.h - 1; // 검색 버튼처럼 가로세로가 같은 칸
+        // 칸이 좁을수록(작은 폰) 알약이 길쭉해져서 막대 끝의 둥근 모서리를 파고들어요. 그때는 더 둥글게(타원에 가깝게) 해요
+        const slim = clamp((g.w / g.h - 0.65) / 0.25, 0, 1);
         return {
-          pillHW: round ? g.w / 2 : g.w / 2 + 2,
+          pillHW: g.w / 2,
           pillHH: g.h / 2,
-          lensHW: round ? Math.min(g.w / 2 + 4, barH * 0.5) : barH * 0.72,
+          lensHW: round ? Math.min(g.w / 2 + 2, barH * 0.47) : Math.min(barH * 0.62, g.w * 0.8),
           lensHH: barH * 0.45,
-          pillExp: round ? 2 : 2.7,
+          pillExp: round ? 2 : lerp(2, 2.3, slim),
           lensExp: round ? 2 : 2.1,
         };
       });
@@ -711,6 +736,7 @@ void main() {
         this.lift.snap(0);
         this.grab.snap(0);
         this.stretch.snap(0);
+        this.excite.snap(0);
       } else {
         this.x.target = this.geo[this.press ? this.press.tabIndex : this.current].cx;
       }
@@ -850,7 +876,6 @@ void main() {
       this.grabGroup = tab.dataset.group || "main";
       this.nav.classList.add("is-pressed");
       this.releasing = false;
-      this.arrivedAt = 0;
       this.grab.target = 1;
       this.lift.target = this.reducedMotion.matches ? 0 : 1;
       this.x.use(SPRING.move);
@@ -868,12 +893,10 @@ void main() {
         this.x.use(SPRING.trail);
       }
       if (p.dragging) {
+        // 첫 탭과 마지막 칸 밖으로는 끌려가지 않아요 (렌즈가 막대 밖으로 나가지 않게)
         const lo = this.geo[0].cx;
         const hi = this.geo[this.geo.length - 1].cx;
-        const raw = this.geo[p.tabIndex].cx + dx;
-        const inside = clamp(raw, lo, hi);
-        // 끝을 넘어 끌면 고무줄처럼 조금만 따라와요
-        this.x.target = inside + clamp((raw - inside) * 0.22, -16, 16);
+        this.x.target = clamp(this.geo[p.tabIndex].cx + dx, lo, hi);
         this.requestRender();
       }
     }
@@ -901,7 +924,6 @@ void main() {
       this.x.use(SPRING.move);
       this.x.target = this.geo[index].cx;
       this.releasing = true;
-      this.arrivedAt = 0;
       if (commit && index === this.current && !p.dragging && p.wasCurrent) {
         this.nav.dispatchEvent(new CustomEvent("tabreselect", { detail: { tab: this.tabs[index] }, bubbles: true }));
       }
@@ -962,7 +984,6 @@ void main() {
       } else {
         this.lift.target = 1;
         this.releasing = true;
-        this.arrivedAt = 0;
       }
       this.select(index);
       this.requestRender();
@@ -995,31 +1016,26 @@ void main() {
       const dt = this.lastTime ? clamp((now - this.lastTime) / 1000, 0, 0.05) : 1 / 60;
       this.lastTime = now;
 
+      // 도착하기 조금 전부터 렌즈를 내려놓기 시작해요. 도착할 때까지 들고 있지 않아서 한 번에 매끄럽게 이어져요.
+      if (this.releasing && Math.abs(this.x.x - this.x.target) < LAND_PX) {
+        this.lift.target = 0;
+        this.releasing = false;
+      }
+      // 막대 전체의 프리즘은 렌즈를 따라 켜지고, 더 느긋하게 꺼져요
+      this.excite.target = this.lift.target;
+
       this.x.step(dt);
       this.lift.step(dt);
       this.grab.step(dt);
+      this.excite.step(dt);
 
-      // 빨리 움직일수록 가로로 길쭉해져요
-      this.stretch.target = clamp(Math.abs(this.x.v) / 650, 0, 1);
+      // 빨리 움직일수록 살짝 길쭉해져요
+      this.stretch.target = clamp(Math.abs(this.x.v) / 800, 0, 1);
       this.stretch.step(dt);
 
       // 막대 유리가 처음 나타날 때는 CSS 유리 판에서 서서히 넘어가요
       if (this.glassOn && this.glassMix < 1) {
         this.glassMix = this.reducedMotion.matches ? 1 : Math.min(1, this.glassMix + dt / GLASS_FADE);
-      }
-
-      // 도착하면 잠깐 들고 있다가 내려놓아요
-      if (this.releasing) {
-        const arrived = Math.abs(this.x.x - this.x.target) < 0.6 && Math.abs(this.x.v) < 25;
-        if (arrived) {
-          if (!this.arrivedAt) this.arrivedAt = now;
-          else if (now - this.arrivedAt > HANG_MS) {
-            this.lift.target = 0;
-            this.releasing = false;
-          }
-        } else {
-          this.arrivedAt = 0;
-        }
       }
 
       this.render();
@@ -1031,12 +1047,14 @@ void main() {
         this.lift.settled &&
         this.grab.settled &&
         this.stretch.settled &&
+        this.excite.settled &&
         (!this.glassOn || this.glassMix >= 1);
       if (idle) {
         this.x.snap(this.x.target);
         this.lift.snap(this.lift.target);
         this.grab.snap(this.grab.target);
         this.stretch.snap(0);
+        this.excite.snap(this.excite.target);
         this.render();
         this.running = false;
       } else {
@@ -1062,12 +1080,24 @@ void main() {
       const lensExp = lerp(a.lensExp, b.lensExp, t);
       const cy = lerp(g[i].cy, g[i + 1].cy, t);
 
-      const lift = clamp(this.lift.x, 0, 1.2);
-      const bulge = 1 + 0.05 * clamp(this.grab.x, 0, 1.2);
-      const s = clamp(this.stretch.x, 0, 1.3);
-      const hw = lerp(pillHW, lensHW, lift) * bulge * (1 + 0.16 * s);
-      const hh = lerp(pillHH, lensHH, lift) * bulge * (1 - 0.07 * s);
+      const lift = clamp(this.lift.x, 0, 1);
+      const bulge = 1 + 0.03 * clamp(this.grab.x, 0, 1);
+      const s = clamp(this.stretch.x, 0, 1);
+      let hw = lerp(pillHW, lensHW, lift) * bulge * (1 + 0.08 * s);
+      let hh = lerp(pillHH, lensHH, lift) * bulge * (1 - 0.04 * s);
+      // 렌즈는 막대 유리 안에 머물러요. 끝 탭에서는 좁아지고 가운데에서는 넓어지며, 알약보다 작아지지는 않아요.
+      hw = Math.min(hw, Math.max(pillHW, this.reach(x)));
+      hh = Math.min(hh, Math.max(pillHH, this.barA.hh - LENS_INSET));
       return { cx: x, cy: cy - 0.5 * lift, hw, hh, exp: lerp(pillExp, lensExp, lift), lift };
+    }
+
+    // 렌즈 중심이 x일 때 막대 유리 가장자리까지 쓸 수 있는 반폭이에요 (두 막대 유리 중 더 넉넉한 쪽)
+    reach(x) {
+      let room = -Infinity;
+      for (const bar of [this.barA, this.barB]) {
+        room = Math.max(room, Math.min(x - (bar.cx - bar.hw), bar.cx + bar.hw - x));
+      }
+      return room - LENS_INSET;
     }
 
     render() {
@@ -1101,23 +1131,29 @@ void main() {
       gl.activeTexture(gl.TEXTURE0);
       gl.uniform1f(u.uGlass, glassOn ? 1 : 0);
       gl.uniform1f(u.uGlassMix, this.glassMix);
+      // 막대 유리 모양은 렌즈 그림자를 막대 안으로 가두는 데도 쓰이니 항상 알려줘요
+      const A = this.barA;
+      const B = this.barB;
+      gl.uniform4f(u.uBarA, A.cx, A.cy, A.hw, A.hh);
+      gl.uniform4f(u.uBarB, B.cx, B.cy, B.hw, B.hh);
+      const excite = clamp(this.excite.x, 0, 1);
+      gl.uniform1f(u.uExcite, excite);
       if (glassOn) {
         const scroll = this.backdrop.activeEl ? this.backdrop.activeEl.scrollTop : 0;
         gl.uniform2f(u.uPageOff, this.appOff.x - PAD_X, this.appOff.y - PAD_TOP + scroll);
         gl.uniform2f(u.uPageSize, entry.cssW, entry.cssH);
-        const A = this.barA;
-        const B = this.barB;
-        gl.uniform4f(u.uBarA, A.cx, A.cy, A.hw, A.hh);
-        gl.uniform4f(u.uBarB, B.cx, B.cy, B.hw, B.hh);
-        const grab = clamp(this.grab.x, 0, 1.2);
+        const grab = clamp(this.grab.x, 0, 1);
         gl.uniform2f(u.uPress, this.grabGroup === "main" ? grab : 0, this.grabGroup === "search" ? grab : 0);
         const gg = this.glass;
         gl.uniform4f(u.uGlassOpt, gg.bezel, gg.shift, gg.power, gg.zoom);
-        gl.uniform4f(u.uGlassLook, gg.keep ?? th.glassKeep, gg.whiten ?? th.glassDesat, gg.barBlur, gg.pillBlur);
+        // 렌즈가 떠 있는 동안에는 하얗게 덮는 정도를 줄이고 디테일을 더 남겨서 막대 전체가 더 투명해져요
+        const keep = (gg.keep ?? th.glassKeep) * (1 + gg.exciteKeep * excite);
+        const whiten = (gg.whiten ?? th.glassDesat) * (1 - gg.exciteWhiten * excite);
+        gl.uniform4f(u.uGlassLook, keep, whiten, gg.barBlur * (1 - excite), gg.pillBlur);
         gl.uniform3f(u.uGlassBase, th.glassBase[0], th.glassBase[1], th.glassBase[2]);
         gl.uniform4f(u.uPlatLine, th.line[0], th.line[1], th.line[2], clamp(th.line[3] * gg.lineGain, 0, 1));
         const rimK = gg.rim ?? th.rim;
-        gl.uniform4f(u.uPlatRim, rimK, rimK * 0.28, gg.chroma, 0);
+        gl.uniform4f(u.uPlatRim, rimK, rimK * 0.28, gg.chroma * (1 + gg.exciteChroma * excite), gg.film);
         gl.uniform3f(u.uPlatShadow, th.platShadow, 8, 11);
       }
       gl.uniform2f(u.uPx, this.canvas.width, this.canvas.height);
@@ -1127,12 +1163,11 @@ void main() {
       gl.uniform1f(u.uExp, sh.exp);
       gl.uniform1f(u.uLift, lift);
       gl.uniform1f(u.uZoom, 1 + (o.zoom - 1) * lift);
-      gl.uniform4f(u.uOptics, o.bezel, o.shift, o.power, o.blur);
+      gl.uniform3f(u.uOptics, o.bezel, o.shift, o.power);
       gl.uniform4f(u.uDisp, o.chroma, o.tangent, o.asym, o.sideShift);
       gl.uniform4f(u.uLook, this.look.specular, this.look.rim, this.look.film, this.look.glow);
       gl.uniform3f(u.uInk, th.ink[0], th.ink[1], th.ink[2]);
       gl.uniform3f(u.uAccent, th.accent[0], th.accent[1], th.accent[2]);
-      gl.uniform3f(u.uBase, th.base[0], th.base[1], th.base[2]);
       gl.uniform4f(u.uPill, th.pill[0], th.pill[1], th.pill[2], th.pill[3]);
       gl.uniform4f(u.uTint, th.tint[0], th.tint[1], th.tint[2], th.tint[3]);
       gl.uniform4f(u.uEdge, th.edge[0], th.edge[1], th.edge[2], th.edge[3]);

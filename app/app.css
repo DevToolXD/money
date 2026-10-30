@@ -162,7 +162,6 @@ body {
   /* 색은 캔버스가 읽어 가요. 밝은 테마 기준이에요 */
   --tab-ink: #000000;
   --tab-accent: var(--blue500);
-  --tab-base: #fdfdfe;
   --tab-pill: rgba(0, 0, 0, 0.075);
   --tab-tint: rgba(255, 255, 255, 0.3);
   --tab-edge: rgba(80, 64, 66, 0.28);
@@ -192,7 +191,6 @@ body {
 
 html[data-theme="dark"] .tabbar {
   --tab-ink: #ffffff;
-  --tab-base: #1d1d22;
   --tab-pill: rgba(255, 255, 255, 0.15);
   --tab-tint: rgba(255, 255, 255, 0.05);
   --tab-edge: rgba(255, 255, 255, 0.3);
@@ -220,7 +218,7 @@ html[data-theme="dark"] .tabbar {
     inset 0 1px 0 rgba(255, 255, 255, 0.55),
     inset 0 0 0 0.5px var(--tab-platter-ring),
     0 8px 28px rgba(0, 0, 0, 0.14);
-  transition: scale 0.32s cubic-bezier(0.3, 1.25, 0.5, 1);
+  transition: scale 0.24s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 html[data-theme="dark"] .platter {
   box-shadow:
@@ -241,7 +239,7 @@ html[data-theme="dark"] .platter {
 
 /* CSS 판일 때는 눌린 쪽 판만 살짝 부풀어요 */
 .tabbar.is-pressed[data-press="main"] .platter-main,
-.tabbar.is-pressed[data-press="search"] .platter-search { scale: 1.035; }
+.tabbar.is-pressed[data-press="search"] .platter-search { scale: 1.02; }
 
 .tabbar-canvas {
   position: absolute;
@@ -298,7 +296,7 @@ html[data-theme="dark"] .platter {
   border-radius: 999px;
   background: var(--tab-pill);
   pointer-events: none;
-  transition: transform 0.38s cubic-bezier(0.3, 1.2, 0.5, 1), width 0.38s cubic-bezier(0.3, 1.2, 0.5, 1);
+  transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1), width 0.28s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 .tabbar.is-gl .pill { display: none; }
 
