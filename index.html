@@ -16,17 +16,17 @@
 
   <div class="topbar" id="topbar">
     <span class="topbar-title" id="topbar-title">메시지</span>
-    <div class="nav-set" data-for="messages"><button class="glass-btn" id="edit-chats" type="button">편집</button><button class="glass-btn" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></div>
+    <div class="nav-set" data-for="messages"><button class="glass-btn" id="edit-chats" type="button">편집</button><div class="nav-right"><button class="glass-btn round" id="filter-unread" type="button" aria-pressed="false" aria-label="읽지 않은 대화만 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg></button><button class="glass-btn round" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></div></div>
     <div class="nav-set" data-for="account"><span></span><button class="glass-btn js-edit-profile" type="button">편집</button></div>
   </div>
 
   <main class="screens">
-    <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-labelledby="title-messages">
-      <header class="large-title"><h1 id="title-messages">메시지</h1></header>
+    <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-label="메시지">
+      <div class="pinned" id="pinned"></div>
       <label class="searchfield"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="5"/><path d="M10.6 10.6L14 14"/></svg><input id="chat-search" type="search" placeholder="검색" aria-label="대화 검색"></label>
-      <div class="pills" style="margin-bottom:16px"><button class="pill-chip" data-filter="all" aria-pressed="true">전체</button><button class="pill-chip" data-filter="unread" aria-pressed="false">읽지 않음</button></div>
-      <div class="card"><ul class="rows" id="chat-list"></ul><p class="empty" id="chat-empty" hidden>결과가 없어요</p></div>
+      <ul class="chat-list" id="chat-list"></ul><p class="empty" id="chat-empty" hidden>결과가 없어요</p>
     </section>
+
     <section class="screen" id="screen-money" data-screen="money" data-title="돈" aria-labelledby="title-money">
       <header class="large-title"><h1 id="title-money">돈</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
       <div class="card dark pad"><p class="eyebrow">총 자산</p><h2 class="card-title">지금 가진 돈</h2><p class="big-amount">1,250,000원</p><p class="card-body">이번 달 쓸 수 있는 돈이 얼마나 남았는지 한눈에 보여요.</p>
@@ -72,9 +72,14 @@
   </main>
 
   <section class="thread" id="thread" aria-label="대화">
-    <header class="thread-head"><button class="glass-btn" id="thread-back" type="button" aria-label="뒤로" style="height:44px;min-width:44px;padding:0 16px"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:20px"><path d="M10 2L2 10l8 8"/></svg></button><span class="who" id="thread-who"></span></header>
+    <header class="thread-head">
+      <button class="t-glass" id="thread-back" type="button" aria-label="뒤로"><svg viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2L3 11l8 9"/></svg><span class="badge" id="thread-badge">0</span></button>
+      <div class="t-center"><span class="avatar contact" id="thread-avatar"></span><span class="t-glass t-name"><span id="thread-name"></span><svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></span></div>
+      <span class="t-glass round" aria-hidden="true"><svg viewBox="0 0 30 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="2" y="3" width="18" height="16" rx="4"/><path d="M22 9l6-4v12l-6-4z" fill="currentColor"/></svg></span>
+    </header>
     <div class="bubbles" id="bubbles"></div>
-    <form class="composer" id="composer"><input id="composer-input" type="text" placeholder="메시지 입력" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" disabled aria-label="보내기"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14V2M3 7l5-5 5 5"/></svg></button></form>
+    <form class="composer" id="composer"><span class="plus" aria-hidden="true"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M13 3v20M3 13h20"/></svg></span>
+      <label class="field-glass"><input id="composer-input" type="text" placeholder="메시지" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" id="send-icon"><path d="M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2"/></svg></button></label></form>
   </section>
 
   <div class="dim" id="dim"></div>

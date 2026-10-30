@@ -48,6 +48,13 @@
     if (!el || !el.classList.contains("is-active")) return;
     const y = el.scrollTop;
     const h1 = el.querySelector(".large-title h1");
+    if (!h1) {
+      // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요
+      topbar.style.setProperty("--p", clamp(y / 16, 0, 1));
+      topTitle.style.opacity = 1;
+      topTitle.style.transform = "none";
+      return;
+    }
     topbar.style.setProperty("--p", clamp((y - 28) / 20, 0, 1));
     const t = clamp((y - 34) / 14, 0, 1);
     topTitle.style.opacity = t;
@@ -67,50 +74,74 @@
 
   /* ---------- 메시지 ---------- */
   const chats = [
-    { id: "minji", name: "민지", color: "#ff9500", last: "내일 점심 뭐 먹을까?", time: "오후 2:14", unread: true, msgs: [["them", "오늘 뭐 해?"], ["me", "집에서 쉬고 있어"], ["them", "내일 점심 뭐 먹을까?"]], reply: "좋아! 그럼 그때 봐" },
-    { id: "mom", name: "엄마", color: "#ff375f", last: "밥은 먹었니?", time: "오전 11:02", unread: true, msgs: [["them", "밥은 먹었니?"]], reply: "그래, 조심히 다녀" },
-    { id: "apple", name: "Apple 지원", color: "#0a84ff", last: "주문하신 제품이 출고 준비 중이에요", time: "어제", unread: false, msgs: [["them", "주문하신 제품이 출고 준비 중이에요"]], reply: "문의해 주셔서 감사해요" },
-    { id: "junho", name: "준호", color: "#30d158", last: "ㅋㅋㅋ 그거 봤어?", time: "어제", unread: false, msgs: [["them", "ㅋㅋㅋ 그거 봤어?"], ["me", "아직 못 봤어"]], reply: "꼭 봐봐" },
-    { id: "team", name: "회사 동료들", color: "#5e5ce6", last: "회의 시간 3시로 바뀌었어요", time: "월요일", unread: false, msgs: [["them", "회의 시간 3시로 바뀌었어요"]], reply: "확인했어요" },
+    { id: "minji", name: "민지", last: "내일 점심 뭐 먹을까?", time: "오후 2:14", unread: true, pin: true, msgs: [["them", "오늘 뭐 해?"], ["me", "집에서 쉬고 있어"], ["them", "내일 점심 뭐 먹을까?"]], reply: "좋아! 그럼 그때 봐" },
+    { id: "mom", name: "엄마", last: "밥은 먹었니?", time: "오전 11:02", unread: true, pin: true, msgs: [["them", "밥은 먹었니?"]], reply: "그래, 조심히 다녀" },
+    { id: "junho", name: "준호", last: "ㅋㅋㅋ 그거 봤어?", time: "어제", unread: false, pin: true, msgs: [["them", "ㅋㅋㅋ 그거 봤어?"], ["me", "아직 못 봤어"]], reply: "꼭 봐봐" },
+    { id: "team", name: "회사 동료들", group: true, last: "회의 시간 3시로 바뀌었어요", time: "어제", unread: false, msgs: [["them", "회의 시간 3시로 바뀌었어요", "수진"], ["them", "확인 부탁드려요", "도현"], ["me", "네 확인했어요"]], reply: "감사합니다", replyBy: "수진" },
+    { id: "jiyun", name: "이지윤", last: "응", time: "화요일", unread: false, msgs: [["them", "응"]], reply: "ㅇㅋ" },
+    { id: "taeho", name: "박태호", last: "?", time: "월요일", unread: false, msgs: [["them", "?"]], reply: "ㅋㅋ" },
+    { id: "delivery", name: "택배 안내", last: "(광고) 배송이 시작되었어요. 오늘 중으로 도착할 예정이에요", time: "월요일", unread: false, msgs: [["them", "(광고) 배송이 시작되었어요. 오늘 중으로 도착할 예정이에요"]], reply: "문의는 고객센터로 부탁드려요" },
   ];
+  const initials = (n) => (n === "회사 동료들" ? "회사" : n.length >= 3 ? n.slice(-2) : n);
   const list = document.getElementById("chat-list");
+  const pinnedEl = document.getElementById("pinned");
   const emptyMsg = document.getElementById("chat-empty");
+  const searchEl = document.getElementById("chat-search");
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  let filter = "all";
-  const renderChats = (q = document.getElementById("chat-search").value.trim()) => {
-    const shown = chats.filter((c) => (c.name.includes(q) || c.last.includes(q)) && (filter === "all" || c.unread));
+  const chev = '<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
+  let onlyUnread = false;
+  const renderChats = () => {
+    const q = searchEl.value.trim();
+    const match = (c) => (c.name.includes(q) || c.last.includes(q)) && (!onlyUnread || c.unread);
+    const pins = q || onlyUnread ? [] : chats.filter((c) => c.pin);
+    pinnedEl.hidden = !pins.length;
+    pinnedEl.innerHTML = pins
+      .map((c) => `<button class="pin${c.unread ? " is-unread" : ""}" type="button" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span>${esc(c.name)}</button>`)
+      .join("");
+    const shown = chats.filter((c) => !pins.includes(c) && match(c));
     list.innerHTML = shown
       .map(
-        (c) => `<li><div class="row chat-row" role="button" tabindex="0" data-id="${c.id}"><span class="avatar" style="background:${c.color}">${esc(c.name[0])}</span><span class="row-main"><b>${esc(c.name)}</b><span>${esc(c.last)}</span></span><span class="chat-side"><span class="meta">${c.time}</span>${c.unread ? '<i class="dot"></i>' : ""}</span><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
+        (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span><div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
-    emptyMsg.hidden = shown.length > 0;
+    emptyMsg.hidden = shown.length > 0 || pins.length > 0;
   };
   renderChats();
-  document.getElementById("chat-search").addEventListener("input", (e) => renderChats(e.target.value.trim()));
+  searchEl.addEventListener("input", renderChats);
 
   const thread = document.getElementById("thread");
   const bubbles = document.getElementById("bubbles");
   const input = document.getElementById("composer-input");
   const sendBtn = document.getElementById("send");
   let openChat = null;
-  const addBubble = (who, text) => {
-    const b = document.createElement("div");
-    b.className = "bubble" + (who === "me" ? " me" : "");
-    b.textContent = text;
-    bubbles.appendChild(b);
+  const addLine = (who, text, by, last = true) => {
+    const line = document.createElement("div");
+    line.className = "line" + (who === "me" ? " me" : "");
+    const b = `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}">${esc(text)}</div>`;
+    line.innerHTML = who === "me" ? b : `${last ? `<span class="avatar contact">${esc(initials(by || openChat.name))}</span>` : '<span style="width:38px"></span>'}${b}`;
+    if (who !== "me" && openChat.group && last) {
+      const s = document.createElement("div");
+      s.className = "sender";
+      s.textContent = by;
+      bubbles.appendChild(s);
+    }
+    bubbles.appendChild(line);
     bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: reduceMotion.matches ? "auto" : "smooth" });
   };
   const open = (id) => {
     openChat = chats.find((c) => c.id === id);
     if (!openChat) return;
     openChat.unread = false;
-    document.getElementById("thread-who").innerHTML = `<span class="avatar" style="background:${openChat.color}">${esc(openChat.name[0])}</span>${esc(openChat.name)}`;
-    bubbles.innerHTML = "";
-    openChat.msgs.forEach(([w, t]) => addBubble(w, t));
+    document.getElementById("thread-name").textContent = openChat.name;
+    const av = document.getElementById("thread-avatar");
+    av.textContent = initials(openChat.name);
+    document.getElementById("thread-badge").textContent = chats.filter((c) => c.unread).length;
+    bubbles.innerHTML = `<div class="stamp">오늘 ${openChat.time.includes(":") ? openChat.time : "오후 2:14"}</div>`;
+    openChat.msgs.forEach(([w, t, by], i, a) => addLine(w, t, by, !a[i + 1] || a[i + 1][0] !== w || a[i + 1][2] !== by));
+    if (openChat.msgs[openChat.msgs.length - 1][0] === "me") bubbles.insertAdjacentHTML("beforeend", '<div class="read">전송됨</div>');
     app.classList.add("in-thread");
     thread.classList.add("is-open");
-    renderChats(document.getElementById("chat-search").value.trim());
+    renderChats();
   };
   const close = () => {
     thread.classList.remove("is-open");
@@ -118,6 +149,14 @@
     input.blur();
     tabbar.requestRender();
   };
+  const sendIcon = document.getElementById("send-icon");
+  const WAVE = "M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2";
+  const ARROW = "M12 19V5M5 12l7-7 7 7";
+  input.addEventListener("input", () => {
+    const ready = Boolean(input.value.trim());
+    sendBtn.classList.toggle("ready", ready);
+    sendIcon.firstElementChild.setAttribute("d", ready ? ARROW : WAVE);
+  });
   list.addEventListener("click", (e) => {
     const del = e.target.closest("[data-del]");
     if (del) {
@@ -128,38 +167,44 @@
     const row = e.target.closest(".chat-row");
     if (row && !list.classList.contains("editing")) open(row.dataset.id);
   });
-  document.querySelectorAll("[data-filter]").forEach((b) =>
-    b.addEventListener("click", () => {
-      filter = b.dataset.filter;
-      document.querySelectorAll("[data-filter]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
-      renderChats();
-    })
-  );
+  pinnedEl.addEventListener("click", (e) => {
+    const pin = e.target.closest(".pin");
+    if (pin) open(pin.dataset.id);
+  });
   const editChats = document.getElementById("edit-chats");
   editChats.addEventListener("click", () => {
     const on = list.classList.toggle("editing");
     editChats.textContent = on ? "완료" : "편집";
   });
+  const filterBtn = document.getElementById("filter-unread");
+  filterBtn.addEventListener("click", () => {
+    onlyUnread = !onlyUnread;
+    filterBtn.setAttribute("aria-pressed", String(onlyUnread));
+    renderChats();
+  });
   document.getElementById("compose").addEventListener("click", () => open("minji"));
   document.getElementById("thread-back").addEventListener("click", close);
-  input.addEventListener("input", () => (sendBtn.disabled = !input.value.trim()));
   document.getElementById("composer").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text || !openChat) return;
     const chat = openChat;
     input.value = "";
-    sendBtn.disabled = true;
+    input.dispatchEvent(new Event("input"));
     chat.msgs.push(["me", text]);
     chat.last = text;
     chat.time = "방금";
-    addBubble("me", text);
+    bubbles.querySelector(".read")?.remove();
+    addLine("me", text);
+    bubbles.insertAdjacentHTML("beforeend", '<div class="read">전송됨</div>');
     setTimeout(() => {
-      chat.msgs.push(["them", chat.reply]);
+      chat.msgs.push(["them", chat.reply, chat.replyBy]);
       chat.last = chat.reply;
-      if (openChat === chat) addBubble("them", chat.reply);
-      else chat.unread = true;
-      renderChats(document.getElementById("chat-search").value.trim());
+      if (openChat === chat) {
+        bubbles.querySelector(".read")?.remove();
+        addLine("them", chat.reply, chat.replyBy);
+      } else chat.unread = true;
+      renderChats();
     }, 900);
   });
 
@@ -258,4 +303,5 @@
     // 나머지 화면도 미리 찍어 둬요 (탭을 옮길 때 바로 유리가 나오도록)
     for (const name of screens.keys()) if (name !== firstScreen) backdrop.ensure(name);
   }
+  updateChrome(screens.get(firstScreen));
 })();
