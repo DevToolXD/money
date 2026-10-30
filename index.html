@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내 돈 홈</title>
+<link rel="stylesheet" href="design-system/tokens.css">
+<link rel="stylesheet" href="design-system/components/bundle.css">
+<style>
+  body { margin: 0; background: var(--pcScreenBg); color: var(--grey900); font-family: var(--font-sans); }
+  .screen { box-sizing: border-box; max-width: 430px; min-height: 100vh; margin: 0 auto; padding-bottom: 140px; background: var(--background); }
+  .home-amount { margin: 0; color: var(--grey900); }
+  .home-delta { margin: 4px 0 0; color: var(--red500); }
+  .home-section-title { margin: 0; padding: 24px var(--gutter) 8px; color: var(--grey900); }
+  .screen .ts-cta { left: 50%; right: auto; width: 100%; max-width: 430px; transform: translateX(-50%); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React 18 UMD (production build) from cdnjs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="design-system/components/bundle.js"></script>
+<script>
+  var T = window.TossStyle;
+  var h = React.createElement;
+  var A = T.Avatar;
+
+  var accounts = [
+    { initial: '생', title: '생활비 통장', description: '매달 쓰는 돈', balance: '350,000원' },
+    { initial: '비', title: '비상금 통장', description: '급할 때만 꺼내 써요', balance: '500,000원' },
+    { initial: '월', title: '월급 통장', description: '월급이 들어오는 계좌', balance: '400,000원' }
+  ];
+
+  function Home() {
+    var toast = React.useState(false);
+
+    return h('div', { className: 'screen' },
+      h(T.Top, {
+        title: '이번 달 쓸 수 있는 돈은 얼마일까요?',
+        subtitle: '계좌 세 개를 합쳐서 계산했어요',
+        lower: h('div', null,
+          h('p', { className: 'ts-type-amount-hero home-amount' }, '1,250,000원'),
+          h('p', { className: 'ts-type-description home-delta' }, '지난달보다 +12,300원 (+2.4%)')
+        )
+      }),
+      h(T.Border, { variant: 'height16' }),
+      h('h2', { className: 'ts-type-list-title home-section-title' }, '계좌'),
+      h('ul', { className: 'ts-list' },
+        accounts.map(function (account, index) {
+          return h(T.ListRow, {
+            key: account.title,
+            left: h(A, null, account.initial),
+            title: account.title,
+            description: account.description,
+            right: account.balance,
+            divider: index < accounts.length - 1
+          });
+        })
+      ),
+      h(T.BottomCTA, null,
+        h(T.Button, { display: 'block', onClick: function () { toast[1](true); } }, '송금하기')
+      ),
+      h(T.Toast, {
+        open: toast[0],
+        text: '송금 화면은 아직 준비 중이에요',
+        onClose: function () { toast[1](false); }
+      })
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Home));
+</script>
+</body>
+</html>
