@@ -113,32 +113,41 @@
   const bubbles = document.getElementById("bubbles");
   const input = document.getElementById("composer-input");
   const sendBtn = document.getElementById("send");
+  const sendIcon = document.getElementById("send-icon");
   let openChat = null;
-  const addLine = (who, text, by, last = true) => {
-    const line = document.createElement("div");
-    line.className = "line" + (who === "me" ? " me" : "");
-    const b = `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}">${esc(text)}</div>`;
-    line.innerHTML = who === "me" ? b : `${last ? `<span class="avatar contact">${esc(initials(by || openChat.name))}</span>` : '<span style="width:38px"></span>'}${b}`;
-    if (who !== "me" && openChat.group && last) {
-      const s = document.createElement("div");
-      s.className = "sender";
-      s.textContent = by;
-      bubbles.appendChild(s);
-    }
-    bubbles.appendChild(line);
-    bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: reduceMotion.matches ? "auto" : "smooth" });
+
+  // 대화 화면: 메시지 목록을 다시 그려요 (fresh는 방금 생긴 말풍선 번호)
+  const renderThread = (fresh = -1) => {
+    const msgs = openChat.msgs;
+    let html = `<div class="stamp">오늘 ${openChat.time.includes(":") ? openChat.time : "오후 2:14"}</div>`;
+    msgs.forEach(([who, text, by], i) => {
+      const next = msgs[i + 1];
+      const last = !next || next[0] !== who || next[2] !== by;
+      const b = `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(text)}</div>`;
+      if (who === "me") html += `<div class="line me">${b}</div>`;
+      else {
+        if (openChat.group && last) html += `<div class="sender">${esc(by || "")}</div>`;
+        html += `<div class="line">${last ? `<span class="avatar contact">${esc(initials(by || openChat.name))}</span>` : '<span style="width:38px"></span>'}${b}</div>`;
+      }
+    });
+    if (msgs.length && msgs[msgs.length - 1][0] === "me") html += '<div class="read">전송됨</div>';
+    bubbles.innerHTML = html;
+    bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: fresh >= 0 && !reduceMotion.matches ? "smooth" : "auto" });
+  };
+  const applyWall = () => {
+    const wall = store.get("wall-" + openChat.id, "white");
+    thread.dataset.wall = wall;
+    document.querySelectorAll("[data-pick]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.pick === wall)));
   };
   const open = (id) => {
     openChat = chats.find((c) => c.id === id);
     if (!openChat) return;
     openChat.unread = false;
     document.getElementById("thread-name").textContent = openChat.name;
-    const av = document.getElementById("thread-avatar");
-    av.textContent = initials(openChat.name);
+    document.getElementById("thread-avatar").textContent = initials(openChat.name);
     document.getElementById("thread-badge").textContent = chats.filter((c) => c.unread).length;
-    bubbles.innerHTML = `<div class="stamp">오늘 ${openChat.time.includes(":") ? openChat.time : "오후 2:14"}</div>`;
-    openChat.msgs.forEach(([w, t, by], i, a) => addLine(w, t, by, !a[i + 1] || a[i + 1][0] !== w || a[i + 1][2] !== by));
-    if (openChat.msgs[openChat.msgs.length - 1][0] === "me") bubbles.insertAdjacentHTML("beforeend", '<div class="read">전송됨</div>');
+    applyWall();
+    renderThread();
     app.classList.add("in-thread");
     thread.classList.add("is-open");
     renderChats();
@@ -149,7 +158,6 @@
     input.blur();
     tabbar.requestRender();
   };
-  const sendIcon = document.getElementById("send-icon");
   const WAVE = "M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2";
   const ARROW = "M12 19V5M5 12l7-7 7 7";
   input.addEventListener("input", () => {
@@ -157,6 +165,94 @@
     sendBtn.classList.toggle("ready", ready);
     sendIcon.firstElementChild.setAttribute("d", ready ? ARROW : WAVE);
   });
+
+  /* 꾹 눌러서 나오는 메뉴 */
+  const ctxBack = document.getElementById("ctx-back");
+  const ctxMenu = document.getElementById("ctx-menu");
+  const hideMenu = () => ctxBack.classList.remove("is-open");
+  const showMenu = (x, y, items) => {
+    ctxMenu.innerHTML = items.map((it, i) => `<button type="button" role="menuitem" data-k="${i}"${it.danger ? ' class="danger"' : ""}>${esc(it.label)}</button>`).join("");
+    ctxBack.classList.add("is-open");
+    const r = app.getBoundingClientRect();
+    const w = 220;
+    const h = items.length * 48 + 12;
+    const left = clamp(x - r.left - w / 2, 12, r.width - w - 12);
+    const top = clamp(y - r.top + 8, 12, r.height - h - 12);
+    ctxMenu.style.left = left + "px";
+    ctxMenu.style.top = top + "px";
+    ctxMenu.style.setProperty("--ox", x - r.left - left + "px");
+    ctxMenu.onclick = (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      hideMenu();
+      items[Number(btn.dataset.k)].run();
+    };
+  };
+  ctxBack.addEventListener("pointerdown", (e) => {
+    if (e.target === ctxBack) hideMenu();
+  });
+  let swallow = false;
+  document.addEventListener("pointerdown", () => (swallow = false), true);
+  document.addEventListener("click", (e) => {
+    if (!swallow) return;
+    swallow = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+  const longPress = (root, pick, items) => {
+    const fire = (el, x, y) => {
+      swallow = true;
+      navigator.vibrate?.(12);
+      showMenu(x, y, items(el));
+    };
+    root.addEventListener("pointerdown", (e) => {
+      const el = pick(e.target);
+      if (!el || (e.pointerType === "mouse" && e.button !== 0)) return;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const timer = setTimeout(() => fire(el, sx, sy), 450);
+      const cancel = (ev) => {
+        if (ev.type === "pointermove" && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 10) return;
+        clearTimeout(timer);
+        for (const t of ["pointermove", "pointerup", "pointercancel"]) root.removeEventListener(t, cancel);
+      };
+      for (const t of ["pointermove", "pointerup", "pointercancel"]) root.addEventListener(t, cancel);
+    });
+    root.addEventListener("contextmenu", (e) => {
+      const el = pick(e.target);
+      if (!el) return;
+      e.preventDefault();
+      fire(el, e.clientX, e.clientY);
+    });
+  };
+  const chatItems = (el) => {
+    const c = chats.find((x) => x.id === el.dataset.id);
+    return [
+      { label: c.pin ? "고정 해제" : "고정", run: () => ((c.pin = !c.pin), renderChats()) },
+      { label: c.unread ? "읽음으로 표시" : "읽지 않음으로 표시", run: () => ((c.unread = !c.unread), renderChats()) },
+      { label: "삭제", danger: true, run: () => (chats.splice(chats.indexOf(c), 1), renderChats()) },
+    ];
+  };
+  longPress(list, (t) => t.closest(".chat-row"), chatItems);
+  longPress(pinnedEl, (t) => t.closest(".pin"), chatItems);
+  longPress(bubbles, (t) => t.closest(".bubble"), (el) => {
+    const i = Number(el.dataset.i);
+    return [
+      { label: "복사", run: () => navigator.clipboard?.writeText(openChat.msgs[i][1]).catch(() => {}) },
+      { label: "삭제", danger: true, run: () => (openChat.msgs.splice(i, 1), (openChat.last = openChat.msgs.length ? openChat.msgs[openChat.msgs.length - 1][1] : ""), renderThread(), renderChats()) },
+    ];
+  });
+
+  /* 배경화면 */
+  document.getElementById("thread-name-btn").addEventListener("click", () => sheetOpen(true, document.getElementById("wall-sheet")));
+  document.querySelectorAll("[data-pick]").forEach((b) =>
+    b.addEventListener("click", () => {
+      store.set("wall-" + openChat.id, b.dataset.pick);
+      applyWall();
+    })
+  );
+  document.getElementById("wall-done").addEventListener("click", () => sheetOpen(false));
+
   list.addEventListener("click", (e) => {
     const del = e.target.closest("[data-del]");
     if (del) {
@@ -194,16 +290,12 @@
     chat.msgs.push(["me", text]);
     chat.last = text;
     chat.time = "방금";
-    bubbles.querySelector(".read")?.remove();
-    addLine("me", text);
-    bubbles.insertAdjacentHTML("beforeend", '<div class="read">전송됨</div>');
+    renderThread(chat.msgs.length - 1);
     setTimeout(() => {
       chat.msgs.push(["them", chat.reply, chat.replyBy]);
       chat.last = chat.reply;
-      if (openChat === chat) {
-        bubbles.querySelector(".read")?.remove();
-        addLine("them", chat.reply, chat.replyBy);
-      } else chat.unread = true;
+      if (openChat === chat) renderThread(chat.msgs.length - 1);
+      else chat.unread = true;
       renderChats();
     }, 900);
   });
@@ -227,8 +319,9 @@
   const dim = document.getElementById("dim");
   const editName = document.getElementById("edit-name");
   const editBio = document.getElementById("edit-bio");
-  const sheetOpen = (on) => {
-    sheet.classList.toggle("is-open", on);
+  const sheetOpen = (on, el = sheet) => {
+    if (on) el.classList.add("is-open");
+    else document.querySelectorAll(".sheet").forEach((s) => s.classList.remove("is-open"));
     dim.classList.toggle("is-open", on);
     app.classList.toggle("sheet-open", on);
   };

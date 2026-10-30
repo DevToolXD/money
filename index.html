@@ -71,10 +71,10 @@
     </section>
   </main>
 
-  <section class="thread" id="thread" aria-label="대화">
+  <section class="thread" id="thread" data-wall="white" aria-label="대화">
     <header class="thread-head">
       <button class="t-glass" id="thread-back" type="button" aria-label="뒤로"><svg viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2L3 11l8 9"/></svg><span class="badge" id="thread-badge">0</span></button>
-      <div class="t-center"><span class="avatar contact" id="thread-avatar"></span><span class="t-glass t-name"><span id="thread-name"></span><svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></span></div>
+      <div class="t-center"><span class="avatar contact" id="thread-avatar"></span><button class="t-glass t-name" id="thread-name-btn" type="button" aria-label="배경화면 바꾸기"><span id="thread-name"></span><svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></button></div>
       <span class="t-glass round" aria-hidden="true"><svg viewBox="0 0 30 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="2" y="3" width="18" height="16" rx="4"/><path d="M22 9l6-4v12l-6-4z" fill="currentColor"/></svg></span>
     </header>
     <div class="bubbles" id="bubbles"></div>
@@ -89,6 +89,14 @@
     <label class="field">이름<input id="edit-name" type="text" maxlength="30"></label>
     <label class="field">소개<textarea id="edit-bio" rows="3" maxlength="120"></textarea></label>
   </section>
+
+  <section class="sheet" id="wall-sheet" aria-label="배경화면">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span></span><h2>배경화면</h2><button class="link" id="wall-done" type="button" style="font-weight:700">완료</button></div>
+    <div class="walls"><button class="wall-opt" type="button" data-pick="white" aria-pressed="false"><i data-wall="white"></i>흰색</button><button class="wall-opt" type="button" data-pick="sunset" aria-pressed="false"><i data-wall="sunset"></i>노을</button><button class="wall-opt" type="button" data-pick="aurora" aria-pressed="false"><i data-wall="aurora"></i>오로라</button><button class="wall-opt" type="button" data-pick="night" aria-pressed="false"><i data-wall="night"></i>밤하늘</button><button class="wall-opt" type="button" data-pick="mint" aria-pressed="false"><i data-wall="mint"></i>민트</button></div>
+  </section>
+
+  <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div></div>
 
   <div class="dock">
     <nav class="tabbar" aria-label="메인 메뉴">
