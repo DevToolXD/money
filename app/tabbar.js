@@ -412,7 +412,7 @@ void main() {
       this.pageRoot = options.pageRoot || nav.closest(".app") || document.body;
       this.shots = new Map(); // 화면 이름 → { tex, blur, cssW, cssH }
       this.platA = nav.querySelector(".platter-main");
-      this.platB = nav.querySelector(".platter-search");
+      this.platB = nav.querySelector(".platter-side");
       this.grabGroup = "main";
       this.canvas = nav.querySelector(".tabbar-canvas");
       this.tabs = [...nav.querySelectorAll(":scope > .tab")];
@@ -499,6 +499,7 @@ void main() {
           const path = document.createElementNS(NS, "path");
           path.setAttribute("d", part.d);
           path.setAttribute("fill", part.fill ? "currentColor" : "none");
+          if (part.alpha) path.setAttribute("fill-opacity", part.alpha);
           if (part.evenodd) path.setAttribute("fill-rule", "evenodd");
           if (part.stroke) {
             path.setAttribute("stroke", "currentColor");
@@ -789,7 +790,11 @@ void main() {
             ctx.scale(k, k);
             if (part.transform) ctx.transform(...part.transform);
             const path = new Path2D(part.d);
-            if (part.fill) ctx.fill(path, part.evenodd ? "evenodd" : "nonzero");
+            if (part.fill) {
+              ctx.globalAlpha = part.alpha ?? 1;
+              ctx.fill(path, part.evenodd ? "evenodd" : "nonzero");
+              ctx.globalAlpha = 1;
+            }
             if (part.stroke) {
               ctx.lineWidth = part.stroke;
               ctx.stroke(path);
@@ -1143,7 +1148,7 @@ void main() {
         gl.uniform2f(u.uPageOff, this.appOff.x - PAD_X, this.appOff.y - PAD_TOP + scroll);
         gl.uniform2f(u.uPageSize, entry.cssW, entry.cssH);
         const grab = clamp(this.grab.x, 0, 1);
-        gl.uniform2f(u.uPress, this.grabGroup === "main" ? grab : 0, this.grabGroup === "search" ? grab : 0);
+        gl.uniform2f(u.uPress, this.grabGroup === "main" ? grab : 0, this.grabGroup === "side" ? grab : 0);
         const gg = this.glass;
         gl.uniform4f(u.uGlassOpt, gg.bezel, gg.shift, gg.power, gg.zoom);
         // 렌즈가 떠 있는 동안에는 하얗게 덮는 정도를 줄이고 디테일을 더 남겨서 막대 전체가 더 투명해져요

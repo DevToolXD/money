@@ -37,13 +37,15 @@
   ];
 
   // 돋보기
-  const search = [
-    { d: "M11.6 4.2A7.4 7.4 0 1 1 11.6 19 7.4 7.4 0 0 1 11.6 4.2Z", stroke: SW },
-    { d: "M17.3 17.3 24 24", stroke: SW },
+  // 계정: 인스타그램 기본 프로필처럼 둥근 판 위에 머리와 어깨 실루엣. alpha로 판은 연하게, 실루엣은 진하게 칠해요
+  const account = [
+    { d: "M14 2.5A11.5 11.5 0 1 1 14 25.5 11.5 11.5 0 0 1 14 2.5Z", fill: true, alpha: 0.14, stroke: SW },
+    { d: "M14 6.6A4.3 4.3 0 1 1 14 15.2 4.3 4.3 0 0 1 14 6.6Z", fill: true, alpha: 0.62 },
+    { d: "M5.7 21.6C6.8 18.2 10 16.6 14 16.6S21.2 18.2 22.3 21.6A11.4 11.4 0 0 1 5.7 21.6Z", fill: true, alpha: 0.62 },
   ];
 
   window.TabIcons = {
     size: 28,
-    icons: { messages: plane, money: wallet, work: gear, untitled, search },
+    icons: { messages: plane, money: wallet, work: gear, untitled, account },
   };
 })();

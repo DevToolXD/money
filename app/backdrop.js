@@ -111,7 +111,7 @@
       // 앱 바탕색이 투명하면(그라디언트·이미지일 때) 사진이 검게 나오니 문서 바탕색으로 대신해요
       let bg = getComputedStyle(this.root).backgroundColor;
       if (/rgba?\([^)]*,\s*0\)$|transparent/.test(bg)) {
-        bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim() || "#ffffff";
+        bg = getComputedStyle(document.documentElement).getPropertyValue("--bg-canvas").trim() || "#ffffff";
       }
 
       const canvas = await window.html2canvas(el, {

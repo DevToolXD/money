@@ -4,70 +4,80 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#17171c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="design-system/tokens.css">
+<link rel="stylesheet" href="app/tokens.css">
 <link rel="stylesheet" href="app/app.css">
 </head>
 <body>
 <div class="app">
 
+  <div class="topbar" id="topbar"><span class="topbar-title" id="topbar-title">메시지</span></div>
+
   <main class="screens">
-    <section class="screen is-active" id="screen-messages" data-screen="messages" aria-labelledby="title-messages">
-      <header class="screen-top">
-        <h1 class="screen-title" id="title-messages">메시지</h1>
-        <p class="screen-sub">아직 받은 메시지가 없어요</p>
-      </header>
-      <div class="skeletons" style="--rows: 14" aria-hidden="true"></div>
+    <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-labelledby="title-messages">
+      <header class="large-title"><h1 id="title-messages">메시지</h1><button class="round-btn" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></header>
+      <label class="searchfield"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="5"/><path d="M10.6 10.6L14 14"/></svg><input id="chat-search" type="search" placeholder="검색" aria-label="대화 검색"></label>
+      <div class="card"><ul class="rows" id="chat-list"></ul><p class="empty" id="chat-empty" hidden>검색 결과가 없어요</p></div>
     </section>
-
-    <section class="screen" id="screen-money" data-screen="money" aria-labelledby="title-money">
-      <header class="screen-top">
-        <h1 class="screen-title" id="title-money">돈</h1>
-        <p class="screen-sub">지금 가진 돈이에요</p>
-        <p class="amount-hero">1,250,000원</p>
-      </header>
-      <div class="band" aria-hidden="true"></div>
-      <ul class="rows">
-        <li class="row"><span class="avatar" aria-hidden="true">생</span><span class="row-text"><b>생활비 통장</b><small>매달 쓰는 돈</small></span><span class="row-value">350,000원</span></li>
-        <li class="row"><span class="avatar" aria-hidden="true">비</span><span class="row-text"><b>비상금 통장</b><small>급할 때만 꺼내 써요</small></span><span class="row-value">500,000원</span></li>
-        <li class="row"><span class="avatar" aria-hidden="true">월</span><span class="row-text"><b>월급 통장</b><small>월급이 들어오는 계좌</small></span><span class="row-value">400,000원</span></li>
-      </ul>
-      <div class="skeletons" style="--rows: 8" aria-hidden="true"></div>
+    <section class="screen" id="screen-money" data-screen="money" data-title="돈" aria-labelledby="title-money">
+      <header class="large-title"><h1 id="title-money">돈</h1><button class="round-btn to-account" type="button" aria-label="계정"><span class="avatar-default" style="font-size:36px;width:36px;height:36px"></span></button></header>
+      <div class="card hero"><p class="eyebrow">지금 가진 돈</p><h2 class="h2">총 자산</h2><p class="amount">1,250,000원</p><p class="body">이번 달 쓸 수 있는 돈이 얼마나 남았는지 한눈에 보여요.</p></div>
+      <div class="card"><ul class="rows">
+        <li class="row"><span class="avatar" style="width:44px;height:44px;background:#0a84ff">생</span><span class="row-main"><b>생활비 통장</b><span>매달 쓰는 돈</span></span><span class="row-value">350,000원</span></li>
+        <li class="row"><span class="avatar" style="width:44px;height:44px;background:#ff9500">비</span><span class="row-main"><b>비상금 통장</b><span>급할 때만 꺼내 써요</span></span><span class="row-value">500,000원</span></li>
+        <li class="row"><span class="avatar" style="width:44px;height:44px;background:#30d158">월</span><span class="row-main"><b>월급 통장</b><span>월급이 들어오는 계좌</span></span><span class="row-value">400,000원</span></li>
+      </ul></div>
+      <div class="card skeletons" style="--rows: 6" aria-hidden="true"></div>
     </section>
-
-    <section class="screen" id="screen-work" data-screen="work" aria-labelledby="title-work">
-      <header class="screen-top">
-        <h1 class="screen-title" id="title-work">일</h1>
-        <p class="screen-sub">아직 할 수 있는 일이 없어요</p>
-      </header>
-      <div class="skeletons" style="--rows: 14" aria-hidden="true"></div>
+    <section class="screen" id="screen-work" data-screen="work" data-title="일" aria-labelledby="title-work">
+      <header class="large-title"><h1 id="title-work">일</h1><button class="round-btn to-account" type="button" aria-label="계정"><span class="avatar-default" style="font-size:36px;width:36px;height:36px"></span></button></header>
+      <div class="card skeletons" style="--rows: 8" aria-hidden="true"></div>
     </section>
-
-    <section class="screen" id="screen-untitled" data-screen="untitled" aria-labelledby="title-untitled">
-      <header class="screen-top">
-        <h1 class="screen-title" id="title-untitled">무제</h1>
-        <p class="screen-sub">아직 정해지지 않았어요</p>
-      </header>
-      <div class="skeletons" style="--rows: 14" aria-hidden="true"></div>
+    <section class="screen" id="screen-untitled" data-screen="untitled" data-title="무제" aria-labelledby="title-untitled">
+      <header class="large-title"><h1 id="title-untitled">무제</h1><button class="round-btn to-account" type="button" aria-label="계정"><span class="avatar-default" style="font-size:36px;width:36px;height:36px"></span></button></header>
+      <div class="card skeletons" style="--rows: 8" aria-hidden="true"></div>
     </section>
-
-    <section class="screen" id="screen-search" data-screen="search" aria-labelledby="title-search">
-      <header class="screen-top">
-        <h1 class="screen-title" id="title-search">무제</h1>
-        <p class="screen-sub">아직 정해지지 않았어요</p>
-      </header>
-      <div class="skeletons" style="--rows: 14" aria-hidden="true"></div>
+    <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
+      <header class="large-title"><h1 id="title-account">계정</h1></header>
+      <div class="card"><div class="profile">
+        <div class="profile-top"><span class="avatar-default" id="profile-avatar"></span>
+          <div class="stats"><div><b>0</b><span>게시물</span></div><div><b>0</b><span>팔로워</span></div><div><b>0</b><span>팔로잉</span></div></div></div>
+        <p class="name" id="profile-name">내 계정</p><p class="bio" id="profile-bio">소개를 추가해 보세요</p>
+        <div class="profile-actions"><button class="btn secondary" id="edit-profile" type="button">프로필 편집</button><button class="btn secondary" id="share-profile" type="button">프로필 공유</button></div>
+      </div>
+      <div class="highlights"><div class="hl"><i>+</i>새로 만들기</div></div>
+      <div class="segment" role="tablist"><button role="tab" aria-selected="true" aria-label="게시물"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg></button><button role="tab" aria-selected="false" aria-label="태그됨"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5.5h16v11H13l-4.5 3.5v-3.5H4z"/><circle cx="12" cy="11" r="2.2"/></svg></button></div>
+      <div class="empty-posts" id="posts"><i>📷</i><h2 class="h2">첫 게시물을 공유해 보세요</h2><p class="body">공유한 사진과 영상이 여기에 보여요.</p></div></div>
+      <div class="card"><ul class="rows">
+        <li class="row"><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></li>
+        <li class="row"><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>
+        <li class="row"><span class="row-main"><b>도움말</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>
+      </ul></div>
     </section>
   </main>
 
-  <!-- 하단 탭 바: 알약형 탭 4개 + 떨어져 있는 둥근 검색 버튼. 아이콘·글자·렌즈는 캔버스가 그려요 -->
+  <section class="thread" id="thread" aria-label="대화">
+    <header class="thread-head"><button class="back" id="thread-back" type="button" aria-label="뒤로"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>메시지</button><span class="who" id="thread-who"></span></header>
+    <div class="bubbles" id="bubbles"></div>
+    <form class="composer" id="composer"><input id="composer-input" type="text" placeholder="메시지 입력" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" disabled aria-label="보내기"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14V2M3 7l5-5 5 5"/></svg></button></form>
+  </section>
+
+  <div class="dim" id="dim"></div>
+  <section class="sheet" id="sheet" aria-label="프로필 편집">
+    <div class="grabber"></div>
+    <div class="sheet-head"><button class="link" id="sheet-cancel" type="button">취소</button><h2>프로필 편집</h2><button class="link" id="sheet-save" type="button" style="font-weight:600">저장</button></div>
+    <label class="field">이름<input id="edit-name" type="text" maxlength="30"></label>
+    <label class="field">소개<textarea id="edit-bio" rows="3" maxlength="120"></textarea></label>
+  </section>
+
+  <!-- 하단 탭 바: 알약형 탭 4개 + 떨어져 있는 둥근 계정 버튼. 아이콘·글자·렌즈는 캔버스가 그려요 -->
   <div class="dock">
     <nav class="tabbar" aria-label="메인 메뉴">
       <span class="platter platter-main"></span>
-      <span class="platter platter-search"></span>
+      <span class="platter platter-side"></span>
       <span class="pill" hidden></span>
       <canvas class="tabbar-canvas" aria-hidden="true"></canvas>
 
@@ -75,7 +85,7 @@
       <button type="button" class="tab" data-tab="money" data-group="main"><span class="tab-icon"></span><span class="tab-label">돈</span></button>
       <button type="button" class="tab" data-tab="work" data-group="main"><span class="tab-icon"></span><span class="tab-label">일</span></button>
       <button type="button" class="tab" data-tab="untitled" data-group="main"><span class="tab-icon"></span><span class="tab-label">무제</span></button>
-      <button type="button" class="tab tab-search" data-tab="search" data-group="search" aria-label="검색"><span class="tab-icon"></span></button>
+      <button type="button" class="tab tab-account" data-tab="account" data-group="side" aria-label="계정"><span class="tab-icon"></span></button>
     </nav>
   </div>
 
