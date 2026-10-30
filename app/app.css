@@ -1,0 +1,227 @@
+/* 앱 틀: 모바일 한 칼럼, 화면 5개, 아래에 떠 있는 리퀴드 글라스 탭 바 */
+
+:root {
+  --dock-h: 64px;
+  --dock-bottom: max(env(safe-area-inset-bottom, 0px), 14px);
+  --dock-clearance: calc(var(--dock-h) + var(--dock-bottom) + 28px);
+}
+
+/* 탭 바 색을 이 사이트 토큰에 맞춰요. 라이브러리 기본값보다 우선하도록 선택자를 한 단계 높였어요 */
+html,
+html[data-theme="light"],
+html[data-theme="dark"] {
+  --lg-accent: var(--blue500);
+  --lg-surface: var(--background);
+  --lg-label: var(--grey900);
+  --lg-label-2: var(--grey600);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--pcScreenBg);
+  color: var(--grey900);
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  position: relative;
+  max-width: 430px;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--background);
+}
+
+/* ---------- 화면 ---------- */
+
+.screens { position: absolute; inset: 0; }
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: env(safe-area-inset-top, 0px) 0 var(--dock-clearance);
+  scrollbar-width: none;
+  visibility: hidden;
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen.is-active { visibility: visible; }
+
+.screen-top { padding: 24px var(--gutter) 16px; }
+.screen-title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 35px;
+  font-weight: 700;
+  color: var(--grey900);
+}
+.screen-sub {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 22.5px;
+  font-weight: 500;
+  color: var(--grey600);
+}
+.amount-hero {
+  margin: 16px 0 0;
+  font-size: 30px;
+  line-height: 40px;
+  font-weight: 700;
+  color: var(--grey900);
+}
+
+.band { height: 16px; background: var(--greyBackground); }
+
+.rows { margin: 0; padding: 0; list-style: none; }
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 16px 16px 16px var(--gutter);
+}
+.row:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: var(--gutter);
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(to bottom, var(--hairline) 50%, transparent 50%);
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin-right: 16px;
+  border-radius: 50%;
+  background: var(--grey100);
+  color: var(--grey700);
+  font-size: 15px;
+  font-weight: 700;
+}
+.row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.row-text b { font-size: 17px; font-weight: 500; color: var(--grey800); }
+.row-text small { margin-top: 2px; font-size: 15px; color: var(--grey600); }
+.row-value { flex: none; font-size: 17px; font-weight: 600; color: var(--grey900); }
+
+/* 아직 내용이 없는 자리: 동그라미 하나와 줄 두 개를 72px마다 되풀이해요 */
+.skeletons {
+  height: calc(var(--rows, 8) * 72px);
+  background-image:
+    radial-gradient(circle at 44px 36px, var(--grey100) 19.5px, transparent 20.5px),
+    linear-gradient(to bottom, transparent 22px, var(--grey100) 22px, var(--grey100) 36px, transparent 36px),
+    linear-gradient(to bottom, transparent 42px, var(--grey100) 42px, var(--grey100) 54px, transparent 54px);
+  background-size: 100% 72px, 52% 72px, 32% 72px;
+  background-position: 0 0, 80px 0, 80px 0;
+  background-repeat: repeat-y;
+}
+
+/* ---------- 하단 탭 바 ----------
+   탭 다섯 개가 한 nav 안에 있고, 눈에 보이는 판(platter)만 둘로 나뉘어요.
+   그래서 렌즈 하나가 알약형 탭과 검색 버튼을 모두 오갈 수 있어요. */
+
+.dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--dock-bottom);
+  z-index: 50;
+  padding: 0 21px;
+}
+
+.dock .lg-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 72px;
+  grid-auto-flow: row;
+  height: var(--dock-h);
+  /* 판 사이 빈틈과 판 바깥은 화면을 막지 않아요. 버튼만 눌려요 */
+  pointer-events: none;
+}
+.dock .lg-tabs::before { content: none; }
+.dock .lg-tabs > button { pointer-events: auto; }
+.dock .lg-tabs > button[data-group="search"] { margin-left: 16px; }
+
+.platter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: -2;
+  border-radius: 999px;
+  background: var(--lg-platter);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.22),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
+    0 0 0 0.5px rgb(0 0 0 / 0.06),
+    0 10px 30px rgb(0 0 0 / 0.25);
+  transition: scale 0.3s cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+.platter-main { left: 0; right: 72px; }
+.platter-search { right: 0; width: 64px; }
+
+/* 누르면 눌린 쪽 판만 3.55% 부풀어요 */
+.lg-tabs.pressing[data-press="main"] .platter-main,
+.lg-tabs.pressing[data-press="search"] .platter-search { scale: 1.0355; }
+
+.dock .lg-tabs > button {
+  height: 100%;
+  padding: 0;
+  align-content: center;
+  gap: 2px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  line-height: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: color 0.2s ease;
+}
+.dock .lg-tabs svg {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
+/* 렌즈 안에는 화면 전체의 복사본이 들어가요. 거기서는 모든 탭을 강조색으로 칠해 렌즈가 지나는 자리만 파랗게 보이게 해요 */
+[data-glass-copy] .lg-tabs > button { color: var(--lg-accent); }
+[data-glass-copy] .lg-pill,
+[data-glass-copy] .lg-glowbox { display: none; }
+/* 렌즈는 판 위에 얹힌 맑은 유리라서, 복사본 속 판은 거의 투명하게 둬요. 뒤의 화면이 또렷이 비쳐요 */
+[data-glass-copy] .platter {
+  background: rgb(255 255 255 / 0.3);
+  box-shadow: none;
+}
+html[data-theme="dark"] [data-glass-copy] .platter { background: rgb(28 28 31 / 0.24); }
+
+/* 밝은 테마의 판: 그림자를 줄이고 가장자리를 또렷하게 */
+html[data-theme="light"] .platter {
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.9),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.55),
+    0 0 0 0.5px rgb(0 0 0 / 0.08),
+    0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock .lg-tabs > button,
+  .platter { transition: none; }
+}

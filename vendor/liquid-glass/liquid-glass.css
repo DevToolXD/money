@@ -1,0 +1,401 @@
+/* Liquid Glass UI components: the switch, segmented switch, tab bar and button from
+   components.js. Plain CSS, no build step needed.
+
+   Every colour is a custom property, so a theme is a handful of overrides. The dark look is
+   the default; put data-theme="light" on any ancestor for the light one (the components'
+   JS reads the same attribute to pick their glass). --lg-surface is the colour right behind
+   a component: the glass's copy is ringed with it, so it never bends see-through pixels. */
+
+:where(:root, [data-theme="dark"]) {
+  --lg-surface: #000000;
+  --lg-label: #ffffff;
+  --lg-label-2: rgb(235 235 245 / 0.6);
+  --lg-fill: rgb(118 118 128 / 0.24);
+  --lg-off: #39393d;
+  --lg-on: #30d158;
+  --lg-accent: #0a84ff;
+  --lg-platter: rgb(30 30 33 / 0.62);
+  --lg-platter-solid: #1c1c1f;
+  --lg-pill: rgb(0 0 0 / 0.5);
+  --lg-lens-shadow: 0 7px 18px -2px rgb(0 0 0 / 0.5);
+  --lg-button-shadow: 0 6px 16px -4px rgb(0 0 0 / 0.3);
+}
+:where([data-theme="light"]) {
+  --lg-surface: #f2f2f7;
+  --lg-label: #000000;
+  --lg-label-2: rgb(60 60 67 / 0.6);
+  --lg-fill: rgb(120 120 128 / 0.16);
+  --lg-off: #e9e9eb;
+  --lg-on: #34c759;
+  --lg-accent: #007aff;
+  --lg-platter: rgb(255 255 255 / 0.72);
+  --lg-platter-solid: #f7f7f8;
+  --lg-pill: rgb(0 0 0 / 0.07);
+  --lg-lens-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.1), 0 7px 18px rgb(0 0 0 / 0.12);
+  --lg-button-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 6px 16px -4px rgb(0 0 0 / 0.18);
+}
+
+/* ---------- Switches ----------
+   Each lens sits over the thumb and under the labels, and refracts .refract: a bar in the
+   track's colour, hidden on the page and shown only in the lens's copy, ringed there by a
+   wide solid shadow in the surface's colour */
+.lg-switch,
+.lg-segment {
+  --p: 0;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Holding it drags the glass: not iOS's link preview, nor its lift to drag */
+  -webkit-touch-callout: none;
+}
+.lg-switch *,
+.lg-segment * {
+  -webkit-user-drag: none;
+}
+.lg-switch:focus-visible,
+.lg-segment button:focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 2px;
+}
+.lg-switch .thumb,
+.lg-segment .thumb {
+  position: absolute;
+  border-radius: 999px;
+  transition: translate 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.lg-switch.glassy .thumb,
+.lg-segment.glassy .thumb {
+  transition: opacity 0.18s;
+}
+.lg-switch.lifted .thumb,
+.lg-segment.lifted .thumb {
+  opacity: 0;
+}
+.lg-switch .refract,
+.lg-segment .refract {
+  position: absolute;
+  inset: 12.5% auto 12.5% 0;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+}
+.lg-switch .refract[data-glass-copy],
+.lg-segment .refract[data-glass-copy] {
+  opacity: 1;
+  box-shadow: 0 0 0 80px var(--lg-surface);
+}
+.lg-switch [data-glass],
+.lg-segment [data-glass] {
+  z-index: 2 !important;
+  background: var(--lg-surface);
+  box-shadow: var(--lg-lens-shadow) !important;
+}
+
+/* The plain switch: 64 × 28, a white thumb as tall as the track, the track turning green
+   as the thumb crosses */
+.lg-switch {
+  width: 64px;
+  height: 28px;
+  padding: 0;
+  background: color-mix(in srgb, var(--lg-off), var(--lg-on) calc(var(--p) * 100%));
+}
+.lg-switch .thumb {
+  inset: 0 auto 0 0;
+  width: 40px;
+  background: #fff;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.2),
+    0 3px 8px rgb(0 0 0 / 0.12);
+}
+.lg-switch .refract {
+  background: color-mix(in srgb, var(--lg-off), var(--lg-on) calc(var(--p) * 100%));
+}
+
+/* With words: a label each side, the thumb in the accent */
+.lg-segment {
+  padding: 3px;
+  background: var(--lg-fill);
+}
+.lg-segment .thumb {
+  inset: 3px auto 3px 3px;
+  width: calc(50% - 3px);
+  background: var(--lg-accent);
+}
+.lg-segment .refract {
+  background: var(--lg-accent);
+}
+.lg-segment button {
+  position: relative;
+  z-index: 3;
+  min-width: 84px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--lg-label-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+.lg-segment button[aria-checked="true"] {
+  color: #fff;
+}
+
+/* Pressed: a soft white glow under the finger, inside the lens */
+[data-glass] > .lg-glow {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0));
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.pressing > [data-glass] > .lg-glow {
+  opacity: 0.45;
+  transition-duration: 0.12s;
+}
+
+/* ---------- Tab bar ----------
+   A platter of regular glass. Position it yourself (fixed to the bottom of the screen, say);
+   it only needs to be positioned, which it is by default. */
+.lg-tabs {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 4px;
+  color: var(--lg-label);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Holding a tab drags the lens: not iOS's link preview, nor its lift to drag the link */
+  -webkit-touch-callout: none;
+}
+.lg-tabs * {
+  -webkit-user-drag: none;
+}
+.lg-tabs::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--lg-platter);
+  backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.22),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
+    0 0 0 0.5px rgb(0 0 0 / 0.06),
+    0 10px 30px rgb(0 0 0 / 0.25);
+  transition: scale 0.3s cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+/* Pressed, the bar swells 3.55%, as UIKit's does */
+.lg-tabs.pressing::before {
+  scale: 1.0355;
+}
+.lg-tabs > :is(a, button) {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 7px 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lg-tabs > :is(a, button):focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: -2px;
+}
+.lg-tabs svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lg-tabs [aria-current] {
+  color: var(--lg-accent);
+}
+.lg-tabs [aria-current] svg {
+  fill: color-mix(in srgb, var(--lg-accent), transparent 80%);
+}
+/* UIKit's resting selection: a pill behind the current tab, hidden under the lens */
+.lg-tabs .lg-pill {
+  position: absolute;
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--lg-pill);
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    left 0.35s cubic-bezier(0.3, 1.2, 0.5, 1),
+    width 0.35s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+.lg-tabs .lg-pill[hidden],
+.lg-tabs.lensing > .lg-pill {
+  display: block;
+  opacity: 0;
+}
+.lg-tabs .lg-glowbox {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.lg-tabs .lg-glow {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.lg-tabs.pressing .lg-glow {
+  opacity: 0.6;
+}
+.lg-tabs [data-glass] {
+  background: var(--lg-surface);
+  box-shadow: var(--lg-lens-shadow) !important;
+}
+/* Its copy of the bar, under the lens: in place, the platter solid (the copy can't frost),
+   every tab in the accent, no pill or glow */
+.lg-tabs[data-glass-copy] {
+  translate: none;
+}
+.lg-tabs[data-glass-copy]::before {
+  background: var(--lg-platter-solid);
+  box-shadow: 0 0 0 80px var(--lg-surface);
+}
+.lg-tabs[data-glass-copy] > :is(a, button) {
+  color: var(--lg-accent);
+}
+.lg-tabs[data-glass-copy] .lg-pill,
+.lg-tabs[data-glass-copy] .lg-glowbox {
+  display: none;
+}
+
+/* ---------- Button ----------
+   Clear glass over whatever is behind it, lighting up in --tint (the accent by default).
+   Its lens lives in the button's parent, which should be positioned. */
+.lg-button {
+  --s: 1;
+  --lit: 0;
+  --tint: var(--lg-accent);
+  position: relative;
+  z-index: 3;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  /* The label turns white as the tint fills in */
+  color: color-mix(in srgb, var(--lg-label), #fff calc(var(--lit) * 100%));
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.lg-button:focus-visible {
+  outline: none;
+}
+/* The content grows with the lens, as one piece */
+.lg-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  scale: var(--s);
+}
+.lg-button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The tint (lighting up as the lens grows, a little lighter below, catching the light on its
+   rim) and the glow, together clipped to the button */
+.lg-button .lg-clip {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  scale: var(--s);
+  pointer-events: none;
+}
+.lg-button .lg-clip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to bottom, var(--tint), color-mix(in srgb, var(--tint), #fff 14%));
+  box-shadow:
+    inset 1.5px 1.5px 1px -0.5px rgb(255 255 255 / 0.55),
+    inset -1px -1px 1px -0.5px rgb(255 255 255 / 0.3);
+  opacity: calc(var(--lit) * var(--lit-max, 1));
+  transition: filter 0.2s;
+}
+.lg-button.pressing .lg-clip::before {
+  filter: brightness(1.1);
+}
+.lg-button .lg-glow {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.7), rgb(255 255 255 / 0));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.lg-button.hovering .lg-glow {
+  opacity: 0.2;
+}
+.lg-button.pressing .lg-glow {
+  opacity: 0.45;
+  transition-duration: 0.12s;
+}
+/* The button's lens, in its parent */
+.lg-button-lens {
+  background: var(--lg-surface);
+  box-shadow: var(--lg-button-shadow) !important;
+}
