@@ -433,7 +433,7 @@ await t("회사 이름·마크·여분의 값은 검사해요", async () => {
 console.log("\n[사업 상품]");
 const coSeed = () => seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: [], at: EPOCH }); });
 const pid = () => "p" + Math.random().toString(36).slice(2, 10);
-const pdoc = (over = {}) => ({ owner: "uA", cat: "food", group: "water", item: "water", name: "생수 500ml", shape: 1, cap: 3, capColor: 5, color: -1, cost: 5, price: 10, active: true, at: serverTimestamp(), ...over });
+const pdoc = (over = {}) => ({ owner: "uA", cat: "food", group: "water", item: "water", name: "생수 500ml", shape: 1, cap: 3, capColor: 5, color: -1, costCents: 500, priceCents: 1000, paused: false, active: true, at: serverTimestamp(), ...over });
 await t("상품은 회사가 있고 내 회사일 때만 만들 수 있어요", async () => {
   await seed(seedBase);
   await assertFails(setDoc(doc(pw("uC", "carol"), "companies/uC/products/" + pid()), pdoc({ owner: "uC" }))); // 회사가 없어요
@@ -460,7 +460,7 @@ await t("상품 종류·모양·색·뚜껑은 정해진 범위와 짝만 받아
   await bad({ item: "coffee", group: "energy", content: 9 });
   await ok({ color: -1 });
   await ok({ shape: 49, cap: 0, capColor: -1 });
-  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), { owner: "uA", cat: "food", group: "energy", item: "coffee", name: "커피 · 모카", shape: 3, color: 7, content: 5, cost: 4, price: 8, active: true, at: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), { owner: "uA", cat: "food", group: "energy", item: "coffee", name: "커피 · 모카", shape: 3, color: 7, content: 5, costCents: 40, priceCents: 80, paused: false, active: true, at: serverTimestamp() }));
 });
 await t("이름·가격·원가·시간은 정해진 값만 받아요", async () => {
   await coSeed();
@@ -469,27 +469,60 @@ await t("이름·가격·원가·시간은 정해진 값만 받아요", async ()
   await bad({ name: "<b>x</b>" });
   await bad({ name: "" });
   await bad({ name: "가".repeat(31) });
-  await bad({ price: 0 });
-  await bad({ cost: 0 });
-  await bad({ price: "10" });
-  await bad({ price: 1.5 });
-  await bad({ price: 100000000 });
-  await bad({ cost: 1000000 });
+  await bad({ priceCents: 0 });
+  await bad({ costCents: 0 });
+  await bad({ costCents: 0.5 }); // 센트는 정수로만 (0.5 토큰은 50으로 보내요)
+  await bad({ priceCents: "10" });
+  await bad({ priceCents: 1.5 });
+  await bad({ priceCents: 100000000 });
+  await bad({ costCents: 1000000 });
+  await bad({ cost: 5, price: 10 }); // 예전 토큰 단위 필드는 더 못 써요
+  await bad({ paused: true }); // 만들 때는 멈춘 상태가 아니에요
+  await bad({ paused: "no" });
   await bad({ active: false });
   await bad({ at: Timestamp.fromMillis(1) });
   await bad({ extra: 1 });
-  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc({ name: "가".repeat(30), price: 99999999, cost: 999999 })));
+  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc({ name: "가".repeat(30), priceCents: 99999999, costCents: 999999 })));
+  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc({ costCents: 50, priceCents: 1 }))); // 원가 0.5 토큰, 가격 0.01 토큰
 });
-await t("판매 종료는 active를 false로 바꾸는 것만, 지우기는 안 돼요", async () => {
+await t("이름 바꾸기·판매 멈춤·판매 종료만 하고, 값을 바꾸거나 지우지는 못해요", async () => {
   await coSeed();
   const id = pid();
   await seed((d) => setDoc(doc(d, "companies/uA/products/" + id), pdoc({ at: EPOCH })));
   const ref = doc(pw("uA", "alice"), "companies/uA/products/" + id);
-  await assertFails(updateDoc(ref, { name: "다른 이름" }));
-  await assertFails(updateDoc(ref, { price: 1 }));
-  await assertFails(updateDoc(ref, { active: true }));
-  await assertFails(updateDoc(doc(pw("uB", "bob"), "companies/uA/products/" + id), { active: false }));
+  const other = doc(pw("uB", "bob"), "companies/uA/products/" + id);
+  // 이름 바꾸기: 만들 때와 같은 글자 규칙
+  await assertFails(updateDoc(ref, { name: "<b>x</b>" }));
+  await assertFails(updateDoc(ref, { name: "" }));
+  await assertFails(updateDoc(ref, { name: "가".repeat(31) }));
+  await assertFails(updateDoc(ref, { name: "생수 500ml" })); // 그대로면 바꾼 게 아니에요
+  await assertSucceeds(updateDoc(ref, { name: "새 이름" }));
+  // 멈춤·다시 시작: paused만 바꿔요
+  await assertFails(updateDoc(ref, { paused: "yes" }));
+  await assertFails(updateDoc(ref, { paused: false })); // 이미 멈춘 게 아니에요
+  await assertFails(updateDoc(ref, { paused: true, name: "같이" })); // 두 가지를 한 번에는 안 돼요
+  await assertFails(updateDoc(other, { paused: true })); // 남의 상품은 못 멈춰요
+  await assertSucceeds(updateDoc(ref, { paused: true }));
+  await assertFails(updateDoc(ref, { paused: true })); // 이미 멈춘 상태예요
+  await assertSucceeds(updateDoc(ref, { paused: false }));
+  // 가격·원가·모양은 바꿀 수 없어요
+  await assertFails(updateDoc(ref, { priceCents: 1 }));
+  await assertFails(updateDoc(ref, { costCents: 1 }));
+  await assertFails(updateDoc(ref, { shape: 2 }));
+  await assertFails(updateDoc(other, { active: false }));
   await assertFails(deleteDoc(ref));
+  // 판매 종료: active를 false로만 (되돌릴 수 없어요)
+  await assertSucceeds(updateDoc(ref, { active: false }));
+  await assertFails(updateDoc(ref, { name: "다시" }));
+  await assertFails(updateDoc(ref, { paused: true }));
+  await assertFails(updateDoc(ref, { active: true }));
+});
+await t("예전 토큰 단위 상품도 멈추거나 끌 수 있어요", async () => {
+  await coSeed();
+  const id = pid();
+  await seed((d) => setDoc(doc(d, "companies/uA/products/" + id), { owner: "uA", cat: "food", group: "water", item: "water", name: "옛 생수", shape: 1, cap: 3, capColor: 5, color: -1, cost: 5, price: 10, active: true, at: EPOCH }));
+  const ref = doc(pw("uA", "alice"), "companies/uA/products/" + id);
+  await assertSucceeds(updateDoc(ref, { paused: true }));
   await assertSucceeds(updateDoc(ref, { active: false }));
 });
 await t("상품은 로그인한 사람이 보고, 목록은 50개까지 읽어요", async () => {

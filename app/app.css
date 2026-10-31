@@ -1057,8 +1057,8 @@ html[data-theme="dark"] .draw { background: #fff; }
 .pk-view::-webkit-scrollbar { display: none; }
 .pk-root { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; align-items: start; gap: 8px; padding: 46px 6px 0; }
 .pk-orbwrap { display: grid; justify-items: center; gap: 12px; }
-.pk-orb { position: relative; display: grid; place-items: center; width: 108px; height: 108px; border-radius: 50%; color: #000; background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.42) 55%, rgba(190, 220, 255, 0.6)); -webkit-backdrop-filter: blur(24px) saturate(200%); backdrop-filter: blur(24px) saturate(200%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.95), inset 0 3px 6px rgba(255, 255, 255, 0.9), inset 0 -6px 14px rgba(160, 200, 255, 0.4), 0 16px 34px rgba(40, 60, 120, 0.18); transition: transform 0.4s var(--ease), box-shadow 0.4s; }
-.pk-orb::before { content: ""; position: absolute; left: 14%; right: 14%; top: 5%; height: 42%; border-radius: 50%; background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)); pointer-events: none; }
+/* 식품·컴퓨터·인공지능 메뉴: 둥근 사각형 회색 리퀴드 글라스 (돈 보내기 시트와 같은 재질) */
+.pk-orb { position: relative; display: grid; place-items: center; width: 108px; height: 108px; border-radius: 32px; color: #000; background: rgba(112, 117, 130, 0.52); -webkit-backdrop-filter: blur(38px) saturate(180%); backdrop-filter: blur(38px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.38), inset 0 2px 1.5px rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(255, 255, 255, 0.12), 0 14px 30px rgba(40, 60, 120, 0.14); transition: transform 0.4s var(--ease), box-shadow 0.4s; }
 .pk-orb:active { transform: scale(0.93); }
 .pk-orb svg { position: relative; width: 44px; height: 44px; }
 .pk-orb-l { font-size: 16px; font-weight: 700; }
@@ -1090,7 +1090,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .pk-sw:active { transform: scale(0.9); }
 
 .pk-soon { display: grid; justify-items: center; gap: 10px; padding-top: 70px; text-align: center; animation: pkIn 0.55s var(--ease) backwards; }
-.pk-soon-orb { display: grid; place-items: center; width: 108px; height: 108px; border-radius: 50%; color: #000; background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.42) 55%, rgba(190, 220, 255, 0.6)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.95), inset 0 3px 6px rgba(255, 255, 255, 0.9), 0 16px 34px rgba(40, 60, 120, 0.18); }
+.pk-soon-orb { display: grid; place-items: center; width: 108px; height: 108px; border-radius: 32px; color: #000; background: rgba(112, 117, 130, 0.52); -webkit-backdrop-filter: blur(38px) saturate(180%); backdrop-filter: blur(38px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.38), inset 0 2px 1.5px rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(255, 255, 255, 0.12), 0 14px 30px rgba(40, 60, 120, 0.14); }
 .pk-soon-orb svg { width: 44px; height: 44px; }
 .pk-soon-t { margin: 8px 0 0; font-size: 22px; font-weight: 800; }
 .pk-soon-s { margin: 0; font-size: 15px; color: rgba(60, 60, 67, 0.7); }
@@ -1107,15 +1107,23 @@ html[data-theme="dark"] .draw { background: #fff; }
 .pk-cost-total b { font-weight: 800; }
 .pk-input { display: block; width: 100%; padding: 4px 0; border: 0; outline: 0; background: transparent; text-align: center; font: inherit; font-size: 44px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: #000; }
 .pk-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 12px; }
-.pk-step { height: 42px; border-radius: 21px; background: rgba(120, 120, 128, 0.14); font-size: 16px; font-weight: 700; color: #000; transition: transform 0.2s var(--ease), background-color 0.2s; }
+.pk-step { display: flex; align-items: center; justify-content: center; height: 42px; border-radius: 21px; background: rgba(120, 120, 128, 0.14); font-size: 16px; font-weight: 700; color: #000; text-align: center; transition: transform 0.2s var(--ease), background-color 0.2s; }
 .pk-step:active { transform: scale(0.92); background: rgba(120, 120, 128, 0.26); }
-.pk-chip { display: block; width: 100%; height: 40px; border-radius: 20px; background: rgba(10, 124, 255, 0.12); color: #0a7cff; font-size: 15px; font-weight: 600; }
+.pk-chip { display: flex; align-items: center; justify-content: center; width: 100%; height: 40px; padding: 0 16px; border-radius: 20px; background: rgba(10, 124, 255, 0.12); color: #0a7cff; font-size: 15px; font-weight: 600; text-align: center; }
 .pk-profit { margin: 10px 0 0; min-height: 20px; text-align: center; font-size: 15px; font-weight: 600; color: #0a7cff; }
 .pk-profit.loss { color: #ff3b30; }
 .pk-err { min-height: 20px; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: #ff3b30; }
-.pk-sell { position: relative; width: 100%; height: 60px; border-radius: 30px; color: #fff; font-size: 19px; font-weight: 700; background: linear-gradient(#3b93ff, #0a7cff); box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.5), 0 14px 30px rgba(10, 124, 255, 0.35); transition: transform 0.25s var(--ease), opacity 0.2s; }
+.pk-sell { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; border-radius: 30px; color: #fff; font-size: 19px; font-weight: 700; text-align: center; background: linear-gradient(#3b93ff, #0a7cff); box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.5), 0 14px 30px rgba(10, 124, 255, 0.35); transition: transform 0.25s var(--ease), opacity 0.2s; }
 .pk-sell:active { transform: scale(0.97); }
 .pk-sell.busy { opacity: 0.6; pointer-events: none; }
+/* 칸을 고르면 아래 확인 버튼으로 넘어가요. 윤곽선 없이 밝은 바탕 위에 둬요 */
+.pk button:focus, .pk input:focus, .bz-dim button:focus, .bz-sheet button:focus, .bz-card button:focus, .bz-card input:focus { outline: 0; }
+.pk-name { display: block; width: 100%; padding: 4px 0; border: 0; outline: 0; background: transparent; text-align: center; font: inherit; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: #000; }
+.pk-foot { position: relative; z-index: 3; padding: 10px 18px calc(env(safe-area-inset-bottom, 0px) + 14px); background: #ffffff; }
+.pk-foot[hidden] { display: none; }
+.pk-ok { display: flex; align-items: center; justify-content: center; width: 100%; height: 56px; border-radius: 28px; color: #fff; font-size: 18px; font-weight: 700; text-align: center; background: linear-gradient(#3b93ff, #0a7cff); box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.5), 0 12px 26px rgba(10, 124, 255, 0.3); transition: transform 0.25s var(--ease), opacity 0.2s, background-color 0.2s, box-shadow 0.2s; }
+.pk-ok:active { transform: scale(0.97); }
+.pk-ok:disabled { background: rgba(120, 120, 128, 0.22); color: rgba(60, 60, 67, 0.5); box-shadow: none; transform: none; }
 
 /* 팔기 완료 */
 .pk-done { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(242, 242, 247, 0.5); pointer-events: none; }
@@ -1129,8 +1137,32 @@ html[data-theme="dark"] .draw { background: #fff; }
 .biz-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .biz-main b { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .biz-main span { font-size: 13px; color: var(--text-secondary); }
-.biz-end { flex: none; height: 36px; padding: 0 14px; border-radius: 18px; background: rgba(255, 59, 48, 0.12); color: var(--status-red); font-size: 15px; font-weight: 600; transition: transform 0.2s var(--ease); }
-.biz-end:active { transform: scale(0.95); }
+/* 더보기(⋯): 이름 바꾸기, 판매 멈추기, 판매 종료하기 목록을 열어요 */
+.biz-more { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #000; background: rgba(120, 120, 128, 0.14); transition: transform 0.2s var(--ease); }
+.biz-more:active { transform: scale(0.92); }
+.biz-more svg { width: 20px; height: 20px; }
+.biz-tag { justify-self: start; margin-top: 2px; padding: 2px 9px; border-radius: 10px; font-style: normal; font-size: 12px; font-weight: 700; color: rgba(60, 60, 67, 0.9); background: rgba(120, 120, 128, 0.16); }
+
+/* 아래에서 올라오는 목록(액션 시트)과 가운데 이름 카드 */
+.bz-dim { position: absolute; inset: 0; z-index: 160; background: rgba(0, 0, 0, 0.3); opacity: 0; transition: opacity 0.3s; }
+.bz-dim.on { opacity: 1; }
+.bz-sheet { position: absolute; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); z-index: 161; display: grid; gap: 8px; transform: translate3d(0, calc(100% + 24px), 0); transition: transform 0.42s var(--ease); }
+.bz-sheet.on { transform: none; }
+.bz-sheet-t, .bz-sheet-g, .bz-cancel { overflow: hidden; border-radius: 20px; background: rgba(255, 255, 255, 0.94); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); box-shadow: 0 10px 28px rgba(30, 40, 80, 0.16); }
+.bz-sheet-t { margin: 0; padding: 14px 16px; text-align: center; font-size: 14px; line-height: 19px; font-weight: 600; color: rgba(60, 60, 67, 0.7); }
+.bz-sheet-g { display: grid; }
+.bz-act { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 58px; padding: 0 16px; font-size: 19px; font-weight: 600; color: #0a7cff; text-align: center; }
+.bz-sheet-g .bz-act + .bz-act { border-top: 0.5px solid rgba(60, 60, 67, 0.18); }
+.bz-act.danger { color: #ff3b30; }
+.bz-cancel { font-weight: 700; }
+.bz-card { position: absolute; left: 50%; top: 50%; z-index: 161; display: grid; gap: 12px; width: min(300px, calc(100% - 56px)); padding: 22px 18px 16px; border-radius: 26px; background: #ffffff; box-shadow: 0 18px 44px rgba(20, 30, 70, 0.24); opacity: 0; transform: translate(-50%, -50%) scale(0.94); transition: transform 0.42s var(--ease), opacity 0.3s; }
+.bz-card.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.bz-card-t { margin: 0; text-align: center; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.bz-input { display: block; width: 100%; height: 48px; padding: 0 12px; border: 0; outline: 0; border-radius: 14px; background: rgba(120, 120, 128, 0.12); text-align: center; font: inherit; font-size: 18px; font-weight: 600; color: #000; }
+.bz-err { min-height: 18px; margin: 0; text-align: center; font-size: 13px; font-weight: 600; color: #ff3b30; }
+.bz-card-b { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bz-btn { display: flex; align-items: center; justify-content: center; height: 46px; border-radius: 23px; background: rgba(120, 120, 128, 0.14); font-size: 17px; font-weight: 600; color: #000; text-align: center; }
+.bz-btn.primary { background: linear-gradient(#3b93ff, #0a7cff); color: #fff; font-weight: 700; }
 @keyframes bizIn { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
 
 /* 상품 그림 선: 검은 윤곽선 (화면이 커져도 선 굵기가 같아요) */
@@ -1142,7 +1174,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .pkv svg, .pk-tile svg { overflow: visible; }
 
 /* 회색 리퀴드 글라스: 흰 바탕 위에서 버튼과 카드에만 쓰고, 나머지는 흰색 그대로 */
-.pk-glass, .pk-orb, .pk-soon-orb, .pk-row, .pk-card, .pk-tile, .pk-step, .pk-chip {
+.pk-glass, .pk-row, .pk-card, .pk-tile, .pk-step, .pk-chip {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(224, 227, 234, 0.72) 56%, rgba(200, 205, 214, 0.62));
 }
 .pk-tile { background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(234, 236, 241, 0.85)); }

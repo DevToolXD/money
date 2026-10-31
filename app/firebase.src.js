@@ -318,12 +318,16 @@ window.cloudReady = (async () => {
         await b.commit();
       },
 
-      /* ----- 팔 상품: 한 상품이 한 문서예요. 판매 종료는 active만 false로 바꿔요 ----- */
+      /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
+         이름 바꾸기, 판매 멈춤(paused), 판매 종료(active를 false로)만 바꿀 수 있어요 ----- */
       listProducts: async () => {
         const snap = await getDocs(query(collection(db, "companies", uidOf(), "products"), where("active", "==", true), limit(50))).catch(rethrow);
         return snap.docs.map((d) => {
           const v = d.data({ serverTimestamps: "estimate" });
-          return { ...v, id: d.id, at: ms(v.at) };
+          // 예전 상품은 토큰 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
+          const costCents = Number.isInteger(v.costCents) ? v.costCents : Math.round((v.cost || 0) * 100);
+          const priceCents = Number.isInteger(v.priceCents) ? v.priceCents : Math.round((v.price || 0) * 100);
+          return { ...v, id: d.id, at: ms(v.at), costCents, priceCents, paused: v.paused === true };
         });
       },
       createProduct: async (p) => {
@@ -332,6 +336,8 @@ window.cloudReady = (async () => {
         await setDoc(ref, data).catch(rethrow);
         return ref.id;
       },
+      renameProduct: (id, name) => updateDoc(doc(db, "companies", uidOf(), "products", id), { name }).catch(rethrow),
+      setProductPaused: (id, paused) => updateDoc(doc(db, "companies", uidOf(), "products", id), { paused: paused === true }).catch(rethrow),
       endProduct: (id) => updateDoc(doc(db, "companies", uidOf(), "products", id), { active: false }).catch(rethrow),
 
       /* ----- 상태 (배고픔·목마름·에너지) ----- */

@@ -1,26 +1,26 @@
 /* 사업: 팔 상품 정하기 (전체 화면), 판매 목록, 원가 계산.
    식품은 물·음식·에너지 식품 가운데 고르고, 모양·뚜껑·내용물·색을 차례로 정해요.
-   컴퓨터와 인공지능은 자리만 있어요. 상품 그림은 사진이 아니라 이 파일의 도형(SVG)이에요. */
+   칸에서 고른 것은 확인 버튼을 눌러야 다음으로 넘어가요. 그림은 app/shapes.js 의 도형이에요.
+   원가는 센트 단위 정수로 계산해요 (50 = 0.5 토큰). 1 토큰 = 1 달러. */
 (() => {
   "use strict";
 
+  const Shapes = window.Shapes;
   const SPRING = "cubic-bezier(0.2, 0.9, 0.25, 1.06)";
   const RM = matchMedia("(prefers-reduced-motion: reduce)");
-  const ML = [330, 500, 600, 750, 1000, 1250, 1500, 1800, 2000, 2500]; // 페트병 용량 10단계
   const ALL = Array.from({ length: 50 }, (_, k) => k);
   const ICON_COL = ["#ffd9b8", "#c8e7ff", "#d8f5d0", "#ffd6e8", "#e4dcff"];
 
   const r1 = (n) => Math.round(n * 10) / 10;
-  const won = (n) => Number(n).toLocaleString("ko-KR");
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const svgI = (d) =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
   // 아이콘은 모두 검은 윤곽선이에요 (선 굵기 1.8, 둥근 끝)
   const ICON = {
-    food: '<path d="M3.5 14.5h17M5.5 14.5a6.5 6.5 0 0 1 13 0M9 18.5h6"/>',
+    food: '<path d="M2.4 12.6H21.6"/><path d="M2.4 12.6C2.4 18.2 6.8 22 12 22S21.6 18.2 21.6 12.6"/><g transform="translate(8.6 12.6) rotate(-30)"><path d="M0 0C-3 -1.6 -3 -5.04 0 -7.2C3 -5.04 3 -1.6 0 0Z"/><path d="M0 -1V-4.46"/></g><g transform="translate(12.2 12.6) rotate(0)"><path d="M0 0C-3 -1.6 -3 -5.88 0 -8.4C3 -5.88 3 -1.6 0 0Z"/><path d="M0 -1V-5.21"/></g><g transform="translate(15.8 12.6) rotate(30)"><path d="M0 0C-3 -1.6 -3 -5.04 0 -7.2C3 -5.04 3 -1.6 0 0Z"/><path d="M0 -1V-4.46"/></g><path d="M9.4 17.6a2.7 2.7 0 1 0 0.01 0Z"/><path d="M9.4 14.9V13.6"/>',
     pc: '<rect x="3" y="4.5" width="18" height="12.5" rx="2.5"/><path d="M9 20.5h6M12 17v3.5"/>',
-    ai: '<rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/><rect x="10" y="10" width="4" height="4" rx="1"/><path d="M9.5 3.5v3M14.5 3.5v3M9.5 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 14.5h3M17.5 9.5h3M17.5 14.5h3"/>',
+    ai: '<path d="M10.2 3.2L14.7 2.4L17.6 4.1L19 8.6L18.4 14.5L17.2 16.6L17.2 21.3H9.3V16.1L6.9 15.7L5.6 12L4.8 9.7L5.8 7.4L6.9 4.5Z"/><path d="M13.00 8.10Q14.73 6.54 13.60 4.74M13.94 8.41Q16.25 8.16 16.40 6.04M14.52 9.21Q16.54 10.37 17.91 8.74M14.52 10.19Q15.47 12.32 17.54 11.80M13.94 10.99Q13.46 13.27 15.43 14.07M13.00 11.30Q11.27 12.86 12.40 14.66M12.06 10.99Q9.75 11.24 9.60 13.36M11.48 10.19Q9.46 9.03 8.09 10.66M11.48 9.21Q10.53 7.08 8.46 7.60M12.06 8.41Q12.54 6.13 10.57 5.33"/>',
     drop: '<path d="M12 3.5C9 8 6.5 10.8 6.5 14.5a5.5 5.5 0 0 0 11 0C17.5 10.8 15 8 12 3.5z"/>',
     fork: '<path d="M7 3v6a2.5 2.5 0 0 0 5 0V3M9.5 11.5V21M17 21V3c-2 1.5-3 4-3 7h3"/>',
     bolt: '<path d="M13 3L6 13.5h5L10 21l7-10.5h-5z"/>',
@@ -32,12 +32,19 @@
     can: '<rect x="7" y="3.5" width="10" height="17" rx="3"/><path d="M7 7.5h10"/>',
     cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16"/>',
     dot: '<circle cx="12" cy="12" r="3.5"/>',
+    dots: '<circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/>',
     chev: '<path d="M9 5l7 7-7 7"/>',
     back: '<path d="M15 5l-7 7 7 7"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   };
 
-  const Shapes = window.Shapes; // 그림은 app/shapes.js 에서 가져와요
+  // 값이 정해진 것인지 (null 이 아니고 0 이상인 정수)
+  const has = (v) => typeof v === "number" && v >= 0;
+  // 센트 정수를 토큰 글자로 (50 → 0.5, 1250 → 1,250 이 아니라 12.5)
+  const tok = (cents) => (cents / 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 });
+  const fmt = (cents) => String(+(cents / 100).toFixed(2));
+
+  // 색 50가지: 색상 10개 × 밝기 5단계
   const HUES = [4, 28, 46, 70, 128, 160, 196, 220, 262, 318];
   const LIGHTS = [36, 50, 64, 78, 90];
   const colorOf = (i) => {
@@ -58,7 +65,7 @@
             {
               id: "snack", label: "간식", icon: "cookie", hint: "젤리, 과자, 빵",
               children: [
-                { id: "jelly", label: "젤리", icon: "bag", hint: "봉지 모양과 색", leaf: "jelly" },
+                { id: "jelly", label: "젤리", icon: "bag", hint: "용기 모양과 색", leaf: "jelly" },
                 { id: "chips", label: "과자", icon: "bag", hint: "봉지 모양과 색", leaf: "chips" },
                 { id: "bread", label: "빵", icon: "bag", hint: "봉지 모양과 색", leaf: "bread" },
               ],
@@ -67,7 +74,7 @@
               id: "plate", label: "식사", icon: "plate", hint: "도시락, 고기",
               children: [
                 { id: "lunchbox", label: "도시락", icon: "box", hint: "용기 모양과 색", leaf: "lunchbox" },
-                { id: "meat", label: "고기", icon: "box", hint: "용기 모양과 색", leaf: "meat" },
+                { id: "meat", label: "고기", icon: "box", hint: "고기 모양과 트레이 색", leaf: "meat" },
               ],
             },
           ],
@@ -75,9 +82,9 @@
         {
           id: "energy", label: "에너지 식품", icon: "bolt", hint: "에너지바, 음료, 커피",
           children: [
-            { id: "bar", label: "에너지바", icon: "wrap", hint: "봉투, 내용물, 색", leaf: "bar" },
-            { id: "drink", label: "에너지 음료", icon: "can", hint: "용기, 내용물, 색", leaf: "drink" },
-            { id: "coffee", label: "커피", icon: "cup", hint: "용기, 내용물, 색", leaf: "coffee" },
+            { id: "bar", label: "에너지바", icon: "wrap", hint: "포장, 내용물, 색", leaf: "bar" },
+            { id: "drink", label: "에너지 음료", icon: "can", hint: "캔, 내용물, 색", leaf: "drink" },
+            { id: "coffee", label: "커피", icon: "cup", hint: "컵, 내용물, 색", leaf: "coffee" },
           ],
         },
       ],
@@ -93,23 +100,17 @@
     });
   indexNodes(ROOT);
 
-  // 잎 상품: 어떤 도형을 쓰고, 어떤 순서로 고르는지
   // 잎 상품: 어떤 그림 모음을 쓰고, 어떤 순서로 고르는지
-  const CONTENTS = {
-    bar: ["초코", "바닐라", "딸기", "녹차", "땅콩", "블루베리"],
-    drink: ["레몬", "청포도", "복숭아", "베리", "콜라", "자몽"],
-    coffee: ["아메리카노", "라떼", "바닐라 라떼", "콜드브루", "모카", "카라멜 마키아토"],
-  };
   const LEAF = {
-    water: { label: "물", group: "water", family: "bottle", kinds: Shapes.KINDS.bottle, flow: ["bottle", "cap", "capColor"], ingredient: 1 },
-    jelly: { label: "젤리", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.jelly, flow: ["shape", "color"], ingredient: 1, shapeTitle: "젤리 용기 모양", colorTitle: "용기 색" },
-    chips: { label: "과자", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.chips, flow: ["shape", "color"], ingredient: 1, shapeTitle: "과자 봉지 모양", colorTitle: "봉지 색" },
-    bread: { label: "빵", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.bread, flow: ["shape", "color"], ingredient: 2, shapeTitle: "빵 봉지 모양", colorTitle: "봉지 색" },
-    lunchbox: { label: "도시락", group: "meal", family: "box", kinds: Shapes.KINDS.box, flow: ["shape", "color"], ingredient: 3, shapeTitle: "도시락 용기 모양", colorTitle: "용기 색" },
-    meat: { label: "고기", group: "meal", family: "meat", kinds: Shapes.KINDS.meat, flow: ["shape", "color"], ingredient: 0, shapeTitle: "고기 모양", colorTitle: "트레이 색" },
-    bar: { label: "에너지바", group: "energy", family: "wrap", kinds: Shapes.KINDS.wrap, flow: ["shape", "contents", "color"], ingredient: 1, shapeTitle: "포장 모양", colorTitle: "포장 색", contents: CONTENTS.bar },
-    drink: { label: "에너지 음료", group: "energy", family: "can", kinds: Shapes.KINDS.can, flow: ["shape", "contents", "color"], ingredient: 1, shapeTitle: "에너지 캔 모양", colorTitle: "캔 색", contents: CONTENTS.drink },
-    coffee: { label: "커피", group: "energy", family: "cup", kinds: Shapes.KINDS.cup, flow: ["shape", "contents", "color"], ingredient: 2, shapeTitle: "컵 모양", colorTitle: "컵 색", contents: CONTENTS.coffee },
+    water: { key: "water", label: "물", group: "water", family: "bottle", kinds: Shapes.KINDS.bottle, flow: ["bottle", "cap", "capColor"] },
+    jelly: { key: "jelly", label: "젤리", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.jelly, flow: ["shape", "color"], shapeTitle: "젤리 용기 모양", colorTitle: "용기 색" },
+    chips: { key: "chips", label: "과자", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.chips, flow: ["shape", "color"], shapeTitle: "과자 봉지 모양", colorTitle: "봉지 색" },
+    bread: { key: "bread", label: "빵", group: "snack", family: "bag", kinds: Shapes.KINDS.bag.bread, flow: ["shape", "color"], shapeTitle: "빵 봉지 모양", colorTitle: "봉지 색" },
+    lunchbox: { key: "lunchbox", label: "도시락", group: "meal", family: "box", kinds: Shapes.KINDS.box, flow: ["shape", "color"], shapeTitle: "도시락 용기 모양", colorTitle: "용기 색" },
+    meat: { key: "meat", label: "고기", group: "meal", family: "meat", kinds: Shapes.KINDS.meat, flow: ["shape", "color"], shapeTitle: "고기 모양", colorTitle: "트레이 색" },
+    bar: { key: "bar", label: "에너지바", group: "energy", family: "wrap", kinds: Shapes.KINDS.wrap, flow: ["shape", "contents", "color"], shapeTitle: "포장 모양", colorTitle: "포장 색", contents: ["초코", "바닐라", "딸기", "녹차", "땅콩", "블루베리"] },
+    drink: { key: "drink", label: "에너지 음료", group: "energy", family: "can", kinds: Shapes.KINDS.can, flow: ["shape", "contents", "color"], shapeTitle: "에너지 캔 모양", colorTitle: "캔 색", contents: ["레몬", "청포도", "복숭아", "베리", "콜라", "자몽"] },
+    coffee: { key: "coffee", label: "커피", group: "energy", family: "cup", kinds: Shapes.KINDS.cup, flow: ["shape", "contents", "color"], shapeTitle: "컵 모양", colorTitle: "컵 색", contents: ["아메리카노", "라떼", "바닐라 라떼", "콜드브루", "모카", "카라멜 마키아토"] },
   };
   const CONTAINER = { bottle: "페트병", bag: "봉지", box: "용기", can: "캔", cup: "컵", wrap: "포장", meat: "트레이" };
   // 고르는 칸: 종류 칸(shape·bottle·cap), 색 칸(color·capColor), 내용물(options)
@@ -122,37 +123,65 @@
     return { kind: "options", field: "content", title: "내용물" };
   };
 
-  /* ---------- 이름, 원가 ---------- */
+  /* ---------- 원가 (1 토큰 = 1 달러) ----------
+     근거 (검색한 값은 출처를 적고, 찾지 못한 값은 추정이에요):
+     - 생수 페트병·뚜껑·라벨: ThePricer (병 8~20센트, 뚜껑 1~5센트, 라벨 2~10센트), 생수 1병 전체 25~75센트 범위 안
+     - 음료 캔: vaza.gr 250ml 캔 €1,090/1,000개 ≈ 약 11센트 (1개 단가로 환산, 추정)
+     - 커피 컵: 12온스 컵·뚜껑·슬리브 세트 22~37센트 (Walmart 100개 $21.99, Quill 500개 $186.99)
+     - 도시락 용기: 17온스 크라프트 박스 92센트 (UCHANGE 3,000개 단가), 플라스틱 용기 30~62센트 (Global Sources)
+     - 고기: 삼겹살 1kg 2만 원 안팎 (2026년 6월 축산물 가격표 21,000~25,000원, 도매 18,000원부터), 1달러 = 1,400원 가정
+     - 봉지 필름, 내용물, 텀블러 등은 찾지 못해서 추정이에요. */
+  const FX = 1400;
+  const MEAT_UNIT = (20000 * 0.15) / FX; // 150g 한 팩 ≈ 2.14달러
+  const SIZE_F = [0.8, 0.9, 1, 1.1, 1.2]; // 크기 5단계에 따른 용기 배율
+  const COST = {
+    water: { bottle: [0.07, 0.10, 0.16, 0.21, 0.25], filling: [0.066, 0.10, 0.20, 0.30, 0.40], label: 0.05 },
+    cap: [0.03, 0.05, 0.03, 0.04, 0.04, 0.03, 0.04, 0.03, 0.03, 0.03],
+    chips: { pack: [0.05, 0.08, 0.25, 0.07, 0.12, 0.04, 0.10, 0.25, 0.04, 0.06], inside: 0.40 },
+    jelly: { pack: [0.04, 0.12, 0.08, 0.15, 0.04, 0.04, 0.08, 0.07, 0.25, 0.10], inside: 0.30 },
+    bread: { pack: [0.10, 0.06, 0.05, 0.20, 0.20, 0.07, 0.08, 0.05, 0.05, 0.06], inside: 0.80 },
+    lunchbox: { pack: [0.30, 0.25, 0.92, 0.40, 0.45, 0.50, 0.35, 0.60, 0.35, 0.35], inside: 2.0 },
+    meat: { mult: [2.5, 1.0, 2.0, 0.6, 0.7, 0.8, 1.0, 2.0, 0.7, 0.5], tray: 0.15 },
+    bar: { pack: [0.05, 0.05, 0.06, 0.12, 0.04, 0.06, 0.08, 0.10, 0.05, 0.10], inside: 0.40 },
+    drink: { pack: [0.13, 0.11, 0.16, 0.18, 0.25, 0.10, 0.13, 0.13, 0.15, 0.13], inside: 0.20 },
+    coffee: { pack: [0.25, 0.30, 0.20, 1.50, 0.80, 0.60, 0.28, 0.27, 0.35, 0.40], inside: 0.15 },
+    logo: 0.02,
+  };
+  // 원가 줄을 센트 정수로 돌려줘요 (합계도 센트)
+  const costLines = (p) => {
+    const leaf = LEAF[p.item];
+    const k = Math.floor((p.shape ?? 0) / 5);
+    const s = (p.shape ?? 0) % 5;
+    const lines = [];
+    if (leaf.family === "bottle") {
+      lines.push(["페트병", COST.water.bottle[s]]);
+      lines.push(["생수와 충전", COST.water.filling[s]]);
+      if (has(p.cap)) lines.push(["뚜껑", COST.cap[Math.floor(p.cap / 5)]]);
+      lines.push(["라벨", COST.water.label]);
+    } else if (leaf.family === "meat") {
+      lines.push(["트레이", COST.meat.tray]);
+      lines.push(["고기 150g", MEAT_UNIT * COST.meat.mult[k] * SIZE_F[s]]);
+    } else {
+      const c = COST[leaf.key];
+      lines.push([CONTAINER[leaf.family], c.pack[k] * SIZE_F[s]]);
+      lines.push(["내용물", c.inside * SIZE_F[s]]);
+    }
+    lines.push(["로고 인쇄", COST.logo]);
+    const rows = lines.map(([n, usd]) => [n, Math.round(usd * 100)]);
+    return { lines: rows, total: rows.reduce((t, l) => t + l[1], 0) };
+  };
+
+  /* ---------- 이름 ---------- */
   const sizeOf = (ml) => (ml >= 1000 ? `${+(ml / 1000).toFixed(2)}L` : `${ml}ml`);
   const nameOf = (p) => {
     const leaf = LEAF[p.item];
     if (p.item === "water") return `생수 ${sizeOf(Shapes.BOTTLE_ML[(p.shape ?? 0) % 5])}`;
-    const flavor = leaf.contents && p.content >= 0 ? ` · ${leaf.contents[p.content]}` : "";
+    const flavor = leaf.contents && has(p.content) ? ` · ${leaf.contents[p.content]}` : "";
     return `${leaf.label}${flavor}`.slice(0, 30);
-  };
-  // 원가: 용기(크기에 따라), 뚜껑, 고기, 내용물, 로고 인쇄를 더해요 (모두 토큰 정수)
-  const costOf = (p) => {
-    const leaf = LEAF[p.item];
-    const s = (p.shape ?? 0) % 5;
-    const lines = [];
-    if (leaf.family === "bottle") {
-      lines.push(["페트병", Math.ceil(Shapes.BOTTLE_ML[s] / 500)]);
-      if (p.cap >= 0) lines.push(["뚜껑", Math.floor(p.cap / 5) === 1 ? 2 : 1]);
-    } else if (leaf.family === "meat") {
-      lines.push(["트레이", 2]);
-      lines.push(["고기", Shapes.MEAT_COST[leaf.kinds[Math.floor((p.shape ?? 0) / 5)]] + Math.floor(s / 2)]);
-    } else {
-      lines.push([CONTAINER[leaf.family], 1 + Math.floor(s / 2)]);
-    }
-    if (leaf.family !== "meat") {
-      const inside = leaf.ingredient + (leaf.contents && p.content >= 0 ? 1 + Math.floor(p.content / 2) : 0);
-      if (inside) lines.push(["내용물", inside]);
-    }
-    lines.push(["로고 인쇄", 1]);
-    return { lines, total: lines.reduce((t, l) => t + l[1], 0) };
   };
 
   /* ---------- 그림 (app/shapes.js 도형을 SVG로 그려요) ---------- */
+  let ctx = null;
   let uid = 0;
   const logoHTML = (r) => {
     const co = ctx.company();
@@ -170,16 +199,17 @@
     if (r.hl) o += `<path class="pk-hl" d="${r.hl}"/>`;
     return o;
   };
+  // 상품 그림 (값이 아직 없는 칸은 기본 모양으로 그려요)
   const pkvHTML = (p, mini = false) => {
     const leaf = LEAF[p.item];
     const k = p.shape ?? 0;
     const r = Shapes.body(leaf.family, leaf.kinds[Math.floor(k / 5)] ?? leaf.kinds[0], k % 5);
     const water = leaf.family === "bottle";
-    const fill = water ? "#eef6fb" : p.color >= 0 ? colorOf(p.color) : "#ffffff";
+    const fill = water ? "#eef6fb" : has(p.color) ? colorOf(p.color) : "#ffffff";
     let cap = "";
-    if (water && p.cap >= 0) {
+    if (water && has(p.cap)) {
       const c = Shapes.cap(Shapes.KINDS.cap[Math.floor(p.cap / 5)], r.nr, r.top, p.cap % 5);
-      cap = `<path class="pk-body" d="${c.body}" fill="${p.capColor >= 0 ? colorOf(p.capColor) : "#2b2b2f"}"/>${c.det ? `<path class="pk-det" d="${c.det}"/>` : ""}`;
+      cap = `<path class="pk-body" d="${c.body}" fill="${has(p.capColor) ? colorOf(p.capColor) : "#2b2b2f"}"/>${c.det ? `<path class="pk-det" d="${c.det}"/>` : ""}`;
     }
     return `<div class="pkv${mini ? " pkv-sm" : ""}"><svg viewBox="0 0 120 200" aria-hidden="true">${paths(r, fill)}${cap}</svg>${logoHTML(r)}</div>`;
   };
@@ -193,26 +223,28 @@
   };
 
   /* ---------- 상태 ---------- */
-  let ctx = null;
   let pk = null;
   let stage = null;
   let prev = null;
   let titleEl = null;
   let crumbEl = null;
   let backEl = null;
+  let foot = null;
+  let okBtn = null;
   let products = [];
   let hist = [];
-  let pick = null;
+  let pick = null; // 지금 상품 정하기의 값 (확인을 눌러서 들어온 것만)
+  let sel = null; // 지금 칸에서 고른 것 (확인 전)
   let busy = false;
   let lastPrev = "";
-  const RMOFF = () => RM.matches;
-  const anim = (el, frames, opts) => (RMOFF() ? null : el.animate(frames, { fill: "both", ...opts }));
+  const anim = (el, frames, opts) => (RM.matches ? null : el.animate(frames, { fill: "both", ...opts }));
+  const top = () => hist[hist.length - 1];
 
   const titleOf = (e) => {
     if (e.kind === "root") return "팔 상품 정하기";
     if (e.kind === "list" || e.kind === "soon") return e.node.label;
     if (e.kind === "step") return stepInfo(e.key, LEAF[pick.item]).title;
-    return "판매 가격 정하기";
+    return "이름과 가격 정하기";
   };
   const crumbOf = () => {
     const out = [];
@@ -231,36 +263,35 @@
     const leaf = LEAF[pick.item];
     const st = stepInfo(key, leaf);
     if (st.kind === "shape") {
-      const cur = pick[st.field];
-      const tiles = ALL.map((k) => `<button class="pk-tile${cur === k ? " is-on" : ""}" type="button" data-field="${st.field}" data-v="${k}" style="--i:${k}">${thumbHTML(st.family, st.kinds[Math.floor(k / 5)], k % 5)}</button>`);
+      const tiles = ALL.map((k) => `<button class="pk-tile${sel === k ? " is-on" : ""}" type="button" data-v="${k}" style="--i:${k}">${thumbHTML(st.family, st.kinds[Math.floor(k / 5)], k % 5)}</button>`);
       return `<div class="pk-grid">${tiles.join("")}</div>`;
     }
     if (st.kind === "color") {
-      return `<div class="pk-grid pk-swgrid">${ALL.map((k) => `<button class="pk-sw${pick[st.field] === k ? " is-on" : ""}" type="button" data-field="${st.field}" data-v="${k}" style="--i:${k};--c:${colorOf(k)}" aria-label="색 ${k + 1}"></button>`).join("")}</div>`;
+      return `<div class="pk-grid pk-swgrid">${ALL.map((k) => `<button class="pk-sw${sel === k ? " is-on" : ""}" type="button" data-v="${k}" style="--i:${k};--c:${colorOf(k)}" aria-label="색 ${k + 1}"></button>`).join("")}</div>`;
     }
     return `<div class="pk-list">${leaf.contents
-      .map((c, i) => `<button class="pk-row${pick.content === i ? " is-on" : ""}" type="button" data-field="content" data-v="${i}" style="--i:${i}"><span class="pk-ic" style="--c:${ICON_COL[i % ICON_COL.length]}">${svgI(ICON.dot)}</span><span class="pk-main"><b>${esc(c)}</b></span><span class="pk-chev">${svgI(ICON.chev)}</span></button>`)
+      .map((c, i) => `<button class="pk-row${sel === i ? " is-on" : ""}" type="button" data-v="${i}" style="--i:${i}"><span class="pk-ic" style="--c:${ICON_COL[i % ICON_COL.length]}">${svgI(ICON.dot)}</span><span class="pk-main"><b>${esc(c)}</b></span><span class="pk-chev">${svgI(ICON.chev)}</span></button>`)
       .join("")}</div>`;
   };
 
   const summaryHTML = () => {
-    const c = costOf(pick);
-    if (pick.price == null) pick.price = c.total * 2;
-    const rows = c.lines.map(([n, v]) => `<div class="pk-cost-row"><span>${n}</span><b>${won(v)} 토큰</b></div>`).join("");
-    const sug = c.total * 2;
+    const c = costLines(pick);
+    if (pick.priceCents == null) pick.priceCents = Math.max(1, c.total * 2);
+    if (pick.name == null) pick.name = nameOf(pick);
+    const sug = Math.max(1, c.total * 2);
+    const rows = c.lines.map(([n, v]) => `<div class="pk-cost-row"><span>${n}</span><b>${tok(v)} 토큰</b></div>`).join("");
     return `<div class="pk-sum">
-      <h2 class="pk-sum-name">${esc(nameOf(pick))}</h2>
       <p class="pk-sum-sub">${esc(crumbOf())}</p>
+      <div class="pk-card"><input id="pk-name" class="pk-name" maxlength="30" autocomplete="off" placeholder="상품 이름" value="${esc(pick.name)}" aria-label="상품 이름"></div>
       <div class="pk-card">
         <p class="pk-lab">원가 계산</p>
         ${rows}
-        <div class="pk-cost-row pk-cost-total"><span>원가 합계</span><b>${won(c.total)} 토큰</b></div>
+        <div class="pk-cost-row pk-cost-total"><span>원가 합계</span><b>${tok(c.total)} 토큰</b></div>
       </div>
       <div class="pk-card">
-        <p class="pk-lab">팔 가격 · 1 토큰 = 1달러</p>
-        <input id="pk-input" class="pk-input" inputmode="numeric" autocomplete="off" value="${pick.price}" aria-label="팔 가격">
-        <div class="pk-steps">${[-10, -1, 1, 10].map((d) => `<button class="pk-step" type="button" data-step="${d}">${d > 0 ? "+" : "−"}${Math.abs(d)}</button>`).join("")}</div>
-        <button class="pk-chip" type="button" data-suggest="${sug}">추천 ${won(sug)} 토큰 (원가의 2배)</button>
+        <input id="pk-input" class="pk-input" inputmode="decimal" autocomplete="off" value="${fmt(pick.priceCents)}" aria-label="팔 가격">
+        <div class="pk-steps">${[-100, -10, 10, 100].map((d) => `<button class="pk-step" type="button" data-step="${d}">${d > 0 ? "+" : "−"}${tok(Math.abs(d))}</button>`).join("")}</div>
+        <button class="pk-chip" type="button" data-suggest="${sug}">추천 ${tok(sug)} 토큰 (원가의 2배)</button>
         <p class="pk-profit" id="pk-profit"></p>
       </div>
       <p class="pk-err" id="pk-err" role="alert"></p>
@@ -282,25 +313,31 @@
     return summaryHTML();
   };
 
-  // 가격과 이익을 다시 써요 (입력칸은 건드리지 않아요)
+  // 원가와 이익을 다시 써요 (입력칸은 건드리지 않아요)
   const paintProfit = () => {
     const el = pk?.querySelector("#pk-profit");
     if (!el || !pick) return;
-    const c = costOf(pick);
-    const pr = pick.price || 0;
+    const c = costLines(pick);
+    const pr = pick.priceCents || 0;
     const gain = pr - c.total;
     el.classList.toggle("loss", pr >= 1 && gain < 0);
     el.textContent =
       pr < 1
-        ? "가격을 1 토큰 이상으로 정해 주세요"
+        ? "가격을 정해 주세요"
         : gain > 0
-          ? `한 개에 ${won(gain)} 토큰 남아요 (이익률 ${Math.round((gain / pr) * 100)}%)`
+          ? `한 개에 ${tok(gain)} 토큰 남아요 (이익률 ${Math.round((gain / pr) * 100)}%)`
           : gain === 0
             ? "원가와 같아요. 남는 돈이 없어요"
-            : `원가보다 ${won(-gain)} 토큰 낮아요`;
+            : `원가보다 ${tok(-gain)} 토큰 낮아요`;
   };
 
   /* ---------- 그림 칸 (위쪽 미리보기) ---------- */
+  // 칸에서 고른 것은 확인 전이라도 미리 보여줘요
+  const pickPreview = () => {
+    const t = top();
+    if (t && t.kind === "step" && sel !== null) return { ...pick, [stepInfo(t.key, LEAF[pick.item]).field]: sel };
+    return pick;
+  };
   const setPrev = (html, big, on) => {
     prev.classList.toggle("on", on);
     prev.classList.toggle("pk-big", big);
@@ -320,7 +357,8 @@
     }
   };
   const renderPrev = (e) => {
-    if (e.kind === "step" || e.kind === "summary") setPrev(pkvHTML(pick), e.kind === "summary", true);
+    if (e.kind === "step") setPrev(pkvHTML(pickPreview()), false, true);
+    else if (e.kind === "summary") setPrev(pkvHTML(pick), true, true);
     else setPrev("", false, false);
   };
 
@@ -334,7 +372,7 @@
   const swap = (el, dir) => {
     const old = [...stage.querySelectorAll(".pk-view")];
     stage.appendChild(el);
-    if (RMOFF()) {
+    if (RM.matches) {
       old.forEach((o) => o.remove());
       return;
     }
@@ -345,16 +383,27 @@
     }
   };
   const syncTop = () => {
-    const e = hist[hist.length - 1];
+    const e = top();
     titleEl.textContent = titleOf(e);
     crumbEl.textContent = hist.length > 1 ? crumbOf() : "";
     backEl.setAttribute("aria-label", hist.length > 1 ? "뒤로" : "닫기");
     anim(titleEl, [{ opacity: 0.2, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 320, easing: SPRING, fill: "backwards" });
   };
+  // 확인 버튼은 고르는 칸에서만 보여요. 고르기 전에는 누를 수 없어요
+  const paintFoot = () => {
+    const t = top();
+    foot.hidden = !(t && t.kind === "step");
+    okBtn.disabled = sel === null;
+  };
   const show = (e, dir) => {
+    if (e.kind === "step") {
+      const f = stepInfo(e.key, LEAF[pick.item]).field;
+      sel = has(pick[f]) ? pick[f] : null; // 이미 정한 칸으로 돌아오면 그 값을 골라 둬요
+    }
     swap(makeView(viewHTML(e)), dir);
     syncTop();
     renderPrev(e);
+    paintFoot();
     if (e.kind === "summary") requestAnimationFrame(paintProfit);
   };
   const push = (e) => {
@@ -364,13 +413,13 @@
   const pop = () => {
     if (hist.length <= 1) return close();
     hist.pop();
-    show(hist[hist.length - 1], -1);
+    show(top(), -1);
   };
   const advance = () => {
-    const top = hist[hist.length - 1];
-    if (!top || top.kind !== "step") return;
+    const t = top();
+    if (!t || t.kind !== "step") return;
     const flow = LEAF[pick.item].flow;
-    const i = flow.indexOf(top.key);
+    const i = flow.indexOf(t.key);
     push(i < flow.length - 1 ? { kind: "step", key: flow[i + 1] } : { kind: "summary" });
   };
 
@@ -400,30 +449,33 @@
     if (!n) return;
     if (n.children) return push({ kind: "list", node: n });
     if (n.leaf) {
-      pick = { item: n.leaf, shape: 0, cap: -1, capColor: -1, color: -1, content: -1 };
+      pick = { item: n.leaf, shape: null, cap: null, capColor: null, color: null, content: null, name: null, priceCents: null };
       push({ kind: "step", key: LEAF[n.leaf].flow[0] });
     }
   };
-  // 모양·색·내용물 하나를 고르면 잠깐 빛나고, 다음 칸으로 넘어가요
-  const choose = (field, v, el) => {
+  // 칸에서 하나를 고르면 미리 보여줘요. 확인을 눌러야 다음으로 넘어가요
+  const choose = (v, el) => {
     if (busy || !pick) return;
-    busy = true;
-    pick[field] = v;
-    stage.querySelectorAll(`[data-field="${field}"]`).forEach((s) => s.classList.toggle("is-on", s === el));
+    sel = v;
+    stage.querySelectorAll("[data-v]").forEach((s) => s.classList.toggle("is-on", s === el));
     anim(el, [{ transform: "scale(1)" }, { transform: "scale(.92)" }, { transform: "scale(1.05)" }, { transform: "scale(1)" }], { duration: 420, easing: "ease-out" });
     if (navigator.vibrate) navigator.vibrate(6);
-    setPrev(pkvHTML(pick), false, true);
-    setTimeout(() => {
-      busy = false;
-      advance();
-    }, 430);
+    setPrev(pkvHTML(pickPreview()), false, true);
+    paintFoot();
+  };
+  const confirmStep = () => {
+    const t = top();
+    if (busy || !t || t.kind !== "step" || sel === null) return;
+    pick[stepInfo(t.key, LEAF[pick.item]).field] = sel;
+    sel = null;
+    advance();
   };
 
   /* ---------- 가격 ---------- */
-  const setPrice = (v) => {
-    pick.price = Math.min(99999999, Math.max(0, Math.round(v)));
+  const setPrice = (cents) => {
+    pick.priceCents = Math.min(99999999, Math.max(1, Math.round(cents)));
     const inp = pk.querySelector("#pk-input");
-    if (inp) inp.value = pick.price;
+    if (inp) inp.value = fmt(pick.priceCents);
     paintProfit();
   };
 
@@ -439,8 +491,13 @@
     if (busy || !pick) return;
     const err = pk.querySelector("#pk-err");
     const btn = pk.querySelector("#pk-sell");
-    if (!(pick.price >= 1)) {
-      err.textContent = "가격을 1 토큰 이상으로 정해 주세요";
+    const name = String(pick.name ?? "").trim().replace(/\s+/g, " ");
+    if (!name || name.length > 30 || /[<>]/.test(name)) {
+      err.textContent = "이름은 1~30자로, < > 없이 적어 주세요";
+      return;
+    }
+    if (!(pick.priceCents >= 1)) {
+      err.textContent = "가격을 0.01 토큰 이상으로 정해 주세요";
       return;
     }
     if (!ctx.company()) {
@@ -450,28 +507,30 @@
     busy = true;
     err.textContent = "";
     const leaf = LEAF[pick.item];
-    const c = costOf(pick);
+    const c = costLines(pick);
     const p = {
       cat: "food",
       group: leaf.group,
       item: pick.item,
-      name: nameOf(pick),
+      name,
       shape: pick.shape,
-      color: pick.color,
-      cost: c.total,
-      price: pick.price,
+      color: has(pick.color) ? pick.color : -1,
+      costCents: c.total,
+      priceCents: pick.priceCents,
+      paused: false,
+      active: true,
     };
     if (leaf.family === "bottle") {
       p.cap = pick.cap;
       p.capColor = pick.capColor;
     }
-    if (leaf.contents && pick.content >= 0) p.content = pick.content;
+    if (leaf.contents && has(pick.content)) p.content = pick.content;
     btn.classList.add("busy");
     try {
       await ctx.cloud().createProduct(p);
       burst();
       await refresh();
-      ctx.toast(`${p.name}을(를) 팔기 시작했어요`);
+      ctx.toast(`${name}을(를) 팔기 시작했어요`);
       setTimeout(close, 900);
     } catch (e) {
       err.textContent = e?.code === "permission-denied" ? "올리지 못했어요. 회사가 있는지 확인해 주세요" : "올리지 못했어요. 잠시 뒤 다시 해 주세요";
@@ -484,14 +543,15 @@
   /* ---------- 열기, 닫기 ---------- */
   const open = () => {
     if (!ctx?.company()) return;
-    hist = [];
+    hist = [{ kind: "root" }];
     pick = null;
+    sel = null;
     stage.innerHTML = "";
     lastPrev = "";
     setPrev("", false, false);
-    hist.push({ kind: "root" });
     stage.appendChild(makeView(viewHTML(hist[0])));
     syncTop();
+    paintFoot();
     pk.hidden = false;
     anim(pk, [{ transform: "translate3d(0,100%,0)" }, { transform: "none" }], { duration: 520, easing: SPRING });
     stage.querySelectorAll(".pk-orbwrap").forEach((w, i) =>
@@ -508,9 +568,10 @@
       lastPrev = "";
       hist = [];
       pick = null;
+      sel = null;
       pk.querySelectorAll(".pk-done").forEach((d) => d.remove());
     };
-    if (RMOFF() || pk.hidden) return done();
+    if (RM.matches || pk.hidden) return done();
     const a = pk.animate([{ transform: "translate3d(0,0,0)" }, { transform: "translate3d(0,100%,0)" }], { duration: 420, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
     a.onfinish = () => {
       a.cancel();
@@ -525,7 +586,7 @@
     list.innerHTML = products
       .map(
         (p, i) =>
-          `<li class="biz-item" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${won(p.price)} 토큰 · 원가 ${won(p.cost)}</span></span><button class="biz-end" type="button" data-end="${esc(p.id)}">판매 종료</button></li>`
+          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span><button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
       )
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;
@@ -545,28 +606,116 @@
     }
     paint();
   }
-  const onList = async (e) => {
-    const b = e.target.closest("[data-end]");
-    if (!b || busy) return;
-    const id = b.dataset.end;
-    const p = products.find((x) => x.id === id);
-    const ok = await ctx.ask({
-      title: `"${p?.name || "이 상품"}" 판매를 끝낼까요?`,
-      body: "끝내면 이 상품은 더 이상 팔리지 않아요. 다시 팔려면 새로 만들어야 해요.",
-      ok: "판매 종료",
-      cancel: "취소",
+
+  // 아래에서 올라오는 선택 목록 (아이폰 액션 시트)
+  const sheet = (title, actions) =>
+    new Promise((resolve) => {
+      const dim = document.createElement("div");
+      dim.className = "bz-dim";
+      const box = document.createElement("div");
+      box.className = "bz-sheet";
+      box.innerHTML = `<p class="bz-sheet-t">${esc(title)}</p><div class="bz-sheet-g">${actions
+        .map((a) => `<button type="button" class="bz-act${a.tone ? " " + a.tone : ""}" data-id="${a.id}">${esc(a.label)}</button>`)
+        .join("")}</div><button type="button" class="bz-act bz-cancel" data-id="">취소</button>`;
+      const done = (id) => {
+        dim.classList.remove("on");
+        box.classList.remove("on");
+        setTimeout(() => {
+          dim.remove();
+          box.remove();
+        }, 300);
+        resolve(id || null);
+      };
+      box.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-id]");
+        if (b) done(b.dataset.id);
+      });
+      dim.addEventListener("click", () => done(null));
+      document.querySelector(".app").append(dim, box);
+      void box.offsetHeight; // 시작 자리를 먼저 잡아야 올라오는 움직임이 나와요
+      dim.classList.add("on");
+      box.classList.add("on");
     });
-    if (!ok) return;
-    const item = b.closest(".biz-item");
-    item?.classList.add("out");
+  // 이름 바꾸기: 입력 카드 (1~30자, < > 없이)
+  const askName = (current) =>
+    new Promise((resolve) => {
+      const dim = document.createElement("div");
+      dim.className = "bz-dim";
+      const card = document.createElement("div");
+      card.className = "bz-card";
+      card.innerHTML = `<p class="bz-card-t">이름 바꾸기</p><input class="bz-input" maxlength="30" autocomplete="off" value="${esc(current)}" aria-label="새 이름"><p class="bz-err"></p><div class="bz-card-b"><button type="button" class="bz-btn" data-k="no">취소</button><button type="button" class="bz-btn primary" data-k="ok">저장</button></div>`;
+      const input = card.querySelector(".bz-input");
+      const err = card.querySelector(".bz-err");
+      const done = (v) => {
+        dim.classList.remove("on");
+        card.classList.remove("on");
+        setTimeout(() => {
+          dim.remove();
+          card.remove();
+        }, 300);
+        resolve(v);
+      };
+      card.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-k]");
+        if (!b) return;
+        if (b.dataset.k === "no") return done(null);
+        const name = input.value.trim().replace(/\s+/g, " ");
+        if (!name || name.length > 30 || /[<>]/.test(name)) {
+          err.textContent = "이름은 1~30자로, < > 없이 적어 주세요";
+          return;
+        }
+        done(name);
+      });
+      dim.addEventListener("click", () => done(null));
+      document.querySelector(".app").append(dim, card);
+      void card.offsetHeight;
+      dim.classList.add("on");
+      card.classList.add("on");
+      input.focus();
+    });
+  // 더보기: 이름 바꾸기, 판매 멈추기(다시 시작), 판매 종료하기. 멈추기와 종료는 두 번 물어봐요
+  const onMore = async (id) => {
+    const p = products.find((x) => x.id === id);
+    if (!p || busy) return;
+    const choice = await sheet(p.name, [
+      { id: "rename", label: "이름 바꾸기" },
+      { id: "pause", label: p.paused ? "판매 다시 시작하기" : "판매 멈추기" },
+      { id: "end", label: "판매 종료하기", tone: "danger" },
+    ]);
+    const cloud = ctx.cloud();
     try {
-      await ctx.cloud().endProduct(id);
-      products = products.filter((x) => x.id !== id);
-      setTimeout(paint, 240);
-      ctx.toast(`${p?.name || "상품"} 판매를 끝냈어요`);
+      if (choice === "rename") {
+        const name = await askName(p.name);
+        if (!name || name === p.name) return; // 그대로면 서버에 보내지 않아요
+        await cloud.renameProduct(id, name);
+        p.name = name;
+        paint();
+        ctx.toast("이름을 바꿨어요");
+      } else if (choice === "pause") {
+        const resume = p.paused;
+        const a = await ctx.ask({
+          title: resume ? "판매를 다시 시작할까요?" : "판매를 멈출까요?",
+          body: resume ? "다시 시작하면 이 상품이 다시 팔려요." : "멈추면 이 상품이 팔리지 않아요. 나중에 다시 시작할 수 있어요.",
+          ok: resume ? "다시 시작" : "멈추기",
+          cancel: "취소",
+        });
+        if (!a) return;
+        if (!resume && !(await ctx.ask({ title: "정말 하시겠습니까?", body: "판매를 멈춰요.", ok: "네, 멈출게요", cancel: "아니요" }))) return;
+        await cloud.setProductPaused(id, !resume);
+        p.paused = !resume;
+        paint();
+        ctx.toast(resume ? "판매를 다시 시작했어요" : "판매를 멈췄어요");
+      } else if (choice === "end") {
+        const a = await ctx.ask({ title: `"${p.name}" 판매를 끝낼까요?`, body: "끝내면 이 상품은 다시 팔 수 없어요.", ok: "판매 종료", cancel: "취소" });
+        if (!a) return;
+        if (!(await ctx.ask({ title: "정말 하시겠습니까?", body: "판매를 끝내면 되돌릴 수 없어요.", ok: "네, 끝낼게요", cancel: "아니요" }))) return;
+        await cloud.endProduct(id);
+        products = products.filter((x) => x.id !== id);
+        setTimeout(paint, 240);
+        ctx.toast(`${p.name} 판매를 끝냈어요`);
+      }
     } catch (err) {
-      item?.classList.remove("out");
-      ctx.toast("판매를 끝내지 못했어요");
+      ctx.toast("처리하지 못했어요. 잠시 뒤 다시 해 주세요");
     }
   };
 
@@ -577,29 +726,31 @@
     if (orb) return pickRoot(Number(orb.dataset.orb), orb);
     const node = e.target.closest("[data-node]");
     if (node) return chooseNode(node.dataset.node);
-    const f = e.target.closest("[data-field]");
-    if (f) return choose(f.dataset.field, Number(f.dataset.v), f);
+    const v = e.target.closest("[data-v]");
+    if (v && top()?.kind === "step") return choose(Number(v.dataset.v), v);
     const st = e.target.closest("[data-step]");
-    if (st) return setPrice(Math.max(1, (pick.price || 0) + Number(st.dataset.step)));
+    if (st) return setPrice((pick.priceCents || 0) + Number(st.dataset.step));
     const sg = e.target.closest("[data-suggest]");
     if (sg) return setPrice(Number(sg.dataset.suggest));
     if (e.target.closest("#pk-sell")) return sell();
   };
   const onInput = (e) => {
-    if (e.target.id !== "pk-input" || !pick) return;
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
-    e.target.value = digits;
-    pick.price = Number(digits) || 0;
-    paintProfit();
+    if (!pick) return;
+    if (e.target.id === "pk-name") pick.name = e.target.value;
+    if (e.target.id === "pk-input") {
+      const v = Number(e.target.value.replace(",", "."));
+      if (Number.isFinite(v) && v >= 0) pick.priceCents = Math.min(99999999, Math.round(v * 100));
+      paintProfit();
+    }
   };
   const onBlur = (e) => {
     if (e.target.id !== "pk-input" || !pick) return;
-    pick.price = Math.max(1, pick.price || 1);
-    e.target.value = pick.price;
+    pick.priceCents = Math.max(1, pick.priceCents || 1);
+    e.target.value = fmt(pick.priceCents);
     paintProfit();
   };
 
-  // 사업 탭에서 쓰는 입구: 상품 정하기 버튼, 판매 종료 버튼
+  // 사업 탭에서 쓰는 입구: 상품 정하기 버튼, 판매 목록의 더보기 버튼
   const init = (c) => {
     ctx = c;
     pk = document.createElement("section");
@@ -609,21 +760,28 @@
     pk.setAttribute("aria-label", "팔 상품 정하기");
     pk.innerHTML = `<header class="pk-top"><button class="pk-glass" type="button" data-back aria-label="닫기">${svgI(ICON.back)}</button><div class="pk-title"><b></b><span></span></div><span class="pk-spacer" aria-hidden="true"></span></header>
       <div class="pk-prev" aria-hidden="true"></div>
-      <div class="pk-stage"></div>`;
+      <div class="pk-stage"></div>
+      <div class="pk-foot" hidden><button class="pk-ok" type="button" disabled>확인</button></div>`;
     document.querySelector(".app").appendChild(pk);
     stage = pk.querySelector(".pk-stage");
     prev = pk.querySelector(".pk-prev");
     titleEl = pk.querySelector(".pk-title b");
     crumbEl = pk.querySelector(".pk-title span");
     backEl = pk.querySelector("[data-back]");
+    foot = pk.querySelector(".pk-foot");
+    okBtn = pk.querySelector(".pk-ok");
     backEl.addEventListener("click", () => {
       if (!busy) pop();
     });
+    okBtn.addEventListener("click", confirmStep);
     stage.addEventListener("click", onStage);
     stage.addEventListener("input", onInput);
     stage.addEventListener("focusout", onBlur);
     document.getElementById("biz-pick").addEventListener("click", open);
-    document.getElementById("biz-list").addEventListener("click", onList);
+    document.getElementById("biz-list").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-more]");
+      if (b) onMore(b.dataset.more);
+    });
   };
 
   window.Business = { init, refresh };
