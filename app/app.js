@@ -773,12 +773,12 @@
   document.getElementById("money-root").innerHTML = `
     <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
     <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
-    <div class="ac-bal">
-      <div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div>
+    <div class="ac-bal"><div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div></div>
+    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b><span class="ac-fine-r">이 게임 안에서만 쓰는 가상 화폐예요. 실제 돈과는 관계없어요.</span></div>
+    <div class="ac-bal ac-more-box">
       <button class="ac-note" id="ac-note" type="button" data-volatile></button>
       <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
     </div>
-    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b><span class="ac-fine-r">이 게임 안에서만 쓰는 가상 화폐예요. 실제 돈과는 관계없어요.</span></div>
     <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
   const artEl = document.getElementById("ac-art");
   paintArt(artEl);

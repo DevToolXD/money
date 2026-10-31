@@ -738,17 +738,20 @@ html[data-theme="dark"] { --t-ink: #f2f4f6; --t-mid: #e5e8eb; --t-gray: #a3a9b3;
 .ac-art { position: absolute; inset: 0; width: 100%; height: 100%; animation: artIn 1.2s var(--ease) both; }
 @keyframes artIn { from { opacity: 0; transform: translateY(18px) scale(0.96); } }
 .ac-bal { margin: 0 20px 6px; border-radius: 16px; background: var(--bg-card); overflow: hidden; }
-.ac-bal-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 22px 14px; }
-.ac-bl { display: block; font-size: 19px; font-weight: 500; color: var(--text-primary); }
-#bal-num { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 32px; line-height: 38px; font-weight: 800; letter-spacing: -0.035em; color: var(--text-primary); white-space: nowrap; }
-#bal-num small { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
-#bal-num .coin { flex: none; width: 38px; height: 34px; color: var(--text-primary); }
+.ac-bal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px 12px 18px; }
+.ac-bal-row > div { min-width: 0; }
+.ac-more-box { margin-top: 12px; }
+.ac-more-box .ac-note { padding-top: 14px; }
+.ac-bl { display: block; font-size: 15px; line-height: 19px; font-weight: 500; color: var(--text-primary); }
+#bal-num { display: flex; align-items: center; gap: 6px; margin-top: 1px; font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -0.035em; color: var(--text-primary); white-space: nowrap; }
+#bal-num small { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; }
+#bal-num .coin { flex: none; width: 30px; height: 27px; color: var(--text-primary); }
 .ac-fine { display: flex; align-items: center; gap: 12px; margin: 14px 24px 0; color: var(--text-secondary); }
 .ac-fine-l { flex: none; font-size: 11px; line-height: 13px; font-weight: 700; color: var(--text-primary); }
 .ac-fine i { flex: none; width: 1px; height: 30px; background: var(--hairline); }
 .ac-fine b { flex: none; font-size: 21px; line-height: 24px; font-weight: 800; letter-spacing: -0.02em; color: #1d4fa3; }
 .ac-fine-r { font-size: 11px; line-height: 14px; font-style: italic; }
-.ac-pill { flex: none; height: 46px; padding: 0 20px; border-radius: 23px; background: var(--text-primary); color: var(--bg-card); font-size: 16px; font-weight: 600; transition: transform 0.25s var(--ease); }
+.ac-pill { flex: none; height: 38px; padding: 0 16px; border-radius: 19px; background: var(--text-primary); color: var(--bg-card); font-size: 15px; font-weight: 600; transition: transform 0.25s var(--ease); }
 .ac-pill:active { transform: scale(0.95); }
 .ac-note { display: block; width: 100%; padding: 0 22px 14px; text-align: left; font-size: 14px; line-height: 19px; color: var(--text-secondary); font-weight: 500; }
 .ac-bal .t-line { border-top: 0.5px solid var(--hairline); }
@@ -873,9 +876,6 @@ html[data-theme="dark"] .draw { background: #fff; }
 .toast { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 110px); z-index: 150; transform: translate(-50%, 20px); max-width: 86%; padding: 12px 20px; border-radius: 999px; background: rgba(28, 28, 30, 0.92); color: #fff; font-size: 15px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.35s var(--ease); text-align: center; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
-.ac-bal-row { flex-wrap: wrap; }
-.ac-bal-row > div { flex: 1 1 100%; }
-.ac-pill { flex: 1 1 100%; height: 50px; border-radius: 25px; font-size: 17px; margin-top: 6px; }
 .gact, .cash-btn { display: grid; place-items: center; }
 .ac-pill { display: grid; place-items: center; }
 
@@ -890,3 +890,13 @@ html[data-theme="dark"] .draw { background: #fff; }
 .mrow { display: contents; }
 .topbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .topbar.on { -webkit-backdrop-filter: blur(calc(24px * var(--p))) saturate(calc(100% + 80% * var(--p))); backdrop-filter: blur(calc(24px * var(--p))) saturate(calc(100% + 80% * var(--p))); }
+
+/* 좁은 폰에서도 잔액이 버튼에 가려지지 않게 해요 */
+.ac-bal-row > div { flex: 1 1 auto; overflow: hidden; }
+@media (max-width: 370px) {
+  #bal-num { font-size: 20px; line-height: 26px; }
+  #bal-num small { display: none; }
+  #bal-num .coin { width: 26px; height: 23px; }
+  .ac-pill { padding: 0 12px; font-size: 14px; }
+}
+@media (max-width: 430px) { #bal-num small { display: none; } }
