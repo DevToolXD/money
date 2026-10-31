@@ -998,6 +998,14 @@ html[data-theme="dark"] .draw { background: #fff; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip-tag { padding: 8px 14px; border-radius: 999px; background: rgba(120, 120, 128, 0.14); font-size: 16px; font-weight: 600; }
 .biz-empty { margin: 0; font-size: 16px; color: var(--text-secondary); }
+.biz-empty[hidden] { display: none; }
+.biz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.biz-list:empty { display: none; }
+.biz-item { display: flex; align-items: center; gap: 14px; padding: 14px 14px 14px 16px; border-radius: 22px; background: var(--bg-card-subtle); transition: opacity 0.24s, transform 0.24s var(--ease); animation: prodIn 0.4s var(--ease) both; }
+.biz-item.out { opacity: 0; transform: translateX(-14px) scale(0.97); }
+.biz-item .prod-main { flex: 1; min-width: 0; }
+.biz-end { flex: none; height: 36px; padding: 0 14px; border-radius: 18px; background: rgba(255, 59, 48, 0.12); color: var(--status-red); font-size: 15px; font-weight: 600; transition: transform 0.2s var(--ease); }
+.biz-end:active { transform: scale(0.95); }
 .found-sub { margin: 0 0 18px; text-align: center; font-size: 17px; font-weight: 600; color: var(--text-secondary); }
 .found-logo { position: relative; display: grid; place-items: center; width: 104px; height: 104px; margin: 0 auto 22px; border-radius: 50%; overflow: hidden; color: var(--text-secondary); background: rgba(120, 120, 128, 0.16); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.6), inset 0 2px 1.5px rgba(255, 255, 255, 0.7); }
 .found-logo svg { position: relative; width: 34px; height: 34px; }

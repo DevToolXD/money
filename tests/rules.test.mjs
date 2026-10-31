@@ -441,6 +441,14 @@ await t("팔 상품은 정해진 목록에서만 바꾸고, 이름·마크는 �
   await assertFails(getDoc(doc(anon(), "companies/uA")));
 });
 
+await t("판매 종료: 상품을 목록에서 빼는 것도 같은 규칙으로 되고, 21개는 막혀요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: ["water", "coffee", "ai-dev"], at: EPOCH }); });
+  const a = pw("uA", "alice");
+  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: ["water", "ai-dev"] }));
+  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: [] }));
+  await assertFails(updateDoc(doc(a, "companies/uA"), { products: Array(21).fill("water") }));
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

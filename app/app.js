@@ -1166,11 +1166,13 @@
     document.getElementById("biz-name").textContent = company.name;
     const d = new Date(company.at || Date.now());
     document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요`;
-    const chosen = PRODUCTS.filter((p) => company.products.includes(p.id));
-    document.getElementById("biz-chips").innerHTML = chosen.length
-      ? `<div class="chips">${chosen.map((p) => `<span class="chip-tag">${esc(p.name)}</span>`).join("")}</div>`
-      : '<p class="biz-empty">아직 고른 상품이 없어요</p>';
-    document.getElementById("biz-pick").textContent = chosen.length ? "팔 상품 바꾸기" : "팔 상품 선택하기";
+    // 판매 중인 상품을 하나씩 보여줘요. 각 줄의 "판매 종료"로 그 상품만 그만 팔아요
+    const chosen = company.products.map((id) => PRODUCTS.find((p) => p.id === id)).filter(Boolean);
+    document.getElementById("biz-list").innerHTML = chosen
+      .map((p) => `<li class="biz-item" data-id="${p.id}"><span class="prod-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CATS[p.cat].d}</svg></span><span class="prod-main"><b>${esc(p.name)}</b><span>${esc(p.sub)}</span></span><button class="biz-end" type="button" data-end="${p.id}">판매 종료</button></li>`)
+      .join("");
+    document.getElementById("biz-empty").hidden = chosen.length > 0;
+    document.getElementById("biz-pick").textContent = "상품 추가하기";
   };
   const loadCompany = async (cloud) => {
     try {
@@ -1264,6 +1266,27 @@
       .map((p, i) => `<li class="prod-row${prodSel.has(p.id) ? " on" : ""}" data-id="${p.id}" style="--i:${i}" role="button" tabindex="0"><span class="prod-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CATS[p.cat].d}</svg></span><span class="prod-main"><b>${esc(p.name)}</b><span>${esc(p.sub)}</span></span><span class="prod-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></span></li>`)
       .join("");
   };
+  // 판매 종료: 그 상품만 목록에서 빼요. 다시 추가하면 또 팔 수 있어요
+  document.getElementById("biz-list").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-end]");
+    if (!b || !company) return;
+    const id = b.dataset.end;
+    const name = PRODUCTS.find((x) => x.id === id)?.name || "이 상품";
+    const ok = await ask({ title: `"${name}" 판매를 끝낼까요?`, body: "끝내면 이 상품은 더 이상 팔리지 않아요. 나중에 다시 추가할 수 있어요.", ok: "판매 종료", cancel: "취소" });
+    if (!ok) return;
+    const next = company.products.filter((x) => x !== id);
+    const item = b.closest(".biz-item");
+    item?.classList.add("out");
+    try {
+      await window.cloud.saveProducts(next);
+      company.products = next;
+      setTimeout(renderBiz, 240);
+      toast(`${name} 판매를 끝냈어요`);
+    } catch (err) {
+      item?.classList.remove("out");
+      toast("판매를 끝내지 못했어요");
+    }
+  });
   document.getElementById("biz-pick").addEventListener("click", () => {
     prodSel = new Set(company?.products || []);
     prodCat = "ai";
