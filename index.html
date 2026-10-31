@@ -52,6 +52,41 @@
       <h2 class="section-title">둘러보기</h2>
       <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
     </section>
+    <section class="screen" id="screen-shop" data-screen="shop" data-title="상점" aria-labelledby="title-shop">
+      <header class="large-title"><h1 id="title-shop">상점</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+      <p class="lead">필요한 것을 골라 보세요.</p>
+      <div class="card"><div class="art mint"></div><div class="art-text"><p class="eyebrow">곧 열려요</p><h2 class="card-title">상점이 준비 중이에요</h2><p class="card-body">살 수 있는 물건이 생기면 이곳에 진열돼요.</p></div></div>
+      <h2 class="section-title">인기 상품</h2>
+      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    </section>
+    <section class="screen" id="screen-ranking" data-screen="ranking" data-title="랭킹" aria-labelledby="title-ranking">
+      <header class="large-title"><h1 id="title-ranking">랭킹</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+      <p class="lead">누가 가장 앞서 있을까요?</p>
+      <div class="card"><div class="art warm"></div><div class="art-text"><p class="eyebrow">곧 열려요</p><h2 class="card-title">아직 순위가 없어요</h2><p class="card-body">돈을 모으면 이곳에서 순위를 볼 수 있어요.</p></div></div>
+      <h2 class="section-title">이번 주 순위</h2>
+      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    </section>
+    <section class="screen" id="screen-manage" data-screen="manage" data-title="관리" aria-labelledby="title-manage">
+      <header class="large-title"><h1 id="title-manage">관리</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+      <p class="lead">내 돈과 설정을 한곳에서.</p>
+      <div class="card"><div class="art cool"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">관리 도구를 만들고 있어요</h2><p class="card-body">곧 한눈에 관리할 수 있게 해 드릴게요.</p></div></div>
+      <h2 class="section-title">바로가기</h2>
+      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    </section>
+    <section class="screen" id="screen-untitled2" data-screen="untitled2" data-title="무제" aria-labelledby="title-untitled2">
+      <header class="large-title"><h1 id="title-untitled2">무제</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+      <p class="lead">아직 정해지지 않았어요.</p>
+      <div class="card"><div class="art warm"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">이 탭에 무엇이 들어갈지 천천히 정해 가요.</p></div></div>
+      <h2 class="section-title">둘러보기</h2>
+      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    </section>
+    <section class="screen" id="screen-untitled3" data-screen="untitled3" data-title="무제" aria-labelledby="title-untitled3">
+      <header class="large-title"><h1 id="title-untitled3">무제</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+      <p class="lead">아직 정해지지 않았어요.</p>
+      <div class="card"><div class="art cool"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">이 탭에 무엇이 들어갈지 천천히 정해 가요.</p></div></div>
+      <h2 class="section-title">둘러보기</h2>
+      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    </section>
     <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
       <header class="large-title"><h1 id="title-account">계정</h1></header>
       <div id="auth-card" hidden><h2 class="guest-title">로그인 하세요</h2><button class="btn primary" id="open-login" type="button">로그인</button></div>
@@ -142,7 +177,7 @@
       <button type="button" class="tab" data-tab="messages" data-group="main" aria-current="page"><span class="tab-icon"></span><span class="tab-label">메시지</span></button>
       <button type="button" class="tab" data-tab="money" data-group="main"><span class="tab-icon"></span><span class="tab-label">돈</span></button>
       <button type="button" class="tab" data-tab="work" data-group="main"><span class="tab-icon"></span><span class="tab-label">일</span></button>
-      <button type="button" class="tab" data-tab="untitled" data-group="main"><span class="tab-icon"></span><span class="tab-label">무제</span></button>
+      <button type="button" class="tab" data-tab="shop" data-group="main"><span class="tab-icon"></span><span class="tab-label">상점</span></button>
       <button type="button" class="tab tab-account" data-tab="account" data-group="side" aria-label="계정"><span class="tab-icon"></span></button>
     </nav>
   </div>
@@ -152,8 +187,8 @@
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
-<script src="app/tabbar.js?v=3"></script>
+<script src="app/tabbar.js?v=4"></script>
 <script type="module" src="app/firebase.js?v=7"></script>
-<script src="app/app.js?v=9"></script>
+<script src="app/app.js?v=10"></script>
 </body>
 </html>

@@ -30,8 +30,14 @@
     trail: { w: 30, z: 1.0 }, // 손가락을 끌고 갈 때 바짝 따라와요
     stretch: { w: 18, z: 1.0 }, // 빨리 움직일 때 살짝 길쭉해져요
     press: { w: 26, z: 1.0 }, // 누르는 동안 막대가 살짝 부풀어요
-    excite: { w: 13, z: 1.0 }, // 렌즈가 떠 있는 동안 막대 전체에 프리즘이 켜졌다 꺼져요 (0.3초)
+    excite: { w: 13, z: 1.0 },
+    page: { w: 36, z: 0.5 }, // 핫바가 넘어갈 때: 짧고 굵게 "뜨끙" 하고 한 번 튕겨요 // 렌즈가 떠 있는 동안 막대 전체에 프리즘이 켜졌다 꺼져요 (0.3초)
   };
+  // 핫바: 옆으로 넘기면 바 안의 내용만 다음 쪽으로 바뀌어요 (프로필 버튼은 그대로)
+  const PAGES = [
+    [{ id: "messages", label: "메시지" }, { id: "money", label: "돈" }, { id: "work", label: "일" }, { id: "shop", label: "상점" }],
+    [{ id: "ranking", label: "랭킹" }, { id: "manage", label: "관리" }, { id: "untitled2", label: "무제" }, { id: "untitled3", label: "무제" }],
+  ];
   const LAND_PX = 8; // 렌즈가 목표까지 이만큼 남으면 내려앉기 시작해요. 도착할 때까지 들고 있지 않아요
   const LENS_INSET = 4; // 렌즈가 막대 유리 가장자리에서 떨어져 있는 최소 거리 (막대 안쪽 여백과 같아요)
   const GLASS_FADE = 0.28; // 막대 유리가 처음 나타날 때 CSS 유리 판에서 넘어오는 시간(초). app.css의 지연과 맞춰요
@@ -130,7 +136,12 @@ precision highp float;
 precision mediump float;
 #endif
 
-uniform sampler2D uMask;    // 아이콘·글자 덮개
+uniform sampler2D uMask;    // 아이콘·글자 덮개 (계정 버튼처럼 늘 그 자리에 있는 것)
+uniform sampler2D uMaskA;   // 핫바 첫 쪽의 아이콘·글자
+uniform sampler2D uMaskB;   // 핫바 둘째 쪽의 아이콘·글자
+uniform float uSlide;       // 핫바가 넘어간 정도 (0 = 첫 쪽, 1 = 둘째 쪽, 튕길 때는 0~1 밖으로 나가요)
+uniform float uSlideW;      // 한 쪽을 넘기는 거리 (css px)
+uniform vec2 uClip;         // 핫바 안쪽 왼쪽·오른쪽 끝 (밖으로 나간 내용은 서서히 지워요)
 uniform sampler2D uBack;    // 뒤 화면 사진
 uniform sampler2D uBlur;    // 뒤 화면 사진 (흐린 버전)
 uniform vec2 uPx;           // 캔버스 크기 (기기 픽셀)
@@ -195,7 +206,11 @@ float seDist(vec2 q, vec2 ab, float n, out vec2 grad) {
 }
 
 float cover(vec2 css) {
-  return texture2D(uMask, css / uSize).a;
+  float fixedInk = texture2D(uMask, css / uSize).a;
+  float edge = smoothstep(uClip.x, uClip.x + 10.0, css.x) * (1.0 - smoothstep(uClip.y - 10.0, uClip.y, css.x));
+  float a = texture2D(uMaskA, vec2(css.x + uSlide * uSlideW, css.y) / uSize).a;
+  float b = texture2D(uMaskB, vec2(css.x - (1.0 - uSlide) * uSlideW, css.y) / uSize).a;
+  return max(fixedInk, max(a, b) * edge);
 }
 
 // 프리즘 색: 하늘색 → 연보라 → 분홍 → 노랑 → 하늘색으로 부드럽게 돌아요 (h가 1 늘면 한 바퀴)
@@ -469,6 +484,9 @@ void main() {
       this.grab = new Spring(0, SPRING.press, 0.002);
       this.stretch = new Spring(0, SPRING.stretch, 0.002);
       this.excite = new Spring(0, SPRING.excite, 0.002);
+      this.page = 0; // 지금 보이는 핫바
+      this.selPage = 0; // 선택된 탭이 있는 핫바
+      this.pageS = new Spring(0, SPRING.page, 0.001);
 
       this.buildIcons();
       this.bind();
@@ -565,7 +583,7 @@ void main() {
 
       this.u = {};
       for (const name of [
-        "uMask", "uBack", "uBlur", "uPx", "uDpr", "uSize", "uGlass", "uGlassMix", "uPageOff", "uPageSize", "uBarA", "uBarB", "uPress", "uExcite",
+        "uMask", "uMaskA", "uMaskB", "uSlide", "uSlideW", "uClip", "uBack", "uBlur", "uPx", "uDpr", "uSize", "uGlass", "uGlassMix", "uPageOff", "uPageSize", "uBarA", "uBarB", "uPress", "uExcite",
         "uGlassOpt", "uGlassLook", "uGlassBase", "uPlatLine", "uPlatRim", "uPlatShadow",
         "uLens", "uExp", "uLift", "uZoom", "uOptics", "uDisp", "uLook",
         "uInk", "uAccent", "uPill", "uTint", "uEdge", "uLight", "uShadow",
@@ -574,6 +592,8 @@ void main() {
       }
 
       this.tex = this.makeTexture(gl, null);
+      this.texA = this.makeTexture(gl, null);
+      this.texB = this.makeTexture(gl, null);
       gl.disable(gl.BLEND);
       gl.clearColor(0, 0, 0, 0);
       this.emptyTex = this.makeTexture(gl, null);
@@ -641,7 +661,7 @@ void main() {
 
     // 알약이 떠 있거나 움직이는 동안은 무거운 일(화면 사진 찍기)을 미뤄요
     busy() {
-      return Boolean(this.press || this.releasing || this.lift.x > 0.02 || this.excite.x > 0.02 || this.running);
+      return Boolean(this.press || this.releasing || this.lift.x > 0.02 || this.excite.x > 0.02 || !this.pageS.settled || this.running);
     }
 
     /* ----- 배치와 그리기 재료 ----- */
@@ -738,6 +758,7 @@ void main() {
         this.grab.snap(0);
         this.stretch.snap(0);
         this.excite.snap(0);
+        this.pageS.snap(this.page);
       } else {
         this.x.target = this.geo[this.press ? this.press.tabIndex : this.current].cx;
       }
@@ -764,57 +785,63 @@ void main() {
     }
 
     // 글자와 아이콘의 "덮개"를 흰색으로 그려요. 색은 셰이더가 입혀요.
+    // 늘 그 자리에 있는 것(계정 버튼), 핫바 첫 쪽, 핫바 둘째 쪽을 따로 그려서 셰이더가 옆으로 밀어 보여줘요.
     drawMask() {
       const dpr = this.dpr;
-      if (!this.maskCanvas) this.maskCanvas = document.createElement("canvas");
-      const mc = this.maskCanvas;
-      mc.width = this.canvas.width;
-      mc.height = this.canvas.height;
-      const ctx = mc.getContext("2d");
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, mc.width, mc.height);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#fff";
-      ctx.strokeStyle = "#fff";
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      this.tabs.forEach((tab, i) => {
-        const g = this.geo[i];
-        const parts = ICONS[tab.dataset.tab];
-        if (parts) {
-          const k = g.icon.size / ICON_BOX;
-          for (const part of parts) {
-            ctx.save();
-            ctx.translate(g.icon.x, g.icon.y);
-            ctx.scale(k, k);
-            if (part.transform) ctx.transform(...part.transform);
-            const path = new Path2D(part.d);
-            if (part.fill) {
-              ctx.globalAlpha = part.alpha ?? 1;
-              ctx.fill(path, part.evenodd ? "evenodd" : "nonzero");
-              ctx.globalAlpha = 1;
+      const gl = this.gl;
+      if (!this.masks) this.masks = [0, 1, 2].map(() => document.createElement("canvas"));
+      const paint = (mc, items) => {
+        mc.width = this.canvas.width;
+        mc.height = this.canvas.height;
+        const ctx = mc.getContext("2d");
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, mc.width, mc.height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#fff";
+        ctx.strokeStyle = "#fff";
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (const { g, parts, label } of items) {
+          if (parts) {
+            const k = g.icon.size / ICON_BOX;
+            for (const part of parts) {
+              ctx.save();
+              ctx.translate(g.icon.x, g.icon.y);
+              ctx.scale(k, k);
+              if (part.transform) ctx.transform(...part.transform);
+              const path = new Path2D(part.d);
+              if (part.fill) {
+                ctx.globalAlpha = part.alpha ?? 1;
+                ctx.fill(path, part.evenodd ? "evenodd" : "nonzero");
+                ctx.globalAlpha = 1;
+              }
+              if (part.stroke) {
+                ctx.lineWidth = part.stroke;
+                ctx.stroke(path);
+              }
+              ctx.restore();
             }
-            if (part.stroke) {
-              ctx.lineWidth = part.stroke;
-              ctx.stroke(path);
-            }
-            ctx.restore();
+          }
+          if (label) {
+            ctx.font = label.font;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label.text, label.cx, label.cy);
           }
         }
-        if (g.label) {
-          ctx.font = g.label.font;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(g.label.text, g.label.cx, g.label.cy);
-        }
+      };
+      const last = this.tabs.length - 1;
+      const pageItems = (p) =>
+        PAGES[p].map((e, i) => ({ g: this.geo[i], parts: ICONS[e.id], label: this.geo[i].label ? { ...this.geo[i].label, text: e.label } : null }));
+      paint(this.masks[0], [{ g: this.geo[last], parts: ICONS[this.tabs[last].dataset.tab], label: null }]);
+      paint(this.masks[1], pageItems(0));
+      paint(this.masks[2], pageItems(1));
+      [this.tex, this.texA, this.texB].forEach((tex, i) => {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.masks[i]);
       });
-
-      const gl = this.gl;
-      gl.bindTexture(gl.TEXTURE_2D, this.tex);
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mc);
     }
 
     /* ----- 입력 ----- */
@@ -875,7 +902,11 @@ void main() {
         tab,
         tabIndex: index,
         dragging: false,
-        wasCurrent: index === this.current,
+        wasCurrent: this.isSelected(index),
+        t0: performance.now(),
+        lx: e.clientX,
+        lt: performance.now(),
+        flick: false,
       };
       this.nav.dataset.press = tab.dataset.group || "";
       this.grabGroup = tab.dataset.group || "main";
@@ -893,6 +924,17 @@ void main() {
       const p = this.press;
       if (!p || e.pointerId !== p.id) return;
       const dx = e.clientX - p.x0;
+      const now = performance.now();
+      const v = (e.clientX - p.lx) / Math.max(now - p.lt, 1); // px/ms
+      p.lx = e.clientX;
+      p.lt = now;
+      // 빠르게 휙 넘기면 선택을 옮기는 게 아니라 핫바를 넘겨요. 렌즈는 제자리로 돌아가요
+      if (!p.flick && p.tabIndex < 4 && Math.abs(dx) > 18 && Math.abs(v) > 0.9) {
+        p.flick = true;
+        this.x.use(SPRING.move);
+        this.x.target = this.geo[p.tabIndex].cx;
+      }
+      if (p.flick) return;
       if (!p.dragging && Math.abs(dx) > 6) {
         p.dragging = true;
         this.x.use(SPRING.trail);
@@ -919,17 +961,24 @@ void main() {
       }
       this.grab.target = 0;
 
+      const dx = e.clientX - p.x0;
+      const flipped = commit && p.tabIndex < 4 && (p.flick || (Math.abs(dx) >= 70 && performance.now() - p.t0 < 260));
       let index = p.tabIndex;
-      if (p.dragging) {
+      if (p.dragging && !flipped) {
         const ahead = this.x.target + this.x.v * 0.1;
         index = this.nearest(ahead);
       }
-      if (!commit) index = this.current;
+      if (!commit || flipped) index = this.current;
 
       this.x.use(SPRING.move);
       this.x.target = this.geo[index].cx;
       this.releasing = true;
-      if (commit && index === this.current && !p.dragging && p.wasCurrent) {
+      if (flipped) {
+        this.flipPage();
+        this.requestRender();
+        return;
+      }
+      if (commit && this.isSelected(index) && !p.dragging && p.wasCurrent) {
         this.nav.dispatchEvent(new CustomEvent("tabreselect", { detail: { tab: this.tabs[index] }, bubbles: true }));
       }
       if (commit) this.select(index);
@@ -942,7 +991,7 @@ void main() {
       if (!tab) return;
       if (performance.now() - this.lastPointerAt < 700) return;
       const index = this.tabs.indexOf(tab);
-      if (index === this.current) {
+      if (this.isSelected(index)) {
         this.nav.dispatchEvent(new CustomEvent("tabreselect", { detail: { tab }, bubbles: true }));
         return;
       }
@@ -969,15 +1018,53 @@ void main() {
 
     /* ----- 선택 ----- */
 
-    select(index) {
-      if (index === this.current) return;
-      this.current = index;
+    // 이 칸이 지금 선택돼 있나 (같은 칸이어도 핫바가 다르면 다른 탭이에요)
+    isSelected(index) {
+      return index === this.current && (index >= 4 || this.selPage === this.page);
+    }
+
+    markCurrent() {
       this.tabs.forEach((t, i) => {
-        if (i === index) t.setAttribute("aria-current", "page");
+        if (this.isSelected(i)) t.setAttribute("aria-current", "page");
         else t.removeAttribute("aria-current");
       });
+    }
+
+    select(index) {
+      if (this.isSelected(index)) return;
+      const crossing = index < 4 && this.selPage !== this.page;
+      this.current = index;
+      if (index < 4) this.selPage = this.page;
+      if (crossing) this.x.snap(this.geo[index].cx);
+      this.markCurrent();
       this.placeFallbackPill();
       this.nav.dispatchEvent(new CustomEvent("tabchange", { detail: { tab: this.tabs[index], index }, bubbles: true }));
+    }
+
+    // 핫바를 다음 쪽으로 넘겨요: 바 안의 내용만 짧고 굵게 튕기며 옆으로 밀려요
+    flipPage() {
+      this.page = 1 - this.page;
+      this.applyPageDOM();
+      this.markCurrent();
+      this.placeFallbackPill();
+      this.pageS.target = this.page;
+      if (this.reducedMotion.matches) this.pageS.snap(this.page);
+      else {
+        navigator.vibrate?.(24); // 뜨끙
+        setTimeout(() => navigator.vibrate?.(12), 110);
+      }
+      this.requestRender();
+    }
+
+    // 버튼의 이름과 아이콘을 지금 보이는 쪽 것으로 바꿔요 (눌림·접근성·대체 화면용)
+    applyPageDOM() {
+      PAGES[this.page].forEach((e, i) => {
+        const tab = this.tabs[i];
+        tab.dataset.tab = e.id;
+        const lab = tab.querySelector(".tab-label");
+        if (lab) lab.textContent = e.label;
+      });
+      this.buildIcons();
     }
 
     // 코드나 키보드로 옮길 때: 렌즈가 떠올라 미끄러지고 내려앉아요
@@ -1001,7 +1088,7 @@ void main() {
       if (!t) return;
       const nr = this.nav.getBoundingClientRect();
       const r = t.getBoundingClientRect();
-      pill.hidden = false;
+      pill.hidden = this.current < 4 && this.selPage !== this.page;
       const d = Math.min(r.width, r.height);
       pill.style.width = pill.style.height = `${d}px`;
       pill.style.transform = `translate(${r.left - nr.left + (r.width - d) / 2}px, ${r.top - nr.top + (r.height - d) / 2}px)`;
@@ -1033,6 +1120,7 @@ void main() {
       this.lift.step(dt);
       this.grab.step(dt);
       this.excite.step(dt);
+      this.pageS.step(dt);
 
       // 빨리 움직일수록 살짝 길쭉해져요
       this.stretch.target = clamp(Math.abs(this.x.v) / 800, 0, 1);
@@ -1053,6 +1141,7 @@ void main() {
         this.grab.settled &&
         this.stretch.settled &&
         this.excite.settled &&
+        this.pageS.settled &&
         (!this.glassOn || this.glassMix >= 1);
       if (idle) {
         this.x.snap(this.x.target);
@@ -1060,6 +1149,7 @@ void main() {
         this.grab.snap(this.grab.target);
         this.stretch.snap(0);
         this.excite.snap(this.excite.target);
+        this.pageS.snap(this.pageS.target);
         this.render();
         this.running = false;
       } else {
@@ -1093,7 +1183,16 @@ void main() {
       // 렌즈는 막대 유리 안에 머물러요. 끝 탭에서는 좁아지고 가운데에서는 넓어지며, 알약보다 작아지지는 않아요.
       hw = Math.min(hw, Math.max(pillHW, this.reach(x)));
       hh = Math.min(hh, Math.max(pillHH, this.barA.hh - LENS_INSET));
-      return { cx: x, cy: cy - 0.5 * lift, hw, hh, exp: lerp(pillExp, lensExp, lift), lift };
+      // 선택된 탭이 다른 쪽 핫바에 있으면 알약도 내용과 함께 밀려나고 작아져요
+      let cx = x;
+      if (this.current < 4) {
+        const d = this.selPage - this.pageS.x;
+        const vis = clamp(1 - Math.abs(d) * 1.8, 0, 1);
+        cx = vis < 0.03 ? -1000 : x + d * this.barA.hw * 2;
+        hw *= vis;
+        hh *= vis;
+      }
+      return { cx, cy: cy - 0.5 * lift, hw: Math.max(hw, 0.5), hh: Math.max(hh, 0.5), exp: lerp(pillExp, lensExp, lift), lift };
     }
 
     // 렌즈 중심이 x일 때 막대 유리 가장자리까지 쓸 수 있는 반폭이에요 (두 막대 유리 중 더 넉넉한 쪽)
@@ -1118,6 +1217,16 @@ void main() {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.uniform1i(u.uMask, 0);
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, this.texA);
+      gl.uniform1i(u.uMaskA, 3);
+      gl.activeTexture(gl.TEXTURE4);
+      gl.bindTexture(gl.TEXTURE_2D, this.texB);
+      gl.uniform1i(u.uMaskB, 4);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1f(u.uSlide, this.pageS.x);
+      gl.uniform1f(u.uSlideW, this.barA.hw * 2);
+      gl.uniform2f(u.uClip, this.barA.cx - this.barA.hw, this.barA.cx + this.barA.hw);
 
       // 뒤 화면 사진 (지금 보이는 화면의 것). 없으면 CSS 유리 판이 대신해요
       const entry = this.backdrop ? this.shots.get(this.backdrop.active) : null;

@@ -44,8 +44,31 @@
     { d: "M3.6 23.2C4.8 18.6 9 16.6 14 16.6S23.2 18.6 24.4 23.2A13.1 13.1 0 0 1 3.6 23.2Z", fill: true, alpha: 0.42 },
   ];
 
+  // 상점: 쇼핑 카트
+  const shop = [
+    { d: "M2.5 4.5h3.6l2.6 12.4a2 2 0 0 0 2 1.6h9.4a2 2 0 0 0 2-1.5l1.9-8.2H7.2", stroke: SW },
+    { d: "M11 23.2a1.7 1.7 0 1 0 3.4 0 1.7 1.7 0 1 0-3.4 0Z", fill: true },
+    { d: "M20 23.2a1.7 1.7 0 1 0 3.4 0 1.7 1.7 0 1 0-3.4 0Z", fill: true },
+  ];
+  // 랭킹: 시상대
+  const ranking = [
+    { d: "M3.5 24.5V15h6.5v9.5", stroke: SW },
+    { d: "M10 24.5V4.5h8v20", stroke: SW },
+    { d: "M18 24.5V11h6.5v13.500", stroke: SW },
+    { d: "M2 24.5h24", stroke: SW },
+  ];
+  // 관리: 조절 막대
+  const manage = [
+    { d: "M4 8h9.500M18.500 8H24", stroke: SW },
+    { d: "M16 5.500a2.500 2.500 0 1 1 0 5 2.500 2.500 0 0 1 0-5Z", stroke: SW },
+    { d: "M4 14h3.500M12.500 14H24", stroke: SW },
+    { d: "M10 11.500a2.500 2.500 0 1 1 0 5 2.500 2.500 0 0 1 0-5Z", stroke: SW },
+    { d: "M4 20h11M20.500 20H24", stroke: SW },
+    { d: "M18 17.500a2.500 2.500 0 1 1 0 5 2.500 2.500 0 0 1 0-5Z", stroke: SW },
+  ];
+
   window.TabIcons = {
     size: 28,
-    icons: { messages: plane, money: wallet, work: gear, untitled, account },
+    icons: { messages: plane, money: wallet, work: gear, untitled, untitled2: untitled, untitled3: untitled, shop, ranking, manage, account },
   };
 })();
