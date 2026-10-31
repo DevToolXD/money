@@ -94,9 +94,14 @@ html[data-theme="dark"] .glass-btn:not(.primary) { background: rgba(60, 60, 67, 
   padding: calc(var(--top-h) + 14px) 0 var(--dock-clearance);
   scrollbar-width: none;
   visibility: hidden;
+  /* 탭을 옮기면 앞 화면은 흐려지고 새 화면은 진해지면서 살짝 올라와요 */
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.32s ease, transform 0.4s var(--ease), visibility 0s 0.32s;
 }
 .screen::-webkit-scrollbar { display: none; }
-.screen.is-active { visibility: visible; }
+.screen.is-active { visibility: visible; opacity: 1; transform: none; transition: opacity 0.32s ease, transform 0.4s var(--ease); }
+@media (prefers-reduced-motion: reduce) { .screen, .screen.is-active { transition: none; transform: none; } }
 
 .large-title { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--gutter) 22px; }
 .large-title h1 { margin: 0; font-size: 36px; line-height: 42px; font-weight: 800; letter-spacing: -0.026em; transform-origin: left bottom; will-change: transform, opacity; }
