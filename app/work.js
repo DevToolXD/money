@@ -53,7 +53,11 @@
   let timer = 0;
   let busy = false;
   let foodStep = 0; // 음식 만드는 순서: 0 재료 담기 · 1 섞기 · 2 포장하기
-  let made = 0; // 이번에 만든 음식 (기록하지 않아요)
+  let made = 0; // 이번에 만든 음식
+  let foodCid = null; // 음식을 만드는 회사
+  let foodPid = null; // 대표 상품 (팔리는 중일 때만)
+  let foodPending = 0; // 아직 보내지 않은 음식 수
+  let foodTimer = 0;
   let got = 0; // 이번에 받은 데이터 (기록하지 않아요)
 
   const visible = () => {
@@ -286,11 +290,32 @@
       made += 1;
       paintSteps();
       countPop(`이번에 만든 음식 ${made}개`);
+      queueFood();
     }, 650);
+  };
+  // 음식 판매는 2.5초마다 한꺼번에 보내요 (서버 쓰기를 줄여요)
+  const queueFood = () => {
+    if (!foodPid) return;
+    foodPending += 1;
+    if (!foodTimer) foodTimer = setTimeout(flushFood, 2500);
+  };
+  const flushFood = async () => {
+    clearTimeout(foodTimer);
+    foodTimer = 0;
+    const n = foodPending;
+    if (!n || !foodCid || !foodPid) return;
+    foodPending = 0;
+    try {
+      await ctx.cloud().labFoodSale(foodCid, foodPid, n);
+    } catch (err) {
+      console.warn("음식을 팔지 못했어요:", err?.code || err);
+    }
   };
   const loadProducts = async (cid) => {
     try {
       const list = await ctx.cloud().listProducts(cid);
+      foodCid = cid;
+      foodPid = list.length && !list[0].paused ? list[0].id : null;
       const note = root.querySelector("#wk-make");
       if (!note || view !== "mine") return;
       note.textContent = list.length ? `만들 상품: ${list[0].name}` : "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요";
@@ -617,6 +642,8 @@
     view = "mine";
     stopGames();
     flushLab(); // 이전 회사의 숫자를 먼저 보내요
+    flushFood(); // 팔린 음식도 먼저 보내요
+    foodPid = null;
     const owner = Boolean(co);
     const primary = owner ? co : employer;
     const cid = owner ? co.id : employer.id;

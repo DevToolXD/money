@@ -944,6 +944,39 @@ await t("학습: 결과는 시간이 지난 뒤에만 회사 사람 누구나 �
   await assertSucceeds(updateDoc(labRef(alice), { aiScore: 2 })); // 사장이 출시
 });
 
+console.log("\n[음식]");
+const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, priceCents: 300, active: true, paused: false, ...over }));
+const foodSale = (n, total, cash, extra = {}) => ({ cash, food: { pid: "p1", n, total, at: serverTimestamp(), ...extra } });
+await t("음식: 음식을 팔면 대표 상품 가격만큼 금고가 늘어요 (직원도 팔아요)", async () => {
+  await coSeed();
+  await labSeed({ cash: 0 });
+  await prodSeed("uA", "p1");
+  await seed(jobSeed);
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
+  await assertFails(updateDoc(labRef(alice), foodSale(3, 800, 800))); // 가격 300 × 3 = 900
+  await assertFails(updateDoc(labRef(alice), foodSale(3, 900, 800))); // 금고가 맞지 않아요
+  await assertFails(updateDoc(labRef(carol), foodSale(3, 900, 900))); // 회사 밖 사람은 못 팔아요
+  await assertFails(updateDoc(labRef(alice), { cash: 900, food: { pid: "p1", n: 3, total: 900, at: EPOCH } })); // 지난 시각 기록은 안 돼요
+  await assertFails(updateDoc(labRef(alice), foodSale(3, 900, 900, { pid: "nope" }))); // 이 회사 상품이 아니면 안 돼요
+  await assertSucceeds(updateDoc(labRef(alice), foodSale(3, 900, 900)));
+  await assertSucceeds(updateDoc(labRef(bob), foodSale(1, 300, 1200)));
+  const l = await readLab("uA");
+  check("금고 1200 (900 + 300)", l.cash === 1200);
+});
+await t("음식: 상품이 꺼져 있거나 멈춰 있으면 못 팔고, 음식 기록은 다른 쓰기로 바꿀 수 없어요", async () => {
+  await coSeed();
+  await labSeed({ cash: 0 });
+  await prodSeed("uA", "p1", { active: false });
+  const alice = pw("uA", "alice");
+  await assertFails(updateDoc(labRef(alice), foodSale(1, 300, 300)));
+  await prodSeed("uA", "p1", { paused: true });
+  await assertFails(updateDoc(labRef(alice), foodSale(1, 300, 300)));
+  await prodSeed("uA", "p1", { paused: false });
+  await assertFails(updateDoc(labRef(alice), { food: { pid: "p1", n: 1, total: 300, at: serverTimestamp() } })); // 금고 없이 기록만은 안 돼요
+  await assertFails(updateDoc(labRef(alice), { cash: 300, elec: 5, food: { pid: "p1", n: 1, total: 300, at: serverTimestamp() } })); // 다른 칸도 같이 바뀌면 안 돼요
+  await assertSucceeds(updateDoc(labRef(alice), foodSale(1, 300, 300)));
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

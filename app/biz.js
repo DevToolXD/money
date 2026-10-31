@@ -598,11 +598,9 @@
     const food = kindNow === "food";
     document.getElementById("biz-prod-title").hidden = !food;
     document.getElementById("biz-list").closest(".card").hidden = !food;
-    document.getElementById("biz-lab").hidden = food;
-    if (!food) {
-      paintLab();
-      return;
-    }
+    document.getElementById("biz-lab").hidden = false;
+    paintLab();
+    if (!food) return;
     const cloud = ctx?.cloud();
     if (!cloud?.user || !ctx.company()) {
       products = [];
@@ -883,6 +881,11 @@
       <button type="button" class="btn" data-lab="price">단가 정하기</button>
     </div>`;
   const labHTML = (kind, L) => {
+    if (kind === "food") {
+      return `<p class="lab-t">식품 회사 · 금고</p>
+        ${cashHTML(L)}
+        <p class="lab-sub">음식을 한 개 완성하면 대표 상품 가격이 금고에 들어와요</p>`;
+    }
     if (kind === "nuclear") {
       const head = `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개: 전기</p>
         <p class="lab-big">${fmtLab(L.elec)}<small>전기 창고</small></p>
@@ -1001,7 +1004,7 @@
   const paintLab = async () => {
     const co = ctx?.company();
     const box = document.getElementById("biz-lab");
-    if (!co || co.kind === "food" || !box) return;
+    if (!co || !box) return;
     stopTick();
     try {
       const L = await ctx.cloud().labGet(co.id);
@@ -1118,7 +1121,7 @@
   // 사업 탭을 열 때: 연구실 숫자를 다시 읽어요 (상품 목록은 그대로 두어요)
   const lab = () => {
     const co = ctx?.company();
-    if (co && co.kind !== "food") paintLab();
+    if (co) paintLab();
   };
   window.Business = { init, refresh, kindSvg, lab };
 })();

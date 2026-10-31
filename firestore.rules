@@ -138,7 +138,7 @@ service cloud.firestore {
       //     파는 쪽과 사는 쪽이 같은 묶음에서 함께 바뀔 때만 돼요 (기록 시각이 이 쓰기의 서버 시각이어야 해요). 단가(price)는 파는 회사 사장이 정해요.
       match /lab/{ld} {
         function labOk(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
@@ -171,7 +171,7 @@ service cloud.firestore {
         }
         // 평소 쓰기(회사 사람)는 사고팔기 기록·학습 기록을 다시 검사하지 않아요. 그 칸은 사고파는 묶음과 학습 조건에서 따로 확인해요
         function labCore(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
@@ -230,9 +230,9 @@ service cloud.firestore {
         // 학습 시작 (사장만): 가진 컴퓨터(pcM)로 학습해요. 배치 수 = 올림(데이터 ÷ 처리 용량), 전기 = 배치 수 × 전기값,
         //   걸리는 시간 = 올림(배치 수 ÷ 처리 속도), 개발 점수 = 데이터 × (용량 + 속도) ÷ 100 (내림). 데이터는 그대로예요
         function trainStartsOk(o) {
-          return labOwner()
+          return request.resource.data.get('trn', null) != null
             && o.get('trn', null) == null
-            && request.resource.data.get('trn', null) != null
+            && labOwner()
             && request.resource.data.get('pcN', 0) >= 1
             && request.resource.data.get('pcM', null) != null
             && request.resource.data.trn.keys().hasOnly(['d', 'secs', 'score', 'started'])
@@ -254,11 +254,37 @@ service cloud.firestore {
             && request.resource.data.get('aiDev', 0) == resource.data.get('aiDev', 0);
         }
         function marketSame() {
-          return request.resource.data.get('sold', null) == resource.data.get('sold', null)
+          return request.resource.data.get('food', null) == resource.data.get('food', null)
+            && request.resource.data.get('sold', null) == resource.data.get('sold', null)
             && request.resource.data.get('bought', null) == resource.data.get('bought', null)
             && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
             && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
             && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0);
+        }
+        // 음식 판매: 음식 한 묶음(n개)을 완성하면 대표 상품 가격 × n 만큼 금고가 늘어요. 상품은 이 회사 것이고 팔리는 중이어야 해요
+        function foodOk(o) {
+          return request.resource.data.get('food', null) != null
+            && request.resource.data.food.at == request.time
+            && request.resource.data.food.n >= 1
+            && request.resource.data.food.n <= 100
+            && request.resource.data.food.pid is string
+            && get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.active == true
+            && get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.paused == false
+            && request.resource.data.food.total == request.resource.data.food.n * get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.priceCents
+            && request.resource.data.cash == o.get('cash', 0) + request.resource.data.food.total
+            && request.resource.data.elec == o.elec
+            && request.resource.data.get('gen', null) == o.get('gen', null)
+            && request.resource.data.get('trn', null) == o.get('trn', null);
+        }
+        // 음식 판매 (회사 사람): 금고와 음식 기록만 바뀌어요. 다른 칸은 그대로예요
+        function foodIn() {
+          // 음식 기록이 바뀔 때만 확인해요 (평소 쓰기는 여기서 바로 넘어가요. 규칙 계산 횟수를 아껴요)
+          return request.resource.data.get('food', null) != resource.data.get('food', null)
+            && request.resource.data.get('food', null) != null
+            && signedIn() && labWho()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'food'])
+            && request.resource.data.cash >= 0
+            && foodOk(resource.data);
         }
         // 파는 쪽: 사는 회사 사장이 같은 묶음에서 사는 쪽 기록(bought)을 쓸 때만, 돈이 들어오고 재고가 줄어요
         function saleIn() {
@@ -345,6 +371,7 @@ service cloud.firestore {
         // 사고파는 쪽을 먼저 봐요 (규칙 호출 횟수 한도 안에서 판단하도록). 그다음이 회사 사람의 일반 쓰기예요
         allow update: if saleIn()
           || saleOut()
+          || foodIn()
           || (labWho() && labCore(request.resource.data) && marketSame()
             && request.resource.data.nperf >= resource.data.nperf
             && request.resource.data.cap >= resource.data.get('cap', 0)
@@ -352,8 +379,15 @@ service cloud.firestore {
             && request.resource.data.pow >= resource.data.get('pow', 0)
             && request.resource.data.aiData >= resource.data.aiData
             && (
+              // 금고만 넣고 빼는 쓰기 (발전·학습 기록은 그대로): 평소 쓰기는 여기서 바로 확인해요
+              (request.resource.data.get('gen', null) == resource.data.get('gen', null)
+                && request.resource.data.elec == resource.data.elec
+                && trainSame()
+                && (request.resource.data.cash == resource.data.get('cash', 0)
+                    || depositOk(resource.data.get('cash', 0))
+                    || withdrawOk(resource.data.get('cash', 0))))
               // 발전 시작 (사장만): 아직 발전 중이 아닐 때, 비용(걸린 초 × 1 토큰)이 금고에서 나가고 창고는 그대로예요
-              (resource.data.get('gen', null) == null && labOwner() && genStarts(request.resource.data)
+              || (resource.data.get('gen', null) == null && genStarts(request.resource.data) && labOwner()
                 && request.resource.data.elec == resource.data.elec
                 && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.gen.secs * 100
                 && trainSame())
@@ -373,13 +407,6 @@ service cloud.firestore {
                 && request.resource.data.elec == resource.data.elec
                 && request.resource.data.cash == resource.data.get('cash', 0)
                 && request.resource.data.get('gen', null) == resource.data.get('gen', null))
-              // 그 밖에는 발전 기록과 창고, 학습 기록을 그대로 둬요. 금고는 사장이 넣거나 뺄 때만 바뀌어요
-              || (request.resource.data.get('gen', null) == resource.data.get('gen', null)
-                && request.resource.data.elec == resource.data.elec
-                && trainSame()
-                && (request.resource.data.cash == resource.data.get('cash', 0)
-                    || depositOk(resource.data.get('cash', 0))
-                    || withdrawOk(resource.data.get('cash', 0))))
             )
             && (request.resource.data.price == resource.data.get('price', 0) || labOwner())
             && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
