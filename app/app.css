@@ -597,3 +597,18 @@ img, svg { -webkit-user-drag: none; }
 .ico-sq { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 9px; color: #fff; font-size: 17px; font-weight: 700; }
 .row.logout { justify-content: center; color: var(--status-red); }
 .row.logout b { color: var(--status-red); font-size: 17px; }
+
+/* 실명 안내 알림창 (자본 디자인: 유리 카드) */
+.alert { position: absolute; inset: 0; z-index: 140; display: grid; place-items: center; padding: 28px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0s 0.25s; }
+.alert[hidden] { display: grid; }
+.alert.is-open { opacity: 1; visibility: visible; transition: opacity 0.25s; }
+.alert-card { width: 100%; max-width: 330px; padding: 26px 22px 18px; border-radius: 34px; background: rgba(250, 250, 252, 0.88); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.9), 0 24px 60px rgba(0, 0, 0, 0.3); color: #000; text-align: center; transform: scale(0.92); transition: transform 0.4s var(--ease); }
+html[data-theme="dark"] .alert-card { background: rgba(44, 44, 48, 0.88); color: #fff; box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.2), 0 24px 60px rgba(0, 0, 0, 0.6); }
+.alert.is-open .alert-card { transform: none; }
+.alert-card h3 { margin: 0; font-size: 21px; line-height: 27px; font-weight: 800; letter-spacing: -0.02em; }
+.alert-card p { margin: 10px 0 0; font-size: 16px; line-height: 23px; color: var(--text-secondary); font-weight: 500; }
+.alert-actions { display: flex; gap: 10px; margin-top: 20px; }
+.alert-btn { flex: 1; height: 50px; border-radius: 999px; background: rgba(120, 120, 128, 0.16); font-size: 17px; font-weight: 700; transition: transform 0.28s var(--ease); }
+.alert-btn:active { transform: scale(0.96); }
+.alert-btn.ok { background: var(--apple-blue); color: #fff; }
+#name-row label { border-top: 0 !important; border-bottom: 0.5px solid rgba(255, 255, 255, 0.22); }

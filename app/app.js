@@ -381,8 +381,8 @@
       const u = await window.cloud.findUser(id);
       if (!u) return (newErr.textContent = "그런 아이디가 없어요");
       if (u.uid === window.cloud.uid) return (newErr.textContent = "내 아이디예요");
-      const cid = await window.cloud.openChat(u.uid, u.id);
-      if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.id, live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
+      const cid = await window.cloud.openChat(u.uid, u.name || u.id);
+      if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.name || u.id, live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
       sheetOpen(false);
       renderChats();
       open(cid);
@@ -424,6 +424,34 @@
   const errEl = document.getElementById("login-error");
   const submitBtn = document.getElementById("login-submit");
     let signup = false;
+  const alertEl = document.getElementById("alert");
+  const ask = ({ title, body, ok = "확인", cancel = "" }) =>
+    new Promise((resolve) => {
+      document.getElementById("alert-title").textContent = title;
+      document.getElementById("alert-body").textContent = body;
+      document.getElementById("alert-ok").textContent = ok;
+      const cancelBtn = document.getElementById("alert-cancel");
+      cancelBtn.textContent = cancel;
+      cancelBtn.style.display = cancel ? "" : "none";
+      alertEl.hidden = false;
+      requestAnimationFrame(() => alertEl.classList.add("is-open"));
+      const done = (v) => {
+        alertEl.classList.remove("is-open");
+        document.getElementById("alert-ok").onclick = cancelBtn.onclick = null;
+        resolve(v);
+      };
+      document.getElementById("alert-ok").onclick = () => done(true);
+      cancelBtn.onclick = () => done(false);
+    });
+  const realNameEl = document.getElementById("login-name");
+  let warned = false;
+  realNameEl.addEventListener("focus", async () => {
+    if (!signup || warned) return;
+    warned = true;
+    realNameEl.blur();
+    await ask({ title: "실명으로 가입해 주세요", body: "이름은 무조건 본인의 실명이어야 해요. 별명이나 다른 사람의 이름으로는 가입할 수 없어요.", ok: "알겠어요" });
+    realNameEl.focus();
+  });
   const pw2El = document.getElementById("login-pw2");
   const setMode = (on, animate = true) => {
     const apply = () => {
@@ -458,7 +486,11 @@
     }
     loginEl.hidden = false;
     requestAnimationFrame(() => loginEl.classList.toggle("is-open", on));
-    if (on) setMode(false, false);
+    if (on) {
+      setMode(false, false);
+      warned = false;
+      realNameEl.value = "";
+    }
   };
   document.getElementById("open-login").addEventListener("click", () => showLogin(true));
   document.getElementById("login-close").addEventListener("click", () => showLogin(false));
@@ -481,7 +513,7 @@
     }
   };
   loginForm.addEventListener("submit", (e) => e.preventDefault());
-  submitBtn.addEventListener("click", () => {
+  submitBtn.addEventListener("click", async () => {
     const id = emailEl.value.trim();
     const pw = pwEl.value;
     if (!id || !pw) {
@@ -496,26 +528,43 @@
       errEl.textContent = "비밀번호가 서로 달라요";
       return;
     }
-    run((c) => (signup ? c.signUp(id, pw) : c.signIn(id, pw)));
+    if (!signup) return run((c) => c.signIn(id, pw));
+    const name = realNameEl.value.trim().replace(/\s+/g, " ");
+    if (!/^[가-힣]{2,6}$/.test(name) && !/^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$/.test(name)) {
+      errEl.textContent = "실명을 입력해 주세요 (한글 2~6자 또는 영문 이름)";
+      return;
+    }
+    const sure = await ask({ title: `"${name}" 님이 실명이 맞나요?`, body: "실명이 아니면 이용이 제한될 수 있어요. 가입한 뒤에는 이름을 바꾸기 어려워요.", ok: "실명이에요", cancel: "다시 입력" });
+    if (!sure) return realNameEl.focus();
+    run((c) => c.signUp(id, pw, name));
   });
   document.getElementById("logout").addEventListener("click", async () => {
     await window.cloud?.signOut();
+    store.set("auth-hint", "null");
     location.reload();
   });
+  // 로그인한 적이 있으면 연결이 끝나기 전에도 로그인된 화면을 바로 보여줘요 (깜빡임 없이)
+  const hint = () => { try { return JSON.parse(store.get("auth-hint", "null")); } catch (_) { return null; } };
   const renderAuth = (cloud) => {
-    const signedIn = Boolean(cloud) && !cloud.user.anonymous;
+    const h = cloud ? null : hint();
+    const signedIn = cloud ? !cloud.user.anonymous : Boolean(h);
+    const id = cloud ? cloud.user.id : h?.id || "";
+    if (cloud) store.set("auth-hint", signedIn ? JSON.stringify({ id }) : "null");
     const acct = screens.get("account");
     acct.classList.toggle("guest", !signedIn);
     acct.classList.toggle("member", signedIn);
     app.classList.toggle("guest-account", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
-    document.getElementById("profile-id").textContent = signedIn ? "@" + cloud.user.id : "";
+    document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
     if (signedIn) {
       if (!store.get("joined", "")) store.set("joined", String(Date.now()));
       document.getElementById("stat-days").textContent = Math.max(1, Math.ceil((Date.now() - Number(store.get("joined", Date.now()))) / 864e5));
     }
   };
+
+
+  renderAuth(null);
 
   /* ---------- 계정 ---------- */
   const nameEl = document.getElementById("profile-name");
@@ -616,6 +665,10 @@
   // 클라우드에 저장해 둔 것이 있으면 불러와서 덮어써요 (연결이 안 되면 이 기기 값 그대로)
   const boot = async (cloud) => {
     renderAuth(cloud);
+    if (cloud && !cloud.user.anonymous && cloud.user.name && store.get("profile-name", "내 계정") === "내 계정") {
+      store.set("profile-name", cloud.user.name);
+      applyProfile();
+    }
     if (cloud && !cloud.user.anonymous) {
       // 로그인한 계정: 샘플 대화 대신 진짜 대화를 실시간으로 받아요
       live = true;

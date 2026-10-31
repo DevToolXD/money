@@ -9,7 +9,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=5">
+<link rel="stylesheet" href="app/app.css?v=6">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -117,6 +117,7 @@
       <div class="swap" id="swap"><h2 class="login-title" id="login-title">로그인</h2>
       <p class="login-sub" id="login-sub">아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p></div>
       <form id="login-form" class="lg-card" novalidate>
+        <div class="extra" id="name-row"><div><label><span>이름 (실명)</span><input id="login-name" type="text" autocomplete="name" placeholder="실명을 입력해 주세요"></label></div></div>
         <label><span>아이디</span><input id="login-email" type="text" inputmode="latin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="영문, 숫자, _ 3~20자"></label>
         <label><span>비밀번호</span><input id="login-pw" type="password" autocomplete="current-password" placeholder="6자 이상"></label>
         <div class="extra" id="pw2-row"><div><label><span>비밀번호 확인</span><input id="login-pw2" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label></div></div>
@@ -126,6 +127,8 @@
       <button class="login-switch" id="login-switch" type="button">계정이 없나요? <b>계정 만들기</b></button>
     </div>
   </section>
+
+  <div class="alert" id="alert" hidden><div class="alert-card"><h3 id="alert-title"></h3><p id="alert-body"></p><div class="alert-actions"><button class="alert-btn" id="alert-cancel" type="button">취소</button><button class="alert-btn ok" id="alert-ok" type="button">확인</button></div></div></div>
 
   <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div><div class="ctx-stack" id="ctx-stack"><div class="ctx-preview" id="ctx-preview"></div><div class="ctx-menu big" id="ctx-menu2" role="menu"></div></div></div>
 
@@ -150,7 +153,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=3"></script>
-<script type="module" src="app/firebase.js?v=6"></script>
-<script src="app/app.js?v=8"></script>
+<script type="module" src="app/firebase.js?v=7"></script>
+<script src="app/app.js?v=9"></script>
 </body>
 </html>
