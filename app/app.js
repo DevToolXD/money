@@ -1367,10 +1367,36 @@
   const gNum = document.getElementById("g-num");
   const keypad = document.getElementById("keypad");
   let gift = { cid: "", to: "", name: "", amt: 100 };
-  const showAmt = () => {
+  let shownAmt = null;
+  // 숫자가 바뀌면 옛 숫자가 잔상을 남기며 위(늘 때)나 아래(줄 때)로 흩어지고, 새 숫자가 반대쪽에서 들어와요
+  const rollAmt = (dir, oldText) => {
+    if (reduceMotion.matches) return;
+    const holder = gNum.parentElement;
+    holder.querySelectorAll(".gnum-ghost").forEach((g, i, all) => { if (all.length > 6) g.remove(); });
+    [0.5, 0.26].forEach((alpha, i) => {
+      const g = document.createElement("span");
+      g.className = "gnum-ghost";
+      g.textContent = oldText;
+      g.setAttribute("aria-hidden", "true");
+      holder.appendChild(g);
+      const a = g.animate(
+        [{ opacity: alpha, transform: "translateY(0)", filter: "blur(0px)" }, { opacity: 0, transform: `translateY(${-dir * (22 + i * 12)}px)`, filter: `blur(${3 + i * 2}px)` }],
+        { duration: 340 + i * 90, delay: i * 40, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "both" }
+      );
+      a.onfinish = () => g.remove();
+    });
+    gNum.animate(
+      [{ opacity: 0.25, transform: `translateY(${dir * 16}px)`, filter: "blur(3px)" }, { opacity: 1, transform: "translateY(0)", filter: "blur(0px)" }],
+      { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+    );
+  };
+  const showAmt = (animate = true) => {
+    const old = gNum.textContent;
     gNum.textContent = gift.amt.toLocaleString("ko-KR");
     gNum.parentElement.style.fontSize = gift.amt >= 1e7 ? "46px" : gift.amt >= 1e6 ? "58px" : gift.amt >= 1e5 ? "68px" : "80px";
     document.getElementById("gift-bal").textContent = `내 토큰 ${W(bank.ready ? bank.bal : 0)}`;
+    if (animate && shownAmt !== null && shownAmt !== gift.amt) rollAmt(gift.amt > shownAmt ? 1 : -1, old);
+    shownAmt = gift.amt;
   };
   function openGift(cid, to, name) {
     gift = { cid, to, name, amt: gift.amt > 0 ? gift.amt : 100 };
@@ -1378,23 +1404,23 @@
     keypad.hidden = true;
     fresh = true;
     document.getElementById("g-keytoggle").textContent = "키패드 보기";
-    showAmt();
+    showAmt(false);
     sheetOpen(true, giftSheet);
   }
-  const step = (dir) => {
-    const s = gift.amt >= 100000 ? 10000 : gift.amt >= 10000 ? 1000 : 100;
-    gift.amt = Math.max(0, Math.min(99999999, gift.amt + dir * s));
+  // 작은 + - 는 10씩, 큰 + - 는 100씩 늘고 줄어요
+  const step = (dir, size) => {
+    gift.amt = Math.max(0, Math.min(99999999, gift.amt + dir * size));
     showAmt();
     navigator.vibrate?.(6);
   };
-  for (const [id, dir] of [["g-minus", -1], ["g-plus", 1]]) {
+  for (const [id, dir, size] of [["g-minus", -1, 10], ["g-plus", 1, 10], ["g-minus100", -1, 100], ["g-plus100", 1, 100]]) {
     const btn = document.getElementById(id);
     let hold = 0;
     let rep = 0;
     const stop = () => { clearTimeout(hold); clearInterval(rep); };
     btn.addEventListener("pointerdown", () => {
-      step(dir);
-      hold = setTimeout(() => (rep = setInterval(() => step(dir), 90)), 380);
+      step(dir, size);
+      hold = setTimeout(() => (rep = setInterval(() => step(dir, size), 110)), 380);
     });
     for (const t of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(t, stop);
   }
