@@ -914,7 +914,35 @@
       <p class="lab-big">${fmtLab(L.aiData)}<small>MB 쌓인 데이터</small></p>
       <p class="lab-sub">개발 점수 ${fmtLab(score)}${L.aiScore >= 0 ? ` · 출시 점수 ${fmtLab(L.aiScore)}` : " · 아직 출시 전이에요"}</p>
       <button class="btn primary" type="button" data-lab="rel" ${score < 1 || score === L.aiScore ? "disabled" : ""}>${L.aiScore >= 0 ? "다시 출시하기" : "출시하기"}</button>
-      ${cashHTML(L)}`;
+      ${cashHTML(L)}
+      <div class="lab-market" id="lab-market"><p class="lab-sub">시장을 불러오는 중이에요</p></div>`;
+  };
+  // 시장 (인공지능 회사): 전기 파는 곳과 컴퓨터 파는 곳의 단가·재고를 보고 사요
+  const paintMarket = async (co, mine) => {
+    const box = document.getElementById("lab-market");
+    if (!box) return;
+    try {
+      const list = await ctx.cloud().listCompanies("");
+      const pick = (kind) => list.filter((c) => c.kind === kind && c.id !== co.id).slice(0, 8);
+      const nuc = pick("nuclear");
+      const pcs = pick("pc");
+      const [nl, pl] = await Promise.all([Promise.all(nuc.map((c) => ctx.cloud().labGet(c.id))), Promise.all(pcs.map((c) => ctx.cloud().labGet(c.id)))]);
+      if (ctx.company()?.id !== co.id) return;
+      const eRows = nuc.map((c, i) => ({ c, L: nl[i] })).filter(({ L }) => L.price > 0 && L.elec > 0);
+      const pRows = pcs.map((c, i) => ({ c, L: pl[i] })).filter(({ L }) => L.price > 0 && L.rel);
+      const row = (c, desc, kind, def) => `<div class="lab-row">
+          <div class="lab-rowt"><b>${esc(c.name)}</b><span>${desc}</span></div>
+          <div class="lab-rowbuy"><input id="buy-${c.id}" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="${def}" aria-label="${esc(c.name)}에서 살 수량"><button type="button" class="btn primary" data-buy="${kind}" data-seller="${c.id}">사기</button></div>
+        </div>`;
+      box.innerHTML = `<p class="lab-t">전기 사기</p>
+        ${eRows.length ? eRows.map(({ c, L }) => row(c, `1 전기 ${fmtTok(L.price)} 토큰 · 재고 ${fmtLab(L.elec)}`, "e", 10)).join("") : '<p class="lab-sub">지금 파는 원자력 발전 회사가 없어요</p>'}
+        <p class="lab-t">컴퓨터 사기</p>
+        ${pRows.length ? pRows.map(({ c, L }) => row(c, `1대 ${fmtTok(L.price)} 토큰 · 용량 ${fmtLab(L.rel.cap)} · 속도 ${fmtLab(L.rel.spd)} · 전기 ${fmtLab(L.rel.pow)}`, "p", 1)).join("") : '<p class="lab-sub">지금 파는 컴퓨터 회사가 없어요</p>'}
+        <p class="lab-t">내 창고</p>
+        <p class="lab-sub">전기 ${fmtLab(mine.elec)} · 컴퓨터 ${fmtLab(mine.pcN)}대${mine.pcM ? ` (용량 ${fmtLab(mine.pcM.cap)} · 속도 ${fmtLab(mine.pcM.spd)} · 전기 ${fmtLab(mine.pcM.pow)})` : ""}</p>`;
+    } catch (err) {
+      box.innerHTML = '<p class="lab-sub">시장을 불러오지 못했어요</p>';
+    }
   };
   const stopTick = () => {
     clearInterval(labTick);
@@ -945,6 +973,7 @@
       if (ctx.company()?.id !== co.id) return; // 다른 회사로 바뀌었으면 그리지 않아요
       labNow = L;
       box.innerHTML = labHTML(co.kind, L);
+      if (co.kind === "ai") paintMarket(co, L);
       if (L.gen && genLeft(L) > 0) startTick();
     } catch (err) {
       box.innerHTML = '<p class="lab-sub">연구실 숫자를 불러오지 못했어요</p>';
@@ -980,6 +1009,24 @@
         ctx.toast(dir > 0 ? `${fmtLab(n)} 토큰을 금고에 넣었어요` : `${fmtLab(n)} 토큰을 지갑으로 뺐어요`);
       } catch (err) {
         ctx.toast(err?.code === "insufficient" ? "토큰이 부족해요" : "처리하지 못했어요. 잠시 뒤 다시 해 주세요");
+      } finally {
+        paintLab();
+      }
+      return;
+    }
+    const buy = e.target.closest("[data-buy]");
+    if (buy && !buy.disabled) {
+      const seller = buy.dataset.seller;
+      const kind = buy.dataset.buy;
+      const n = readNum(`buy-${seller}`);
+      if (!Number.isInteger(n) || n < 1) return ctx.toast("1 이상의 수량을 적어 주세요");
+      buy.disabled = true;
+      try {
+        await ctx.cloud().labBuy(co.id, seller, kind, n);
+        ctx.toast(kind === "e" ? `전기 ${fmtLab(n)}을 샀어요` : `컴퓨터 ${fmtLab(n)}대를 샀어요`);
+      } catch (err) {
+        const msg = { insufficient: "금고에 토큰이 부족해요", stock: "재고가 부족해요", unreleased: "아직 출시하지 않은 상품이에요", bad: "수량을 확인해 주세요" }[err?.code];
+        ctx.toast(msg || "처리하지 못했어요. 잠시 뒤 다시 해 주세요");
       } finally {
         paintLab();
       }

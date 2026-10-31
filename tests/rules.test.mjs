@@ -795,6 +795,120 @@ await t("단가: 사장만 정해요 (센트, 0 이상)", async () => {
   await assertFails(updateDoc(labRef(alice), { price: -1 }));
 });
 
+console.log("\n[사고팔기]");
+const check = (m, c) => { if (!c) throw new Error("확인 실패: " + m); };
+const compAt = (cid, kind, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid), { name: cid, logo: "", kind, owner: cid, products: [], open: 0, staff: 0, at: EPOCH, ...over }));
+const labAt = (cid, over) => seed((d) => setDoc(doc(d, "companies/" + cid + "/lab/main"), labFields(over)));
+const labRefOf = (db, cid) => doc(db, "companies/" + cid + "/lab/main");
+const readLab = async (cid) => { let data; await env.withSecurityRulesDisabled(async (c) => { data = (await getDoc(doc(c.firestore(), "companies/" + cid + "/lab/main"))).data(); }); return data; };
+// 한 묶음: 파는 쪽(seller)과 사는 쪽(buyer)이 함께 바뀌어요
+const buyBatch = (db, o) => {
+  const b = writeBatch(db);
+  const soldRec = { to: o.buyer, kind: o.kind, n: o.n, total: o.total, at: o.at ?? serverTimestamp() };
+  const boughtRec = { from: o.seller, kind: o.kind, n: o.n, total: o.total, at: o.at ?? serverTimestamp() };
+  if (o.model) { Object.assign(soldRec, o.model); Object.assign(boughtRec, o.model); }
+  const sUpd = { cash: o.sellerCash, sold: soldRec };
+  if (o.sellerElec !== undefined) sUpd.elec = o.sellerElec;
+  const bUpd = { cash: o.buyerCash, bought: boughtRec };
+  if (o.buyerElec !== undefined) bUpd.elec = o.buyerElec;
+  if (o.buyerPcN !== undefined) bUpd.pcN = o.buyerPcN;
+  if (o.buyerPcM !== undefined) bUpd.pcM = o.buyerPcM;
+  if (o.buyerAiH !== undefined) bUpd.aiH = o.buyerAiH;
+  b.update(labRefOf(db, o.seller), sUpd);
+  b.update(labRefOf(db, o.buyer), bUpd);
+  return b;
+};
+const seedMarket = async () => {
+  await compAt("uA", "nuclear");
+  await labAt("uA", { elec: 10, price: 300, cash: 0 });
+  await compAt("uB", "ai");
+  await labAt("uB", { cash: 10000 });
+};
+await t("사고팔기: 원자력 회사가 전기를 팔고, 인공지능 회사 사장이 같은 묶음에서 사요", async () => {
+  await seedMarket();
+  const bob = pw("uB", "bob");
+  await assertSucceeds(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 3, total: 900,
+    sellerCash: 900, sellerElec: 7, buyerCash: 9100, buyerElec: 3 }).commit());
+  const s = await readLab("uA"), bu = await readLab("uB");
+  check("판 쪽: 금고 900 (센트), 창고 7", s.cash === 900 && s.elec === 7);
+  check("산 쪽: 금고 9100, 창고 3, 기록 남음", bu.cash === 9100 && bu.elec === 3 && bu.bought.from === "uA");
+});
+await t("사고팔기 막힘: 한쪽만 쓰거나, 금액·재고·사는 사람이 틀리면 안 돼요", async () => {
+  await seedMarket();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uX", "carol");
+  // 파는 쪽만 기록을 쓰면 안 돼요 (산 쪽 기록이 같은 묶음에 없어요)
+  const sellOnly = writeBatch(alice);
+  sellOnly.update(labRefOf(alice, "uA"), { cash: 900, elec: 7, sold: { to: "uB", kind: "e", n: 3, total: 900, at: serverTimestamp() } });
+  await assertFails(sellOnly.commit());
+  // 산 쪽만 쓰면 안 돼요 (파는 쪽 기록이 없어요)
+  const buyOnly = writeBatch(bob);
+  buyOnly.update(labRefOf(bob, "uB"), { cash: 9100, elec: 3, bought: { from: "uA", kind: "e", n: 3, total: 900, at: serverTimestamp() } });
+  await assertFails(buyOnly.commit());
+  await assertFails(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 3, total: 800, sellerCash: 800, sellerElec: 7, buyerCash: 9200, buyerElec: 3 }).commit()); // 단가 300 × 3 = 900
+  await assertFails(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 3, total: 900, sellerCash: 900, sellerElec: 7, buyerCash: 9000, buyerElec: 3 }).commit()); // 산 쪽 돈이 맞지 않아요
+  await assertFails(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 11, total: 3300, sellerCash: 3300, sellerElec: -1, buyerCash: 6700, buyerElec: 11 }).commit()); // 재고(10)보다 많이 못 팔아요
+  await assertFails(buyBatch(carol, { seller: "uA", buyer: "uB", kind: "e", n: 3, total: 900, sellerCash: 900, sellerElec: 7, buyerCash: 9100, buyerElec: 3 }).commit()); // 남의 회사로 살 수 없어요
+  const s = await readLab("uA");
+  check("막힌 뒤에도 파는 쪽은 그대로 (창고 10, 금고 0)", s.elec === 10 && s.cash === 0 && s.sold === undefined);
+});
+await t("사고팔기: 지난 거래 기록을 다시 쓸 수 없어요 (거래 시각은 이번 쓰기의 시각)", async () => {
+  await seedMarket();
+  const bob = pw("uB", "bob");
+  await assertSucceeds(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 1, total: 300, sellerCash: 300, sellerElec: 9, buyerCash: 9700, buyerElec: 1 }).commit());
+  await assertFails(buyBatch(bob, { seller: "uA", buyer: "uB", kind: "e", n: 1, total: 300, at: EPOCH, sellerCash: 600, sellerElec: 8, buyerCash: 9400, buyerElec: 2 }).commit()); // 옛 시각으로 다시 쓰기
+});
+await t("사고팔기: 사는 회사는 인공지능 회사만(전기·컴퓨터), 파는 회사는 맞는 종류만", async () => {
+  await seedMarket();
+  await compAt("uF", "food");
+  await labAt("uF", { cash: 10000 });
+  await labAt("uC", { elec: 10, price: 300, cash: 0 }); // 컴퓨터 회사이지만 전기를 팔 수는 없어요
+  await compAt("uC", "pc");
+  const frank = pw("uF", "frank"), bob = pw("uB", "bob");
+  await assertFails(buyBatch(frank, { seller: "uA", buyer: "uF", kind: "e", n: 1, total: 300, sellerCash: 300, sellerElec: 9, buyerCash: 9700, buyerElec: 1 }).commit()); // 식품 회사는 전기를 못 사요
+  await assertFails(buyBatch(bob, { seller: "uC", buyer: "uB", kind: "e", n: 1, total: 300, sellerCash: 300, sellerElec: 9, buyerCash: 9700, buyerElec: 1 }).commit()); // 컴퓨터 회사는 전기를 못 팔아요
+});
+await t("사고팔기: 컴퓨터는 파는 회사가 출시한 모델만, 같은 모델이면 더해지고 다른 모델이면 바꿔요", async () => {
+  await compAt("uB", "ai");
+  await labAt("uB", { cash: 10000 });
+  await compAt("uC", "pc");
+  await labAt("uC", { rel: { cap: 6, spd: 3, pow: 2 }, cap: 6, spd: 3, pow: 2, price: 500, cash: 0 });
+  await compAt("uG", "pc");
+  await labAt("uG", { rel: { cap: 4, spd: 4, pow: 4 }, cap: 4, spd: 4, pow: 4, price: 400, cash: 0 });
+  const bob = pw("uB", "bob");
+  const m1 = { cap: 6, spd: 3, pow: 2 };
+  await assertSucceeds(buyBatch(bob, { seller: "uC", buyer: "uB", kind: "p", n: 2, total: 1000, model: m1, sellerCash: 1000, buyerCash: 9000, buyerPcN: 2, buyerPcM: m1 }).commit());
+  await assertSucceeds(buyBatch(bob, { seller: "uC", buyer: "uB", kind: "p", n: 1, total: 500, model: m1, sellerCash: 1500, buyerCash: 8500, buyerPcN: 3, buyerPcM: m1 }).commit());
+  const bu = await readLab("uB");
+  check("같은 모델은 더해져요 (3대)", bu.pcN === 3 && bu.pcM.cap === 6);
+  await assertFails(buyBatch(bob, { seller: "uC", buyer: "uB", kind: "p", n: 1, total: 500, model: m1, sellerCash: 2000, buyerCash: 8000, buyerPcN: 5, buyerPcM: m1 }).commit()); // 대수가 틀려요
+  const m2 = { cap: 4, spd: 4, pow: 4 };
+  await assertFails(buyBatch(bob, { seller: "uG", buyer: "uB", kind: "p", n: 1, total: 400, model: m1, sellerCash: 400, buyerCash: 8100, buyerPcN: 1, buyerPcM: m2 }).commit()); // 기록 모델이 파는 모델과 달라요
+  await assertSucceeds(buyBatch(bob, { seller: "uG", buyer: "uB", kind: "p", n: 1, total: 400, model: m2, sellerCash: 400, buyerCash: 8100, buyerPcN: 1, buyerPcM: m2 }).commit()); // 다른 모델은 바꿔요 (1대)
+  const bu2 = await readLab("uB");
+  check("다른 모델이면 바뀌고 1대", bu2.pcN === 1 && bu2.pcM.cap === 4);
+});
+await t("사고팔기: 인공지능 사용 시간은 누구나 살 수 있고, 출시한 인공지능만 팔려요", async () => {
+  await compAt("uD", "ai");
+  await labAt("uD", { aiData: 50, aiScore: 5, price: 200, cash: 0 });
+  await compAt("uE", "food");
+  await labAt("uE", { cash: 1000 });
+  await compAt("uZ", "ai");
+  await labAt("uZ", { aiData: 50, aiScore: -1, price: 200, cash: 0 });
+  const carol = pw("uE", "carol");
+  await assertFails(buyBatch(carol, { seller: "uZ", buyer: "uE", kind: "h", n: 2, total: 400, sellerCash: 400, buyerCash: 600, buyerAiH: 2 }).commit()); // 출시 안 한 인공지능은 못 팔아요
+  await assertSucceeds(buyBatch(carol, { seller: "uD", buyer: "uE", kind: "h", n: 2, total: 400, sellerCash: 400, buyerCash: 600, buyerAiH: 2 }).commit());
+  const eu = await readLab("uE");
+  check("사용 시간 2 (금고 600)", eu.aiH === 2 && eu.cash === 600);
+});
+await t("사고팔기: 회사 사람이 판매·구매 기록이나 물건 숫자를 혼자 바꿀 수 없어요", async () => {
+  await seedMarket();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await assertFails(updateDoc(labRefOf(alice, "uA"), { sold: { to: "uB", kind: "e", n: 1, total: 300, at: serverTimestamp() } }));
+  await assertFails(updateDoc(labRefOf(bob, "uB"), { pcN: 5 }));
+  await assertFails(updateDoc(labRefOf(bob, "uB"), { bought: { from: "uA", kind: "e", n: 1, total: 300, at: serverTimestamp() } }));
+  await assertFails(updateDoc(labRefOf(bob, "uB"), { aiH: 9 }));
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

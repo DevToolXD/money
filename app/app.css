@@ -1339,6 +1339,15 @@ html[data-theme="dark"] .draw { background: #fff; }
 .lab-unit b { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
 .lab-cashv { color: #000; font-weight: 800; }
 
+/* 시장: 인공지능 회사가 전기와 컴퓨터를 사요 */
+.lab-market { display: grid; gap: 12px; }
+.lab-row { display: grid; gap: 8px; padding: 12px; border-radius: 18px; background: #f2f2f7; }
+.lab-rowt { display: grid; gap: 2px; font-size: 15px; min-width: 0; }
+.lab-rowt b { font-weight: 700; color: #000; overflow-wrap: anywhere; }
+.lab-rowt span { font-size: 13px; color: var(--text-secondary); }
+.lab-rowbuy { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.lab-rowbuy .lab-input { width: 100%; }
+
 /* 핵연료 배합 벤치: 재료 병, 스포이드, 플라스크, 꾹 눌러 섞기 */
 .lab-bench { display: grid; gap: 14px; }
 .lab-top { display: flex; align-items: center; gap: 14px; }

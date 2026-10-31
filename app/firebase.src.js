@@ -100,6 +100,11 @@ const labOf = (d) => {
     aiScore: n(d?.aiScore, -1),
     cash: n(d?.cash, 0), // 회사 금고 (센트: 100 = 1 토큰)
     price: n(d?.price, 0), // 단가 (센트)
+    sold: d?.sold ?? null, // 마지막으로 판 기록 (파는 쪽)
+    bought: d?.bought ?? null, // 마지막으로 산 기록 (사는 쪽)
+    pcN: n(d?.pcN, 0), // 가진 컴퓨터 수
+    pcM: d?.pcM && Number.isInteger(d.pcM.cap) && Number.isInteger(d.pcM.spd) && Number.isInteger(d.pcM.pow) ? { cap: d.pcM.cap, spd: d.pcM.spd, pow: d.pcM.pow } : null,
+    aiH: n(d?.aiH, 0), // 인공지능 사용 시간
   };
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -450,6 +455,44 @@ window.cloudReady = (async () => {
           const cash = L.cash + dir * tokens * 100;
           tx.set(lref, { ...L, cash });
           return cash;
+        }).catch(rethrow),
+      // 사기: 파는 회사의 단가와 재고를 읽고, 파는 쪽과 사는 쪽을 한 묶음으로 써요. kind: e 전기, p 컴퓨터, h 인공지능 사용 시간
+      labBuy: (buyer, seller, kind, n) =>
+        runTransaction(db, async (tx) => {
+          const bref = doc(db, "companies", buyer, "lab", "main");
+          const sref = doc(db, "companies", seller, "lab", "main");
+          const bs = await tx.get(bref);
+          const ss = await tx.get(sref);
+          const B = labOf(bs.exists() ? bs.data() : null);
+          const S = labOf(ss.exists() ? ss.data() : null);
+          const fail = (code, msg) => Object.assign(new Error(msg), { code });
+          if (!(Number.isInteger(n) && n >= 1)) throw fail("bad", "수량을 확인해 주세요");
+          const total = n * S.price;
+          if (B.cash < total) throw fail("insufficient", "금고가 부족해요");
+          if (kind === "e" && S.elec < n) throw fail("stock", "재고가 부족해요");
+          if (kind === "p" && !S.rel) throw fail("unreleased", "아직 출시하지 않은 컴퓨터예요");
+          if (kind === "h" && S.aiScore < 0) throw fail("unreleased", "아직 출시하지 않은 인공지능이에요");
+          const at = serverTimestamp();
+          const soldRec = { to: buyer, kind, n, total, at };
+          const boughtRec = { from: seller, kind, n, total, at };
+          const sNext = { ...S, cash: S.cash + total, sold: soldRec };
+          const bNext = { ...B, cash: B.cash - total, bought: boughtRec };
+          if (kind === "e") {
+            sNext.elec = S.elec - n;
+            bNext.elec = B.elec + n;
+          }
+          if (kind === "p") {
+            const m = { cap: S.rel.cap, spd: S.rel.spd, pow: S.rel.pow };
+            Object.assign(soldRec, m);
+            Object.assign(boughtRec, m);
+            const same = B.pcM && B.pcM.cap === m.cap && B.pcM.spd === m.spd && B.pcM.pow === m.pow;
+            bNext.pcM = m;
+            bNext.pcN = (same ? B.pcN : 0) + n; // 같은 모델이면 더하고, 다른 모델이면 새 모델로 바꿔요
+          }
+          if (kind === "h") bNext.aiH = B.aiH + n;
+          tx.set(sref, labOf(sNext));
+          tx.set(bref, labOf(bNext));
+          return total;
         }).catch(rethrow),
       labGenClaim: async (cid) => {
         let got = 0;

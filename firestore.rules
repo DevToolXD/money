@@ -130,14 +130,15 @@ service cloud.firestore {
           && !existsAfter(jobPath(request.auth.uid)))
       );
 
-      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요). 금고(cash, 센트)는 사장만 넣고 빼요. 단가(price, 센트)도 사장만 정해요.
-      //   원자력 발전: 핵연료 성능(nperf)이 높을수록 적은 돈으로(1초 = 1 토큰), 빨리, 한 번에 많이(최대 성능 × 10) 만들어요.
-      //   발전을 시작하면 비용이 금고에서 나가고, 걸린 시간이 지나야 창고(elec)에 받아요. 받기는 회사 사람 누구나 해요.
+      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요). 금고(cash, 센트)는 사장만 넣고 빼고, 발전 비용과 사고팔 때 내고 받아요.
+      //   원자력 발전: 핵연료 성능(nperf)이 높을수록 적은 돈으로(1초 = 1 토큰), 빨리, 한 번에 많이(최대 성능 × 10) 만들어요. 받기는 회사 사람 누구나 해요.
       //   컴퓨터: 처리 용량(cap)·처리 속도(spd)·전기값(pow)을 올리고, 출시하면 그때 숫자를 rel에 남겨요.
       //   인공지능: 데이터(aiData)를 쌓고, 출시하면 점수(aiScore)를 남겨요. 숫자는 줄지 않아요. 출시 값은 사장만 바꿔요.
+      //   사고팔기: 전기(e)는 원자력 발전 회사가 팔고 인공지능 회사가 사요. 컴퓨터(p)도 같아요. 인공지능 사용 시간(h)은 누구나 살 수 있어요.
+      //     파는 쪽과 사는 쪽이 같은 묶음에서 함께 바뀔 때만 돼요 (기록 시각이 이 쓰기의 서버 시각이어야 해요). 단가(price)는 파는 회사 사장이 정해요.
       match /lab/{ld} {
         function labOk(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
@@ -153,14 +154,25 @@ service cloud.firestore {
             && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
             && d.aiScore is int && d.aiScore >= -1 && (d.aiScore == -1 || d.aiScore * 10 <= d.aiData)
             && d.cash is int && d.cash >= 0 && d.cash <= 100000000000
-            && d.price is int && d.price >= 0 && d.price <= 100000000;
+            && d.price is int && d.price >= 0 && d.price <= 100000000
+            && (d.get('sold', null) == null || (d.sold.keys().hasOnly(['to', 'kind', 'n', 'total', 'at', 'cap', 'spd', 'pow'])
+                && d.sold.to is string && d.sold.kind in ['e', 'p', 'h'] && d.sold.n is int && d.sold.n >= 1
+                && d.sold.total is int && d.sold.total >= 0 && d.sold.at is timestamp))
+            && (d.get('bought', null) == null || (d.bought.keys().hasOnly(['from', 'kind', 'n', 'total', 'at', 'cap', 'spd', 'pow'])
+                && d.bought.from is string && d.bought.kind in ['e', 'p', 'h'] && d.bought.n is int && d.bought.n >= 1
+                && d.bought.total is int && d.bought.total >= 0 && d.bought.at is timestamp))
+            && d.get('pcN', 0) is int && d.get('pcN', 0) >= 0 && d.get('pcN', 0) <= 1000000
+            && (d.get('pcM', null) == null || (d.pcM.keys().hasOnly(['cap', 'spd', 'pow'])
+                && d.pcM.cap is int && d.pcM.spd is int && d.pcM.pow is int))
+            && d.get('aiH', 0) is int && d.get('aiH', 0) >= 0 && d.get('aiH', 0) <= 1000000000;
         }
         function labWho() {
-          return signedIn() && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid || get(jobPath(request.auth.uid)).data.cid == cid);
+          return signedIn() && (labOwner() || (exists(jobPath(request.auth.uid)) && get(jobPath(request.auth.uid)).data.cid == cid));
         }
         function labOwner() {
           return get(companyPath(cid)).data.get('owner', cid) == request.auth.uid;
         }
+        function labPathOf(c) { return /databases/$(database)/documents/companies/$(c)/lab/main; }
         // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (올림: 전기 × 100 ÷ 성능). 한 번에 최대 성능 × 10까지예요.
         //   시작 시각은 이 쓰기의 서버 시각이어야 해요
         function genStarts(d) {
@@ -190,42 +202,120 @@ service cloud.firestore {
             && getAfter(walletPath(request.auth.uid)).data.bal - get(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
             && request.resource.data.cash == before - getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
         }
+        // 사고팔기 기록(sold·bought)과 물건 숫자(pcN·pcM·aiH)는 사고파는 묶음에서만 바뀌어요
+        function marketSame() {
+          return request.resource.data.get('sold', null) == resource.data.get('sold', null)
+            && request.resource.data.get('bought', null) == resource.data.get('bought', null)
+            && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
+            && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
+            && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0);
+        }
+        // 파는 쪽: 사는 회사 사장이 같은 묶음에서 사는 쪽 기록(bought)을 쓸 때만, 돈이 들어오고 재고가 줄어요
+        function saleIn() {
+          return signedIn()
+            && request.resource.data.get('sold', null) != null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'elec', 'sold'])
+            && labOk(request.resource.data)
+            && request.resource.data.sold.to is string
+            && get(companyPath(request.resource.data.sold.to)).data.get('owner', request.resource.data.sold.to) == request.auth.uid
+            && request.resource.data.sold.at == request.time
+            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.at == request.time
+            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.from == cid
+            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.kind == request.resource.data.sold.kind
+            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.n == request.resource.data.sold.n
+            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.total == request.resource.data.sold.total
+            && request.resource.data.sold.total == request.resource.data.sold.n * resource.data.get('price', 0)
+            && request.resource.data.cash == resource.data.get('cash', 0) + request.resource.data.sold.total
+            && ((request.resource.data.sold.kind == 'e'
+                  && get(companyPath(cid)).data.kind == 'nuclear'
+                  && request.resource.data.elec == resource.data.elec - request.resource.data.sold.n)
+                || (request.resource.data.sold.kind == 'p'
+                  && get(companyPath(cid)).data.kind == 'pc'
+                  && request.resource.data.elec == resource.data.elec
+                  && resource.data.get('rel', null) == {'cap': request.resource.data.sold.cap, 'spd': request.resource.data.sold.spd, 'pow': request.resource.data.sold.pow})
+                || (request.resource.data.sold.kind == 'h'
+                  && get(companyPath(cid)).data.kind == 'ai'
+                  && request.resource.data.elec == resource.data.elec
+                  && resource.data.get('aiScore', -1) >= 0));
+        }
+        // 사는 쪽: 파는 회사 기록(sold)이 같은 묶음에서 쓰일 때만, 돈이 나가고 물건이 들어와요
+        function saleOut() {
+          return signedIn()
+            && request.resource.data.get('bought', null) != null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'elec', 'pcN', 'pcM', 'aiH', 'bought'])
+            && labOk(request.resource.data)
+            && labOwner()
+            && request.resource.data.bought.from is string
+            && request.resource.data.bought.at == request.time
+            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.to == cid
+            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.at == request.time
+            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.kind == request.resource.data.bought.kind
+            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.n == request.resource.data.bought.n
+            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.total == request.resource.data.bought.total
+            && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.bought.total
+            && ((request.resource.data.bought.kind == 'e'
+                  && get(companyPath(cid)).data.kind == 'ai'
+                  && request.resource.data.elec == resource.data.elec + request.resource.data.bought.n
+                  && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
+                  && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
+                  && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0))
+                || (request.resource.data.bought.kind == 'p'
+                  && get(companyPath(cid)).data.kind == 'ai'
+                  && request.resource.data.elec == resource.data.elec
+                  && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0)
+                  && request.resource.data.pcM == {'cap': request.resource.data.bought.cap, 'spd': request.resource.data.bought.spd, 'pow': request.resource.data.bought.pow}
+                  && ((resource.data.get('pcM', null) == request.resource.data.pcM && request.resource.data.pcN == resource.data.get('pcN', 0) + request.resource.data.bought.n)
+                      || (resource.data.get('pcM', null) != request.resource.data.pcM && request.resource.data.pcN == request.resource.data.bought.n)))
+                || (request.resource.data.bought.kind == 'h'
+                  && request.resource.data.elec == resource.data.elec
+                  && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
+                  && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
+                  && request.resource.data.aiH == resource.data.get('aiH', 0) + request.resource.data.bought.n));
+        }
         allow get: if signedIn();
         allow create: if labWho() && labOk(request.resource.data)
           && request.resource.data.elec == 0
           && request.resource.data.get('gen', null) == null
           && (request.resource.data.cash == 0 || depositOk(0))
           && (request.resource.data.price == 0 || labOwner())
-          && (request.resource.data.get('rel', null) == null && request.resource.data.aiScore == -1 || labOwner());
-        allow update: if labWho() && labOk(request.resource.data)
-          && request.resource.data.nperf >= resource.data.nperf
-          && request.resource.data.cap >= resource.data.get('cap', 0)
-          && request.resource.data.spd >= resource.data.get('spd', 0)
-          && request.resource.data.pow >= resource.data.get('pow', 0)
-          && request.resource.data.aiData >= resource.data.aiData
-          && (
-            // 발전 시작 (사장만): 아직 발전 중이 아닐 때, 비용(걸린 초 × 1 토큰)이 금고에서 나가고 창고는 그대로예요
-            (resource.data.get('gen', null) == null && labOwner() && genStarts(request.resource.data)
-              && request.resource.data.elec == resource.data.elec
-              && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.gen.secs * 100)
-            // 창고 받기 (회사 사람 누구나): 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요. 돈은 그대로예요
-            || (genDone(resource.data) && request.resource.data.get('gen', null) == null
-              && request.resource.data.elec == resource.data.elec + resource.data.gen.amt
-              && request.resource.data.cash == resource.data.get('cash', 0))
-            // 그 밖에는 발전 기록과 창고를 그대로 둬요. 금고는 사장이 넣거나 뺄 때만 바뀌어요
-            || (request.resource.data.get('gen', null) == resource.data.get('gen', null)
-              && request.resource.data.elec == resource.data.elec
-              && (request.resource.data.cash == resource.data.get('cash', 0)
-                  || depositOk(resource.data.get('cash', 0))
-                  || withdrawOk(resource.data.get('cash', 0))))
-          )
-          && (request.resource.data.price == resource.data.get('price', 0) || labOwner())
-          && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
-              || (labOwner() && request.resource.data.get('rel', null) != null
-                  && request.resource.data.rel.cap == request.resource.data.cap
-                  && request.resource.data.rel.spd == request.resource.data.spd
-                  && request.resource.data.rel.pow == request.resource.data.pow))
-          && (request.resource.data.aiScore == resource.data.aiScore || labOwner());
+          && (request.resource.data.get('rel', null) == null && request.resource.data.aiScore == -1 || labOwner())
+          && request.resource.data.get('sold', null) == null
+          && request.resource.data.get('bought', null) == null
+          && request.resource.data.get('pcN', 0) == 0
+          && request.resource.data.get('pcM', null) == null
+          && request.resource.data.get('aiH', 0) == 0;
+        // 사고파는 쪽을 먼저 봐요 (규칙 호출 횟수 한도 안에서 판단하도록). 그다음이 회사 사람의 일반 쓰기예요
+        allow update: if saleIn()
+          || saleOut()
+          || (labWho() && labOk(request.resource.data) && marketSame()
+            && request.resource.data.nperf >= resource.data.nperf
+            && request.resource.data.cap >= resource.data.get('cap', 0)
+            && request.resource.data.spd >= resource.data.get('spd', 0)
+            && request.resource.data.pow >= resource.data.get('pow', 0)
+            && request.resource.data.aiData >= resource.data.aiData
+            && (
+              // 발전 시작 (사장만): 아직 발전 중이 아닐 때, 비용(걸린 초 × 1 토큰)이 금고에서 나가고 창고는 그대로예요
+              (resource.data.get('gen', null) == null && labOwner() && genStarts(request.resource.data)
+                && request.resource.data.elec == resource.data.elec
+                && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.gen.secs * 100)
+              // 창고 받기 (회사 사람 누구나): 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요. 돈은 그대로예요
+              || (genDone(resource.data) && request.resource.data.get('gen', null) == null
+                && request.resource.data.elec == resource.data.elec + resource.data.gen.amt
+                && request.resource.data.cash == resource.data.get('cash', 0))
+              // 그 밖에는 발전 기록과 창고를 그대로 둬요. 금고는 사장이 넣거나 뺄 때만 바뀌어요
+              || (request.resource.data.get('gen', null) == resource.data.get('gen', null)
+                && request.resource.data.elec == resource.data.elec
+                && (request.resource.data.cash == resource.data.get('cash', 0)
+                    || depositOk(resource.data.get('cash', 0))
+                    || withdrawOk(resource.data.get('cash', 0))))
+            )
+            && (request.resource.data.price == resource.data.get('price', 0) || labOwner())
+            && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
+                || (labOwner() && request.resource.data.get('rel', null) != null
+                    && request.resource.data.rel.cap == request.resource.data.cap
+                    && request.resource.data.rel.spd == request.resource.data.spd
+                    && request.resource.data.rel.pow == request.resource.data.pow))
+            && (request.resource.data.aiScore == resource.data.aiScore || labOwner()));
         allow delete: if false;
       }
 
