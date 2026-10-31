@@ -101,7 +101,7 @@
     const shown = chats.filter((c) => !pins.includes(c) && match(c));
     list.innerHTML = shown
       .map(
-        (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span><div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
+        (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span><div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
     emptyMsg.hidden = shown.length > 0 || pins.length > 0;
@@ -117,21 +117,24 @@
   let openChat = null;
 
   // 대화 화면: 메시지 목록을 다시 그려요 (fresh는 방금 생긴 말풍선 번호)
-  const renderThread = (fresh = -1) => {
-    const msgs = openChat.msgs;
-    let html = `<div class="stamp">오늘 ${openChat.time.includes(":") ? openChat.time : "오후 2:14"}</div>`;
+  const threadHTML = (chat, fresh = -1) => {
+    const msgs = chat.msgs;
+    let html = `<div class="stamp">오늘 ${chat.time.includes(":") ? chat.time : "오후 2:14"}</div>`;
     msgs.forEach(([who, text, by], i) => {
       const next = msgs[i + 1];
       const last = !next || next[0] !== who || next[2] !== by;
       const b = `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(text)}</div>`;
       if (who === "me") html += `<div class="line me">${b}</div>`;
       else {
-        if (openChat.group && last) html += `<div class="sender">${esc(by || "")}</div>`;
-        html += `<div class="line">${last ? `<span class="avatar contact">${esc(initials(by || openChat.name))}</span>` : '<span style="width:38px"></span>'}${b}</div>`;
+        if (chat.group && last) html += `<div class="sender">${esc(by || "")}</div>`;
+        html += `<div class="line">${last ? `<span class="avatar contact">${esc(initials(by || chat.name))}</span>` : '<span style="width:38px"></span>'}${b}</div>`;
       }
     });
     if (msgs.length && msgs[msgs.length - 1][0] === "me") html += '<div class="read">전송됨</div>';
-    bubbles.innerHTML = html;
+    return html;
+  };
+  const renderThread = (fresh = -1) => {
+    bubbles.innerHTML = threadHTML(openChat, fresh);
     bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: fresh >= 0 && !reduceMotion.matches ? "smooth" : "auto" });
   };
   const applyWall = () => {
@@ -169,9 +172,34 @@
   /* 꾹 눌러서 나오는 메뉴 */
   const ctxBack = document.getElementById("ctx-back");
   const ctxMenu = document.getElementById("ctx-menu");
-  const hideMenu = () => ctxBack.classList.remove("is-open");
+  const ICON = {
+    pin: '<path d="M9 3h6l-1 6 3 3v2H7v-2l3-3zM12 14v7"/>',
+    unread: '<path d="M20 12a8 7 0 0 1-12.5 5.8L4 19l1.2-3.4A8 7 0 1 1 20 12z"/><circle cx="19" cy="5" r="2.2" fill="currentColor"/>',
+    mute: '<path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M10 21h4M4 4l16 16"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  };
+  const itemHTML = (it, i) => `<button type="button" role="menuitem" data-k="${i}"${it.danger ? ' class="danger"' : ""}>${it.icon ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICON[it.icon]}</svg>` : ""}<span>${esc(it.label)}</span></button>`;
+  const hideMenu = () => ctxBack.classList.remove("is-open", "mode-stack");
+  // 대화를 꾹 누르면: 대화 미리보기 카드와 큰 메뉴
+  const showChatMenu = (chat, items) => {
+    const pv = document.getElementById("ctx-preview");
+    const m2 = document.getElementById("ctx-menu2");
+    pv.dataset.wall = store.get("wall-" + chat.id, "white");
+    const tmp = { ...chat, msgs: chat.msgs.slice(-9) };
+    pv.innerHTML = `<div class="pv">${threadHTML(tmp)}</div>`;
+    pv.onclick = () => (hideMenu(), open(chat.id));
+    m2.innerHTML = items.map(itemHTML).join("");
+    m2.onclick = (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      hideMenu();
+      items[Number(btn.dataset.k)].run();
+    };
+    ctxBack.classList.add("is-open", "mode-stack");
+  };
   const showMenu = (x, y, items) => {
-    ctxMenu.innerHTML = items.map((it, i) => `<button type="button" role="menuitem" data-k="${i}"${it.danger ? ' class="danger"' : ""}>${esc(it.label)}</button>`).join("");
+    ctxMenu.innerHTML = items.map(itemHTML).join("");
     ctxBack.classList.add("is-open");
     const r = app.getBoundingClientRect();
     const w = 220;
@@ -189,7 +217,7 @@
     };
   };
   ctxBack.addEventListener("pointerdown", (e) => {
-    if (e.target === ctxBack) hideMenu();
+    if (e.target === ctxBack || e.target.id === "ctx-stack") hideMenu();
   });
   let swallow = false;
   document.addEventListener("pointerdown", () => (swallow = false), true);
@@ -203,7 +231,9 @@
     const fire = (el, x, y) => {
       swallow = true;
       navigator.vibrate?.(12);
-      showMenu(x, y, items(el));
+      const built = items(el);
+      if (el.dataset.id) showChatMenu(chats.find((c) => c.id === el.dataset.id), built);
+      else showMenu(x, y, built);
     };
     root.addEventListener("pointerdown", (e) => {
       const el = pick(e.target);
@@ -228,9 +258,10 @@
   const chatItems = (el) => {
     const c = chats.find((x) => x.id === el.dataset.id);
     return [
-      { label: c.pin ? "고정 해제" : "고정", run: () => ((c.pin = !c.pin), renderChats()) },
-      { label: c.unread ? "읽음으로 표시" : "읽지 않음으로 표시", run: () => ((c.unread = !c.unread), renderChats()) },
-      { label: "삭제", danger: true, run: () => (chats.splice(chats.indexOf(c), 1), renderChats()) },
+      { icon: "pin", label: c.pin ? "고정 해제" : "고정", run: () => ((c.pin = !c.pin), renderChats()) },
+      { icon: "unread", label: c.unread ? "읽음으로 표시" : "읽지 않음으로 표시", run: () => ((c.unread = !c.unread), renderChats()) },
+      { icon: "mute", label: c.muted ? "알림 켜기" : "알림 가리기", run: () => ((c.muted = !c.muted), renderChats()) },
+      { icon: "trash", label: "삭제", danger: true, run: () => (chats.splice(chats.indexOf(c), 1), renderChats()) },
     ];
   };
   longPress(list, (t) => t.closest(".chat-row"), chatItems);
@@ -238,8 +269,8 @@
   longPress(bubbles, (t) => t.closest(".bubble"), (el) => {
     const i = Number(el.dataset.i);
     return [
-      { label: "복사", run: () => navigator.clipboard?.writeText(openChat.msgs[i][1]).catch(() => {}) },
-      { label: "삭제", danger: true, run: () => (openChat.msgs.splice(i, 1), (openChat.last = openChat.msgs.length ? openChat.msgs[openChat.msgs.length - 1][1] : ""), renderThread(), renderChats()) },
+      { icon: "copy", label: "복사", run: () => navigator.clipboard?.writeText(openChat.msgs[i][1]).catch(() => {}) },
+      { icon: "trash", label: "삭제", danger: true, run: () => (openChat.msgs.splice(i, 1), (openChat.last = openChat.msgs.length ? openChat.msgs[openChat.msgs.length - 1][1] : ""), renderThread(), renderChats()) },
     ];
   });
 

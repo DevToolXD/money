@@ -274,7 +274,23 @@ html[data-theme="dark"] .thread[data-wall="white"] {
 .app.in-thread .dock { transform: translateY(140%); opacity: 0; }
 .dock { transition: transform 0.42s var(--ease), opacity 0.3s; }
 
-/* 꾹 눌렀을 때 나오는 메뉴 */
+/* 꾹 눌렀을 때 나오는 메뉴: 대화는 미리보기 카드와 큰 메뉴, 말풍선은 작은 메뉴 */
+.ctx-preview { --t-fg: #fff; --t-sub: rgba(255, 255, 255, 0.9); --b-bg: rgba(70, 76, 90, 0.42); --b-fg: #fff; --b-rim: rgba(255, 255, 255, 0.22); background: var(--wall, var(--bg-canvas-elevated)); color: var(--t-fg); }
+.ctx-preview[data-wall="white"], .ctx-preview[data-wall="mint"] { --t-fg: #1c1c1e; --t-sub: #6e6e73; --b-bg: rgba(226, 226, 232, 0.78); --b-fg: #000; --b-rim: rgba(255, 255, 255, 0.95); }
+html[data-theme="dark"] .ctx-preview[data-wall="white"] { --t-fg: #fff; --t-sub: #a1a1a6; --b-bg: rgba(72, 72, 78, 0.7); --b-fg: #fff; --b-rim: rgba(255, 255, 255, 0.22); }
+.ctx-preview::before { content: ""; position: absolute; inset: 0; background: var(--glow, none); }
+.ctx-preview .pv { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; height: 100%; padding: 18px 20px; overflow: hidden; }
+.ctx-back.mode-stack { background: rgba(200, 200, 206, 0.55); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
+html[data-theme="dark"] .ctx-back.mode-stack { background: rgba(0, 0, 0, 0.5); }
+.ctx-back.mode-stack #ctx-menu, .ctx-back:not(.mode-stack) .ctx-stack { display: none; }
+.ctx-stack { position: absolute; left: 20px; right: 20px; top: calc(var(--safe-top) + 76px); bottom: 24px; display: flex; flex-direction: column; gap: 14px; }
+.ctx-preview { position: relative; flex: 1; min-height: 0; border-radius: 40px; overflow: hidden; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); animation: menuIn 0.34s var(--ease); transform-origin: 50% 100%; }
+.ctx-menu.big { position: relative; align-self: flex-start; width: 78%; padding: 8px; border-radius: 40px; transform-origin: 20% 0; }
+.ctx-menu.big button { display: flex; align-items: center; gap: 18px; padding: 16px 20px; font-size: 20px; border-radius: 30px; }
+.ctx-menu button svg { flex: none; width: 24px; height: 24px; }
+.ctx-menu:not(.big) button { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.mute-ico { width: 14px; height: 14px; }
+
 .ctx-back { position: absolute; inset: 0; z-index: 130; display: none; }
 .ctx-back.is-open { display: block; }
 .ctx-menu { position: absolute; min-width: 210px; padding: 6px; border-radius: 22px; background: rgba(250, 250, 252, 0.78); -webkit-backdrop-filter: blur(30px) saturate(190%); backdrop-filter: blur(30px) saturate(190%); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.9), 0 14px 40px rgba(0, 0, 0, 0.2); color: #000; transform-origin: var(--ox, 50%) var(--oy, 0); animation: menuIn 0.3s var(--ease); }
