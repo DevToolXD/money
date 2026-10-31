@@ -12,6 +12,27 @@
     }, 30);
   });
   const app = document.querySelector(".app");
+  // 위·아래 끝에서 더 끌어당겨 화면이 튕기고 밀리는 것을 막아요 (스크롤할 곳이 있으면 그 안에서만 움직여요)
+  let pullY = null;
+  document.addEventListener("touchstart", (e) => { pullY = e.touches[0].clientY; }, { passive: true });
+  document.addEventListener("touchend", () => { pullY = null; }, { passive: true });
+  document.addEventListener("touchcancel", () => { pullY = null; }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (pullY == null || e.touches.length !== 1) return;
+    const t = e.target;
+    if (t && t.closest && t.closest("input, textarea")) return; // 글 칸은 그대로 둬요
+    const dy = e.touches[0].clientY - pullY;
+    if (dy === 0) return;
+    let el = t && t.nodeType === 1 ? t : null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const scrollable = el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+      if (scrollable) break;
+      el = el.parentElement;
+    }
+    const scroller = el && el !== document.body && el !== document.documentElement ? el : null;
+    const atEdge = !scroller || (dy > 0 ? scroller.scrollTop <= 0 : scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1);
+    if (atEdge) e.preventDefault();
+  }, { passive: false });
   const nav = document.querySelector(".tabbar");
   const screens = new Map([...document.querySelectorAll(".screen")].map((el) => [el.dataset.screen, el]));
   const scheme = matchMedia("(prefers-color-scheme: dark)");
