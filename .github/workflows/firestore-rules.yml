@@ -1,0 +1,19 @@
+# firestore.rules가 바뀌어 main 브랜치가 아닌 toss-style-site에 올라올 때마다 규칙을 자동으로 게시해요.
+# 저장소 Settings → Secrets and variables → Actions에 FIREBASE_SERVICE_ACCOUNT(서비스 계정 키 JSON 전체)를 넣어야 해요.
+name: Deploy Firestore rules
+on:
+  push:
+    branches: [toss-style-site]
+    paths: [firestore.rules, firebase.json, .firebaserc]
+  workflow_dispatch:
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 서비스 계정 키 저장
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+      - name: 규칙 게시
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --non-interactive
