@@ -401,10 +401,10 @@ await t("랭킹: 너무 자주 갱신 못 하고, 지갑 값이 바뀌면 그 �
 });
 
 console.log("\n[회사]");
-const foundBatch = (db, uid, { name = "내 회사", logo = "", cost = 10, kind = "food", open = 0, staff = 0, extra = {} } = {}) => {
+const foundBatch = (db, uid, { name = "내 회사", logo = "", cost = 10, kind = "food", open = 0, staff = 0, cid = "co" + Math.random().toString(36).slice(2, 9), extra = {} } = {}) => {
   const b = writeBatch(db);
-  b.set(doc(db, "companies/" + uid), { name, logo, kind, products: [], open, staff, at: serverTimestamp(), ...extra });
-  b.update(doc(db, "wallets/" + uid), { bal: increment(-cost), wt: serverTimestamp(), op: { kind: "found" } });
+  b.set(doc(db, "companies/" + cid), { name, logo, kind, products: [], open, staff, owner: uid, at: serverTimestamp(), ...extra });
+  b.update(doc(db, "wallets/" + uid), { bal: increment(-cost), wt: serverTimestamp(), op: { kind: "found", cid } });
   return b;
 };
 await t("창업: 회사 문서와 정확히 10 토큰이 빠지는 지갑 쓰기가 한 묶음일 때만 돼요", async () => {
@@ -416,9 +416,11 @@ await t("창업: 회사 문서와 정확히 10 토큰이 빠지는 지갑 쓰기
   await assertFails(foundBatch(a, "uA", { cost: 0 }).commit());
   await assertFails(updateDoc(doc(a, "wallets/uA"), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } })); // 회사 없이 돈만
   await assertFails(foundBatch(pw("uB", "bob"), "uA").commit()); // 남의 회사
-  await assertSucceeds(foundBatch(a, "uA").commit());
+  await assertSucceeds(foundBatch(a, "uA", { cid: "uA" }).commit());
   await sleep(2100);
-  await assertFails(foundBatch(a, "uA").commit()); // 두 번째 창업 불가
+  await assertFails(foundBatch(a, "uA", { cid: "uA" }).commit()); // 같은 번호의 회사는 또 못 만들어요
+  await sleep(2100);
+  await assertSucceeds(foundBatch(a, "uA").commit()); // 회사는 여러 개 만들 수 있어요 (10 토큰 더)
 });
 await t("회사 이름·마크·여분의 값은 검사해요", async () => {
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "wallets/uA"), { bal: 100, rate: 0, t: Timestamp.fromMillis(Date.now() - 7200e3), wt: EPOCH, op: { kind: "init" } }); });
@@ -590,12 +592,12 @@ await t("입사: 일자리 기록과 모집·직원 수가 같은 묶음에서 �
   same(s, 1);
   await assertFails(joinBatch(bob, "uB").commit()); // 두 번 들어갈 수는 없어요
 });
-await t("입사 지원: 모집 0명, 이미 다니는 곳이 있음, 사장이면 안 돼요", async () => {
+await t("입사 지원: 모집 0명, 이미 다니는 곳이 있음. 사장도 다른 회사에는 다닐 수 있어요", async () => {
   await coSeed({ open: 0 }); // 앨리스 회사 (모집 0명)
   await seed((d) => setDoc(doc(d, "companies/uC"), { name: "캐럴 회사", logo: "", kind: "food", products: [], open: 1, staff: 0, at: EPOCH })); // 캐럴 회사 (모집 1명)
   await assertFails(joinBatch(pw("uB", "bob"), "uB", { cid: "uA" }).commit()); // 모집 0명
   await seed((d) => updateDoc(doc(d, "companies/uA"), { open: 1 }));
-  await assertFails(joinBatch(pw("uA", "alice"), "uA", { cid: "uC" }).commit()); // 사장은 취직할 수 없어요
+  await assertSucceeds(joinBatch(pw("uA", "alice"), "uA", { cid: "uC" }).commit()); // 사장도 다른 회사에 다닐 수 있어요
   await assertSucceeds(joinBatch(pw("uB", "bob"), "uB", { cid: "uA" }).commit());
   await seed((d) => updateDoc(doc(d, "companies/uC"), { open: 1 }));
   await assertFails(joinBatch(pw("uB", "bob"), "uB", { cid: "uC" }).commit()); // 이미 다니는 곳이 있어요
@@ -641,6 +643,30 @@ await t("예전에 만든 회사(종류·모집 값이 없어요)도 모집하�
   await assertSucceeds(joinBatch(pw("uB", "bob"), "uB", { kind: "food" }).commit());
   const [o, s] = await opened(pw("uB", "bob"));
   same(o, 1);
+  same(s, 1);
+});
+
+console.log("\n[여러 회사]");
+await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·업종이 따로 있어요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "wallets/uA"), { bal: 100, rate: 0, t: Timestamp.fromMillis(Date.now() - 7200e3), wt: EPOCH, op: { kind: "init" } }); });
+  const a = pw("uA", "alice");
+  const bob = pw("uB", "bob");
+  await assertSucceeds(foundBatch(a, "uA", { cid: "c1" }).commit());
+  await sleep(2100);
+  await assertSucceeds(foundBatch(a, "uA", { cid: "c2", kind: "pc" }).commit());
+  await sleep(2100);
+  await assertFails(foundBatch(a, "uA", { cid: "c2" }).commit()); // 같은 번호의 회사는 또 못 만들어요
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { open: increment(3) })); // 사장 모집
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "ai" })); // 업종 바꾸기
+  await assertFails(updateDoc(doc(a, "companies/c2"), { kind: "bank" })); // 모르는 업종은 안 돼요
+  await assertFails(updateDoc(doc(bob, "companies/c2"), { kind: "food" })); // 남의 회사 업종은 못 바꿔요
+  await assertFails(updateDoc(doc(a, "companies/c2"), { name: "바뀐 이름" })); // 이름은 못 바꿔요
+  await assertSucceeds(setDoc(doc(a, "companies/c2/products/" + pid()), pdoc({ owner: "uA" }))); // 내 회사에 상품
+  await assertFails(setDoc(doc(bob, "companies/c2/products/" + pid()), pdoc({ owner: "uB" }))); // 남의 회사에 상품은 못 만들어요
+  await assertFails(joinBatch(a, "uA", { cid: "c2", kind: "ai" }).commit()); // 내 회사에는 지원할 수 없어요
+  await assertSucceeds(joinBatch(bob, "uB", { cid: "c2", kind: "ai" }).commit()); // 남의 회사에는 지원할 수 있어요
+  const [o, s] = await opened(bob, "c2");
+  same(o, 2);
   same(s, 1);
 });
 

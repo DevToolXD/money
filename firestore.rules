@@ -82,13 +82,14 @@ service cloud.firestore {
         && request.resource.data.name == get(/databases/$(database)/documents/profiles/$(uid)).data.name;
     }
 
-    // ----- 회사: 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만. 사장은 채용 공고(open)만 올려요.
-    //       직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 모집·직원 수가 함께 바뀔 때만 -----
-    match /companies/{uid} {
+    // ----- 회사: 한 사람이 회사를 여러 개 가질 수 있어요. 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만.
+    //       사장(owner)은 채용 공고(모집 인원 늘리기)와 업종 바꾸기만 해요. 직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 인원이 함께 바뀔 때만 -----
+    match /companies/{cid} {
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 50;
-      allow create: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'products', 'open', 'staff', 'at'])
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'products', 'open', 'staff', 'owner', 'at'])
+        && request.resource.data.owner == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.matches('^[^<>]{1,20}$')
         && photoOk(request.resource.data.logo)
@@ -97,42 +98,48 @@ service cloud.firestore {
         && request.resource.data.open == 0
         && request.resource.data.staff == 0
         && request.resource.data.at == request.time
-        && getAfter(walletPath(uid)).data.op.kind == 'found'
-        && getAfter(walletPath(uid)).data.bal == get(walletPath(uid)).data.bal - 10;
+        && getAfter(walletPath(request.auth.uid)).data.op.kind == 'found'
+        && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+        && getAfter(walletPath(request.auth.uid)).data.bal == get(walletPath(request.auth.uid)).data.bal - 10;
       allow update: if signedIn() && (
-        // 사장: 채용 공고만 올려요. 모집 인원은 제한 없이 늘릴 수 있어요 (내리는 것은 안 돼요)
-        (isMe(uid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
-          && request.resource.data.open is int
-          && request.resource.data.open > resource.data.get('open', 0))
+        // 사장: 채용 공고(모집 인원 늘리기)나 업종 바꾸기만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
+        (resource.data.get('owner', cid) == request.auth.uid && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
+            && request.resource.data.open is int
+            && request.resource.data.open > resource.data.get('open', 0))
+          ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kind'])
+            && request.resource.data.kind in ['food', 'pc', 'ai']
+            && request.resource.data.kind != resource.data.get('kind', 'food'))
+        ))
         ||
         // 입사: 같은 묶음에서 내 일자리 기록이 생기고, 모집이 1명 줄고 직원이 1명 늘어요
-        (request.auth.uid != uid
+        (resource.data.get('owner', cid) != request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open', 'staff'])
           && resource.data.get('open', 0) >= 1
           && request.resource.data.open == resource.data.get('open', 0) - 1
           && request.resource.data.staff == resource.data.get('staff', 0) + 1
-          && getAfter(jobPath(request.auth.uid)).data.cid == uid)
+          && getAfter(jobPath(request.auth.uid)).data.cid == cid)
         ||
         // 퇴사: 같은 묶음에서 내 일자리 기록이 지워지고, 직원이 1명 줄어요
-        (request.auth.uid != uid
+        (resource.data.get('owner', cid) != request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['staff'])
           && request.resource.data.staff == resource.data.get('staff', 0) - 1
           && request.resource.data.staff >= 0
-          && get(jobPath(request.auth.uid)).data.cid == uid
+          && get(jobPath(request.auth.uid)).data.cid == cid
           && !existsAfter(jobPath(request.auth.uid)))
       );
 
-      // 팔 상품: 한 상품이 한 문서예요. 만들 때 종류·모양·색·원가·가격을 모두 검사해요 (원가·가격은 센트 정수예요: 50 = 0.5 토큰).
+      // 팔 상품: 한 상품이 한 문서예요. 회사 사장만 만들고 고쳐요. 만들 때 종류·모양·색·원가·가격을 모두 검사해요 (원가·가격은 센트 정수예요: 50 = 0.5 토큰).
       // 나중에는 이름 바꾸기, 판매 멈춤·다시 시작(paused), 판매 종료(active를 false로)만 할 수 있어요. 판매를 끝낸 상품은 더 못 바꿔요
       match /products/{pid} {
         allow get: if signedIn();
         allow list: if signedIn() && request.query.limit <= 50;
-        allow create: if isMe(uid)
-          && exists(companyPath(uid))
+        allow create: if signedIn()
+          && get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
           && request.resource.data.keys().hasOnly(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'cap', 'capColor', 'content', 'costCents', 'priceCents', 'paused', 'active', 'at'])
           && request.resource.data.keys().hasAll(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'costCents', 'priceCents', 'paused', 'active', 'at'])
-          && request.resource.data.owner == uid
+          && request.resource.data.owner == request.auth.uid
           && request.resource.data.cat == 'food'
           && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
           && request.resource.data.item in ['water', 'jelly', 'chips', 'bread', 'lunchbox', 'meat', 'bar', 'drink', 'coffee']
@@ -154,7 +161,8 @@ service cloud.firestore {
           && request.resource.data.paused == false
           && request.resource.data.active == true
           && request.resource.data.at == request.time;
-        allow update: if isMe(uid)
+        allow update: if signedIn()
+          && resource.data.owner == request.auth.uid
           && resource.data.active == true
           && (
             // 판매 종료: active만 false로 (되돌릴 수 없어요)
@@ -176,16 +184,15 @@ service cloud.firestore {
       }
     }
 
-    // ----- 일자리: 내가 다니는 회사 한 곳이에요. 만들거나 지우는 것은 회사 인원이 같은 묶음에서 바뀔 때만 -----
+    // ----- 일자리: 내가 다니는 회사 한 곳이에요. 만들거나 지우는 것은 회사 인원이 같은 묶음에서 바뀔 때만. 내 회사에는 지원할 수 없어요 -----
     match /jobs/{uid} {
       allow get: if isMe(uid);
       allow create: if isMe(uid)
         && request.resource.data.keys().hasOnly(['cid', 'kind', 'at'])
         && request.resource.data.cid is string
-        && request.resource.data.cid != uid
         && request.resource.data.kind in ['food', 'pc', 'ai']
         && request.resource.data.at == request.time
-        && !exists(companyPath(uid)) // 사장은 다른 회사에 다닐 수 없어요
+        && get(companyPath(request.resource.data.cid)).data.get('owner', request.resource.data.cid) != uid
         && getAfter(companyPath(request.resource.data.cid)).data.get('kind', 'food') == request.resource.data.kind
         && getAfter(companyPath(request.resource.data.cid)).data.get('staff', 0) == get(companyPath(request.resource.data.cid)).data.get('staff', 0) + 1;
       allow delete: if isMe(uid)
@@ -273,12 +280,13 @@ service cloud.firestore {
             && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == true
             && request.resource.data.bal == resource.data.bal + get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
           ||
-          // 창업: 같은 묶음에서 회사 문서가 새로 만들어지고, 딱 10 토큰만 빠져요
+          // 창업: 같은 묶음에서 새 회사 문서(op.cid)가 만들어지고, 딱 10 토큰만 빠져요. 회사는 여러 개 만들 수 있어요
           (request.resource.data.op.kind == 'found'
             && request.resource.data.rate == resource.data.rate
             && request.resource.data.t == resource.data.t
-            && !exists(companyPath(request.auth.uid))
-            && existsAfter(companyPath(request.auth.uid))
+            && request.resource.data.op.cid is string
+            && !exists(companyPath(request.resource.data.op.cid))
+            && existsAfter(companyPath(request.resource.data.op.cid))
             && request.resource.data.bal == resource.data.bal - 10)
         );
     }

@@ -1301,3 +1301,10 @@ html[data-theme="dark"] .draw { background: #fff; }
 .pk-tile { background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(234, 236, 241, 0.85)); }
 .pk-chip { color: #0a7cff; }
 .pk-done i { background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(214, 218, 226, 0.72)); }
+
+/* 사업: 회사 고르기, 회사 더 만들기, 업종 */
+.biz-switch { display: flex; gap: 10px; margin: 4px var(--gutter) 12px; overflow-x: auto; scrollbar-width: none; }
+.biz-switch::-webkit-scrollbar { display: none; }
+.biz-switch[hidden] { display: none; }
+#biz-more { margin: 0 var(--gutter) 20px; width: calc(100% - 2 * var(--gutter)); }
+.biz-kinds { margin: 0 var(--gutter) 20px; }

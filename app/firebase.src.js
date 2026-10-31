@@ -78,6 +78,7 @@ const companyOf = (id, d) => ({
   kind: KINDS.includes(d.kind) ? d.kind : "food",
   open: Number.isInteger(d.open) ? d.open : 0,
   staff: Number.isInteger(d.staff) ? d.staff : 0,
+  owner: typeof d.owner === "string" ? d.owner : id, // 예전 회사는 문서 번호가 사장이에요
   products: Array.isArray(d.products) ? d.products : [],
   at: ms(d.at),
 });
@@ -316,9 +317,16 @@ window.cloudReady = (async () => {
         return out;
       },
       /* ----- 회사 ----- */
-      loadCompany: async () => {
-        const s = await getDoc(doc(db, "companies", uidOf())).catch(rethrow);
-        return s.exists() ? companyOf(uidOf(), s.data()) : null;
+      // 내 회사들: 사장이 나인 회사 (예전 회사는 문서 번호가 내 번호예요)
+      listMyCompanies: async () => {
+        const uid = uidOf();
+        const [snap, legacy] = await Promise.all([
+          getDocs(query(collection(db, "companies"), where("owner", "==", uid), limit(50))).catch(rethrow),
+          getDoc(doc(db, "companies", uid)).catch(rethrow),
+        ]);
+        const out = snap.docs.map((d) => companyOf(d.id, d.data({ serverTimestamps: "estimate" })));
+        if (legacy.exists() && legacy.data().owner === undefined) out.push(companyOf(uid, legacy.data({ serverTimestamps: "estimate" })));
+        return out.sort((a, b) => a.at - b.at);
       },
       getCompany: async (cid) => {
         const s = await getDoc(doc(db, "companies", cid)).catch(rethrow);
@@ -334,7 +342,9 @@ window.cloudReady = (async () => {
         return snap.docs.map((d) => companyOf(d.id, d.data({ serverTimestamps: "estimate" })));
       },
       // 채용 공고: 모집 인원을 n명 늘려요 (한 번에 10명, 모집 중은 20명까지는 서버가 지켜요)
-      postOpenings: (n) => updateDoc(doc(db, "companies", uidOf()), { open: increment(n) }).catch(rethrow),
+      postOpenings: (cid, n) => updateDoc(doc(db, "companies", cid), { open: increment(n) }).catch(rethrow),
+      // 업종 바꾸기 (사장만)
+      setCompanyKind: (cid, kind) => updateDoc(doc(db, "companies", cid), { kind }).catch(rethrow),
       // 내가 다니는 회사 기록 (없으면 null)
       loadMyJob: async () => {
         const s = await getDoc(doc(db, "jobs", uidOf())).catch(rethrow);
@@ -357,11 +367,14 @@ window.cloudReady = (async () => {
         await b.commit().catch(rethrow);
       },
       // 창업: 회사 문서와 10 토큰이 빠지는 지갑 쓰기를 한 묶음으로 보내요
+      // 회사는 여러 개 만들 수 있어요. 새 회사 번호를 돌려줘요
       foundCompany: async (name, logo, kind = "food") => {
+        const ref = doc(collection(db, "companies"));
         const b = writeBatch(db);
-        b.set(doc(db, "companies", uidOf()), { name, logo, kind, products: [], open: 0, staff: 0, at: serverTimestamp() });
-        b.update(walletRef(), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } });
+        b.set(ref, { name, logo, kind, owner: uidOf(), products: [], open: 0, staff: 0, at: serverTimestamp() });
+        b.update(walletRef(), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found", cid: ref.id } });
         await b.commit();
+        return ref.id;
       },
 
       /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
@@ -376,15 +389,15 @@ window.cloudReady = (async () => {
           return { ...v, id: d.id, at: ms(v.at), costCents, priceCents, paused: v.paused === true };
         });
       },
-      createProduct: async (p) => {
-        const ref = doc(collection(db, "companies", uidOf(), "products"));
+      createProduct: async (cid, p) => {
+        const ref = doc(collection(db, "companies", cid, "products"));
         const data = Object.fromEntries(Object.entries({ ...p, owner: uidOf(), active: true, at: serverTimestamp() }).filter(([, v]) => v !== undefined));
         await setDoc(ref, data).catch(rethrow);
         return ref.id;
       },
-      renameProduct: (id, name) => updateDoc(doc(db, "companies", uidOf(), "products", id), { name }).catch(rethrow),
-      setProductPaused: (id, paused) => updateDoc(doc(db, "companies", uidOf(), "products", id), { paused: paused === true }).catch(rethrow),
-      endProduct: (id) => updateDoc(doc(db, "companies", uidOf(), "products", id), { active: false }).catch(rethrow),
+      renameProduct: (cid, id, name) => updateDoc(doc(db, "companies", cid, "products", id), { name }).catch(rethrow),
+      setProductPaused: (cid, id, paused) => updateDoc(doc(db, "companies", cid, "products", id), { paused: paused === true }).catch(rethrow),
+      endProduct: (cid, id) => updateDoc(doc(db, "companies", cid, "products", id), { active: false }).catch(rethrow),
 
       /* ----- 상태 (배고픔·목마름·에너지) ----- */
       loadVitals: async () => {

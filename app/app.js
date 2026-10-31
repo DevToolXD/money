@@ -720,7 +720,7 @@
   setInterval(() => { if (!document.hidden) claimNow(); }, 10 * 60 * 1000);
   document.addEventListener("visibilitychange", () => { if (document.hidden) claimNow(); else tick(); });
 
-  const orderIds = ["spend", "bank", "hist"];
+  const orderIds = ["bank", "hist"];
   const savedOrder = store.get("money-order", "").split(",").filter((x) => orderIds.includes(x));
   const order = [...savedOrder, ...orderIds.filter((x) => !savedOrder.includes(x))];
   // 검은 카드 위의 점 무늬: 한 번만 캔버스에 그려요 (점 600개짜리 SVG를 화면에 두면 화면 사진을 찍을 때마다 무거워요)
@@ -782,7 +782,6 @@
   const sv2 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mv = (id, title, body, extra = "") => `<div class="movable mv" data-id="${id}" role="button" tabindex="0"${extra}><h2 class="ac-h">${title}${chev2}</h2><div class="ac-box">${body}</div></div>`;
   const CARDS = {
-    spend: () => mv("spend", "이번 달 쓴 토큰", '<div id="spend-body"></div>', ' id="open-chart"'),
     bank: () => mv("bank", "이자 상품", '<b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note" data-volatile></p>', ' id="open-bank"'),
     hist: () => mv("hist", "최근 거래내역", '<div id="tx-top"></div>', ' id="open-history"'),
   };
@@ -791,10 +790,6 @@
     <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
     <div class="ac-bal"><div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div></div>
     <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b></div>
-    <div class="ac-bal ac-more-box">
-      <button class="ac-note" id="ac-note" type="button" data-volatile></button>
-      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
-    </div>
     <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
   const artEl = document.getElementById("ac-art");
   paintArt(artEl);
@@ -843,7 +838,7 @@
   const chartSheet = document.getElementById("chart-sheet");
   const bankSheet = document.getElementById("bank-sheet");
   document.getElementById("ac-search").addEventListener("click", () => { renderHistory(); sheetOpen(true, histSheet); });
-  for (const id of ["ac-more", "ac-note"]) document.getElementById(id).addEventListener("click", () => { renderProducts(); sheetOpen(true, bankSheet); });
+  for (const id of ["ac-more"]) document.getElementById(id).addEventListener("click", () => { renderProducts(); sheetOpen(true, bankSheet); });
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
 
   let productSig = "";
@@ -1130,11 +1125,16 @@
   window.__vitals = { get: () => vit, set: (v) => { vit = v; startVitals(); } }; // 시험용
 
   /* ---------- 사업: 창업, 대시보드, 팔 상품 ---------- */
-  let company; // undefined: 불러오는 중, null: 아직 회사가 없어요
+  let companies = []; // 내 회사들
+  let company; // 지금 고른 회사. undefined: 불러오는 중, null: 아직 회사가 없어요
+  let pickedId = store.get("biz-pick", "");
   const bizNone = document.getElementById("biz-none");
   const bizDash = document.getElementById("biz-dash");
   const bizLoading = document.getElementById("biz-loading");
   const bizLogo = document.getElementById("biz-logo");
+  const bizSwitch = document.getElementById("biz-switch");
+  const bizKind = document.getElementById("biz-kind");
+  const KIND_LABEL = { food: "식품 회사", pc: "컴퓨터 회사", ai: "인공지능 회사" };
   const markHTML = (name, logo, cls) => avatarHTML(name, logo, cls);
   const renderBiz = () => {
     bizLoading.hidden = company !== undefined;
@@ -1146,19 +1146,51 @@
     document.getElementById("biz-mark").innerHTML = markHTML(company.name, company.logo, "avatar contact");
     document.getElementById("biz-name").textContent = company.name;
     const d = new Date(company.at || Date.now());
-    document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요`;
+    document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요 · ${KIND_LABEL[company.kind]}`;
+    bizSwitch.hidden = companies.length < 2;
+    bizSwitch.innerHTML = companies.map((c) => `<button type="button" class="gg wk-pill" aria-pressed="${c.id === company.id}" data-co="${esc(c.id)}">${esc(c.name)}</button>`).join("");
+    bizKind.style.setProperty("--i", String(Math.max(0, ["food", "pc", "ai"].indexOf(company.kind))));
+    bizKind.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.kind === company.kind)));
   };
-  const loadCompany = async (cloud) => {
-    try {
-      company = await cloud.loadCompany();
-    } catch (err) {
-      company = null;
-      console.warn("회사를 불러오지 못했어요:", err?.code || err);
-    }
+  // 회사를 고르면 그 회사의 사업 화면을 그려요 (고른 회사는 기기에 기억해요)
+  const selectCompany = (id) => {
+    company = companies.find((c) => c.id === id) || companies[0] || null;
+    pickedId = company ? company.id : "";
+    store.set("biz-pick", pickedId);
     renderBiz();
     if (company) window.Business.refresh();
     if (screens.get("work").classList.contains("is-active")) window.Work.refresh(true);
   };
+  const loadCompany = async (cloud) => {
+    try {
+      companies = await cloud.listMyCompanies();
+    } catch (err) {
+      companies = [];
+      console.warn("회사를 불러오지 못했어요:", err?.code || err);
+    }
+    selectCompany(pickedId);
+  };
+  bizSwitch.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-co]");
+    if (b) selectCompany(b.dataset.co);
+  });
+  // 업종 바꾸기: 사장은 회사의 업종을 언제든 바꿀 수 있어요
+  bizKind.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-kind]");
+    if (!b || !company || b.dataset.kind === company.kind) return;
+    const kind = b.dataset.kind;
+    try {
+      await window.cloud.setCompanyKind(company.id, kind);
+      const next = { ...company, kind };
+      companies = companies.map((c) => (c.id === company.id ? next : c));
+      company = next;
+      renderBiz();
+      window.Work.refresh(true);
+      toast(`업종을 ${KIND_LABEL[kind]}로 바꿨어요`);
+    } catch (err) {
+      toast("업종을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요");
+    }
+  });
   // 창업
   // 사업 탭: 팔 상품 정하기 화면과 판매 목록 (app/biz.js)
   window.Business.init({
@@ -1168,7 +1200,9 @@
     toast: (m) => toast(m),
     ask: (o) => ask(o),
     patchCompany: (p) => {
-      company = { ...company, ...p };
+      const next = { ...company, ...p };
+      companies = companies.map((c) => (c.id === next.id ? next : c));
+      company = next;
     },
   });
   // 일 탭: 회사 일을 하거나, 회사를 종류별로 보고 지원해요 (app/work.js)
@@ -1203,7 +1237,7 @@
     img.style.backgroundImage = ok ? `url(${ok})` : "";
     document.getElementById("found-logo").classList.toggle("has-img", Boolean(ok));
   };
-  document.getElementById("biz-start").addEventListener("click", () => {
+  const openFounding = () => {
     if (!live) return window.cloud?.user ? toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요") : showLogin(true);
     if (!bank.ready || bank.bal < 10) return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
     foundName.value = "";
@@ -1214,7 +1248,9 @@
     paintFoundLogo();
     document.getElementById("found-cost").textContent = `10 토큰이 들어요 · 내 토큰 ${W(bank.bal)}`;
     sheetOpen(true, document.getElementById("found-sheet"));
-  });
+  };
+  document.getElementById("biz-start").addEventListener("click", openFounding);
+  document.getElementById("biz-more").addEventListener("click", openFounding);
   document.getElementById("found-cancel").addEventListener("click", () => sheetOpen(false));
   const fileLogo = document.getElementById("file-logo");
   document.getElementById("found-logo").addEventListener("click", () => fileLogo.click());
@@ -1239,13 +1275,11 @@
     foundGo.classList.add("busy");
     foundErr.textContent = "";
     try {
-      await walletOp(() => window.cloud.foundCompany(name, foundLogo, foundKind));
-      company = { name, logo: foundLogo, kind: foundKind, open: 0, staff: 0, products: [], at: Date.now() };
+      const cid = await walletOp(() => window.cloud.foundCompany(name, foundLogo, foundKind));
+      companies = [...companies, { id: cid, name, logo: foundLogo, kind: foundKind, owner: window.cloud.uid, open: 0, staff: 0, products: [], at: Date.now() }];
       logTx({ t: Date.now(), name: "창업", cat: "사업", icon: "store", amt: -10 });
       sheetOpen(false);
-      renderBiz();
-      window.Business.refresh();
-      window.Work.refresh(true);
+      selectCompany(cid);
       toast(`${name}을(를) 창업했어요`);
     } catch (err) {
       foundErr.textContent = err?.code === "permission-denied" ? "창업하지 못했어요. 이미 회사가 있거나 토큰이 부족해요" : "창업하지 못했어요. 잠시 뒤 다시 해 주세요";

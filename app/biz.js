@@ -527,7 +527,7 @@
     if (leaf.contents && has(pick.content)) p.content = pick.content;
     btn.classList.add("busy");
     try {
-      await ctx.cloud().createProduct(p);
+      await ctx.cloud().createProduct(ctx.company().id, p);
       burst();
       await refresh();
       ctx.toast(`${name}을(를) 팔기 시작했어요`);
@@ -600,7 +600,7 @@
       return;
     }
     try {
-      products = (await cloud.listProducts()).sort((a, b) => (b.at || 0) - (a.at || 0));
+      products = (await cloud.listProducts(ctx.company().id)).sort((a, b) => (b.at || 0) - (a.at || 0));
     } catch (err) {
       console.warn("상품을 불러오지 못했어요:", err?.code || err);
       return;
@@ -688,7 +688,7 @@
       if (choice === "rename") {
         const name = await askName(p.name);
         if (!name || name === p.name) return; // 그대로면 서버에 보내지 않아요
-        await cloud.renameProduct(id, name);
+        await cloud.renameProduct(ctx.company().id, id, name);
         p.name = name;
         paint();
         ctx.toast("이름을 바꿨어요");
@@ -702,7 +702,7 @@
         });
         if (!a) return;
         if (!resume && !(await ctx.ask({ title: "정말 하시겠습니까?", body: "판매를 멈춰요.", ok: "네, 멈출게요", cancel: "아니요" }))) return;
-        await cloud.setProductPaused(id, !resume);
+        await cloud.setProductPaused(ctx.company().id, id, !resume);
         p.paused = !resume;
         paint();
         ctx.toast(resume ? "판매를 다시 시작했어요" : "판매를 멈췄어요");
@@ -710,7 +710,7 @@
         const a = await ctx.ask({ title: `"${p.name}" 판매를 끝낼까요?`, body: "끝내면 이 상품은 다시 팔 수 없어요.", ok: "판매 종료", cancel: "취소" });
         if (!a) return;
         if (!(await ctx.ask({ title: "정말 하시겠습니까?", body: "판매를 끝내면 되돌릴 수 없어요.", ok: "네, 끝낼게요", cancel: "아니요" }))) return;
-        await cloud.endProduct(id);
+        await cloud.endProduct(ctx.company().id, id);
         products = products.filter((x) => x.id !== id);
         setTimeout(paint, 240);
         ctx.toast(`${p.name} 판매를 끝냈어요`);
@@ -822,7 +822,7 @@
     const btn = document.getElementById("hire-go");
     btn.classList.add("busy");
     try {
-      await ctx.cloud().postOpenings(n);
+      await ctx.cloud().postOpenings(co.id, n);
       ctx.patchCompany({ open: (co.open ?? 0) + n });
       ctx.toast(`${n}명을 모집해요`);
     } catch (err) {

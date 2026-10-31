@@ -142,15 +142,15 @@
   const openDetail = (id) => {
     const c = (companies || []).find((x) => x.id === id);
     if (!c) return;
-    const own = ctx.company();
-    const why = own
-      ? "사장님은 자기 회사에 지원할 수 없어요"
+    const mine = c.owner === ctx.cloud().uid;
+    const why = mine
+      ? "내 회사에는 지원할 수 없어요"
       : myJob
         ? "이미 다니는 회사가 있어요. 먼저 그만둬야 해요"
         : c.open < 1
           ? "지금은 모집하지 않아요"
           : `지원하면 바로 입사해요. ${KIND[c.kind]} 일을 하게 돼요.`;
-    const blocked = Boolean(own || myJob || c.open < 1);
+    const blocked = Boolean(mine || myJob || c.open < 1);
     const sheet = openSheet(`
       <div class="wk-sheet-head">${ctx.mark(c.name, c.logo, "avatar contact wk-av big")}<div><h2>${esc(c.name)}</h2><p>${KIND_FULL[c.kind]}</p></div></div>
       ${statsHTML(c)}
@@ -298,7 +298,7 @@
     view = "mine";
     const owner = Boolean(co);
     const primary = owner ? co : employer;
-    const cid = owner ? ctx.cloud().uid : employer.id;
+    const cid = owner ? co.id : employer.id;
     foodStep = 0;
     root.innerHTML = mineHTML(owner, primary, job, owner && employer ? employer : null);
     if (primary.kind === "food") {

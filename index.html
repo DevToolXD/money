@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=42">
+<link rel="stylesheet" href="app/app.css?v=43">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -82,6 +82,14 @@
         <p class="biz-loading" id="biz-loading">불러오는 중이에요</p>
         <div id="biz-dash" hidden>
           <div class="card biz-hero"><span class="biz-mark" id="biz-mark"></span><div><h2 id="biz-name"></h2><p id="biz-since"></p></div></div>
+          <div class="biz-switch" id="biz-switch" hidden></div>
+          <button class="btn" id="biz-more" type="button">회사 더 만들기 · 10 토큰</button>
+          <h2 class="section-title">업종</h2>
+          <div class="gseg biz-kinds" id="biz-kind" role="radiogroup" aria-label="업종" style="--n:3;--i:0">
+            <button type="button" role="radio" aria-checked="true" data-kind="food">식품</button>
+            <button type="button" role="radio" aria-checked="false" data-kind="pc">컴퓨터</button>
+            <button type="button" role="radio" aria-checked="false" data-kind="ai">인공지능</button>
+          </div>
           <h2 class="section-title">판매 중인 상품</h2>
           <div class="card biz-prod"><ul class="biz-list" id="biz-list"></ul><p class="biz-empty" id="biz-empty" hidden>아직 파는 상품이 없어요</p><button class="btn primary" id="biz-pick" type="button">팔 상품 정하기</button></div>
           <h2 class="section-title">직원 채용</h2>
@@ -304,10 +312,10 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=19"></script>
+<script type="module" src="app/firebase.js?v=20"></script>
 <script src="app/shapes.js?v=2"></script>
-<script src="app/biz.js?v=9"></script>
-<script src="app/work.js?v=1"></script>
-<script src="app/app.js?v=38"></script>
+<script src="app/biz.js?v=10"></script>
+<script src="app/work.js?v=2"></script>
+<script src="app/app.js?v=39"></script>
 </body>
 </html>
