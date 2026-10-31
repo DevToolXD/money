@@ -1,0 +1,28 @@
+# Firestore 데이터베이스가 있는지 확인하고, (default)가 없으면 싱가포르(asia-southeast1)에 만들어요. 손으로 실행하는 용도예요.
+name: Ensure Firestore database
+on:
+  workflow_dispatch:
+jobs:
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 서비스 계정 키 저장
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
+      - name: 데이터베이스 목록
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 firestore:databases:list --project money-sim-36ed8 --non-interactive || true
+      - name: (default) 없으면 만들기
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          if npx --yes firebase-tools@13 firestore:databases:get "(default)" --project money-sim-36ed8 --non-interactive; then
+            echo "(default) 데이터베이스가 이미 있어요"
+          else
+            npx --yes firebase-tools@13 firestore:databases:create "(default)" --location asia-southeast1 --project money-sim-36ed8 --non-interactive
+          fi
+      - name: 규칙 다시 게시
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --non-interactive
