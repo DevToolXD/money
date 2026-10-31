@@ -711,29 +711,58 @@
   const paintArt = (cv) => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = cv.clientWidth || 350;
-    const h = cv.clientHeight || 218;
+    const h = cv.clientHeight || 217;
     cv.width = Math.round(w * dpr);
     cv.height = Math.round(h * dpr);
     const c = cv.getContext("2d");
     c.scale(dpr, dpr);
-    const k = Math.max(w / 340, h / 218);
-    const ox = (w - 340 * k) / 2;
-    const oy = h - 218 * k;
-    for (let r = 34, ring = 0; r < 215; r += 15, ring++) {
-      const n = Math.max(8, Math.round((Math.PI * r) / 15.5));
-      for (let i = 0; i <= n; i++) {
-        const t = i / n;
-        const a = Math.PI * (1 - t);
-        const x = 170 + Math.cos(a) * r * 1.08;
-        const y = 232 - Math.sin(a) * r;
-        c.globalAlpha = 1 - (r / 215) * 0.35;
-        c.fillStyle = `hsl(${(168 - t * 128 - (ring % 2) * 6).toFixed(0)} 52% ${64 - (r / 215) * 14}%)`;
+    // 1291x801 짜리 도안을 카드 크기에 맞춰 그려요: 가운데에서 퍼져 나가는 원 안의 화살표
+    const k = w / 1291;
+    const cx = 645;
+    const cy = 855;
+    const R = 670;
+    const STEP = 53;
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    for (let r = 40, ring = 0; r <= R; r += STEP, ring++) {
+      const n = Math.max(6, Math.round((Math.PI * r) / STEP));
+      for (let i = ring % 2 ? 0.5 : 0; i <= n; i++) {
+        const a = Math.PI * (1 - i / n);
+        const x = cx + Math.cos(a) * r * 1.02;
+        const y = cy - Math.sin(a) * r;
+        if (x < -30 || x > 1321 || y > 830 || y < 0) continue;
+        const d = (3 + 52 * Math.sin(Math.PI * Math.pow(r / R, 0.9))) * k;
+        if (d < 1.2) continue;
+        const tx = Math.min(1, Math.max(0, x / 1291));
+        const ty = Math.min(1, Math.max(0, (y - 180) / 620));
+        c.fillStyle = `hsl(${(182 - 178 * (0.7 * tx + 0.3 * ty)).toFixed(0)} 58% ${(74 - 4 * ty).toFixed(0)}%)`;
         c.beginPath();
-        c.arc(ox + x * k, oy + y * k, (1.5 + (r / 215) * 4.2) * k, 0, 6.2832);
+        c.arc(x * k, y * k, d / 2, 0, 6.2832);
         c.fill();
+        if (d < 9) continue;
+        const dx = Math.cos(a);
+        const dy = -Math.sin(a);
+        const L = d * 0.3;
+        const hd = d * 0.19;
+        const px = x * k;
+        const py = y * k;
+        c.strokeStyle = "#1b1b1d";
+        c.lineWidth = Math.max(1, d * 0.075);
+        c.beginPath();
+        c.moveTo(px - dx * L, py - dy * L);
+        c.lineTo(px + dx * L, py + dy * L);
+        for (const sg of [-1, 1]) {
+          const ca = Math.cos(sg * 0.75);
+          const sa = Math.sin(sg * 0.75);
+          c.moveTo(px + dx * L, py + dy * L);
+          c.lineTo(px + dx * L - (dx * ca - dy * sa) * hd, py + dy * L - (dx * sa + dy * ca) * hd);
+        }
+        c.stroke();
       }
     }
   };
+  // 동전 쌓음 윤곽선 (앞 동전에 t)
+  const COIN = '<svg class="coin" viewBox="0 0 36 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6.500" rx="9" ry="3.200"/><path d="M3 6.500v5c0 1.800 4 3.200 9 3.200M3 11.500v5c0 1.800 4 3.200 9 3.200M3 16.500v5c0 1.800 4 3.200 9 3.200"/><circle cx="23.500" cy="19.500" r="10.500" fill="var(--bg-card)"/><path d="M23 13.500v8.500c0 1.200.7 1.900 1.900 1.900h.9M19.800 17h6.400"/></svg>';
   const sv2 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mv = (id, title, body, extra = "") => `<div class="movable mv" data-id="${id}" role="button" tabindex="0"${extra}><h2 class="ac-h">${title}${chev2}</h2><div class="ac-box">${body}</div></div>`;
   const CARDS = {
@@ -743,12 +772,13 @@
   };
   document.getElementById("money-root").innerHTML = `
     <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
-    <div class="ac-card"><span class="ac-word">토큰</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
+    <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
     <div class="ac-bal">
       <div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div>
       <button class="ac-note" id="ac-note" type="button" data-volatile></button>
       <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
     </div>
+    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b><span class="ac-fine-r">이 게임 안에서만 쓰는 가상 화폐예요. 실제 돈과는 관계없어요.</span></div>
     <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
   const artEl = document.getElementById("ac-art");
   paintArt(artEl);
@@ -765,7 +795,7 @@
   let renderedTx = -1;
   let renderedMonth = -1;
   const renderMoney = () => {
-    put("bal-num", bank.ready ? `${shownBal().toLocaleString("ko-KR")}<small> 토큰</small>` : "—", true);
+    put("bal-num", bank.ready ? `${COIN}<span>${shownBal().toLocaleString("ko-KR")}</span><small>토큰</small>` : "—", true);
     put("ac-note", !bank.ready ? "지갑을 불러오는 중이에요" : bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${everyText(shownBal(), bank.rate)}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요");
     put("card-month", `이번 달 ${monthSum.toLocaleString("ko-KR")} 토큰`);
     if (bank.ready && bank.rate > 0) {
