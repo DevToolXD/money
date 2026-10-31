@@ -74,8 +74,16 @@
     { d: "M2.500 24.500h23", stroke: SW },
     { d: "M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18", stroke: SW },
   ];
+  // 인벤토리: 가방
+  const inventory = [
+    { d: "M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500Z", stroke: SW },
+    { d: "M11 5.700V4.500a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.200", stroke: SW },
+    { d: "M7 14.500h14", stroke: SW },
+    { d: "M10.500 18h7v3.500h-7Z", stroke: SW },
+  ];
+
   window.TabIcons = {
     size: 28,
-    icons: { messages: plane, money: wallet, work: gear, untitled, untitled2: untitled, untitled3: untitled, shop, ranking, manage, business, account },
+    icons: { messages: plane, money: wallet, work: gear, untitled, inventory, untitled3: untitled, shop, ranking, manage, business, account },
   };
 })();

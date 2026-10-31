@@ -994,9 +994,8 @@
   let fabOpen = false;
   let fabAnim = [];
   const SIZE = 46;
-  const ARC = [-58, 0, 58];
-  const RADIUS = 84;
-  // 버튼에서 화면 가운데 쪽으로 부채꼴로 펼쳐요
+  const GAP = 70;
+  // 버튼에서 위나 아래로 일렬로 세워요 (화면 가운데 쪽으로)
   const toggleStatus = (on) => {
     fabOpen = on;
     stBubble.classList.toggle("is-open", on);
@@ -1005,12 +1004,12 @@
     fabAnim = [];
     const a = app.getBoundingClientRect();
     const r = stBubble.getBoundingClientRect();
-    const base = (Math.atan2(a.top + a.height * 0.45 - (r.top + SIZE / 2), a.left + a.width / 2 - (r.left + SIZE / 2)) * 180) / Math.PI;
+    const th = r.top + SIZE / 2 < a.top + a.height * 0.5 ? 90 : -90; // 90도는 아래쪽
     tiles.forEach((t, i) => {
-      const th = base + ARC[i];
+      const rad = 62 + i * GAP;
       const from = th - 260; // 돌면서 나와요
-      const tf = (deg, rad, sc) => `translate(-50%, -50%) rotate(${deg}deg) translateX(${rad}px) rotate(${-deg}deg) scale(${sc})`;
-      const frames = [{ transform: tf(from, 0, 0.2), opacity: 0 }, { transform: tf(th, RADIUS, 1), opacity: 1 }];
+      const tf = (deg, d, sc) => `translate(-50%, -50%) rotate(${deg}deg) translateX(${d}px) rotate(${-deg}deg) scale(${sc})`;
+      const frames = [{ transform: tf(from, 0, 0.2), opacity: 0 }, { transform: tf(th, rad, 1), opacity: 1 }];
       t.classList.remove("show");
       t.style.visibility = "visible";
       const anim = t.animate(on ? frames : frames.slice().reverse(), { duration: on ? 620 : 420, delay: i * 70, easing: "cubic-bezier(0.22, 1.2, 0.36, 1)", fill: "both" });
@@ -1025,8 +1024,8 @@
     const place = (xf, yf) => {
       const W = app.clientWidth;
       const H = app.clientHeight;
-      fab.style.left = `${clamp(xf * W - SIZE / 2, 8, W - SIZE - 8)}px`;
-      fab.style.top = `${clamp(yf * H - SIZE / 2, 60, H - 200)}px`;
+      fab.style.left = `${clamp(xf * W - SIZE / 2, 2, W - SIZE - 2)}px`;
+      fab.style.top = `${clamp(yf * H - SIZE / 2, 2, H - SIZE - 2)}px`;
     };
     let pos = { x: 0.9, y: 0.36 };
     try { const v = JSON.parse(store.get("status-pos", "null")); if (v && v.x >= 0 && v.x <= 1 && v.y >= 0 && v.y <= 1) pos = v; } catch (_) { /* 처음이에요 */ }

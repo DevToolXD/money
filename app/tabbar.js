@@ -36,7 +36,7 @@
   // 핫바: 옆으로 넘기면 바 안의 내용만 다음 쪽으로 바뀌어요 (프로필 버튼은 그대로)
   const PAGES = [
     [{ id: "messages", label: "메시지" }, { id: "money", label: "돈" }, { id: "work", label: "일" }, { id: "shop", label: "상점" }],
-    [{ id: "ranking", label: "랭킹" }, { id: "untitled2", label: "무제" }, { id: "business", label: "사업" }, { id: "untitled3", label: "무제" }],
+    [{ id: "ranking", label: "랭킹" }, { id: "inventory", label: "인벤토리" }, { id: "business", label: "사업" }, { id: "untitled3", label: "무제" }],
   ];
   const LAND_PX = 8; // 렌즈가 목표까지 이만큼 남으면 내려앉기 시작해요. 도착할 때까지 들고 있지 않아요
   const LENS_INSET = 4; // 렌즈가 막대 유리 가장자리에서 떨어져 있는 최소 거리 (막대 안쪽 여백과 같아요)
