@@ -124,12 +124,12 @@ await t("내 설정만 읽고 쓰고, 정해진 모양만 받아요", async () =
 });
 
 console.log("\n[지갑: 토큰은 서버가 지켜요]");
-await t("지갑은 정확히 1,250,000으로 한 번만, 프로필이 있을 때만 만들어요", async () => {
+await t("지갑은 정확히 0 토큰으로 한 번만, 프로필이 있을 때만 만들어요", async () => {
   const db = pw("uA", "alice");
-  const w = { bal: 1250000, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } };
+  const w = { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } };
   await assertFails(setDoc(doc(db, "wallets/uA"), w)); // 프로필이 아직 없어요
   await seed((s) => setDoc(doc(s, "profiles/uA"), { id: "alice", name: "김철수", photo: "" }));
-  await assertFails(setDoc(doc(db, "wallets/uA"), { ...w, bal: 99999999 }));
+  await assertFails(setDoc(doc(db, "wallets/uA"), { ...w, bal: 1250000 }));
   await assertFails(setDoc(doc(db, "wallets/uA"), { ...w, rate: 50 }));
   await assertSucceeds(setDoc(doc(db, "wallets/uA"), w));
   await sleep(2100);

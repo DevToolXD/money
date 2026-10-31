@@ -87,7 +87,7 @@ service cloud.firestore {
       allow create: if isMe(uid)
         && exists(/databases/$(database)/documents/profiles/$(uid))
         && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
-        && request.resource.data.bal == 1250000
+        && request.resource.data.bal == 0
         && request.resource.data.rate == 0
         && request.resource.data.t == request.time
         && request.resource.data.wt == request.time

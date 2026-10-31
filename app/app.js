@@ -18,9 +18,8 @@
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
   // 색 토큰(design-system)과 탭 바가 같은 테마를 보게 해요
-  let darkHold = false; // 랭킹 탭은 늘 어두운 화면이라 위쪽 바와 탭 바도 어둡게 맞춰요
   const applyTheme = () => {
-    root.dataset.theme = scheme.matches || darkHold ? "dark" : "light";
+    root.dataset.theme = scheme.matches ? "dark" : "light";
   };
   applyTheme();
 
@@ -901,7 +900,6 @@
   const rkList = document.getElementById("rk-list");
   const rkEmpty = document.getElementById("rk-empty");
   const rkMe = document.getElementById("rk-me");
-  let rankSeg = "all";
   let rankBusy = false;
   let rankAt = 0;
   const photoOf = (uid) => window.cloud?.peek(uid)?.photo || "";
@@ -917,7 +915,7 @@
       .map((u, i) => `<li class="rk-row${u.uid === me ? " me" : ""}"><span class="rk-rn">${i + 4}</span>${avatarHTML(u.name, photoOf(u.uid), "avatar contact")}<span class="rk-rname">${esc(u.name)}</span><span class="rk-rval">${fmtTok(u.bal)}</span></li>`)
       .join("");
     rkEmpty.hidden = list.length > 1;
-    rkEmpty.textContent = rankSeg === "chat" ? "대화한 사람이 있으면 여기서 토큰 순위를 비교해요" : "아직 순위에 오른 사람이 적어요";
+    rkEmpty.textContent = "아직 순위에 오른 사람이 적어요";
     rkMe.hidden = !bank.ready;
     rkMe.innerHTML = `<span class="rk-mn">${myRank}</span>${avatarHTML(store.get("profile-name", "나"), store.get("profile-photo", ""), "avatar contact")}<b>나</b><span class="rk-mval">${fmtTok(bank.bal)} 토큰</span>`;
   };
@@ -928,13 +926,7 @@
     rankBusy = true;
     try {
       if (bank.ready) await cloud.syncRank(bank.bal).catch(() => {}); // 내 잔액을 먼저 순위표에 올려요
-      let list;
-      if (rankSeg === "all") list = (await cloud.loadRanks(force)).slice();
-      else {
-        list = await cloud.loadRanksOf([...new Set(chats.map((c) => c.other).filter(Boolean))]);
-        if (!list.some((u) => u.uid === cloud.uid)) list.push({ uid: cloud.uid, name: store.get("profile-name", "나"), bal: bank.bal });
-        list.sort((a, b) => b.bal - a.bal);
-      }
+      const list = (await cloud.loadRanks(force)).slice();
       await cloud.fetchProfiles(list.slice(0, 12).map((u) => u.uid)).catch(() => 0); // 위쪽 사람들 사진
       const at = list.findIndex((u) => u.uid === cloud.uid);
       let myRank = at >= 0 ? String(at + 1) : "50+";
@@ -953,15 +945,6 @@
       rankBusy = false;
     }
   };
-  const rkSeg = document.querySelector(".rk-seg");
-  rkSeg.addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-seg]");
-    if (!b || b.dataset.seg === rankSeg) return;
-    rankSeg = b.dataset.seg;
-    rkSeg.dataset.on = rankSeg === "chat" ? "1" : "0";
-    rkSeg.querySelectorAll("button").forEach((o) => o.setAttribute("aria-selected", String(o === b)));
-    loadRank(true);
-  });
   nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "ranking") loadRank(true); });
   // 지갑이 바뀌면 잠시 뒤 내 순위표 값도 맞춰요 (서버가 20초에 한 번만 받아요)
   let rankTimer = 0;
@@ -1800,10 +1783,6 @@
     topTitle.textContent = screens.get(name).dataset.title;
     updateChrome(screens.get(name));
     if (name === "money") renderMoney();
-    if ((name === "ranking") !== darkHold) {
-      darkHold = name === "ranking";
-      applyTheme();
-    }
     if (name === "ranking") loadRank(false);
     backdrop?.setActive(name);
     tabbar.requestRender();

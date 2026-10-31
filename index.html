@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=24">
+<link rel="stylesheet" href="app/app.css?v=25">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -59,10 +59,9 @@
     <section class="screen" id="screen-ranking" data-screen="ranking" data-title="랭킹" aria-labelledby="title-ranking">
       <div id="rank-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="rank-root">
-        <header class="large-title"><h1 id="title-ranking">랭킹</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+        <header class="large-title"><h1 id="title-ranking">랭킹</h1></header>
         <p class="rk-sub">토큰을 가장 많이 가진 사람들이에요.<small>1 토큰 = 1 달러로 쳐요</small></p>
         <div class="rk-podium" id="rk-podium"></div>
-        <div class="rk-seg" role="tablist"><i id="rk-pill"></i><button type="button" role="tab" data-seg="all" aria-selected="true">전체</button><button type="button" role="tab" data-seg="chat" aria-selected="false">대화 상대</button></div>
         <ul class="rk-list" id="rk-list"></ul>
         <p class="rk-empty" id="rk-empty" hidden></p>
         <div class="rk-me" id="rk-me"></div>
@@ -258,7 +257,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=6"></script>
-<script type="module" src="app/firebase.js?v=14"></script>
-<script src="app/app.js?v=28"></script>
+<script type="module" src="app/firebase.js?v=15"></script>
+<script src="app/app.js?v=29"></script>
 </body>
 </html>

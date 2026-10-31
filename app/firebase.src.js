@@ -142,7 +142,7 @@ window.cloudReady = (async () => {
       }
     };
 
-    const makeWallet = () => setDoc(walletRef(), { bal: 1250000, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } });
+    const makeWallet = () => setDoc(walletRef(), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } });
     const chatPart = (d) => ({
       id: d.id,
       members: d.members,
