@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=23">
+<link rel="stylesheet" href="app/app.css?v=24">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -23,6 +23,7 @@
     <div class="nav-set" data-for="account"><span></span><button class="glass-btn js-edit-profile" type="button">편집</button></div>
   </div>
 
+  <button class="cloud-down" id="cloud-down" type="button" hidden><b>서버 데이터베이스가 꺼져 있어요</b><span>관리자가 Firebase 콘솔에서 Firestore 데이터베이스를 만들어야 메시지·돈·랭킹이 동작해요. 눌러서 닫기</span></button>
   <main class="screens">
     <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-label="메시지">
       <div class="pinned" id="pinned"></div>
@@ -257,7 +258,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=6"></script>
-<script type="module" src="app/firebase.js?v=13"></script>
-<script src="app/app.js?v=26"></script>
+<script type="module" src="app/firebase.js?v=14"></script>
+<script src="app/app.js?v=28"></script>
 </body>
 </html>

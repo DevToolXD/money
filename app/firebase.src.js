@@ -53,7 +53,20 @@ const MESSAGES = {
   "auth/operation-not-allowed": "이 로그인 방법이 아직 켜지지 않았어요",
   "auth/network-request-failed": "인터넷 연결을 확인해 주세요",
 };
-const explain = (err) => MESSAGES[err?.code] || "처리하지 못했어요. 잠시 뒤 다시 해 주세요";
+// 프로젝트에서 Firestore(데이터베이스)가 아직 꺼져 있거나 만들어지지 않았을 때 서버가 보내는 오류예요
+const dbDown = (err) => /has not been used|is disabled|SERVICE_DISABLED|database \(default\) does not exist/i.test(String(err?.message || ""));
+const report = (err) => {
+  if (dbDown(err) && !window.cloudDown) {
+    window.cloudDown = true;
+    window.dispatchEvent(new CustomEvent("cloud-down"));
+  }
+};
+const rethrow = (err) => {
+  report(err);
+  throw err;
+};
+const explain = (err) =>
+  dbDown(err) ? "서버 데이터베이스(Firestore)가 꺼져 있어요. 관리자가 Firebase에서 켜야 해요" : MESSAGES[err?.code] || "처리하지 못했어요. 잠시 뒤 다시 해 주세요";
 const toEmail = (id) => `${id.trim().toLowerCase()}@money-sim.app`;
 const ms = (t) => (t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0);
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -96,6 +109,7 @@ window.cloudReady = (async () => {
       try {
         return await fn();
       } catch (err) {
+        report(err);
         throw Object.assign(new Error(explain(err)), { code: err?.code });
       }
     };
@@ -179,7 +193,8 @@ window.cloudReady = (async () => {
         let exists = true;
         try {
           exists = (await getDoc(ref)).exists();
-        } catch (_) {
+        } catch (err) {
+          report(err);
           exists = false;
         }
         if (!exists) {
@@ -201,7 +216,10 @@ window.cloudReady = (async () => {
 
       /* ----- 내 설정 (프로필 글, 대화 배경) ----- */
       loadSettings: async () => {
-        const s = await getDoc(doc(db, "users", uidOf()));
+        const s = await getDoc(doc(db, "users", uidOf())).catch((err) => {
+          report(err);
+          throw err;
+        });
         return s.exists() ? s.data() : null;
       },
       saveSettings: (data) => setDoc(doc(db, "users", uidOf()), { ...data, updatedAt: Date.now() }, { merge: true }),
@@ -240,7 +258,7 @@ window.cloudReady = (async () => {
       listUsers: async (reset) => {
         if (reset) listCursor = null;
         const base = [collection(db, "profiles"), orderBy("name")];
-        const snap = await getDocs(query(...base, ...(listCursor ? [startAfter(listCursor)] : []), limit(20)));
+        const snap = await getDocs(query(...base, ...(listCursor ? [startAfter(listCursor)] : []), limit(20))).catch(rethrow);
         if (snap.docs.length) listCursor = snap.docs[snap.docs.length - 1];
         const list = snap.docs
           .filter((d) => d.id !== uidOf())
@@ -270,7 +288,7 @@ window.cloudReady = (async () => {
       // 가장 토큰이 많은 50명 (45초 동안은 다시 읽지 않아요)
       loadRanks: async (force) => {
         if (!force && rank.top && Date.now() - rank.topAt < 45000) return rank.top;
-        const snap = await getDocs(query(collection(db, "ranks"), orderBy("bal", "desc"), limit(50)));
+        const snap = await getDocs(query(collection(db, "ranks"), orderBy("bal", "desc"), limit(50))).catch(rethrow);
         rank.top = snap.docs.map((d) => ({ uid: d.id, id: d.data().id, name: d.data().name, bal: d.data().bal }));
         rank.topAt = Date.now();
         return rank.top;
@@ -303,7 +321,10 @@ window.cloudReady = (async () => {
             const d = s.data({ serverTimestamps: "estimate" });
             cb({ bal: d.bal, rate: d.rate, t: ms(d.t), wt: ms(d.wt) });
           },
-          () => cb(null)
+          (err) => {
+            report(err);
+            cb(null);
+          }
         ),
       // 이자 정산: gain만큼 늘리고 이자 시계(t)를 그만큼만 앞으로 보내요
       claimInterest: (gain, tMs) => updateDoc(walletRef(), { bal: increment(gain), t: Timestamp.fromMillis(tMs), wt: serverTimestamp(), op: { kind: "interest" } }),
@@ -324,10 +345,10 @@ window.cloudReady = (async () => {
       },
       watchChats: (cb) =>
         onSnapshot(query(collection(db, "chats"), where("members", "array-contains", uidOf()), limit(50)), (snap) =>
-          cb(snap.docs.map((d) => chatPart({ id: d.id, ...d.data({ serverTimestamps: "estimate" }) })))
+          cb(snap.docs.map((d) => chatPart({ id: d.id, ...d.data({ serverTimestamps: "estimate" }) }))), report
         ),
       watchMessages: (cid, cb, n = 40) =>
-        onSnapshot(query(collection(db, "chats", cid, "messages"), orderBy("at", "desc"), limit(n)), (snap) => cb(snap.docs.map(msgPart).reverse(), snap.docs.length >= n)),
+        onSnapshot(query(collection(db, "chats", cid, "messages"), orderBy("at", "desc"), limit(n)), (snap) => cb(snap.docs.map(msgPart).reverse(), snap.docs.length >= n), report),
       loadOlder: async (cid, beforeMs, n = 30) => {
         const snap = await getDocs(query(collection(db, "chats", cid, "messages"), orderBy("at", "desc"), startAfter(Timestamp.fromMillis(beforeMs)), limit(n)));
         return { list: snap.docs.map(msgPart).reverse(), more: snap.docs.length >= n };

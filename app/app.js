@@ -147,7 +147,7 @@
         (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}${avatarHTML(c.name, c.photo)}<div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
-    emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : window.cloud?.user || store.get("auth-hint", "null") !== "null" ? (window.__booted ? "서버에 연결하지 못했어요. 새로고침해 주세요" : "불러오는 중이에요") : "로그인하면 대화를 시작할 수 있어요";
+    emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : window.cloud?.user || store.get("auth-hint", "null") !== "null" ? (window.cloudDown ? "서버 데이터베이스가 꺼져 있어서 대화를 못 불러왔어요" : window.__booted ? "서버에 연결하지 못했어요. 새로고침해 주세요" : "불러오는 중이에요") : "로그인하면 대화를 시작할 수 있어요";
     emptyMsg.hidden = shown.length > 0 || pins.length > 0;
     const sc = document.getElementById("stat-chats");
     if (sc) sc.textContent = chats.length;
@@ -612,37 +612,15 @@
     percent: '<circle cx="12" cy="12" r="8.500"/><path d="M15.500 8.500l-7 7M9 9.500h.01M15 14.500h.01"/>',
   };
   const ico = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
-  const rng = (seed) => () => ((seed = (seed + 0x6d2b79f5) | 0), (((Math.imul(seed ^ (seed >>> 15), 1 | seed) + (Math.imul(seed ^ (seed >>> 7), 61 | seed) ^ seed)) ^ 0) >>> 0) / 4294967296);
-  const SHOPS = [
-    ["편의점", "식비", "store", 1800, 7500],
-    ["카페", "카페", "cup", 3800, 7200],
-    ["교통카드", "교통", "bus", 1400, 4000],
-    ["서점", "문화", "book", 9000, 28000],
-    ["영화관", "문화", "ticket", 11000, 16000],
-    ["쇼핑", "쇼핑", "bag", 15000, 60000],
-  ];
   const DAYS = 365 * 3;
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const today0 = startOfDay(new Date());
-  const book = []; // 날짜순 내역 (지출은 음수, 입금은 양수)
-  const daily = new Array(DAYS).fill(0); // 하루 동안 쓴 돈. 마지막이 오늘
-  {
-    const rand = rng(20240131);
-    for (let i = DAYS - 1; i >= 0; i--) {
-      const date = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i);
-      const n = Math.floor(rand() * 3.2);
-      for (let k = 0; k < n; k++) {
-        const s = SHOPS[Math.floor(rand() * rand() * SHOPS.length)];
-        const amt = Math.round((s[3] + rand() * (s[4] - s[3])) / 100) * 100;
-        const at = new Date(date.getTime() + (8 + k * 4 + Math.floor(rand() * 3)) * 3600e3 + Math.floor(rand() * 59) * 60e3);
-        if (at.getTime() > Date.now()) continue; // 아직 안 온 시각의 내역은 없어요
-        book.push({ t: at.getTime(), name: s[0], cat: s[1], icon: s[2], amt: -amt });
-        daily[DAYS - 1 - i] += amt;
-      }
-      if (date.getDate() === 25) book.push({ t: date.getTime() + 18.5 * 3600e3, name: "월급", cat: "입금", icon: "income", amt: 400000 });
-      else if (rand() < 0.02) book.push({ t: date.getTime() + 7.7 * 3600e3, name: "친구에게 받음", cat: "송금", icon: "gift", amt: 30000 });
-    }
-  }
+  const daily = new Array(DAYS).fill(0); // 하루 동안 쓴 토큰. 마지막이 오늘 (진짜 기록만, 지어낸 예시 없음)
+  const addDaily = (e) => {
+    if (e.amt >= 0) return;
+    const i = DAYS - 1 - Math.round((today0 - startOfDay(new Date(e.t))) / 864e5);
+    if (i >= 0 && i < DAYS) daily[i] += -e.amt;
+  };
   const W = (n) => `${n.toLocaleString("ko-KR")} 토큰`;
   const signed = (n) => `${n > 0 ? "+" : "-"}${Math.abs(n).toLocaleString("ko-KR")} 토큰`;
   const hm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -651,13 +629,13 @@
     const diff = Math.round((today0 - d) / 864e5);
     return diff === 0 ? "오늘" : diff === 1 ? "어제" : `${d.getMonth() + 1}월 ${d.getDate()}일`;
   };
-  const staticRecent = book.slice().sort((a, b) => b.t - a.t);
   // 이 기기에서 일어난 이자·상품·선물 기록이에요 (보여주기용이고, 진짜 잔액은 서버 지갑이 지켜요)
   let dyn = [];
   try { dyn = JSON.parse(store.get("bank-tx", "[]")).filter((e) => e && typeof e.t === "number" && typeof e.amt === "number" && typeof e.name === "string" && IC[e.icon]).slice(0, 200); } catch (_) { /* 처음이에요 */ }
+  dyn.forEach(addDaily);
   let txVer = 0;
   // 새 기록은 늘 맨 앞에 들어가니 매번 정렬하지 않아도 돼요
-  const topTx = (n) => dyn.concat(staticRecent.slice(0, n)).slice(0, n);
+  const topTx = (n) => dyn.slice(0, n);
   let monthSum = 0;
   const calcMonth = () => { monthSum = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0); };
   calcMonth();
@@ -666,10 +644,12 @@
   const num = (n) => Math.abs(n).toLocaleString("ko-KR");
   const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
   const txRow = (e) => `<li class="t-row tx"><span class="t-ico" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${esc(String(e.cat))}</span><span class="t-label">${dayName(e.t)} ${hm(e.t)}</span></span>${amtHTML(e.amt)}<svg class="tchev gr" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>`;
-  const groups = (list) => `<ul class="t-rows">${list.map(txRow).join("")}</ul>`;
+  const groups = (list) => (list.length ? `<ul class="t-rows">${list.map(txRow).join("")}</ul>` : '<p class="t-note">아직 거래내역이 없어요</p>');
   const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
   const logTx = (e) => {
     dyn.unshift(e);
+    addDaily(e);
+    calcMonth();
     if (dyn.length > 200) dyn.length = 200;
     txVer++;
     store.set("bank-tx", JSON.stringify(dyn));
@@ -832,8 +812,8 @@
   let renderedTx = -1;
   let renderedMonth = -1;
   const renderMoney = () => {
-    put("bal-num", bank.ready ? `${COIN}<span>${shownBal().toLocaleString("ko-KR")}</span><small>토큰</small>` : "—", true);
-    put("ac-note", !bank.ready ? "지갑을 불러오는 중이에요" : bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${everyText(shownBal(), bank.rate)}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요");
+    put("bal-num", `${COIN}<span>${(bank.ready ? shownBal() : 0).toLocaleString("ko-KR")}</span><small>토큰</small>`, true); // 불러오기 전이나 못 불러오면 0
+    put("ac-note", !bank.ready ? (window.cloudDown ? "서버 데이터베이스가 꺼져 있어서 지갑을 못 불러왔어요" : "지갑을 불러오는 중이에요") : bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${everyText(shownBal(), bank.rate)}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요");
     put("card-month", `이번 달 ${monthSum.toLocaleString("ko-KR")} 토큰`);
     if (bank.ready && bank.rate > 0) {
       put("bank-rate", `연 ${bank.rate}% 복리`);
@@ -872,7 +852,7 @@
     const sig = `${bank.rate}|${bank.bal}|${bank.ready}`;
     if (sig === productSig) return;
     productSig = sig;
-    document.getElementById("bank-bal").textContent = `내 토큰 ${bank.ready ? W(bank.bal) : "—"}`;
+    document.getElementById("bank-bal").textContent = `내 토큰 ${W(bank.ready ? bank.bal : 0)}`;
     document.getElementById("bank-list").innerHTML = RATES.map((r) => {
       const price = PRICE(r);
       const own = bank.rate === r;
@@ -896,8 +876,6 @@
     try {
       await claimNow(); // 지금까지 쌓인 이자를 먼저 받아 두어요 (상품을 사면 이자 시계가 새로 시작해요)
       await walletOp(() => window.cloud.buyProduct(r, price));
-      daily[DAYS - 1] += price;
-      calcMonth();
       logTx({ t: Date.now(), name: "이자 상품 구입", cat: "은행", icon: "percent", amt: -price });
       toast(`연 ${r}% 이자 상품에 가입했어요`);
     } catch (err) {
@@ -995,6 +973,17 @@
       if (r === "soon") pushRank(22000);
     }, delay);
   };
+
+  // 서버 데이터베이스가 꺼져 있으면(관리자 설정 문제) 화면 위에 이유를 알려줘요
+  const showCloudDown = () => {
+    const el = document.getElementById("cloud-down");
+    el.hidden = false;
+    renderMoney();
+    renderChats();
+  };
+  window.addEventListener("cloud-down", showCloudDown);
+  if (window.cloudDown) showCloudDown();
+  document.getElementById("cloud-down").addEventListener("click", (e) => { e.currentTarget.hidden = true; });
 
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
   const startWallet = () =>
@@ -1311,7 +1300,7 @@
   const showAmt = () => {
     gNum.textContent = gift.amt.toLocaleString("ko-KR");
     gNum.parentElement.style.fontSize = gift.amt >= 1e7 ? "46px" : gift.amt >= 1e6 ? "58px" : gift.amt >= 1e5 ? "68px" : "80px";
-    document.getElementById("gift-bal").textContent = `내 토큰 ${bank.ready ? W(bank.bal) : "—"}`;
+    document.getElementById("gift-bal").textContent = `내 토큰 ${W(bank.ready ? bank.bal : 0)}`;
   };
   function openGift(cid, to, name) {
     gift = { cid, to, name, amt: gift.amt > 0 ? gift.amt : 100 };

@@ -947,3 +947,9 @@ html[data-theme="dark"] .draw { background: #fff; }
 .screen[data-screen="ranking"].guest { display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 0; padding-bottom: var(--dock-clearance); }
 .screen[data-screen="ranking"].guest #rank-guest { display: grid; justify-items: center; gap: 22px; text-align: center; }
 .screen[data-screen="ranking"].guest #rank-root { display: none; }
+
+/* 서버 데이터베이스가 꺼져 있을 때 알림 */
+.cloud-down { position: absolute; left: 12px; right: 12px; top: calc(var(--safe-top) + 58px); z-index: 120; display: grid; gap: 2px; padding: 12px 16px; border-radius: 18px; background: rgba(255, 59, 48, 0.94); color: #fff; text-align: left; box-shadow: 0 10px 28px rgba(255, 59, 48, 0.3); }
+.cloud-down[hidden] { display: none; }
+.cloud-down b { font-size: 16px; font-weight: 700; }
+.cloud-down span { font-size: 13px; line-height: 18px; opacity: 0.92; }
