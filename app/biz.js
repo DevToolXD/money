@@ -970,6 +970,26 @@
   };
   const trnLeft = (L) => Math.max(0, Math.ceil((L.trn.started.toMillis() + L.trn.secs * 1000 - Date.now()) / 1000));
   const trnText = (L, left) => (left > 0 ? `${fmtLab(L.trn.d)} MB를 학습하고 있어요 · 남은 시간 ${fmtSec(left)}` : `${fmtLab(L.trn.d)} MB 학습을 마쳤어요`);
+  // 인공지능 사용 (인공지능 말고 다른 회사): 출시한 인공지능을 시간당 값으로 살 수 있어요
+  const paintAiUse = async (co, mine) => {
+    const box = document.getElementById("lab-aiuse");
+    if (!box) return;
+    try {
+      const list = await ctx.cloud().listCompanies("");
+      const ais = list.filter((c) => c.kind === "ai" && c.id !== co.id).slice(0, 8);
+      const ls = await Promise.all(ais.map((c) => ctx.cloud().labGet(c.id)));
+      if (ctx.company()?.id !== co.id) return;
+      const rows = ais.map((c, i) => ({ c, L: ls[i] })).filter(({ L }) => L.price > 0 && L.aiScore >= 0);
+      box.innerHTML = `<p class="lab-t">인공지능 사용</p>
+        ${rows.length ? rows.map(({ c, L }) => `<div class="lab-row">
+          <div class="lab-rowt"><b>${esc(c.name)}</b><span>1시간 ${fmtTok(L.price)} 토큰 · 점수 ${fmtLab(L.aiScore)}</span></div>
+          <div class="lab-rowbuy"><input id="buy-${c.id}" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="1" aria-label="${esc(c.name)} 사용 시간"><button type="button" class="btn primary" data-buy="h" data-seller="${c.id}">사기</button></div>
+        </div>`).join("") : '<p class="lab-sub">지금 쓸 수 있는 인공지능이 없어요</p>'}
+        <p class="lab-sub">내 사용 시간 ${fmtLab(mine.aiH)}시간</p>`;
+    } catch (err) {
+      box.innerHTML = '<p class="lab-sub">인공지능 사용을 불러오지 못했어요</p>';
+    }
+  };
   const stopTick = () => {
     clearInterval(labTick);
     labTick = 0;
@@ -1012,6 +1032,13 @@
       labNow = L;
       box.innerHTML = labHTML(co.kind, L);
       if (co.kind === "ai") paintMarket(co, L);
+      else {
+        const use = document.createElement("div");
+        use.className = "lab-market";
+        use.id = "lab-aiuse";
+        box.appendChild(use);
+        paintAiUse(co, L);
+      }
       if ((L.gen && genLeft(L) > 0) || (L.trn && trnLeft(L) > 0)) startTick();
     } catch (err) {
       box.innerHTML = '<p class="lab-sub">연구실 숫자를 불러오지 못했어요</p>';
