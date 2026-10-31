@@ -3,6 +3,7 @@
 :root {
   --bar-h: 76px;
   --dock-side: 25px;
+  --side-col: 84px;
   --dock-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 8px), 16px);
   --dock-clearance: calc(var(--bar-h) + var(--dock-bottom) + 32px);
   --safe-top: env(safe-area-inset-top, 0px);
@@ -405,7 +406,7 @@ html[data-theme="dark"] .lg-card, html[data-theme="dark"] .lg-btn { background: 
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 84px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) var(--side-col);
   height: var(--bar-h);
   padding: 4px;
   pointer-events: none;
@@ -452,7 +453,7 @@ html[data-theme="dark"] .platter {
     inset 0 0 0 0.5px var(--tab-platter-ring),
     0 10px 30px rgba(0, 0, 0, 0.45);
 }
-.platter-main { left: 0; right: 84px; }
+.platter-main { left: 0; right: var(--side-col); }
 .platter-side { right: 0; width: var(--bar-h); }
 
 /* 뒤 화면 사진이 준비되면 캔버스가 막대 유리를 직접 그려요. 캔버스 유리가 다 나타난 뒤(0.28초)에 CSS 판을 걷어요.
@@ -543,3 +544,9 @@ html, body, .app, .app * {
   user-select: text;
 }
 img, svg { -webkit-user-drag: none; }
+
+/* 폭이 좁은 화면(작은 폰이나 확대해서 보는 경우): 바 양옆 여백과 계정 버튼 칸을 줄여서 탭 간격이 답답하지 않게 */
+@media (max-width: 380px) {
+  :root { --dock-side: 14px; --side-col: 78px; --bar-h: 72px; }
+  .tab-account { margin-left: 10px; }
+}
