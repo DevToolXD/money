@@ -26,6 +26,7 @@ import {
   setDoc,
   updateDoc,
   collection,
+  collectionGroup,
   query,
   where,
   orderBy,
@@ -524,20 +525,55 @@ window.cloudReady = (async () => {
         });
         return r ? got : -1;
       },
-      // 음식 판매: 완성한 음식 n개가 대표 상품 가격만큼 금고에 들어와요. 상품이 팔리는 중이어야 해요
-      labFoodSale: (cid, pid, n) =>
+      // 음식 만들기 (사장과 직원): 만든 음식 n개가 상품 재고에 더해져요. 재고는 상점에 진열돼요 (금고는 상점에서 팔릴 때 늘어요).
+      // 금고 기록이 아직 없으면 처음 한 번 만들어 둬요 (상점에서 팔면 금고에 넣어야 하니까요). 동시에 만들어도 한쪽만 들어가요
+      labFoodMake: async (cid, pid, n) => {
+        const lref = doc(db, "companies", cid, "lab", "main");
+        const ls = await getDoc(lref).catch(rethrow);
+        if (!ls.exists()) await setDoc(lref, labOf(null)).catch(() => {});
+        await updateDoc(doc(db, "companies", cid, "products", pid), { stock: increment(n), madeAt: serverTimestamp() }).catch(rethrow);
+      },
+      // 상점에서 사기: 음식 n개를 사요. 사는 사람 지갑에서 값(토큰, 센트는 올림)을 내고, 파는 회사 금고가 그만큼 늘고, 재고가 n개 줄어요 (한 묶음)
+      shopBuy: (cid, pid, n) =>
         runTransaction(db, async (tx) => {
-          const lref = doc(db, "companies", cid, "lab", "main");
           const pref = doc(db, "companies", cid, "products", pid);
-          const ls = await tx.get(lref);
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const wref = walletRef();
           const ps = await tx.get(pref);
+          const ls = await tx.get(lref);
+          const ws = await tx.get(wref);
+          const fail = (code, msg) => Object.assign(new Error(msg), { code });
+          if (!(Number.isInteger(n) && n >= 1 && n <= 100)) throw fail("bad", "수량을 확인해 주세요");
           const p = ps.exists() ? ps.data() : null;
-          if (!p || p.active !== true || p.paused === true) throw Object.assign(new Error("팔 수 없는 상품이에요"), { code: "unsellable" });
-          const L = labOf(ls.exists() ? ls.data() : null);
-          const total = n * p.priceCents;
-          tx.set(lref, labOf({ ...L, cash: L.cash + total, food: { pid, n, total, at: serverTimestamp() } }));
-          return total;
+          if (!p || p.active !== true || p.paused === true || !Number.isInteger(p.priceCents) || !ls.exists()) throw fail("unsellable", "지금은 살 수 없는 상품이에요");
+          const stock = Number.isInteger(p.stock) ? p.stock : 0;
+          if (stock < n) throw fail("stock", "재고가 부족해요");
+          const tokens = Math.ceil((n * p.priceCents) / 100);
+          const bal = ws.data().bal;
+          if (bal < tokens) throw fail("insufficient", "지갑 잔액이 부족해요");
+          const cash = Number.isInteger(ls.data().cash) ? ls.data().cash : 0;
+          tx.update(pref, { stock: stock - n });
+          tx.update(lref, { cash: cash + tokens * 100 });
+          tx.update(wref, { bal: bal - tokens, wt: serverTimestamp(), op: { kind: "shop", cid, pid, n, tokens } });
+          return tokens;
         }).catch(rethrow),
+      // 상점 진열대: 재고가 있는 음식을 여러 회사에서 모아요 (최대 50개). 파는 회사의 이름과 로고도 함께 읽어요
+      listShop: async () => {
+        const snap = await getDocs(query(collectionGroup(db, "products"), where("stock", ">", 0), limit(50))).catch(rethrow);
+        const items = snap.docs
+          .map((d) => {
+            const v = d.data({ serverTimestamps: "estimate" });
+            return { ...v, id: d.id, cid: d.ref.parent.parent.id, stock: v.stock, priceCents: v.priceCents, at: ms(v.at) };
+          })
+          .filter((p) => p.active === true && p.paused !== true && Number.isInteger(p.priceCents) && p.stock > 0);
+        const ids = [...new Set(items.map((p) => p.cid))];
+        const cos = new Map();
+        for (let i = 0; i < ids.length; i += 10) {
+          const s = await getDocs(query(collection(db, "companies"), where(documentId(), "in", ids.slice(i, i + 10)), limit(10))).catch(rethrow);
+          for (const c of s.docs) cos.set(c.id, companyOf(c.id, c.data({ serverTimestamps: "estimate" })));
+        }
+        return items.map((p) => ({ ...p, co: cos.get(p.cid) || { id: p.cid, name: "회사", logo: "", kind: "food" } }));
+      },
       labGenClaim: async (cid) => {
         let got = 0;
         const r = await labTx(cid, (L) => {
@@ -556,7 +592,7 @@ window.cloudReady = (async () => {
           // 예전 상품은 토큰 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
           const costCents = Number.isInteger(v.costCents) ? v.costCents : Math.round((v.cost || 0) * 100);
           const priceCents = Number.isInteger(v.priceCents) ? v.priceCents : Math.round((v.price || 0) * 100);
-          return { ...v, id: d.id, at: ms(v.at), costCents, priceCents, paused: v.paused === true };
+          return { ...v, id: d.id, at: ms(v.at), costCents, priceCents, paused: v.paused === true, stock: Number.isInteger(v.stock) ? v.stock : 0 };
         });
       },
       createProduct: async (cid, p) => {

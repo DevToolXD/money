@@ -261,30 +261,16 @@ service cloud.firestore {
             && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
             && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0);
         }
-        // 음식 판매: 음식 한 묶음(n개)을 완성하면 대표 상품 가격 × n 만큼 금고가 늘어요. 상품은 이 회사 것이고 팔리는 중이어야 해요
-        function foodOk(o) {
-          return request.resource.data.get('food', null) != null
-            && request.resource.data.food.at == request.time
-            && request.resource.data.food.n >= 1
-            && request.resource.data.food.n <= 100
-            && request.resource.data.food.pid is string
-            && get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.active == true
-            && get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.paused == false
-            && request.resource.data.food.total == request.resource.data.food.n * get(/databases/$(database)/documents/companies/$(cid)/products/$(request.resource.data.food.pid)).data.priceCents
-            && request.resource.data.cash == o.get('cash', 0) + request.resource.data.food.total
-            && request.resource.data.elec == o.elec
-            && request.resource.data.get('gen', null) == o.get('gen', null)
-            && request.resource.data.get('trn', null) == o.get('trn', null);
-        }
-        // 음식 판매 (회사 사람): 금고와 음식 기록만 바뀌어요. 다른 칸은 그대로예요
-        function foodIn() {
-          // 음식 기록이 바뀔 때만 확인해요 (평소 쓰기는 여기서 바로 넘어가요. 규칙 계산 횟수를 아껴요)
-          return request.resource.data.get('food', null) != resource.data.get('food', null)
-            && request.resource.data.get('food', null) != null
-            && signedIn() && labWho()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'food'])
-            && request.resource.data.cash >= 0
-            && foodOk(resource.data);
+        // 음식은 금고를 바로 늘리지 않아요. 만든 음식은 상품 재고(products)가 늘고, 상점에서 팔릴 때 금고가 늘어요 (shopIn)
+        // 상점 판매 (파는 회사 금고): 사는 사람의 지갑 쓰기가 같은 묶음에 있고, 그 토큰(× 100 센트)만큼만 금고가 늘어요. 다른 칸은 그대로예요
+        function shopIn() {
+          // 칸 확인을 먼저 해요 (다른 칸이 바뀌는 평소 쓰기는 여기서 바로 넘어가요. 규칙 계산 횟수를 아껴요)
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash'])
+            && signedIn()
+            && getAfter(walletPath(request.auth.uid)).data.wt == request.time
+            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'shop'
+            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+            && request.resource.data.cash == resource.data.get('cash', 0) + getAfter(walletPath(request.auth.uid)).data.op.tokens * 100;
         }
         // 파는 쪽: 사는 회사 사장이 같은 묶음에서 사는 쪽 기록(bought)을 쓸 때만, 돈이 들어오고 재고가 줄어요
         function saleIn() {
@@ -371,7 +357,7 @@ service cloud.firestore {
         // 사고파는 쪽을 먼저 봐요 (규칙 호출 횟수 한도 안에서 판단하도록). 그다음이 회사 사람의 일반 쓰기예요
         allow update: if saleIn()
           || saleOut()
-          || foodIn()
+          || shopIn()
           || (labWho() && labCore(request.resource.data) && marketSame()
             && request.resource.data.nperf >= resource.data.nperf
             && request.resource.data.cap >= resource.data.get('cap', 0)
@@ -472,8 +458,42 @@ service cloud.firestore {
               && request.resource.data.name != resource.data.name
               && request.resource.data.name.matches('^[^<>]{1,30}$'))
           );
+        // 음식 만들기 (사장과 그 회사 직원): 재고가 늘어요. 활성 상품만, 한 번에 100개까지, 2초에 한 번만 (서버는 실제로 만드는 과정을 볼 수 없어요)
+        function producing() {
+          return resource.data.get('active', false) == true
+            && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
+                || (exists(jobPath(request.auth.uid)) && get(jobPath(request.auth.uid)).data.cid == cid))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'madeAt'])
+            && request.resource.data.get('stock', 0) > resource.data.get('stock', 0)
+            && request.resource.data.get('stock', 0) - resource.data.get('stock', 0) <= 100
+            && request.resource.data.get('stock', 0) <= 1000000
+            && request.resource.data.madeAt == request.time
+            && request.time >= resource.data.get('madeAt', timestamp.date(1970, 1, 1)) + duration.value(2, 's');
+        }
+        // 상점에서 사기: 재고만 줄어요. 같은 묶음에서 사는 사람 지갑이 값(토큰, 올림)을 내고, 파는 회사 금고가 그만큼 늘어야 해요
+        function shopping() {
+          return resource.data.get('active', false) == true
+            && resource.data.get('paused', false) == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+            && request.resource.data.stock >= 0
+            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'shop'
+            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+            && getAfter(walletPath(request.auth.uid)).data.op.pid == pid
+            && getAfter(walletPath(request.auth.uid)).data.wt == request.time
+            && request.resource.data.stock == resource.data.get('stock', 0) - getAfter(walletPath(request.auth.uid)).data.op.n
+            && getAfter(walletPath(request.auth.uid)).data.op.tokens * 100 >= getAfter(walletPath(request.auth.uid)).data.op.n * resource.data.priceCents
+            && getAfter(walletPath(request.auth.uid)).data.op.tokens * 100 < getAfter(walletPath(request.auth.uid)).data.op.n * resource.data.priceCents + 100;
+        }
+        allow update: if signedIn() && producing();
+        allow update: if signedIn() && shopping();
         allow delete: if false;
       }
+    }
+
+    // ----- 상점: 재고가 있는 음식 상품을 여러 회사에서 한꺼번에 찾아요 (읽기만 해요. 한 번에 50개까지) -----
+    match /{path=**}/products/{pid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 50;
     }
 
     // ----- 일자리: 내가 다니는 회사 한 곳이에요. 만들거나 지우는 것은 회사 인원이 같은 묶음에서 바뀔 때만. 내 회사에는 지원할 수 없어요 -----
@@ -611,6 +631,19 @@ service cloud.firestore {
             && get(companyPath(request.resource.data.op.cid)).data.get('owner', request.resource.data.op.cid) == request.auth.uid
             && cashOut(request.resource.data.op.cid, request.resource.data.op.amt)
             && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt)
+          ||
+          // 상점에서 사기: 같은 묶음에서 파는 회사의 음식 재고가 n개 줄고, 금고가 토큰만큼(센트) 늘어요. 내 지갑은 그 토큰만큼만 줄어요
+          (request.resource.data.op.kind == 'shop'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.cid is string
+            && request.resource.data.op.pid is string
+            && request.resource.data.op.n is int && request.resource.data.op.n >= 1 && request.resource.data.op.n <= 100
+            && request.resource.data.op.tokens is int && request.resource.data.op.tokens >= 1
+            && request.resource.data.bal == resource.data.bal - request.resource.data.op.tokens
+            && getAfter(/databases/$(database)/documents/companies/$(request.resource.data.op.cid)/products/$(request.resource.data.op.pid)).data.get('stock', 0)
+               == get(/databases/$(database)/documents/companies/$(request.resource.data.op.cid)/products/$(request.resource.data.op.pid)).data.get('stock', 0) - request.resource.data.op.n
+            && cashIn(request.resource.data.op.cid, request.resource.data.op.tokens))
         );
     }
 

@@ -2,7 +2,7 @@
 // 실행: cd tests && npm install && npm run rules
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment, collectionGroup } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({ projectId: "demo-money", firestore: { rules: readFileSync(process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url), "utf8") } });
 const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
@@ -945,36 +945,116 @@ await t("학습: 결과는 시간이 지난 뒤에만 회사 사람 누구나 �
 });
 
 console.log("\n[음식]");
-const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, priceCents: 300, active: true, paused: false, ...over }));
-const foodSale = (n, total, cash, extra = {}) => ({ cash, food: { pid: "p1", n, total, at: serverTimestamp(), ...extra } });
-await t("음식: 음식을 팔면 대표 상품 가격만큼 금고가 늘어요 (직원도 팔아요)", async () => {
+const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, cat: "food", priceCents: 300, active: true, paused: false, at: EPOCH, ...over }));
+const prodRef = (db, pid = "p1", cid = "uA") => doc(db, "companies/" + cid + "/products/" + pid);
+const readProd = async (pid = "p1", cid = "uA") => { let data; await env.withSecurityRulesDisabled(async (c) => { data = (await getDoc(doc(c.firestore(), "companies/" + cid + "/products/" + pid))).data(); }); return data; };
+// 음식 만들기: 재고를 n개 늘리고 만든 시각을 적어요
+const madeWrite = (db, n, extra = {}) => updateDoc(prodRef(db), { stock: increment(n), madeAt: serverTimestamp(), ...extra });
+await t("음식: 사장과 직원이 음식을 만들면 재고가 늘어요 (회사 밖 사람과 잘못된 칸은 안 돼요)", async () => {
   await coSeed();
-  await labSeed({ cash: 0 });
   await prodSeed("uA", "p1");
   await seed(jobSeed);
   const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
-  await assertFails(updateDoc(labRef(alice), foodSale(3, 800, 800))); // 가격 300 × 3 = 900
-  await assertFails(updateDoc(labRef(alice), foodSale(3, 900, 800))); // 금고가 맞지 않아요
-  await assertFails(updateDoc(labRef(carol), foodSale(3, 900, 900))); // 회사 밖 사람은 못 팔아요
-  await assertFails(updateDoc(labRef(alice), { cash: 900, food: { pid: "p1", n: 3, total: 900, at: EPOCH } })); // 지난 시각 기록은 안 돼요
-  await assertFails(updateDoc(labRef(alice), foodSale(3, 900, 900, { pid: "nope" }))); // 이 회사 상품이 아니면 안 돼요
-  await assertSucceeds(updateDoc(labRef(alice), foodSale(3, 900, 900)));
-  await assertSucceeds(updateDoc(labRef(bob), foodSale(1, 300, 1200)));
-  const l = await readLab("uA");
-  check("금고 1200 (900 + 300)", l.cash === 1200);
+  await assertFails(madeWrite(carol, 3)); // 회사 밖 사람은 못 만들어요
+  await assertFails(madeWrite(alice, 101)); // 한 번에 100개까지
+  await assertFails(updateDoc(prodRef(alice), { stock: increment(3) })); // 만든 시각을 함께 적어야 해요
+  await assertFails(madeWrite(alice, 3, { priceCents: 1 })); // 가격은 못 바꿔요
+  await assertFails(updateDoc(prodRef(alice), { stock: 3, madeAt: EPOCH })); // 지난 시각은 안 돼요
+  await assertSucceeds(madeWrite(alice, 3)); // 사장이 3개
+  check("재고 3", (await readProd()).stock === 3);
+  await assertFails(madeWrite(bob, 1)); // 2초 안에는 또 못 만들어요
+  await sleep(2100);
+  await assertSucceeds(madeWrite(bob, 1)); // 직원도 만들어요
+  check("재고 4 (사장 3 + 직원 1)", (await readProd()).stock === 4);
 });
-await t("음식: 상품이 꺼져 있거나 멈춰 있으면 못 팔고, 음식 기록은 다른 쓰기로 바꿀 수 없어요", async () => {
+await t("음식: 판매를 끝낸 상품은 못 만들고, 멈춘 상품은 만들어 둘 수 있어요", async () => {
+  await coSeed();
+  await prodSeed("uA", "p1", { active: false });
+  await assertFails(madeWrite(pw("uA", "alice"), 1));
+  await prodSeed("uA", "p1", { paused: true });
+  await assertSucceeds(madeWrite(pw("uA", "alice"), 1));
+  check("재고 1", (await readProd()).stock === 1);
+});
+
+console.log("\n[상점]");
+const shopOp = (n, tokens, cid = "uA", pid = "p1") => ({ kind: "shop", cid, pid, n, tokens });
+// 사기 묶음: 지갑(paid만큼 빠지고 사기 기록), 파는 회사 금고(cents만큼 늘어요), 상품 재고(stock만큼 줄어요)가 같은 묶음에서 바뀌어요
+const buyBatch2 = (db, uid, n, tokens, o = {}) => {
+  const b = writeBatch(db);
+  if (o.wallet !== false) b.update(doc(db, "wallets/" + uid), { bal: increment(-(o.paid ?? tokens)), wt: serverTimestamp(), op: o.op ?? shopOp(n, tokens) });
+  if (o.lab !== false) b.update(labRef(db, "uA"), { cash: increment(o.cents ?? tokens * 100) });
+  if (o.prod !== false) b.update(prodRef(db), { stock: increment(-(o.stock ?? n)) });
+  return b.commit();
+};
+await t("상점: 지갑·금고·재고가 같은 묶음에서 맞게 바뀌면 사고, 하나라도 빠지면 못 사요", async () => {
   await coSeed();
   await labSeed({ cash: 0 });
-  await prodSeed("uA", "p1", { active: false });
-  const alice = pw("uA", "alice");
-  await assertFails(updateDoc(labRef(alice), foodSale(1, 300, 300)));
-  await prodSeed("uA", "p1", { paused: true });
-  await assertFails(updateDoc(labRef(alice), foodSale(1, 300, 300)));
-  await prodSeed("uA", "p1", { paused: false });
-  await assertFails(updateDoc(labRef(alice), { food: { pid: "p1", n: 1, total: 300, at: serverTimestamp() } })); // 금고 없이 기록만은 안 돼요
-  await assertFails(updateDoc(labRef(alice), { cash: 300, elec: 5, food: { pid: "p1", n: 1, total: 300, at: serverTimestamp() } })); // 다른 칸도 같이 바뀌면 안 돼요
-  await assertSucceeds(updateDoc(labRef(alice), foodSale(1, 300, 300)));
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 300 });
+  const bob = pw("uB", "bob");
+  await assertFails(buyBatch2(bob, "uB", 3, 9, { wallet: false })); // 지갑 없이 금고·재고만은 안 돼요
+  await assertFails(buyBatch2(bob, "uB", 3, 9, { lab: false })); // 금고가 안 늘면 안 돼요
+  await assertFails(buyBatch2(bob, "uB", 3, 9, { prod: false })); // 재고가 안 줄면 안 돼요
+  await assertFails(buyBatch2(bob, "uB", 3, 8, { paid: 8, cents: 800 })); // 값(900 센트)보다 싸게는 안 돼요
+  await assertFails(buyBatch2(bob, "uB", 3, 10, { paid: 10, cents: 1000 })); // 값보다 많이도 안 돼요
+  await assertFails(buyBatch2(bob, "uB", 6, 18, { stock: 6, cents: 1800 })); // 재고(5)보다 많이는 못 사요
+  await assertFails(buyBatch2(bob, "uB", 3, 9, { paid: 8 })); // 지갑에서 빠진 양과 기록이 달라요
+  await assertSucceeds(buyBatch2(bob, "uB", 3, 9));
+  check("금고 900 센트", (await readLab("uA")).cash === 900);
+  check("재고 2", (await readProd()).stock === 2);
+});
+await t("상점: 지난번 사기 기록을 다시 써서 공짜로 살 수 없고, 0 토큰으로도 못 사요", async () => {
+  await coSeed();
+  await labSeed({ cash: 0 });
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 300 });
+  const bob = pw("uB", "bob");
+  await assertSucceeds(buyBatch2(bob, "uB", 1, 3)); // 한 번 산다
+  // 방금 산 기록은 그대로 두고 금고·재고만 다시 바꾸려는 속임수
+  const b = writeBatch(bob);
+  b.update(labRef(bob, "uA"), { cash: increment(300) });
+  b.update(prodRef(bob), { stock: increment(-1) });
+  await assertFails(b.commit());
+  await sleep(2100);
+  await assertFails(buyBatch2(bob, "uB", 1, 0)); // 0 토큰으로 사기는 안 돼요
+  check("금고는 300 센트 그대로", (await readLab("uA")).cash === 300);
+});
+await t("상점: 소수 가격(0.8 토큰)은 올려서 받아요", async () => {
+  await coSeed();
+  await labSeed({ cash: 0 });
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 80 });
+  await seed((d) => setDoc(doc(d, "wallets/uC"), { bal: 100, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
+  const carol = pw("uC", "carol");
+  await assertFails(buyBatch2(carol, "uC", 2, 1)); // 1.6 토큰을 1 토큰에 사면 안 돼요
+  await assertFails(buyBatch2(carol, "uC", 2, 3)); // 3 토큰은 너무 많아요
+  await assertSucceeds(buyBatch2(carol, "uC", 2, 2)); // 2 토큰
+  check("금고 200 센트", (await readLab("uA")).cash === 200);
+  check("재고 3", (await readProd()).stock === 3);
+});
+await t("상점: 회사 밖 사람도 살 수 있어요, 멈춘·끝난 상품과 로그인하지 않은 사람은 못 사요", async () => {
+  await coSeed();
+  await labSeed({ cash: 0 });
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 300, paused: true });
+  await seed((d) => setDoc(doc(d, "wallets/uC"), { bal: 100, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
+  const carol = pw("uC", "carol");
+  await assertFails(buyBatch2(carol, "uC", 1, 3)); // 멈춘 상품
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 300, active: false });
+  await assertFails(buyBatch2(carol, "uC", 1, 3)); // 끝난 상품
+  await prodSeed("uA", "p1", { stock: 5, priceCents: 300 });
+  await assertFails(buyBatch2(anon(), "uC", 1, 3)); // 로그인하지 않으면 안 돼요
+  await assertSucceeds(buyBatch2(carol, "uC", 1, 3)); // 회사 밖 사람도 살 수 있어요
+  check("재고 4", (await readProd()).stock === 4);
+});
+await t("상점: 재고가 있는 음식 상품을 여러 회사에서 한꺼번에 찾아요 (로그인한 사람만)", async () => {
+  await coSeed();
+  await seed((d) => setDoc(doc(d, "companies/uC"), { name: "다른 회사", logo: "", kind: "food", owner: "uC", products: [], open: 0, staff: 0, at: EPOCH }));
+  await prodSeed("uA", "p1", { stock: 5 });
+  await prodSeed("uA", "p2", { stock: 0 });
+  await prodSeed("uC", "p3", { stock: 2 });
+  const q = query(collectionGroup(pw("uC", "carol"), "products"), where("stock", ">", 0), limit(50));
+  await assertSucceeds(getDocs(q));
+  const snap = await getDocs(q);
+  check("재고 있는 상품 2개", snap.docs.length === 2);
+  check("회사 번호를 알 수 있어요 (uA, uC)", snap.docs.map((d) => d.ref.parent.parent.id).sort().join() === "uA,uC");
+  await assertFails(getDocs(query(collectionGroup(anon(), "products"), limit(5))));
 });
 
 console.log("\n[상태]");

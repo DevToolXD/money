@@ -58,6 +58,7 @@
   let foodPid = null; // 대표 상품 (팔리는 중일 때만)
   let foodPending = 0; // 아직 보내지 않은 음식 수
   let foodTimer = 0;
+  let foodRetry = 0; // 보내지 못한 횟수 (세 번까지 다시 해요)
   let got = 0; // 이번에 받은 데이터 (기록하지 않아요)
 
   const visible = () => {
@@ -293,7 +294,7 @@
       queueFood();
     }, 650);
   };
-  // 음식 판매는 2.5초마다 한꺼번에 보내요 (서버 쓰기를 줄여요)
+  // 만든 음식은 2.5초마다 한꺼번에 상품 재고로 보내요 (서버 쓰기를 줄여요). 한 번에 100개까지, 실패하면 세 번까지 다시 보내요
   const queueFood = () => {
     if (!foodPid) return;
     foodPending += 1;
@@ -302,14 +303,23 @@
   const flushFood = async () => {
     clearTimeout(foodTimer);
     foodTimer = 0;
-    const n = foodPending;
+    const n = Math.min(foodPending, 100);
     if (!n || !foodCid || !foodPid) return;
-    foodPending = 0;
+    const cid = foodCid;
+    const pid = foodPid;
+    foodPending -= n;
     try {
-      await ctx.cloud().labFoodSale(foodCid, foodPid, n);
+      await ctx.cloud().labFoodMake(cid, pid, n);
+      foodRetry = 0;
     } catch (err) {
-      console.warn("음식을 팔지 못했어요:", err?.code || err);
+      console.warn("만든 음식을 보내지 못했어요:", err?.code || err);
+      foodPending += n;
+      if (foodRetry < 3) {
+        foodRetry += 1;
+        if (!foodTimer) foodTimer = setTimeout(flushFood, 2500);
+      }
     }
+    if (foodPending && !foodTimer) foodTimer = setTimeout(flushFood, 2500);
   };
   const loadProducts = async (cid) => {
     try {
@@ -318,7 +328,7 @@
       foodPid = list.length && !list[0].paused ? list[0].id : null;
       const note = root.querySelector("#wk-make");
       if (!note || view !== "mine") return;
-      note.textContent = list.length ? `만들 상품: ${list[0].name}` : "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요";
+      note.textContent = list.length ? `만들 상품: ${list[0].name} · 만든 음식은 상점에 진열돼요` : "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요";
     } catch (err) {
       const note = root.querySelector("#wk-make");
       if (note) note.textContent = "만들 상품을 불러오지 못했어요";
@@ -642,7 +652,7 @@
     view = "mine";
     stopGames();
     flushLab(); // 이전 회사의 숫자를 먼저 보내요
-    flushFood(); // 팔린 음식도 먼저 보내요
+    flushFood(); // 만든 음식도 먼저 보내요
     foodPid = null;
     const owner = Boolean(co);
     const primary = owner ? co : employer;

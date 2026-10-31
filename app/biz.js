@@ -184,8 +184,8 @@
   /* ---------- 그림 (app/shapes.js 도형을 SVG로 그려요) ---------- */
   let ctx = null;
   let uid = 0;
-  const logoHTML = (r) => {
-    const co = ctx.company();
+  // 가운데 로고: 기본은 내 회사예요 (상점에서는 파는 회사를 넘겨요)
+  const logoHTML = (r, co = ctx.company()) => {
     const img = co ? ctx.safeImg(co.logo, 40000) : "";
     const inner = img ? `<i style="background-image:url('${img}')"></i>` : `<b>${esc((co?.name || "사")[0])}</b>`;
     return `<span class="pkv-logo${img ? "" : " init"}" style="left:50%;top:${r1((r.cy / 200) * 100)}%;width:${r1(((r.half * 2 * 0.94) / 120) * 100)}%">${inner}</span>`;
@@ -201,7 +201,7 @@
     return o;
   };
   // 상품 그림 (값이 아직 없는 칸은 기본 모양으로 그려요)
-  const pkvHTML = (p, mini = false) => {
+  const pkvHTML = (p, mini = false, co = ctx.company()) => {
     const leaf = LEAF[p.item];
     const k = p.shape ?? 0;
     const r = Shapes.body(leaf.family, leaf.kinds[Math.floor(k / 5)] ?? leaf.kinds[0], k % 5);
@@ -212,7 +212,7 @@
       const c = Shapes.cap(Shapes.KINDS.cap[Math.floor(p.cap / 5)], r.nr, r.top, p.cap % 5);
       cap = `<path class="pk-body" d="${c.body}" fill="${has(p.capColor) ? colorOf(p.capColor) : "#2b2b2f"}"/>${c.det ? `<path class="pk-det" d="${c.det}"/>` : ""}`;
     }
-    return `<div class="pkv${mini ? " pkv-sm" : ""}"><svg viewBox="0 0 120 200" aria-hidden="true">${paths(r, fill)}${cap}</svg>${logoHTML(r)}</div>`;
+    return `<div class="pkv${mini ? " pkv-sm" : ""}"><svg viewBox="0 0 120 200" aria-hidden="true">${paths(r, fill)}${cap}</svg>${logoHTML(r, co)}</div>`;
   };
   // 고르는 칸의 작은 그림 (흰 바탕, 검은 윤곽선)
   const thumbHTML = (family, kind, s) => {
@@ -587,7 +587,7 @@
     list.innerHTML = products
       .map(
         (p, i) =>
-          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span><button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
+          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span><button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
       )
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;
@@ -884,7 +884,7 @@
     if (kind === "food") {
       return `<p class="lab-t">식품 회사 · 금고</p>
         ${cashHTML(L)}
-        <p class="lab-sub">음식을 한 개 완성하면 대표 상품 가격이 금고에 들어와요</p>`;
+        <p class="lab-sub">만든 음식은 상점에 진열돼요. 상점에서 팔리면 금고에 들어와요</p>`;
     }
     if (kind === "nuclear") {
       const head = `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개: 전기</p>
@@ -1150,5 +1150,5 @@
     const co = ctx?.company();
     if (co) paintLab();
   };
-  window.Business = { init, refresh, kindSvg, lab };
+  window.Business = { init, refresh, kindSvg, lab, pkv: (p, mini = false, co) => pkvHTML(p, mini, co) };
 })();

@@ -1239,6 +1239,14 @@
     toast: (m) => toast(m),
     ask: (o) => ask(o),
   });
+  // 상점 탭: 재고가 있는 음식을 골라 사요 (app/shop.js). 산 돈은 파는 회사 금고로 들어가요
+  window.Shop.init({
+    cloud: () => window.cloud,
+    walletOp: (fn) => walletOp(fn), // 지갑 쓰기는 2.2초 간격으로 줄 세워요
+    pkv: (p, mini, co) => window.Business.pkv(p, mini, co),
+    toast: (m) => toast(m),
+    log: (e) => logTx(e),
+  });
   const foundName = document.getElementById("found-name");
   const foundErr = document.getElementById("found-err");
   const foundGo = document.getElementById("found-go");
@@ -2159,7 +2167,8 @@
     if (name === "money") renderMoney();
     if (name === "ranking") loadRank(false);
     if (name === "work") window.Work.refresh();
-    if (name === "business") window.Business.lab();
+    if (name === "shop") window.Shop.refresh();
+    if (name === "business") window.Business.refresh(); // 상품 재고와 금고를 새로 읽어요
     backdrop?.setActive(name);
     tabbar.requestRender();
   });

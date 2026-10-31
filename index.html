@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=51">
+<link rel="stylesheet" href="app/app.css?v=52">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -50,9 +50,7 @@
     <section class="screen" id="screen-shop" data-screen="shop" data-title="상점" aria-labelledby="title-shop">
       <header class="large-title"><h1 id="title-shop">상점</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
       <p class="lead">필요한 것을 골라 보세요.</p>
-      <div class="card"><div class="art mint"></div><div class="art-text"><p class="eyebrow">곧 열려요</p><h2 class="card-title">상점이 준비 중이에요</h2><p class="card-body">살 수 있는 물건이 생기면 이곳에 진열돼요.</p></div></div>
-      <h2 class="section-title">인기 상품</h2>
-      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+      <div id="shop-root" class="shop-root" aria-live="polite"><div class="card skeletons" style="--rows: 4" aria-hidden="true"></div></div>
     </section>
     <section class="screen" id="screen-ranking" data-screen="ranking" data-title="랭킹" aria-labelledby="title-ranking">
       <div id="rank-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
@@ -322,10 +320,11 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=27"></script>
+<script type="module" src="app/firebase.js?v=28"></script>
 <script src="app/shapes.js?v=2"></script>
-<script src="app/biz.js?v=19"></script>
-<script src="app/work.js?v=7"></script>
-<script src="app/app.js?v=43"></script>
+<script src="app/biz.js?v=20"></script>
+<script src="app/work.js?v=8"></script>
+<script src="app/shop.js?v=1"></script>
+<script src="app/app.js?v=44"></script>
 </body>
 </html>

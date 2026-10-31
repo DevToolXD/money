@@ -1396,3 +1396,23 @@ html[data-theme="dark"] .draw { background: #fff; }
 @keyframes wkFloat { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-26px); opacity: 0; } }
 
 .section-title[hidden] { display: none; }
+
+/* 상점: 재고가 있는 음식을 두 장씩 나란히 (흰 카드, 그림자 없음. 그림 바탕은 연한 회색) */
+.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 var(--gutter) 16px; }
+.card.shop-card { display: flex; flex-direction: column; margin: 0; animation: bizIn 0.45s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 50ms); }
+.shop-art { display: grid; place-items: center; height: 170px; background: var(--bg-canvas); }
+.shop-art .pkv { height: 136px; width: auto; aspect-ratio: 120 / 200; filter: drop-shadow(0 10px 14px rgba(20, 24, 60, 0.18)); }
+.shop-body { display: grid; gap: 3px; padding: 14px 14px 16px; }
+.shop-name { font-size: 17px; line-height: 22px; font-weight: 700; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-co, .shop-stock { font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.shop-price { margin-top: 4px; font-size: 15px; line-height: 20px; font-weight: 700; color: var(--apple-blue); }
+.shop-step { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 3px; border-radius: 999px; background: var(--bg-canvas); }
+.shop-round { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--bg-card); color: var(--text-primary); transition: opacity 0.2s; }
+.shop-round:disabled { opacity: 0.35; }
+.shop-round svg { width: 16px; height: 16px; }
+.shop-n { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shop-buy { margin-top: 8px; height: 42px; font-size: 15px; }
+.card.shop-note { margin: 0 var(--gutter) 16px; }
+.card.shop-note .art.mint { height: 150px; }
+.shop-retry { margin-top: 16px; width: 100%; }
+@media (max-width: 340px) { .shop-grid { gap: 8px; } }
