@@ -421,11 +421,14 @@
   });
   const renderAuth = (cloud) => {
     const signedIn = Boolean(cloud) && !cloud.user.anonymous;
+    const acct = screens.get("account");
+    acct.classList.toggle("guest", !signedIn);
+    acct.classList.toggle("member", signedIn);
+    app.classList.toggle("guest-account", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     if (signedIn) document.getElementById("auth-email").textContent = cloud.user.id;
   };
-  renderAuth(null);
 
   /* ---------- 계정 ---------- */
   const nameEl = document.getElementById("profile-name");

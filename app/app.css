@@ -561,3 +561,12 @@ img, svg { -webkit-user-drag: none; }
 .login .lg-card input::placeholder { color: rgba(255, 255, 255, 0.55); }
 .login .login-switch { color: rgba(255, 255, 255, 0.85); }
 .login .login-error { color: #ff8a80; }
+
+/* 로그인하지 않았을 때 계정 탭: "로그인 하세요"와 버튼만 */
+.screen[data-screen="account"]:not(.guest):not(.member) > *:not(.large-title) { visibility: hidden; }
+.screen[data-screen="account"].guest > *:not(#auth-card), .screen[data-screen="account"].guest .large-title { display: none; }
+.app.guest-account .nav-set[data-for="account"] { display: none; }
+.screen[data-screen="account"].guest { display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 0; padding-bottom: var(--dock-clearance); }
+.screen[data-screen="account"].guest #auth-card { display: grid; justify-items: center; gap: 22px; text-align: center; }
+.guest-title { margin: 0; font-size: 34px; line-height: 40px; font-weight: 800; letter-spacing: -0.026em; }
+#auth-card .btn { width: 220px; height: 52px; }
