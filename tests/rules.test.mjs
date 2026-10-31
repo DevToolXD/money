@@ -700,13 +700,13 @@ await t("연구실: 출시 값은 사장만, 출시 숫자는 지금 숫자와 �
   await coSeed();
   const alice = pw("uA", "alice"), bob = pw("uB", "bob");
   await seed(jobSeed);
-  await assertSucceeds(setDoc(labRef(alice), labFields({ cap: 6, spd: 4, pow: 2, aiData: 50 })));
+  await labSeed({ cap: 6, spd: 4, pow: 2, aiData: 50, aiDev: 5 }); // 개발 점수 5 (학습 결과)
   await assertFails(updateDoc(labRef(bob), { rel: { cap: 6, spd: 4, pow: 2 } })); // 직원은 출시 못 해요
   await assertFails(updateDoc(labRef(alice), { rel: { cap: 7, spd: 4, pow: 2 } })); // 지금 숫자와 다르면 출시 못 해요
   await assertSucceeds(updateDoc(labRef(alice), { rel: { cap: 6, spd: 4, pow: 2 } })); // 출시
   await assertSucceeds(updateDoc(labRef(bob), { cap: 7 })); // 출시한 뒤에도 직원은 검사를 계속해요
   await assertFails(updateDoc(labRef(bob), { rel: null })); // 직원은 출시 값을 지울 수 없어요
-  await assertFails(updateDoc(labRef(alice), { aiScore: 6 })); // 점수는 데이터의 10분의 1까지예요 (50 → 5)
+  await assertFails(updateDoc(labRef(alice), { aiScore: 6 })); // 출시 점수는 지금 개발 점수(5)와 같아야 해요
   await assertSucceeds(updateDoc(labRef(alice), { aiScore: 5 })); // AI 출시
 });
 await t("연구실: 발전은 사장만 시작하고, 걸린 초만큼 토큰(1초 = 100센트)이 금고에서 나가요", async () => {
@@ -907,6 +907,41 @@ await t("사고팔기: 회사 사람이 판매·구매 기록이나 물건 숫�
   await assertFails(updateDoc(labRefOf(bob, "uB"), { pcN: 5 }));
   await assertFails(updateDoc(labRefOf(bob, "uB"), { bought: { from: "uA", kind: "e", n: 1, total: 300, at: serverTimestamp() } }));
   await assertFails(updateDoc(labRefOf(bob, "uB"), { aiH: 9 }));
+});
+
+console.log("\n[학습]");
+await t("학습: 사장이 컴퓨터로 학습을 시작하고, 전기가 나가고, 데이터는 그대로예요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await seed(jobSeed);
+  await labSeed({ aiData: 100, pcN: 2, pcM: { cap: 5, spd: 4, pow: 3 }, elec: 50 });
+  // 40 MB: 배치 8(40÷5), 전기 24(8×3), 시간 2초(8÷4), 점수 3(40×9÷100)
+  const trn = (d, secs, score) => ({ d, secs, score, started: serverTimestamp() });
+  await assertFails(updateDoc(labRef(bob), { trn: trn(40, 2, 3), elec: 26 })); // 직원은 학습을 못 시켜요
+  await assertFails(updateDoc(labRef(pw("uC", "carol")), { trn: trn(40, 2, 3), elec: 26 })); // 회사 밖 사람도 못 시켜요
+  await assertFails(updateDoc(labRef(alice), { trn: trn(40, 2, 3), elec: 40 })); // 전기가 나가야 해요
+  await assertFails(updateDoc(labRef(alice), { trn: trn(40, 3, 3), elec: 26 })); // 시간이 맞아야 해요
+  await assertFails(updateDoc(labRef(alice), { trn: trn(40, 2, 4), elec: 26 })); // 점수가 맞아야 해요
+  await assertFails(updateDoc(labRef(alice), { trn: trn(101, 3, 4), elec: 26 })); // 데이터보다 많이 못 써요
+  await assertFails(updateDoc(labRef(alice), { trn: { d: 40, secs: 2, score: 3, started: EPOCH }, elec: 26 })); // 과거 시각 불가
+  await assertSucceeds(updateDoc(labRef(alice), { trn: trn(40, 2, 3), elec: 26 })); // 학습 시작
+  await assertFails(updateDoc(labRef(alice), { trn: trn(10, 1, 0), elec: 23 })); // 학습 중에는 또 못 시작해요
+});
+await t("학습: 결과는 시간이 지난 뒤에만 회사 사람 누구나 받고, 출시는 사장만 해요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
+  await seed(jobSeed);
+  await labSeed({ aiData: 100, pcN: 1, pcM: { cap: 10, spd: 1, pow: 3 }, elec: 50 });
+  // 20 MB: 배치 2(20÷10), 전기 6(2×3), 시간 2초(2÷1), 점수 2(20×11÷100)
+  await assertSucceeds(updateDoc(labRef(alice), { trn: { d: 20, secs: 2, score: 2, started: serverTimestamp() }, elec: 44 }));
+  await assertFails(updateDoc(labRef(bob), { trn: null, aiDev: 2 })); // 시간이 덜 지났어요
+  await sleep(2500);
+  await assertFails(updateDoc(labRef(carol), { trn: null, aiDev: 2 })); // 회사 밖 사람은 못 받아요
+  await assertFails(updateDoc(labRef(bob), { trn: null, aiDev: 3 })); // 점수는 정해진 값(2)만
+  await assertSucceeds(updateDoc(labRef(bob), { trn: null, aiDev: 2 })); // 직원이 결과를 받아요
+  await assertFails(updateDoc(labRef(bob), { aiScore: 2 })); // 직원은 출시 못 해요
+  await assertFails(updateDoc(labRef(alice), { aiScore: 3 })); // 출시는 개발 점수와 같아야 해요
+  await assertSucceeds(updateDoc(labRef(alice), { aiScore: 2 })); // 사장이 출시
 });
 
 console.log("\n[상태]");

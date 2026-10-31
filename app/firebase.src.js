@@ -105,6 +105,9 @@ const labOf = (d) => {
     pcN: n(d?.pcN, 0), // 가진 컴퓨터 수
     pcM: d?.pcM && Number.isInteger(d.pcM.cap) && Number.isInteger(d.pcM.spd) && Number.isInteger(d.pcM.pow) ? { cap: d.pcM.cap, spd: d.pcM.spd, pow: d.pcM.pow } : null,
     aiH: n(d?.aiH, 0), // 인공지능 사용 시간
+    aiDev: n(d?.aiDev, 0), // 개발 점수 (마지막 학습 결과)
+    trn: d?.trn && Number.isInteger(d.trn.d) && Number.isInteger(d.trn.secs) && Number.isInteger(d.trn.score) && d.trn.started
+      ? { d: d.trn.d, secs: d.trn.secs, score: d.trn.score, started: d.trn.started } : null, // 학습 중인 기록
   };
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -494,6 +497,32 @@ window.cloudReady = (async () => {
           tx.set(bref, labOf(bNext));
           return total;
         }).catch(rethrow),
+      // 학습 시작 (사장만): 가진 컴퓨터로 데이터를 학습해요. 배치 수 = 올림(데이터 ÷ 처리 용량), 전기 = 배치 수 × 전기값,
+      //   걸리는 시간 = 올림(배치 수 ÷ 처리 속도), 개발 점수 = 데이터 × (용량 + 속도) ÷ 100 (내림). 전기는 바로 나가요
+      labTrainStart: (cid, d) => {
+        let why = "ok";
+        return labTx(cid, (L) => {
+          if (L.trn) { why = "busy"; return null; }
+          if (!(L.pcN >= 1 && L.pcM && L.pcM.cap >= 1 && L.pcM.spd >= 1)) { why = "nocomp"; return null; }
+          if (!(Number.isInteger(d) && d >= 1 && d <= L.aiData)) { why = "nodata"; return null; }
+          const batches = Math.ceil(d / L.pcM.cap);
+          const used = batches * L.pcM.pow;
+          if (L.elec < used) { why = "poor"; return null; }
+          const secs = Math.ceil(batches / L.pcM.spd);
+          const score = Math.floor((d * (L.pcM.cap + L.pcM.spd)) / 100);
+          return { ...L, elec: L.elec - used, trn: { d, secs, score, started: serverTimestamp() } };
+        }).then((r) => (r ? "ok" : why));
+      },
+      // 학습 결과 받기: 걸린 시간이 지났으면 개발 점수를 정해요. 받은 점수를 돌려줘요 (아직이면 -1)
+      labTrainClaim: async (cid) => {
+        let got = -1;
+        const r = await labTx(cid, (L) => {
+          if (!L.trn || Date.now() < L.trn.started.toMillis() + L.trn.secs * 1000) return null;
+          got = L.trn.score;
+          return { ...L, aiDev: L.trn.score, trn: null };
+        });
+        return r ? got : -1;
+      },
       labGenClaim: async (cid) => {
         let got = 0;
         const r = await labTx(cid, (L) => {

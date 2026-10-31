@@ -790,7 +790,7 @@
     stage.addEventListener("focusout", onBlur);
     document.getElementById("biz-pick").addEventListener("click", open);
     document.getElementById("biz-lab").addEventListener("click", labClick);
-    document.getElementById("biz-lab").addEventListener("input", labInput);
+    document.getElementById("biz-lab").addEventListener("input", (e) => { labInput(e); trainInput(e); });
     document.getElementById("hire-minus").innerHTML = svgI('<path d="M5 12h14"/>');
     document.getElementById("hire-plus").innerHTML = svgI('<path d="M12 5v14M5 12h14"/>');
     document.getElementById("hire-minus").addEventListener("click", () => stepHire(-1));
@@ -909,12 +909,23 @@
         <button class="btn primary" type="button" data-lab="rel" ${same || !(L.cap || L.spd || L.pow) ? "disabled" : ""}>${rel ? "다시 출시하기" : "출시하기"}</button>
         ${cashHTML(L)}${priceHTML(L, "컴퓨터 1대 가격")}`;
     }
-    const score = Math.floor(L.aiData / 10);
+    const dev = L.aiDev;
+    const released = L.aiScore >= 0;
+    const trnBlock = L.trn
+      ? (() => {
+          const left = trnLeft(L);
+          return `<p class="lab-sub" id="lab-trn-left">${trnText(L, left)}</p>
+            <button class="btn primary" type="button" data-lab="train-claim" ${left > 0 ? "disabled" : ""}>학습 결과 받기</button>`;
+        })()
+      : `<label class="lab-field"><span>학습할 데이터 (MB)</span><input id="train-amt" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="9" value="${L.aiData}" aria-label="학습할 데이터 양"></label>
+        <p class="lab-sub" id="train-est">${trainPlan(L, L.aiData)}</p>
+        <button class="btn primary" type="button" data-lab="train" ${L.pcN >= 1 ? "" : "disabled"}>학습 시작하기</button>`;
     return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개</p>
       <p class="lab-big">${fmtLab(L.aiData)}<small>MB 쌓인 데이터</small></p>
-      <p class="lab-sub">개발 점수 ${fmtLab(score)}${L.aiScore >= 0 ? ` · 출시 점수 ${fmtLab(L.aiScore)}` : " · 아직 출시 전이에요"}</p>
-      <button class="btn primary" type="button" data-lab="rel" ${score < 1 || score === L.aiScore ? "disabled" : ""}>${L.aiScore >= 0 ? "다시 출시하기" : "출시하기"}</button>
-      ${cashHTML(L)}
+      <p class="lab-sub">개발 점수 ${fmtLab(dev)}${released ? ` · 출시 점수 ${fmtLab(L.aiScore)}` : " · 아직 출시 전이에요"}</p>
+      ${trnBlock}
+      <button class="btn primary" type="button" data-lab="rel" ${dev < 1 || dev === L.aiScore ? "disabled" : ""}>${released ? "다시 출시하기" : "출시하기"}</button>
+      ${cashHTML(L)}${priceHTML(L, "사용 1시간 가격")}
       <div class="lab-market" id="lab-market"><p class="lab-sub">시장을 불러오는 중이에요</p></div>`;
   };
   // 시장 (인공지능 회사): 전기 파는 곳과 컴퓨터 파는 곳의 단가·재고를 보고 사요
@@ -944,6 +955,18 @@
       box.innerHTML = '<p class="lab-sub">시장을 불러오지 못했어요</p>';
     }
   };
+  // 학습: 데이터 양으로 배치 수·전기·시간·점수를 미리 보여줘요 (규칙과 같은 식)
+  const trainPlan = (L, d) => {
+    if (!(L.pcN >= 1 && L.pcM)) return "먼저 컴퓨터를 사야 학습할 수 있어요";
+    if (!(d >= 1 && d <= L.aiData)) return `1부터 ${fmtLab(L.aiData)} MB 사이로 적어 주세요`;
+    const batches = Math.ceil(d / L.pcM.cap);
+    const used = batches * L.pcM.pow;
+    const secs = Math.ceil(batches / L.pcM.spd);
+    const score = Math.floor((d * (L.pcM.cap + L.pcM.spd)) / 100);
+    return `전기 ${fmtLab(used)} 사용 · 약 ${fmtSec(secs)} 걸려요 · 개발 점수 ${fmtLab(score)}${L.elec < used ? " · 전기가 부족해요" : ""}`;
+  };
+  const trnLeft = (L) => Math.max(0, Math.ceil((L.trn.started.toMillis() + L.trn.secs * 1000 - Date.now()) / 1000));
+  const trnText = (L, left) => (left > 0 ? `${fmtLab(L.trn.d)} MB를 학습하고 있어요 · 남은 시간 ${fmtSec(left)}` : `${fmtLab(L.trn.d)} MB 학습을 마쳤어요`);
   const stopTick = () => {
     clearInterval(labTick);
     labTick = 0;
@@ -954,13 +977,25 @@
     labTick = setInterval(() => {
       const box = document.getElementById("biz-lab");
       const L = labNow;
-      if (!box || !L?.gen) return stopTick();
-      const left = genLeft(L);
-      const t = box.querySelector("#lab-left");
-      if (t) t.textContent = genText(L, left);
-      const btn = box.querySelector('[data-lab="claim"]');
-      if (btn && left <= 0) btn.disabled = false;
-      if (left <= 0) stopTick();
+      if (!box || !L || (!L.gen && !L.trn)) return stopTick();
+      let busy = false;
+      if (L.gen) {
+        const left = genLeft(L);
+        if (left > 0) busy = true;
+        const t = box.querySelector("#lab-left");
+        if (t) t.textContent = genText(L, left);
+        const btn = box.querySelector('[data-lab="claim"]');
+        if (btn && left <= 0) btn.disabled = false;
+      }
+      if (L.trn) {
+        const left = trnLeft(L);
+        if (left > 0) busy = true;
+        const t = box.querySelector("#lab-trn-left");
+        if (t) t.textContent = trnText(L, left);
+        const btn = box.querySelector('[data-lab="train-claim"]');
+        if (btn && left <= 0) btn.disabled = false;
+      }
+      if (!busy) stopTick();
     }, 1000);
   };
   const paintLab = async () => {
@@ -974,7 +1009,7 @@
       labNow = L;
       box.innerHTML = labHTML(co.kind, L);
       if (co.kind === "ai") paintMarket(co, L);
-      if (L.gen && genLeft(L) > 0) startTick();
+      if ((L.gen && genLeft(L) > 0) || (L.trn && trnLeft(L) > 0)) startTick();
     } catch (err) {
       box.innerHTML = '<p class="lab-sub">연구실 숫자를 불러오지 못했어요</p>';
     }
@@ -988,6 +1023,11 @@
     genAmt = digits === "" ? 0 : Number(digits);
     const est = document.getElementById("lab-est");
     if (est) est.textContent = planText(labNow);
+  };
+  const trainInput = (e) => {
+    if (!e.target.closest("#train-amt") || !labNow) return;
+    const est = document.getElementById("train-est");
+    if (est) est.textContent = trainPlan(labNow, Number(String(e.target.value).replace(/,/g, "")) || 0);
   };
   // 칸에 적은 숫자 읽기 (쉼표는 무시해요). 숫자가 아니면 NaN
   const readNum = (id) => {
@@ -1045,6 +1085,13 @@
       if (act.dataset.lab === "gen") {
         const r = await ctx.cloud().labGenStart(co.id, genAmt);
         ctx.toast({ ok: `전기 ${fmtLab(genAmt)}을 만들기 시작했어요`, busy: "이미 발전 중이에요", poor: "금고에 토큰이 부족해요", max: "한 번에 만들 수 있는 양을 넘었어요" }[r] || "처리하지 못했어요");
+      } else if (act.dataset.lab === "train") {
+        const d = readNum("train-amt");
+        const r = await ctx.cloud().labTrainStart(co.id, d);
+        ctx.toast({ ok: `${fmtLab(d)} MB 학습을 시작했어요`, busy: "이미 학습 중이에요", nocomp: "먼저 컴퓨터를 사야 해요", nodata: "데이터 양을 확인해 주세요", poor: "전기가 부족해요" }[r] || "처리하지 못했어요");
+      } else if (act.dataset.lab === "train-claim") {
+        const got = await ctx.cloud().labTrainClaim(co.id);
+        ctx.toast(got >= 0 ? `학습 결과: 개발 점수 ${fmtLab(got)}` : "아직 학습 중이에요");
       } else if (act.dataset.lab === "claim") {
         const got = await ctx.cloud().labGenClaim(co.id);
         ctx.toast(got ? `전기 ${fmtLab(got)}을 창고에 받았어요` : "아직 발전 중이에요");
@@ -1056,7 +1103,7 @@
         await ctx.cloud().labChange(co.id, (L) => ({ ...L, rel: { cap: L.cap, spd: L.spd, pow: L.pow } }));
         ctx.toast("컴퓨터를 출시했어요");
       } else {
-        await ctx.cloud().labChange(co.id, (L) => ({ ...L, aiScore: Math.floor(L.aiData / 10) }));
+        await ctx.cloud().labChange(co.id, (L) => ({ ...L, aiScore: L.aiDev }));
         ctx.toast("인공지능을 출시했어요");
       }
     } catch (err) {
