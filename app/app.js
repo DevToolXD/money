@@ -980,49 +980,63 @@
   document.getElementById("manage-back").addEventListener("click", () => goScreen("account"));
   nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && app.dataset.screen === "manage") goScreen("account"); });
 
-  /* ---------- 상태 (배고픔·목마름·에너지): 어느 탭에서나 떠 있는 동그란 버튼으로 열어요 ---------- */
+  /* ---------- 상태: 어느 탭에서나 떠 있는 동그란 버튼. 누르면 돌면서 배고픔·목마름·에너지가 튀어나와요 ---------- */
   const STATS = [
-    { label: "배고픔", v: 72, c: "#f5a54a", d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
-    { label: "목마름", v: 41, c: "#4c8dff", d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
-    { label: "에너지", v: 89, c: "#4cd37a", d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
+    { label: "배고픔", v: 72, d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
+    { label: "목마름", v: 41, d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
+    { label: "에너지", v: 89, d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
   ];
-  const statHTML = (u, cls) => `<div class="${cls}"><span class="st-ic" style="--c:${u.c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg></span><b class="st-name">${u.label}</b><b class="st-pct">${u.v}<small>%</small></b><span class="st-bar"><i style="width:${u.v}%;background:${u.c}"></i></span></div>`;
-  document.getElementById("sp-cards").innerHTML = STATS.map((u) => statHTML(u, "sp-card")).join("");
-  document.getElementById("st-list").innerHTML = STATS.map((u) => `<li>${statHTML(u, "st-row")}</li>`).join("");
+  const fab = document.getElementById("status-fab");
   const stBubble = document.getElementById("status-bubble");
-  const stPanel = document.getElementById("status-panel");
-  const stScrim = document.getElementById("status-scrim");
-  const openStatus = (on) => {
-    stPanel.classList.toggle("is-open", on);
-    stScrim.classList.toggle("is-open", on);
-    stBubble.classList.toggle("is-hidden", on);
-    stPanel.inert = !on;
+  const fabTiles = document.getElementById("fab-tiles");
+  fabTiles.innerHTML = STATS.map((u) => `<span class="fab-tile" role="img" aria-label="${u.label} ${u.v}%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg><b>${u.v}%</b></span>`).join("");
+  const tiles = [...fabTiles.children];
+  let fabOpen = false;
+  let fabAnim = [];
+  const SIZE = 46;
+  const ARC = [-58, 0, 58];
+  const RADIUS = 84;
+  // 버튼에서 화면 가운데 쪽으로 부채꼴로 펼쳐요
+  const toggleStatus = (on) => {
+    fabOpen = on;
+    stBubble.classList.toggle("is-open", on);
+    stBubble.setAttribute("aria-expanded", String(on));
+    fabAnim.forEach((a) => a.cancel());
+    fabAnim = [];
+    const a = app.getBoundingClientRect();
+    const r = stBubble.getBoundingClientRect();
+    const base = (Math.atan2(a.top + a.height * 0.45 - (r.top + SIZE / 2), a.left + a.width / 2 - (r.left + SIZE / 2)) * 180) / Math.PI;
+    tiles.forEach((t, i) => {
+      const th = base + ARC[i];
+      const from = th - 260; // 돌면서 나와요
+      const tf = (deg, rad, sc) => `translate(-50%, -50%) rotate(${deg}deg) translateX(${rad}px) rotate(${-deg}deg) scale(${sc})`;
+      const frames = [{ transform: tf(from, 0, 0.2), opacity: 0 }, { transform: tf(th, RADIUS, 1), opacity: 1 }];
+      t.classList.remove("show");
+      t.style.visibility = "visible";
+      const anim = t.animate(on ? frames : frames.slice().reverse(), { duration: on ? 620 : 420, delay: i * 70, easing: "cubic-bezier(0.22, 1.2, 0.36, 1)", fill: "both" });
+      fabAnim.push(anim);
+      if (on) setTimeout(() => fabOpen && t.classList.add("show"), 520 + i * 70); // 퍼센트는 다 나온 뒤에 떠요
+      else anim.onfinish = () => { if (!fabOpen) t.style.visibility = "hidden"; };
+    });
   };
-  openStatus(false);
-  document.getElementById("status-close").addEventListener("click", () => openStatus(false));
-  stScrim.addEventListener("click", () => openStatus(false));
-  // 동그란 버튼은 끌어서 옮길 수 있고, 놓으면 가까운 가장자리에 붙어요. 위치는 이 기기에 기억해요
+  tiles.forEach((t) => (t.style.visibility = "hidden"));
+  // 끌어서 옮길 수 있고, 놓은 자리에 그대로 있어요. 위치는 이 기기에 기억해요
   {
-    const SIZE = 46;
-    const place = (xf, yf, animate) => {
+    const place = (xf, yf) => {
       const W = app.clientWidth;
       const H = app.clientHeight;
-      const x = clamp(xf * W - SIZE / 2, 8, W - SIZE - 8);
-      const y = clamp(yf * H - SIZE / 2, 60, H - 200);
-      stBubble.style.transition = animate ? "left 0.35s var(--ease), top 0.35s var(--ease)" : "none";
-      stBubble.style.left = `${x}px`;
-      stBubble.style.top = `${y}px`;
+      fab.style.left = `${clamp(xf * W - SIZE / 2, 8, W - SIZE - 8)}px`;
+      fab.style.top = `${clamp(yf * H - SIZE / 2, 60, H - 200)}px`;
     };
-    let pos = { x: 0.93, y: 0.36 };
+    let pos = { x: 0.9, y: 0.36 };
     try { const v = JSON.parse(store.get("status-pos", "null")); if (v && v.x >= 0 && v.x <= 1 && v.y >= 0 && v.y <= 1) pos = v; } catch (_) { /* 처음이에요 */ }
-    place(pos.x, pos.y, false);
-    window.addEventListener("resize", () => place(pos.x, pos.y, false));
+    place(pos.x, pos.y);
+    window.addEventListener("resize", () => place(pos.x, pos.y));
     let drag = null;
     stBubble.addEventListener("pointerdown", (e) => {
       stBubble.setPointerCapture(e.pointerId);
       const r = stBubble.getBoundingClientRect();
       drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, moved: false };
-      stBubble.classList.add("is-drag");
     });
     stBubble.addEventListener("pointermove", (e) => {
       if (!drag || e.pointerId !== drag.id) return;
@@ -1030,20 +1044,16 @@
       drag.moved = true;
       const a = app.getBoundingClientRect();
       pos = { x: (e.clientX - a.left - drag.dx + SIZE / 2) / a.width, y: (e.clientY - a.top - drag.dy + SIZE / 2) / a.height };
-      place(pos.x, pos.y, false);
+      place(pos.x, pos.y);
     });
-    const end = (e) => {
+    stBubble.addEventListener("pointerup", (e) => {
       if (!drag || e.pointerId !== drag.id) return;
       const moved = drag.moved;
       drag = null;
-      stBubble.classList.remove("is-drag");
-      if (!moved) return openStatus(true);
-      pos.x = pos.x < 0.5 ? 0.07 : 0.93; // 가까운 가장자리에 붙어요
-      place(pos.x, pos.y, true);
-      store.set("status-pos", JSON.stringify(pos));
-    };
-    stBubble.addEventListener("pointerup", end);
-    stBubble.addEventListener("pointercancel", () => { drag = null; stBubble.classList.remove("is-drag"); });
+      if (moved) store.set("status-pos", JSON.stringify(pos));
+      else toggleStatus(!fabOpen);
+    });
+    stBubble.addEventListener("pointercancel", () => { drag = null; });
   }
 
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)

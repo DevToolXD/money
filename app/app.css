@@ -948,40 +948,19 @@ html[data-theme="dark"] .draw { background: #fff; }
 .cloud-down span { font-size: 13px; line-height: 18px; opacity: 0.92; }
 
 
-/* ===== 상태: 떠 있는 동그란 버튼과 유리 패널 ===== */
-.status-bubble { position: absolute; z-index: 70; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: rgba(110, 114, 126, 0.5); -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.45), inset 0 1.5px 1px rgba(255, 255, 255, 0.5), 0 6px 18px rgba(30, 34, 50, 0.22); touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform 0.2s var(--ease), opacity 0.2s; }
-.status-bubble svg { width: 24px; height: 24px; }
-.status-bubble.is-drag { transform: scale(1.12); }
-.status-bubble.is-hidden { opacity: 0; pointer-events: none; }
-.status-scrim { position: absolute; inset: 0; z-index: 125; background: rgba(0, 0, 0, 0.28); opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0s 0.3s; }
-.status-scrim.is-open { opacity: 1; visibility: visible; transition: opacity 0.3s; }
-.status-panel { position: absolute; z-index: 130; left: 12px; right: 12px; top: calc(var(--safe-top) + 78px); padding: 22px 16px 16px; border-radius: 36px; color: #fff; background: rgba(120, 125, 138, 0.5); -webkit-backdrop-filter: blur(36px) saturate(180%); backdrop-filter: blur(36px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.4), inset 0 2px 1.5px rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(255, 255, 255, 0.12), 0 24px 60px rgba(20, 24, 40, 0.3); opacity: 0; visibility: hidden; transform: translateY(-16px) scale(0.94); transform-origin: 90% 0; transition: opacity 0.25s, transform 0.4s var(--ease), visibility 0s 0.4s; }
-.status-panel.is-open { opacity: 1; visibility: visible; transform: none; transition: opacity 0.25s, transform 0.4s var(--ease); }
-.sp-chev { position: absolute; left: 50%; top: -22px; width: 26px; height: 13px; margin-left: -13px; color: rgba(255, 255, 255, 0.85); }
-.sp-grab { position: absolute; left: 50%; top: 8px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: rgba(255, 255, 255, 0.7); }
-.sp-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 4px 16px; }
-.sp-head h2 { margin: 0; font-size: 22px; line-height: 26px; font-weight: 800; }
-.sp-head p { margin: 2px 0 0; font-size: 13px; color: rgba(255, 255, 255, 0.72); font-weight: 500; }
-.sp-x { display: grid; place-items: center; flex: none; width: 46px; height: 46px; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, 0.24); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.45), inset 0 1.5px 1px rgba(255, 255, 255, 0.5); }
-.sp-x svg { width: 22px; height: 22px; }
-.sp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.sp-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px 14px; min-width: 0; border-radius: 24px; background: rgba(255, 255, 255, 0.2); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.4), inset 0 1.5px 1px rgba(255, 255, 255, 0.45); }
-.st-ic { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--c); color: #1c1c1e; }
-.st-ic svg { width: 24px; height: 24px; }
-.st-name { font-size: 16px; font-weight: 600; max-width: 100%; white-space: nowrap; }
-.st-pct { font-size: 28px; line-height: 32px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.st-pct small { font-size: 18px; font-weight: 700; }
-.st-bar { align-self: stretch; height: 10px; margin: 4px 4px 0; border-radius: 5px; background: rgba(40, 44, 60, 0.3); overflow: hidden; }
-.st-bar i { display: block; height: 100%; border-radius: 5px; }
-.sp-foot { display: flex; align-items: center; gap: 8px; margin: 14px 4px 0; padding-top: 12px; border-top: 0.5px solid rgba(255, 255, 255, 0.3); font-size: 14px; color: rgba(255, 255, 255, 0.82); font-weight: 500; }
-.sp-foot svg { flex: none; width: 22px; height: 22px; }
-/* 상태 탭 */
-.st-list { list-style: none; display: grid; gap: 12px; margin: 8px var(--gutter) 0; padding: 0; }
-.st-row { display: grid; grid-template-columns: 44px 1fr auto; grid-template-areas: "ic name pct" "bar bar bar"; align-items: center; gap: 8px 14px; padding: 18px; border-radius: 28px; background: var(--bg-card); }
-.st-row .st-ic { grid-area: ic; }
-.st-row .st-name { grid-area: name; font-size: 19px; color: var(--text-primary); }
-.st-row .st-pct { grid-area: pct; color: var(--text-primary); }
-.st-row .st-bar { grid-area: bar; margin: 6px 0 0; background: rgba(120, 120, 128, 0.2); }
+/* ===== 상태: 떠 있는 동그란 버튼. 누르면 돌면서 세 개가 튀어나와요 (선택된 탭 알약처럼 빛나는 유리) ===== */
+.status-fab { position: absolute; z-index: 70; width: 46px; height: 46px; }
+.fab-tiles { position: absolute; left: 23px; top: 23px; width: 0; height: 0; }
+.status-bubble, .fab-tile { color: #fff; background: linear-gradient(150deg, rgba(190, 196, 212, 0.5), rgba(100, 106, 124, 0.5)); -webkit-backdrop-filter: blur(16px) saturate(190%); backdrop-filter: blur(16px) saturate(190%); box-shadow: inset 0 0 0 0.9px rgba(255, 255, 255, 0.75), inset 2px 3px 5px rgba(255, 255, 255, 0.5), inset -2px -3px 6px rgba(150, 200, 255, 0.35), inset 0 0 14px rgba(255, 255, 255, 0.18), 0 8px 20px rgba(30, 34, 50, 0.25); }
+.status-bubble { position: relative; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; touch-action: none; -webkit-tap-highlight-color: transparent; }
+.status-bubble svg { grid-area: 1 / 1; width: 24px; height: 24px; transition: transform 0.45s var(--ease), opacity 0.3s; }
+.status-bubble .fab-x { opacity: 0; transform: rotate(-180deg) scale(0.6); }
+.status-bubble.is-open .fab-i { opacity: 0; transform: rotate(180deg) scale(0.6); }
+.status-bubble.is-open .fab-x { opacity: 1; transform: none; }
+.fab-tile { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 56px; height: 62px; border-radius: 20px; opacity: 0; }
+.fab-tile svg { width: 24px; height: 24px; }
+.fab-tile b { font-size: 15px; line-height: 18px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; transform: translateY(3px); transition: opacity 0.35s, transform 0.35s var(--ease); }
+.fab-tile.show b { opacity: 1; transform: none; }
 /* 사업 탭 */
 .card.biz { display: grid; justify-items: start; gap: 12px; padding: 28px 24px 24px; }
 .biz-tower { width: 64px; height: 64px; color: var(--text-primary); }

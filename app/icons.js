@@ -74,15 +74,8 @@
     { d: "M2.500 24.500h23", stroke: SW },
     { d: "M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18", stroke: SW },
   ];
-  // 상태: 동그라미 안의 i
-  const status = [
-    { d: "M14 3.500a10.500 10.500 0 1 0 0 21 10.500 10.500 0 0 0 0-21Z", stroke: SW },
-    { d: "M14 12.500v6", stroke: SW },
-    { d: "M14 9.200h.01", stroke: SW },
-  ];
-
   window.TabIcons = {
     size: 28,
-    icons: { messages: plane, money: wallet, work: gear, untitled, untitled3: untitled, shop, ranking, manage, business, status, account },
+    icons: { messages: plane, money: wallet, work: gear, untitled, untitled2: untitled, untitled3: untitled, shop, ranking, manage, business, account },
   };
 })();
