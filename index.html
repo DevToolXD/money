@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=31">
+<link rel="stylesheet" href="app/app.css?v=32">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -77,8 +77,17 @@
       <div class="card biz"><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500ZM11 5.700V4.500a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.200M7 14.500h14M10.500 18h7v3.500h-7Z"/></svg><h2 class="card-title">가방이 비어 있어요</h2><p class="card-body">얻은 물건이 생기면 여기에 모여요.</p></div>
     </section>
     <section class="screen" id="screen-business" data-screen="business" data-title="사업" aria-labelledby="title-business">
-      <header class="large-title"><h1 id="title-business">사업</h1></header>
-      <div class="card biz"><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 24.500V5.500a1 1 0 0 1 1-1h5.500a1 1 0 0 1 1 1V24.500M15.500 24.500V5.500a1 1 0 0 1 1-1H22a1 1 0 0 1 1 1V24.500M2.500 24.500h23M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18"/></svg><h2 class="card-title">사업을 시작해 보세요</h2><p class="card-body">사업을 아직 시작하지 않았다면 시작해 보세요. 일반 직장보다 리스크는 크지만 훨씬 많은 돈을 벌 수도 있어요.</p><button class="btn primary" id="biz-start" type="button">10 토큰으로 창업하기</button></div>
+      <div id="biz-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
+      <div id="biz-root">
+        <header class="large-title"><h1 id="title-business">사업</h1><button class="biz-logo" id="biz-logo" type="button" aria-label="회사 마크" hidden></button></header>
+        <div class="card biz" id="biz-none" hidden><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 24.500V5.500a1 1 0 0 1 1-1h5.500a1 1 0 0 1 1 1V24.500M15.500 24.500V5.500a1 1 0 0 1 1-1H22a1 1 0 0 1 1 1V24.500M2.500 24.500h23M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18"/></svg><h2 class="card-title">사업을 시작해 보세요</h2><p class="card-body">사업을 아직 시작하지 않았다면 시작해 보세요. 일반 직장보다 리스크는 크지만 훨씬 많은 돈을 벌 수도 있어요.</p><button class="btn primary" id="biz-start" type="button">10 토큰으로 창업하기</button></div>
+        <p class="biz-loading" id="biz-loading">불러오는 중이에요</p>
+        <div id="biz-dash" hidden>
+          <div class="card biz-hero"><span class="biz-mark" id="biz-mark"></span><div><h2 id="biz-name"></h2><p id="biz-since"></p></div></div>
+          <h2 class="section-title">판매 상품</h2>
+          <div class="card biz-prod"><div id="biz-chips"></div><button class="btn primary" id="biz-pick" type="button">팔 상품 선택하기</button></div>
+        </div>
+      </div>
     </section>
     <section class="screen" id="screen-untitled3" data-screen="untitled3" data-title="무제" aria-labelledby="title-untitled3">
       <header class="large-title"><h1 id="title-untitled3">무제</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
@@ -162,6 +171,24 @@
     <div class="sheet-scroll"><ul class="res-list" id="new-results"></ul><p class="empty" id="new-empty">이름의 첫 글자부터 입력해 보세요</p></div>
   </section>
 
+  <section class="sheet" id="found-sheet" aria-label="회사 만들기">
+    <div class="grabber"></div>
+    <div class="sheet-head"><button class="link" id="found-cancel" type="button">취소</button><h2>회사 만들기</h2><span style="width:36px"></span></div>
+    <p class="found-sub">회사 이름과 마크를 고르세요</p>
+    <button class="found-logo" id="found-logo" type="button" aria-label="회사 마크 고르기"><span class="found-logo-img" id="found-logo-img"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.500A2.500 2.500 0 0 1 6.500 6h1.200l1.300-2h6l1.300 2h1.200A2.500 2.500 0 0 1 20 8.500v8A2.500 2.500 0 0 1 17.500 19h-11A2.500 2.500 0 0 1 4 16.500z"/><circle cx="12" cy="12.500" r="3.200"/></svg></button>
+    <label class="field">회사 이름<input id="found-name" type="text" maxlength="20" placeholder="회사 이름을 적어 주세요" autocomplete="off"></label>
+    <p class="found-cost" id="found-cost"></p>
+    <p class="login-error" id="found-err" role="alert"></p>
+    <button class="btn primary found-go" id="found-go" type="button">10 토큰으로 창업하기</button>
+  </section>
+
+  <section class="sheet tall" id="prod-sheet" aria-label="팔 상품 고르기">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span style="width:36px"></span><h2>팔 상품 고르기</h2><button class="link" id="prod-done" type="button" style="font-weight:700">완료</button></div>
+    <div class="prod-seg" id="prod-seg" data-i="0"><i></i><button type="button" data-cat="ai" aria-selected="true">AI</button><button type="button" data-cat="food" aria-selected="false">음식</button><button type="button" data-cat="pc" aria-selected="false">컴퓨터</button></div>
+    <div class="sheet-scroll"><ul class="prod-list" id="prod-list"></ul></div>
+  </section>
+
   <section class="sheet dark" id="gift-sheet" aria-label="토큰 보내기">
     <div class="grabber"></div>
     <p class="gift-to" id="gift-to"></p>
@@ -219,6 +246,7 @@
   <input type="file" id="file-photo" accept="image/*" hidden>
   <input type="file" id="file-poll" accept="image/*" hidden>
   <input type="file" id="file-profile" accept="image/*" hidden>
+  <input type="file" id="file-logo" accept="image/*" hidden>
 
   <div class="draw" id="draw" hidden>
     <canvas id="draw-canvas"></canvas>
@@ -236,7 +264,9 @@
 
   <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div><div class="ctx-stack" id="ctx-stack"><div class="ctx-preview" id="ctx-preview"></div><div class="ctx-menu big" id="ctx-menu2" role="menu"></div></div></div>
 
-  <div class="status-fab" id="status-fab"><div class="fab-tiles" id="fab-tiles"></div><button class="status-bubble" id="status-bubble" type="button" aria-label="상태 보기" aria-expanded="false"><svg class="fab-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg><svg class="fab-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.800 8.800l6.400 6.400M15.200 8.800l-6.400 6.400"/></svg></button></div>
+  <div class="vignette" id="vignette" aria-hidden="true"></div>
+  <div class="lock" id="lock" role="alert" hidden><div class="lock-card"><h2>쓰러졌어요</h2><p class="lock-n" id="lock-n"></p><p class="lock-t" id="lock-t"></p><p class="lock-sub">다시 일어나면 모든 상태가 10%예요</p></div></div>
+  <div class="status-fab" id="status-fab" hidden><div class="fab-tiles" id="fab-tiles"></div><button class="status-bubble" id="status-bubble" type="button" aria-label="상태 보기" aria-expanded="false"><svg class="fab-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg><svg class="fab-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.800 8.800l6.400 6.400M15.200 8.800l-6.400 6.400"/></svg></button></div>
 
   <div class="dock">
     <nav class="tabbar" aria-label="메인 메뉴">
@@ -259,7 +289,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=15"></script>
-<script src="app/app.js?v=34"></script>
+<script type="module" src="app/firebase.js?v=16"></script>
+<script src="app/app.js?v=35"></script>
 </body>
 </html>

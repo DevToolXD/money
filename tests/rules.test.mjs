@@ -400,6 +400,77 @@ await t("랭킹: 너무 자주 갱신 못 하고, 지갑 값이 바뀌면 그 �
   await assertFails(getDoc(doc(anon(), "ranks/uA")));
 });
 
+console.log("\n[회사]");
+const foundBatch = (db, uid, { name = "내 회사", logo = "", cost = 10, extra = {} } = {}) => {
+  const b = writeBatch(db);
+  b.set(doc(db, "companies/" + uid), { name, logo, products: [], at: serverTimestamp(), ...extra });
+  b.update(doc(db, "wallets/" + uid), { bal: increment(-cost), wt: serverTimestamp(), op: { kind: "found" } });
+  return b;
+};
+await t("창업: 회사 문서와 정확히 10 토큰이 빠지는 지갑 쓰기가 한 묶음일 때만 돼요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "wallets/uA"), { bal: 100, rate: 0, t: Timestamp.fromMillis(Date.now() - 7200e3), wt: EPOCH, op: { kind: "init" } }); });
+  const a = pw("uA", "alice");
+  await assertFails(setDoc(doc(a, "companies/uA"), { name: "공짜", logo: "", products: [], at: serverTimestamp() })); // 돈 안 내고
+  await assertFails(foundBatch(a, "uA", { cost: 9 }).commit());
+  await assertFails(foundBatch(a, "uA", { cost: 11 }).commit());
+  await assertFails(foundBatch(a, "uA", { cost: 0 }).commit());
+  await assertFails(updateDoc(doc(a, "wallets/uA"), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } })); // 회사 없이 돈만
+  await assertFails(foundBatch(pw("uB", "bob"), "uA").commit()); // 남의 회사
+  await assertSucceeds(foundBatch(a, "uA").commit());
+  await sleep(2100);
+  await assertFails(foundBatch(a, "uA").commit()); // 두 번째 창업 불가
+});
+await t("회사 이름·마크·여분의 값은 검사해요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "wallets/uA"), { bal: 100, rate: 0, t: Timestamp.fromMillis(Date.now() - 7200e3), wt: EPOCH, op: { kind: "init" } }); });
+  const a = pw("uA", "alice");
+  await assertFails(foundBatch(a, "uA", { name: "<b>해킹</b>" }).commit());
+  await assertFails(foundBatch(a, "uA", { name: "" }).commit());
+  await assertFails(foundBatch(a, "uA", { name: "가".repeat(21) }).commit());
+  await assertFails(foundBatch(a, "uA", { logo: "https://evil.example/x.png" }).commit());
+  await assertFails(foundBatch(a, "uA", { extra: { owner: "uB" } }).commit());
+  await assertSucceeds(foundBatch(a, "uA", { name: "Good 회사 1", logo: JPEG }).commit());
+});
+await t("팔 상품은 정해진 목록에서만 바꾸고, 이름·마크는 못 바꿔요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: [], at: EPOCH }); });
+  const a = pw("uA", "alice");
+  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: ["water", "coffee", "ai-dev"] }));
+  await assertFails(updateDoc(doc(a, "companies/uA"), { products: ["water", "bomb"] }));
+  await assertFails(updateDoc(doc(a, "companies/uA"), { name: "다른 이름" }));
+  await assertFails(updateDoc(doc(pw("uB", "bob"), "companies/uA"), { products: ["water"] }));
+  await assertSucceeds(getDoc(doc(pw("uB", "bob"), "companies/uA")));
+  await assertFails(getDoc(doc(anon(), "companies/uA")));
+});
+
+console.log("\n[상태]");
+await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
+  await seed(seedBase);
+  const a = pw("uA", "alice");
+  await assertFails(setDoc(doc(a, "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now(), deaths: 0 }.h === 100 ? { h: 100, t: 100, e: 50, at: Date.now(), deaths: 0 } : {}));
+  await assertFails(setDoc(doc(a, "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now() - 3600e3, deaths: 0 })); // 과거로 시간 조작
+  await assertFails(setDoc(doc(pw("uB", "bob"), "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now(), deaths: 0 }));
+  await assertSucceeds(setDoc(doc(a, "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now(), deaths: 0 }));
+  await assertFails(getDoc(doc(pw("uB", "bob"), "vitals/uA")));
+  // 방금 만들었으니 닳지 않았어요: 쓰러졌다고 쓸 수 없어요 / 값을 올릴 수도 없어요
+  await assertFails(updateDoc(doc(a, "vitals/uA"), { h: 10, t: 10, e: 10, at: Date.now() + 3600e3, deaths: 1 }));
+  await assertFails(updateDoc(doc(a, "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now() }));
+});
+await t("상태: 정말 0%가 됐을 때만 쓰러짐을 기록하고, 10%·쉬는 시간이 맞아야 해요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "vitals/uA"), { h: 100, t: 100, e: 100, at: Date.now() - 30 * 3600e3, deaths: 0 }); });
+  const a = pw("uA", "alice");
+  const ref = doc(a, "vitals/uA");
+  await assertFails(updateDoc(ref, { h: 50, t: 50, e: 50, at: Date.now() + 3600e3, deaths: 1 })); // 10%가 아님
+  await assertFails(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now(), deaths: 1 })); // 쉬는 시간 없음
+  await assertFails(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now() + 3600e3, deaths: 2 })); // 횟수 건너뜀
+  await assertSucceeds(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now() + 3600e3, deaths: 1 }));
+  await assertFails(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now() + 7200e3, deaths: 2 })); // 쉬는 중에는 또 못 써요
+});
+await t("상태: 두 번째로 쓰러지면 2시간 쉬어요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "vitals/uA"), { h: 10, t: 10, e: 10, at: Date.now() - 30 * 3600e3, deaths: 1 }); });
+  const ref = doc(pw("uA", "alice"), "vitals/uA");
+  await assertFails(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now() + 3600e3, deaths: 2 })); // 1시간만 쉬려는 속임수
+  await assertSucceeds(updateDoc(ref, { h: 10, t: 10, e: 10, at: Date.now() + 7200e3, deaths: 2 }));
+});
+
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));
 await env.cleanup();

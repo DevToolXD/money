@@ -303,6 +303,37 @@ window.cloudReady = (async () => {
         }
         return out;
       },
+      /* ----- 회사 ----- */
+      loadCompany: async () => {
+        const s = await getDoc(doc(db, "companies", uidOf())).catch(rethrow);
+        if (!s.exists()) return null;
+        const d = s.data();
+        return { name: d.name, logo: d.logo || "", products: Array.isArray(d.products) ? d.products : [], at: ms(d.at) };
+      },
+      // 창업: 회사 문서와 10 토큰이 빠지는 지갑 쓰기를 한 묶음으로 보내요
+      foundCompany: async (name, logo) => {
+        const b = writeBatch(db);
+        b.set(doc(db, "companies", uidOf()), { name, logo, products: [], at: serverTimestamp() });
+        b.update(walletRef(), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } });
+        await b.commit();
+      },
+      saveProducts: (products) => updateDoc(doc(db, "companies", uidOf()), { products }),
+
+      /* ----- 상태 (배고픔·목마름·에너지) ----- */
+      loadVitals: async () => {
+        const ref = doc(db, "vitals", uidOf());
+        const s = await getDoc(ref).catch(rethrow);
+        if (s.exists()) return s.data();
+        const v = { h: 100, t: 100, e: 100, at: Date.now(), deaths: 0 };
+        await setDoc(ref, v).catch(rethrow);
+        return v;
+      },
+      // 0%가 되면 기록해요: 다 10%로 돌아오고, 쓰러진 횟수만큼 시간 동안 쉬어요
+      die: async (deaths) => {
+        const v = { h: 10, t: 10, e: 10, at: Date.now() + deaths * 3600000, deaths };
+        await updateDoc(doc(db, "vitals", uidOf()), v).catch(rethrow);
+        return v;
+      },
       setPhoto: async (photo) => {
         await updateDoc(doc(db, "profiles", uidOf()), { photo });
         const c = readCache(uidOf());

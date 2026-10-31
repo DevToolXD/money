@@ -61,6 +61,7 @@ service cloud.firestore {
       return bal * (perSec()[string(rate)] * secs + perSec()[string(rate)] * secs * perSec()[string(rate)] * secs);
     }
     function msgPath(cid, mid) { return /databases/$(database)/documents/chats/$(cid)/messages/$(mid); }
+    function companyPath(uid) { return /databases/$(database)/documents/companies/$(uid); }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
 
     // ----- 랭킹: 내 지갑 잔액과 똑같은 값만 쓸 수 있어요 (이름·아이디도 내 프로필과 같아야 해요). 20초에 한 번만 갱신해요 -----
@@ -78,6 +79,49 @@ service cloud.firestore {
         && request.resource.data.bal == get(walletPath(uid)).data.bal
         && request.resource.data.id == get(/databases/$(database)/documents/profiles/$(uid)).data.id
         && request.resource.data.name == get(/databases/$(database)/documents/profiles/$(uid)).data.name;
+    }
+
+    // ----- 회사: 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만 만들 수 있어요. 팔 상품만 나중에 바꿔요 -----
+    match /companies/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 20;
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['name', 'logo', 'products', 'at'])
+        && request.resource.data.name is string
+        && request.resource.data.name.matches('^[^<>]{1,20}$')
+        && photoOk(request.resource.data.logo)
+        && request.resource.data.products == []
+        && request.resource.data.at == request.time
+        && getAfter(walletPath(uid)).data.op.kind == 'found'
+        && getAfter(walletPath(uid)).data.bal == get(walletPath(uid)).data.bal - 10;
+      allow update: if isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['products'])
+        && request.resource.data.products is list
+        && request.resource.data.products.size() <= 20
+        && request.resource.data.products.hasOnly(['water', 'drink', 'energy', 'coffee', 'bread', 'meat', 'ai-assistant', 'ai-agent', 'ai-dev', 'pc-office', 'pc-power', 'pc-server']);
+    }
+
+    // ----- 상태(배고픔·목마름·에너지): 값은 시간이 지나면 닳기만 해요. 쓰러졌을 때만 기록하고, 그때 다 10%로 돌아오며 1·2·3시간… 쉬어요 -----
+    match /vitals/{uid} {
+      allow get: if isMe(uid);
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths'])
+        && request.resource.data.h == 100 && request.resource.data.t == 100 && request.resource.data.e == 100
+        && request.resource.data.deaths == 0
+        && request.resource.data.at is int
+        && request.resource.data.at >= request.time.toMillis() - 120000
+        && request.resource.data.at <= request.time.toMillis() + 120000;
+      allow update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths'])
+        && request.time.toMillis() >= resource.data.at
+        && request.resource.data.deaths == resource.data.deaths + 1
+        && request.resource.data.h == 10 && request.resource.data.t == 10 && request.resource.data.e == 10
+        && request.resource.data.at is int
+        && request.resource.data.at >= request.time.toMillis() + request.resource.data.deaths * 3600000 - 120000
+        && request.resource.data.at <= request.time.toMillis() + request.resource.data.deaths * 3600000 + 120000
+        && (resource.data.h - (request.time.toMillis() - resource.data.at) * 100.0 / 86400000.0 <= 2
+          || resource.data.t - (request.time.toMillis() - resource.data.at) * 100.0 / 64800000.0 <= 2
+          || resource.data.e - (request.time.toMillis() - resource.data.at) * 100.0 / 129600000.0 <= 2);
     }
 
     match /wallets/{uid} {
@@ -136,6 +180,14 @@ service cloud.firestore {
             && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == false
             && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == true
             && request.resource.data.bal == resource.data.bal + get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
+          ||
+          // 창업: 같은 묶음에서 회사 문서가 새로 만들어지고, 딱 10 토큰만 빠져요
+          (request.resource.data.op.kind == 'found'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && !exists(companyPath(request.auth.uid))
+            && existsAfter(companyPath(request.auth.uid))
+            && request.resource.data.bal == resource.data.bal - 10)
         );
     }
 

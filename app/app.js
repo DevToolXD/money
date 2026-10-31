@@ -981,15 +981,16 @@
   nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && app.dataset.screen === "manage") goScreen("account"); });
 
   /* ---------- 상태: 어느 탭에서나 떠 있는 동그란 버튼. 누르면 돌면서 배고픔·목마름·에너지가 튀어나와요 ---------- */
+  // 시간당 줄어드는 양 (firestore.rules의 쓰러짐 검사와 같아야 해요): 배고픔 24시간, 목마름 18시간, 에너지 36시간에 100%가 다 닳아요
   const STATS = [
-    { label: "배고픔", v: 72, d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
-    { label: "목마름", v: 41, d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
-    { label: "에너지", v: 89, d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
+    { k: "h", label: "배고픔", rate: 100 / 24, d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
+    { k: "t", label: "목마름", rate: 100 / 18, d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
+    { k: "e", label: "에너지", rate: 100 / 36, d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
   ];
   const fab = document.getElementById("status-fab");
   const stBubble = document.getElementById("status-bubble");
   const fabTiles = document.getElementById("fab-tiles");
-  fabTiles.innerHTML = STATS.map((u) => `<span class="fab-tile" role="img" aria-label="${u.label} ${u.v}%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg><b>${u.v}%</b></span>`).join("");
+  fabTiles.innerHTML = STATS.map((u) => `<span class="fab-tile" role="img" aria-label="${u.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg><b data-k="${u.k}">--%</b></span>`).join("");
   const tiles = [...fabTiles.children];
   let fabOpen = false;
   let fabAnim = [];
@@ -1054,6 +1055,244 @@
     });
     stBubble.addEventListener("pointercancel", () => { drag = null; });
   }
+
+  /* ---------- 상태가 닳는 규칙: 낮아지면 화면 가장자리가 붉어지고, 0%가 되면 쓰러져서 쉬어요 ---------- */
+  const vignette = document.getElementById("vignette");
+  const lockEl = document.getElementById("lock");
+  let vit = null; // 서버에 기록된 상태 {h,t,e,at,deaths}. 값은 at부터 시간이 흐른 만큼 줄어든 것으로 계산해요
+  let vitTimer = 0;
+  let lockTimer = 0;
+  let dying = false;
+  const vitNow = () => {
+    const hrs = Math.max(0, (Date.now() - vit.at) / 3600000);
+    return Object.fromEntries(STATS.map((u) => [u.k, Math.min(100, vit[u.k] - hrs * u.rate)]));
+  };
+  const stopLock = () => { clearInterval(lockTimer); lockEl.hidden = true; };
+  const showLock = () => {
+    lockEl.hidden = false;
+    document.getElementById("lock-n").textContent = `${vit.deaths}번째 쓰러졌어요`;
+    const paint = () => {
+      const left = Math.max(0, vit.at - Date.now());
+      if (left <= 0) { stopLock(); startVitals(); return; }
+      const hh = Math.floor(left / 3600000);
+      const mm = Math.floor((left % 3600000) / 60000);
+      const ss = Math.floor((left % 60000) / 1000);
+      document.getElementById("lock-t").textContent = `${hh > 0 ? `${hh}시간 ` : ""}${String(mm).padStart(2, "0")}분 ${String(ss).padStart(2, "0")}초 뒤에 일어나요`;
+    };
+    clearInterval(lockTimer);
+    paint();
+    lockTimer = setInterval(paint, 1000);
+  };
+  const shownVit = {};
+  const paintVitals = async () => {
+    if (!vit) return;
+    if (Date.now() < vit.at) { vignette.className = "vignette"; return; } // 쉬는 중
+    const v = vitNow();
+    for (const u of STATS) {
+      const n = Math.max(0, Math.round(v[u.k]));
+      if (shownVit[u.k] !== n) {
+        shownVit[u.k] = n;
+        const el = fabTiles.querySelector(`[data-k="${u.k}"]`);
+        if (el) el.textContent = `${n}%`;
+      }
+    }
+    const low = Math.min(v.h, v.t, v.e);
+    vignette.className = `vignette${low <= 5 ? " v5" : low <= 10 ? " v10" : low <= 20 ? " v20" : ""}`;
+    if (low <= 0 && !dying) {
+      dying = true;
+      try {
+        vit = await window.cloud.die(vit.deaths + 1);
+        vignette.className = "vignette";
+        showLock();
+      } catch (err) {
+        console.warn("쓰러짐을 기록하지 못했어요:", err?.code || err);
+      } finally {
+        dying = false;
+      }
+    }
+  };
+  function startVitals() {
+    clearInterval(vitTimer);
+    fab.hidden = false;
+    shownVit.h = shownVit.t = shownVit.e = null;
+    paintVitals();
+    vitTimer = setInterval(() => { if (!document.hidden) paintVitals(); }, 5000);
+  }
+  const loadVitalsFor = async (cloud) => {
+    try {
+      vit = await cloud.loadVitals();
+      if (Date.now() < vit.at) showLock();
+      else startVitals();
+    } catch (err) {
+      console.warn("상태를 불러오지 못했어요:", err?.code || err);
+    }
+  };
+  window.__vitals = { get: () => vit, set: (v) => { vit = v; startVitals(); } }; // 시험용
+
+  /* ---------- 사업: 창업, 대시보드, 팔 상품 ---------- */
+  const CATS = {
+    ai: { label: "AI", d: '<rect x="6" y="6" width="12" height="12" rx="2.500"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/>' },
+    food: { label: "음식", d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
+    pc: { label: "컴퓨터", d: '<rect x="3.500" y="4.500" width="17" height="11.500" rx="2"/><path d="M9 20h6M12 16v4"/>' },
+  };
+  const PRODUCTS = [
+    { id: "ai-assistant", cat: "ai", name: "AI 비서", sub: "일정과 메일을 챙겨 줘요" },
+    { id: "ai-agent", cat: "ai", name: "AI 상담원", sub: "손님 문의에 대신 답해 줘요" },
+    { id: "ai-dev", cat: "ai", name: "AI 개발자", sub: "프로그램을 대신 만들어 줘요" },
+    { id: "water", cat: "food", name: "물", sub: "목마름을 채워요" },
+    { id: "drink", cat: "food", name: "음료", sub: "달콤한 음료예요" },
+    { id: "energy", cat: "food", name: "에너지음료", sub: "에너지를 빠르게 채워요" },
+    { id: "coffee", cat: "food", name: "커피", sub: "잠을 깨워 줘요" },
+    { id: "bread", cat: "food", name: "빵", sub: "배고픔을 달래요" },
+    { id: "meat", cat: "food", name: "고기", sub: "든든하게 배를 채워요" },
+    { id: "pc-office", cat: "pc", name: "사무용 컴퓨터", sub: "AI 직원을 돌리기 좋아요" },
+    { id: "pc-power", cat: "pc", name: "고성능 컴퓨터", sub: "큰 AI도 거뜬히 돌려요" },
+    { id: "pc-server", cat: "pc", name: "AI 서버", sub: "회사 전체의 AI를 돌려요" },
+  ];
+  let company; // undefined: 불러오는 중, null: 아직 회사가 없어요
+  const bizNone = document.getElementById("biz-none");
+  const bizDash = document.getElementById("biz-dash");
+  const bizLoading = document.getElementById("biz-loading");
+  const bizLogo = document.getElementById("biz-logo");
+  const markHTML = (name, logo, cls) => avatarHTML(name, logo, cls);
+  const renderBiz = () => {
+    bizLoading.hidden = company !== undefined;
+    bizNone.hidden = company !== null;
+    bizDash.hidden = !company;
+    bizLogo.hidden = !company;
+    if (!company) return;
+    bizLogo.innerHTML = markHTML(company.name, company.logo, "avatar contact");
+    document.getElementById("biz-mark").innerHTML = markHTML(company.name, company.logo, "avatar contact");
+    document.getElementById("biz-name").textContent = company.name;
+    const d = new Date(company.at || Date.now());
+    document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요`;
+    const chosen = PRODUCTS.filter((p) => company.products.includes(p.id));
+    document.getElementById("biz-chips").innerHTML = chosen.length
+      ? `<div class="chips">${chosen.map((p) => `<span class="chip-tag">${esc(p.name)}</span>`).join("")}</div>`
+      : '<p class="biz-empty">아직 고른 상품이 없어요</p>';
+    document.getElementById("biz-pick").textContent = chosen.length ? "팔 상품 바꾸기" : "팔 상품 선택하기";
+  };
+  const loadCompany = async (cloud) => {
+    try {
+      company = await cloud.loadCompany();
+    } catch (err) {
+      company = null;
+      console.warn("회사를 불러오지 못했어요:", err?.code || err);
+    }
+    renderBiz();
+  };
+  // 창업
+  const foundName = document.getElementById("found-name");
+  const foundErr = document.getElementById("found-err");
+  const foundGo = document.getElementById("found-go");
+  let foundLogo = "";
+  let founding = false;
+  const paintFoundLogo = () => {
+    const img = document.getElementById("found-logo-img");
+    const ok = safeImg(foundLogo, 40000);
+    img.style.backgroundImage = ok ? `url(${ok})` : "";
+    document.getElementById("found-logo").classList.toggle("has-img", Boolean(ok));
+  };
+  document.getElementById("biz-start").addEventListener("click", () => {
+    if (!live) return window.cloud?.user ? toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요") : showLogin(true);
+    if (!bank.ready || bank.bal < 10) return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
+    foundName.value = "";
+    foundLogo = "";
+    foundErr.textContent = "";
+    paintFoundLogo();
+    document.getElementById("found-cost").textContent = `10 토큰이 들어요 · 내 토큰 ${W(bank.bal)}`;
+    sheetOpen(true, document.getElementById("found-sheet"));
+  });
+  document.getElementById("found-cancel").addEventListener("click", () => sheetOpen(false));
+  const fileLogo = document.getElementById("file-logo");
+  document.getElementById("found-logo").addEventListener("click", () => fileLogo.click());
+  fileLogo.addEventListener("change", async () => {
+    const f = fileLogo.files[0];
+    fileLogo.value = "";
+    if (!f) return;
+    try {
+      foundLogo = await readImage(f, 192, 36000, { q: 0.8, square: true });
+      paintFoundLogo();
+    } catch (err) {
+      foundErr.textContent = "사진을 불러오지 못했어요";
+    }
+  });
+  foundGo.addEventListener("click", async () => {
+    if (founding) return;
+    const name = foundName.value.trim().replace(/\s+/g, " ");
+    if (!name) return (foundErr.textContent = "회사 이름을 적어 주세요");
+    if (name.length > 20 || /[<>]/.test(name)) return (foundErr.textContent = "이름은 20자 이하로, < > 없이 적어 주세요");
+    if (bank.bal < 10) return (foundErr.textContent = "토큰이 부족해요");
+    founding = true;
+    foundGo.classList.add("busy");
+    foundErr.textContent = "";
+    try {
+      await walletOp(() => window.cloud.foundCompany(name, foundLogo));
+      company = { name, logo: foundLogo, products: [], at: Date.now() };
+      logTx({ t: Date.now(), name: "창업", cat: "사업", icon: "store", amt: -10 });
+      sheetOpen(false);
+      renderBiz();
+      toast(`${name}을(를) 창업했어요`);
+    } catch (err) {
+      foundErr.textContent = err?.code === "permission-denied" ? "창업하지 못했어요. 이미 회사가 있거나 토큰이 부족해요" : "창업하지 못했어요. 잠시 뒤 다시 해 주세요";
+    } finally {
+      founding = false;
+      foundGo.classList.remove("busy");
+    }
+  });
+  // 팔 상품 고르기
+  const prodList = document.getElementById("prod-list");
+  const prodSeg = document.getElementById("prod-seg");
+  let prodCat = "ai";
+  let prodSel = new Set();
+  let prodSaveT = 0;
+  const saveProd = async () => {
+    clearTimeout(prodSaveT);
+    if (!company) return;
+    const next = [...prodSel];
+    if (next.length === company.products.length && next.every((x) => company.products.includes(x))) return;
+    try {
+      await window.cloud.saveProducts(next);
+      company.products = next;
+      renderBiz();
+    } catch (err) {
+      toast("상품을 저장하지 못했어요");
+    }
+  };
+  const paintProd = () => {
+    prodList.innerHTML = PRODUCTS.filter((p) => p.cat === prodCat)
+      .map((p, i) => `<li class="prod-row${prodSel.has(p.id) ? " on" : ""}" data-id="${p.id}" style="--i:${i}" role="button" tabindex="0"><span class="prod-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CATS[p.cat].d}</svg></span><span class="prod-main"><b>${esc(p.name)}</b><span>${esc(p.sub)}</span></span><span class="prod-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></span></li>`)
+      .join("");
+  };
+  document.getElementById("biz-pick").addEventListener("click", () => {
+    prodSel = new Set(company?.products || []);
+    prodCat = "ai";
+    prodSeg.dataset.i = "0";
+    prodSeg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.cat === "ai")));
+    paintProd();
+    sheetOpen(true, document.getElementById("prod-sheet"));
+  });
+  prodSeg.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-cat]");
+    if (!b || b.dataset.cat === prodCat) return;
+    prodCat = b.dataset.cat;
+    prodSeg.dataset.i = String(["ai", "food", "pc"].indexOf(prodCat));
+    prodSeg.querySelectorAll("button").forEach((o) => o.setAttribute("aria-selected", String(o === b)));
+    prodList.classList.add("out");
+    setTimeout(() => { paintProd(); prodList.classList.remove("out"); }, 140);
+  });
+  prodList.addEventListener("click", (e) => {
+    const row = e.target.closest(".prod-row");
+    if (!row) return;
+    const id = row.dataset.id;
+    if (prodSel.has(id)) prodSel.delete(id);
+    else prodSel.add(id);
+    row.classList.toggle("on", prodSel.has(id));
+    navigator.vibrate?.(5);
+    clearTimeout(prodSaveT);
+    prodSaveT = setTimeout(saveProd, 900);
+  });
+  document.getElementById("prod-done").addEventListener("click", () => { saveProd(); sheetOpen(false); });
 
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
   const startWallet = () =>
@@ -1790,6 +2029,7 @@
     mon.classList.toggle("guest", !signedIn);
     mon.classList.toggle("member", signedIn);
     screens.get("ranking").classList.toggle("guest", !signedIn);
+    screens.get("business").classList.toggle("guest", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
@@ -1940,6 +2180,8 @@
     }
     try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); toast("계정 정보를 만들지 못했어요. 새로고침해 주세요"); }
     startWallet();
+    loadCompany(cloud);
+    loadVitalsFor(cloud);
     chats.length = 0;
     renderChats();
     cloud.watchChats((docs) => {
