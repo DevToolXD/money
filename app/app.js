@@ -1219,6 +1219,8 @@
   // 사업 탭: 팔 상품 정하기 화면과 판매 목록 (app/biz.js)
   window.Business.init({
     cloud: () => window.cloud,
+    walletOp: (fn) => walletOp(fn), // 지갑 쓰기는 2.2초 간격으로 줄 세워요
+    settle: () => claimNow(), // 금고에 넣기 전에 쌓인 이자를 먼저 받아요
     company: () => company,
     safeImg: (v, max) => safeImg(v, max),
     toast: (m) => toast(m),

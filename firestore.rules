@@ -130,17 +130,18 @@ service cloud.firestore {
           && !existsAfter(jobPath(request.auth.uid)))
       );
 
-      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요).
-      //   원자력 발전: 핵연료 성능(nperf)을 올려요. 발전을 시작하면 걸린 시간(secs)이 지난 뒤에 창고(elec)에 받아요.
+      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요). 금고(cash, 센트)는 사장만 넣고 빼요. 단가(price, 센트)도 사장만 정해요.
+      //   원자력 발전: 핵연료 성능(nperf)이 높을수록 적은 돈으로(1초 = 1 토큰), 빨리, 한 번에 많이(최대 성능 × 10) 만들어요.
+      //   발전을 시작하면 비용이 금고에서 나가고, 걸린 시간이 지나야 창고(elec)에 받아요. 받기는 회사 사람 누구나 해요.
       //   컴퓨터: 처리 용량(cap)·처리 속도(spd)·전기값(pow)을 올리고, 출시하면 그때 숫자를 rel에 남겨요.
       //   인공지능: 데이터(aiData)를 쌓고, 출시하면 점수(aiScore)를 남겨요. 숫자는 줄지 않아요. 출시 값은 사장만 바꿔요.
       match /lab/{ld} {
         function labOk(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
-                && d.gen.amt is int && d.gen.amt >= 1 && d.gen.amt <= 1000
+                && d.gen.amt is int && d.gen.amt >= 1 && d.gen.amt <= 100000
                 && d.gen.secs is int && d.gen.secs >= 1 && d.gen.started is timestamp))
             && d.cap is int && d.cap >= 0 && d.cap <= 1000000
             && d.spd is int && d.spd >= 0 && d.spd <= 1000000
@@ -150,7 +151,9 @@ service cloud.firestore {
                 && d.rel.spd is int && d.rel.spd >= 0 && d.rel.spd <= d.spd
                 && d.rel.pow is int && d.rel.pow >= 0 && d.rel.pow <= d.pow))
             && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
-            && d.aiScore is int && d.aiScore >= -1 && (d.aiScore == -1 || d.aiScore * 10 <= d.aiData);
+            && d.aiScore is int && d.aiScore >= -1 && (d.aiScore == -1 || d.aiScore * 10 <= d.aiData)
+            && d.cash is int && d.cash >= 0 && d.cash <= 100000000000
+            && d.price is int && d.price >= 0 && d.price <= 100000000;
         }
         function labWho() {
           return signedIn() && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid || get(jobPath(request.auth.uid)).data.cid == cid);
@@ -158,10 +161,12 @@ service cloud.firestore {
         function labOwner() {
           return get(companyPath(cid)).data.get('owner', cid) == request.auth.uid;
         }
-        // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (전기 × 100 ÷ 성능, 올림). 시작 시각은 이 쓰기의 서버 시각이어야 해요
+        // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (올림: 전기 × 100 ÷ 성능). 한 번에 최대 성능 × 10까지예요.
+        //   시작 시각은 이 쓰기의 서버 시각이어야 해요
         function genStarts(d) {
           return d.get('gen', null) != null
             && d.gen.secs == (d.gen.amt * 100 + d.nperf - 1) / d.nperf
+            && d.gen.amt <= d.nperf * 10
             && d.gen.started == request.time;
         }
         // 창고 받기: 발전 시간이 다 지나야 해요
@@ -169,10 +174,28 @@ service cloud.firestore {
           return o.get('gen', null) != null
             && request.time >= o.gen.started + duration.value(o.gen.secs, 's');
         }
+        // 금고 넣기: 사장이 같은 묶음에서 지갑 토큰을 그만큼 뺀 경우만 (금고는 센트: 토큰 × 100)
+        function depositOk(before) {
+          return labOwner()
+            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'deposit'
+            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+            && get(walletPath(request.auth.uid)).data.bal - getAfter(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
+            && request.resource.data.cash == before + getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
+        }
+        // 금고 빼기: 사장이 같은 묶음에서 지갑에 토큰을 그만큼 더한 경우만
+        function withdrawOk(before) {
+          return labOwner()
+            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'withdraw'
+            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+            && getAfter(walletPath(request.auth.uid)).data.bal - get(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
+            && request.resource.data.cash == before - getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
+        }
         allow get: if signedIn();
         allow create: if labWho() && labOk(request.resource.data)
           && request.resource.data.elec == 0
-          && (request.resource.data.get('gen', null) == null || genStarts(request.resource.data))
+          && request.resource.data.get('gen', null) == null
+          && (request.resource.data.cash == 0 || depositOk(0))
+          && (request.resource.data.price == 0 || labOwner())
           && (request.resource.data.get('rel', null) == null && request.resource.data.aiScore == -1 || labOwner());
         allow update: if labWho() && labOk(request.resource.data)
           && request.resource.data.nperf >= resource.data.nperf
@@ -181,13 +204,22 @@ service cloud.firestore {
           && request.resource.data.pow >= resource.data.get('pow', 0)
           && request.resource.data.aiData >= resource.data.aiData
           && (
-            // 발전 시작: 아직 발전 중이 아닐 때만, 창고는 그대로예요
-            (resource.data.get('gen', null) == null && genStarts(request.resource.data) && request.resource.data.elec == resource.data.elec)
-            // 창고 받기: 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요
-            || (genDone(resource.data) && request.resource.data.get('gen', null) == null && request.resource.data.elec == resource.data.elec + resource.data.gen.amt)
-            // 그 밖에는 발전 기록과 창고를 그대로 둬요
-            || (request.resource.data.get('gen', null) == resource.data.get('gen', null) && request.resource.data.elec == resource.data.elec)
+            // 발전 시작 (사장만): 아직 발전 중이 아닐 때, 비용(걸린 초 × 1 토큰)이 금고에서 나가고 창고는 그대로예요
+            (resource.data.get('gen', null) == null && labOwner() && genStarts(request.resource.data)
+              && request.resource.data.elec == resource.data.elec
+              && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.gen.secs * 100)
+            // 창고 받기 (회사 사람 누구나): 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요. 돈은 그대로예요
+            || (genDone(resource.data) && request.resource.data.get('gen', null) == null
+              && request.resource.data.elec == resource.data.elec + resource.data.gen.amt
+              && request.resource.data.cash == resource.data.get('cash', 0))
+            // 그 밖에는 발전 기록과 창고를 그대로 둬요. 금고는 사장이 넣거나 뺄 때만 바뀌어요
+            || (request.resource.data.get('gen', null) == resource.data.get('gen', null)
+              && request.resource.data.elec == resource.data.elec
+              && (request.resource.data.cash == resource.data.get('cash', 0)
+                  || depositOk(resource.data.get('cash', 0))
+                  || withdrawOk(resource.data.get('cash', 0))))
           )
+          && (request.resource.data.price == resource.data.get('price', 0) || labOwner())
           && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
               || (labOwner() && request.resource.data.get('rel', null) != null
                   && request.resource.data.rel.cap == request.resource.data.cap
@@ -291,6 +323,15 @@ service cloud.firestore {
     }
 
     match /wallets/{uid} {
+      // 회사 금고(lab)는 센트 단위예요 (1 토큰 = 100 센트). 같은 묶음에서 금고가 정확히 같은 만큼 바뀌어야 해요
+      function labDoc(c) { return /databases/$(database)/documents/companies/$(c)/lab/main; }
+      function cashIn(c, amt) {
+        return (!exists(labDoc(c)) && getAfter(labDoc(c)).data.get('cash', 0) == amt * 100)
+          || (exists(labDoc(c)) && get(labDoc(c)).data.get('cash', 0) + amt * 100 == getAfter(labDoc(c)).data.get('cash', 0));
+      }
+      function cashOut(c, amt) {
+        return exists(labDoc(c)) && get(labDoc(c)).data.get('cash', 0) - amt * 100 == getAfter(labDoc(c)).data.get('cash', 0);
+      }
       allow get: if isMe(uid);
 
       // 처음 한 번만, 정해진 금액으로 만들어요 (실명 프로필이 있어야 해요)
@@ -355,6 +396,28 @@ service cloud.firestore {
             && !exists(companyPath(request.resource.data.op.cid))
             && existsAfter(companyPath(request.resource.data.op.cid))
             && request.resource.data.bal == resource.data.bal - 10)
+          ||
+          // 금고에 넣기: 회사 사장만. 같은 묶음에서 지갑 토큰이 빠지고 금고가 그만큼(센트) 늘어요
+          (request.resource.data.op.kind == 'deposit'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.cid is string
+            && request.resource.data.op.amt is int
+            && request.resource.data.op.amt > 0
+            && get(companyPath(request.resource.data.op.cid)).data.get('owner', request.resource.data.op.cid) == request.auth.uid
+            && cashIn(request.resource.data.op.cid, request.resource.data.op.amt)
+            && request.resource.data.bal == resource.data.bal - request.resource.data.op.amt)
+          ||
+          // 금고에서 빼기: 회사 사장만. 같은 묶음에서 금고가 줄고 지갑에 그만큼 들어와요
+          (request.resource.data.op.kind == 'withdraw'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.cid is string
+            && request.resource.data.op.amt is int
+            && request.resource.data.op.amt > 0
+            && get(companyPath(request.resource.data.op.cid)).data.get('owner', request.resource.data.op.cid) == request.auth.uid
+            && cashOut(request.resource.data.op.cid, request.resource.data.op.amt)
+            && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt)
         );
     }
 

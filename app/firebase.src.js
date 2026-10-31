@@ -98,6 +98,8 @@ const labOf = (d) => {
     rel: r && Number.isInteger(r.cap) && Number.isInteger(r.spd) && Number.isInteger(r.pow) ? { cap: r.cap, spd: r.spd, pow: r.pow } : null,
     aiData: n(d?.aiData, 0),
     aiScore: n(d?.aiScore, -1),
+    cash: n(d?.cash, 0), // 회사 금고 (센트: 100 = 1 토큰)
+    price: n(d?.price, 0), // 단가 (센트)
   };
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
@@ -413,9 +415,42 @@ window.cloudReady = (async () => {
       },
       labChange: labTx,
       // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (전기 × 100 ÷ 성능, 올림). 이미 발전 중이면 아무 일도 안 해요
-      labGenStart: (cid, amt) =>
-        labTx(cid, (L) => (L.gen ? null : { ...L, gen: { amt, secs: Math.ceil((amt * 100) / L.nperf), started: serverTimestamp() } })).then((r) => r !== null),
+      labGenStart: (cid, amt) => {
+        let why = "ok";
+        return labTx(cid, (L) => {
+          if (!(Number.isInteger(amt) && amt >= 1 && amt <= Math.min(100000, L.nperf * 10))) {
+            why = "max";
+            return null;
+          }
+          if (L.gen) {
+            why = "busy";
+            return null;
+          }
+          const secs = Math.ceil((amt * 100) / L.nperf);
+          if (L.cash < secs * 100) {
+            why = "poor";
+            return null;
+          }
+          return { ...L, cash: L.cash - secs * 100, gen: { amt, secs, started: serverTimestamp() } };
+        }).then((r) => (r ? "ok" : why));
+      },
       // 창고 받기: 발전 시간이 지났으면 발전량을 창고에 넣고 받은 양을 돌려줘요 (아직이면 0)
+      // 금고: 사장이 지갑의 토큰을 회사 금고로 넣거나(dir 1) 금고에서 지갑으로 뺄 때(dir -1) 써요. 한 묶음으로 바뀌어요
+      labCash: (cid, tokens, dir) =>
+        runTransaction(db, async (tx) => {
+          const wref = walletRef();
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const ws = await tx.get(wref);
+          const ls = await tx.get(lref);
+          const bal = ws.data().bal;
+          const L = labOf(ls.exists() ? ls.data() : null);
+          if (dir > 0 && bal < tokens) throw Object.assign(new Error("잔액이 부족해요"), { code: "insufficient" });
+          if (dir < 0 && L.cash < tokens * 100) throw Object.assign(new Error("금고가 부족해요"), { code: "insufficient" });
+          tx.update(wref, { bal: bal - dir * tokens, wt: serverTimestamp(), op: { kind: dir > 0 ? "deposit" : "withdraw", cid, amt: tokens } });
+          const cash = L.cash + dir * tokens * 100;
+          tx.set(lref, { ...L, cash });
+          return cash;
+        }).catch(rethrow),
       labGenClaim: async (cid) => {
         let got = 0;
         const r = await labTx(cid, (L) => {

@@ -673,8 +673,16 @@ await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·�
 
 console.log("\n[연구실]");
 const labRef = (db, cid = "uA") => doc(db, "companies/" + cid + "/lab/main");
-const labFields = (over = {}) => ({ nperf: 100, elec: 0, gen: null, cap: 0, spd: 0, pow: 0, rel: null, aiData: 0, aiScore: -1, ...over });
+const labFields = (over = {}) => ({ nperf: 100, elec: 0, gen: null, cap: 0, spd: 0, pow: 0, rel: null, aiData: 0, aiScore: -1, cash: 0, price: 0, ...over });
 const jobSeed = (db) => setDoc(doc(db, "jobs/uB"), { cid: "uA", kind: "nuclear", at: EPOCH });
+const walletSeed = (uid, bal) => seed((d) => setDoc(doc(d, "wallets/" + uid), { bal, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
+const labSeed = (over = {}) => seed((d) => setDoc(doc(d, "companies/uA/lab/main"), labFields(over)));
+// 지갑 쪽 묶음: 넣기(deposit)는 지갑 토큰이 빠지고, 빼기(withdraw)는 지갑에 토큰이 들어와요
+const tokenBatch = (db, uid, kind, cid, amt) => {
+  const b = writeBatch(db);
+  b.update(doc(db, "wallets/" + uid), { bal: increment(kind === "deposit" ? -amt : amt), wt: serverTimestamp(), op: { kind, cid, amt } });
+  return b;
+};
 await t("연구실: 사장과 그 회사 직원만 숫자를 올려요 (성능·용량·데이터는 줄일 수 없어요)", async () => {
   await coSeed();
   const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
@@ -696,45 +704,95 @@ await t("연구실: 출시 값은 사장만, 출시 숫자는 지금 숫자와 �
   await assertFails(updateDoc(labRef(bob), { rel: { cap: 6, spd: 4, pow: 2 } })); // 직원은 출시 못 해요
   await assertFails(updateDoc(labRef(alice), { rel: { cap: 7, spd: 4, pow: 2 } })); // 지금 숫자와 다르면 출시 못 해요
   await assertSucceeds(updateDoc(labRef(alice), { rel: { cap: 6, spd: 4, pow: 2 } })); // 출시
-  await assertSucceeds(updateDoc(labRef(bob), { cap: 7 })); // 출시한 뒤에도 직원은 검사를 계속해요 (출시 값은 그대로)
+  await assertSucceeds(updateDoc(labRef(bob), { cap: 7 })); // 출시한 뒤에도 직원은 검사를 계속해요
   await assertFails(updateDoc(labRef(bob), { rel: null })); // 직원은 출시 값을 지울 수 없어요
   await assertFails(updateDoc(labRef(alice), { aiScore: 6 })); // 점수는 데이터의 10분의 1까지예요 (50 → 5)
   await assertSucceeds(updateDoc(labRef(alice), { aiScore: 5 })); // AI 출시
 });
-await t("연구실: 발전 시작은 핵연료 성능으로 정한 시간만 쓰고, 창고는 그대로예요", async () => {
+await t("연구실: 발전은 사장만 시작하고, 걸린 초만큼 토큰(1초 = 100센트)이 금고에서 나가요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await seed(jobSeed);
+  await labSeed({ cash: 50000 });
+  await assertFails(updateDoc(labRef(bob), { gen: { amt: 10, secs: 10, started: serverTimestamp() }, cash: 49000 })); // 직원은 시작 못 해요
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 10, secs: 10, started: serverTimestamp() } })); // 돈이 나가야 해요
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 10, secs: 10, started: serverTimestamp() }, cash: 49500 })); // 10초는 1000센트
+  await assertSucceeds(updateDoc(labRef(alice), { gen: { amt: 10, secs: 10, started: serverTimestamp() }, cash: 49000 })); // 발전 시작
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 1, secs: 1, started: serverTimestamp() }, cash: 48900 })); // 이미 발전 중이면 또 시작 못 해요
+});
+await t("연구실: 성능이 높을수록 적은 돈으로 빨리, 한 번에 최대 성능×10까지 만들어요", async () => {
   await coSeed();
   const alice = pw("uA", "alice");
-  await assertSucceeds(setDoc(labRef(alice), labFields()));
-  await assertFails(updateDoc(labRef(alice), { gen: { amt: 50, secs: 10, started: serverTimestamp() } })); // 성능 100이면 50초
-  await assertFails(updateDoc(labRef(alice), { gen: { amt: 50, secs: 50, started: EPOCH } })); // 과거 시각으로 시작할 수 없어요
-  await assertFails(updateDoc(labRef(alice), { elec: 10, gen: { amt: 50, secs: 50, started: serverTimestamp() } })); // 창고를 채우면서 시작할 수 없어요
-  await assertFails(updateDoc(labRef(alice), { gen: { amt: 2000, secs: 2000, started: serverTimestamp() } })); // 한 번에 1000까지예요
+  await labSeed({ cash: 1000000 });
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 2000, secs: 2000, started: serverTimestamp() }, cash: 800000 })); // 성능 100이면 한 번에 1000까지
   await assertSucceeds(updateDoc(labRef(alice), { nperf: 200 })); // 핵연료 성능을 올려요
-  await assertFails(updateDoc(labRef(alice), { gen: { amt: 50, secs: 26, started: serverTimestamp() } })); // 성능 200이면 25초 (올림)
-  await assertSucceeds(updateDoc(labRef(alice), { gen: { amt: 50, secs: 25, started: serverTimestamp() } })); // 발전 시작
-  await assertFails(updateDoc(labRef(alice), { gen: { amt: 1, secs: 1, started: serverTimestamp() } })); // 이미 발전 중이면 또 시작할 수 없어요
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 2000, secs: 999, started: serverTimestamp() }, cash: 900100 })); // 시간이 맞아야 해요 (1000초)
+  await assertFails(updateDoc(labRef(alice), { gen: { amt: 2000, secs: 1000, started: EPOCH }, cash: 900000 })); // 과거 시각으로 시작 못 해요
+  await assertFails(updateDoc(labRef(alice), { elec: 5, gen: { amt: 2000, secs: 1000, started: serverTimestamp() }, cash: 900000 })); // 창고를 채우면서 시작 못 해요
+  await assertSucceeds(updateDoc(labRef(alice), { gen: { amt: 2000, secs: 1000, started: serverTimestamp() }, cash: 900000 })); // 2000 전기, 1000초, 1000 토큰
 });
-await t("연구실: 창고 받기는 발전 시간이 지난 뒤에만, 발전량만큼 늘어요", async () => {
+await t("연구실: 창고 받기는 발전 시간이 지난 뒤에만, 발전량만큼 늘어요 (회사 사람 누구나)", async () => {
   await coSeed();
   const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
   await seed(jobSeed);
-  await assertSucceeds(setDoc(labRef(alice), labFields()));
-  await assertSucceeds(updateDoc(labRef(bob), { gen: { amt: 3, secs: 3, started: serverTimestamp() } })); // 직원도 발전을 시작해요 (성능 100이면 3초)
+  await labSeed({ cash: 100000 });
+  await assertSucceeds(updateDoc(labRef(alice), { gen: { amt: 3, secs: 3, started: serverTimestamp() }, cash: 99700 })); // 3 전기는 3초, 300센트
   await assertFails(updateDoc(labRef(bob), { elec: 3, gen: null })); // 시간이 덜 지났어요
   await sleep(3500);
-  await assertFails(updateDoc(labRef(carol), { elec: 3, gen: null })); // 회사 밖 사람은 시간이 지나도 못 받아요
-  await assertFails(updateDoc(labRef(bob), { elec: 5, gen: null })); // 발전량(3)과 다르면 안 돼요
-  await assertFails(updateDoc(labRef(bob), { elec: 3 })); // 발전 기록을 지우지 않으면 안 돼요
-  await assertSucceeds(updateDoc(labRef(bob), { elec: 3, gen: null })); // 창고에 3 받기
+  await assertFails(updateDoc(labRef(carol), { elec: 3, gen: null })); // 회사 밖 사람은 못 받아요
+  await assertFails(updateDoc(labRef(bob), { elec: 5, gen: null })); // 발전량과 다르면 안 돼요
+  await assertFails(updateDoc(labRef(bob), { elec: 3 })); // 발전 기록을 지워야 해요
+  await assertSucceeds(updateDoc(labRef(bob), { elec: 3, gen: null })); // 직원이 창고에 받아요 (돈은 그대로)
   await assertFails(updateDoc(labRef(alice), { elec: 9 })); // 발전 없이는 창고가 늘지 않아요
 });
-await t("연구실: 처음 만들 때 창고는 비어 있고, 발전 중이면 지금 시작해야 해요", async () => {
+await t("연구실: 처음 만들 때 창고는 비어 있고, 금고는 사장이 지갑에서 넣은 만큼만 있어요", async () => {
   await coSeed();
   const alice = pw("uA", "alice"), carol = pw("uC", "carol");
-  await assertFails(setDoc(labRef(alice), labFields({ elec: 10 }))); // 창고가 비어 있어야 해요
-  await assertFails(setDoc(labRef(alice), labFields({ gen: { amt: 1, secs: 1, started: EPOCH } }))); // 과거 시각으로 시작할 수 없어요
-  await assertSucceeds(setDoc(labRef(alice), labFields({ gen: { amt: 1, secs: 1, started: serverTimestamp() } }))); // 지금 시작
+  await walletSeed("uA", 100);
+  await assertFails(setDoc(labRef(alice), labFields({ elec: 10 }))); // 창고는 비어 있어야 해요
+  await assertFails(setDoc(labRef(alice), labFields({ cash: 500 }))); // 지갑에서 넣은 기록 없이 금고가 생길 수 없어요
+  await assertFails(setDoc(labRef(alice), labFields({ gen: { amt: 1, secs: 1, started: serverTimestamp() } }))); // 처음부터 발전할 수 없어요
   await assertFails(setDoc(labRef(carol), labFields())); // 회사 밖 사람은 만들 수 없어요
+  await assertSucceeds(setDoc(labRef(alice), labFields()));
+});
+await t("금고: 사장이 지갑 토큰을 넣고 빼요 (지갑과 금고가 같은 묶음에서 정확히 맞아야 해요)", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await seed(jobSeed);
+  await walletSeed("uA", 100);
+  await walletSeed("uB", 100);
+  const b1 = tokenBatch(alice, "uA", "deposit", "uA", 30); // 30 토큰 → 금고 3000센트 (처음 만들면서)
+  b1.set(labRef(alice), labFields({ cash: 3000 }));
+  await assertSucceeds(b1.commit());
+  await sleep(2100);
+  const b2 = tokenBatch(alice, "uA", "deposit", "uA", 20); // 20 토큰 더 → 5000센트
+  b2.update(labRef(alice), { cash: 5000 });
+  await assertSucceeds(b2.commit());
+  await sleep(2100);
+  const bad = tokenBatch(alice, "uA", "deposit", "uA", 10); // 지갑은 10 빠졌는데 금고는 1500 늘었어요 → 안 돼요
+  bad.update(labRef(alice), { cash: 6500 });
+  await assertFails(bad.commit());
+  const bobDep = tokenBatch(bob, "uB", "deposit", "uA", 10); // 직원은 넣을 수 없어요
+  bobDep.update(labRef(bob), { cash: 6000 });
+  await assertFails(bobDep.commit());
+  const lone = tokenBatch(alice, "uA", "deposit", "uA", 10); // 지갑만 빠지고 금고는 그대로인 것도 안 돼요
+  await assertFails(lone.commit());
+  const w1 = tokenBatch(alice, "uA", "withdraw", "uA", 10); // 10 토큰 빼기 → 금고 4000센트, 지갑 +10
+  w1.update(labRef(alice), { cash: 4000 });
+  await assertSucceeds(w1.commit());
+  await sleep(2100);
+  const w2 = tokenBatch(alice, "uA", "withdraw", "uA", 100); // 금고보다 많이 빼면 안 돼요
+  w2.update(labRef(alice), { cash: -96000 });
+  await assertFails(w2.commit());
+});
+await t("단가: 사장만 정해요 (센트, 0 이상)", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await seed(jobSeed);
+  await assertSucceeds(setDoc(labRef(alice), labFields()));
+  await assertSucceeds(updateDoc(labRef(alice), { price: 300 })); // 3 토큰
+  await assertFails(updateDoc(labRef(bob), { price: 500 })); // 직원은 단가를 못 정해요
+  await assertFails(updateDoc(labRef(alice), { price: -1 }));
 });
 
 console.log("\n[상태]");

@@ -1333,6 +1333,12 @@ html[data-theme="dark"] .draw { background: #fff; }
 .lab-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 4px; font-size: 15px; color: var(--text-secondary); }
 .lab-input { width: 120px; padding: 10px 12px; border: 0; border-radius: 14px; background: #f2f2f7; font: inherit; font-size: 20px; font-weight: 800; text-align: right; color: #000; font-variant-numeric: tabular-nums; }
 .lab-input:focus { outline: 2px solid #0a7cff; outline-offset: 1px; }
+/* 회사 금고와 단가 */
+.lab-cash, .lab-price { display: grid; gap: 10px; }
+.lab-unit { display: flex; align-items: center; gap: 6px; }
+.lab-unit b { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.lab-cashv { color: #000; font-weight: 800; }
+
 /* 핵연료 배합 벤치: 재료 병, 스포이드, 플라스크, 꾹 눌러 섞기 */
 .lab-bench { display: grid; gap: 14px; }
 .lab-top { display: flex; align-items: center; gap: 14px; }
