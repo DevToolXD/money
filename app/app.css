@@ -750,7 +750,6 @@ html[data-theme="dark"] { --t-ink: #f2f4f6; --t-mid: #e5e8eb; --t-gray: #a3a9b3;
 .ac-fine-l { flex: none; font-size: 11px; line-height: 13px; font-weight: 700; color: var(--text-primary); }
 .ac-fine i { flex: none; width: 1px; height: 30px; background: var(--hairline); }
 .ac-fine b { flex: none; font-size: 21px; line-height: 24px; font-weight: 800; letter-spacing: -0.02em; color: #1d4fa3; }
-.ac-fine-r { font-size: 11px; line-height: 14px; font-style: italic; }
 .ac-pill { flex: none; height: 38px; padding: 0 16px; border-radius: 19px; background: var(--text-primary); color: var(--bg-card); font-size: 15px; font-weight: 600; transition: transform 0.25s var(--ease); }
 .ac-pill:active { transform: scale(0.95); }
 .ac-note { display: block; width: 100%; padding: 0 22px 14px; text-align: left; font-size: 14px; line-height: 19px; color: var(--text-secondary); font-weight: 500; }

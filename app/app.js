@@ -472,16 +472,46 @@
   const newEmpty = document.getElementById("new-empty");
   let pickMode = "chat"; // "chat": 대화 열기, "gift": 토큰 보내기 받는 사람 고르기
   let people = [];
+  let listMore = false;
+  let listBusy = false;
+  const rowHTML = (u, i) => `<li><button class="res-row" type="button" data-i="${i}">${avatarHTML(u.name || u.id, u.photo, "avatar contact")}<span class="res-main"><b>${esc(u.name || u.id)}</b><span>@${esc(u.id)}</span></span></button></li>`;
+  // 사람 목록을 20명씩 이어서 불러와요 (끝까지 내리면 다음 20명)
+  const loadPeople = async (reset) => {
+    if (listBusy) return;
+    listBusy = true;
+    try {
+      const r = await window.cloud.listUsers(reset);
+      if (newQ.value.trim()) return;
+      if (reset) people = [];
+      const start = people.length;
+      people = people.concat(r.list);
+      listMore = r.more;
+      newResults.insertAdjacentHTML(reset ? "afterbegin" : "beforeend", r.list.map((u, i) => rowHTML(u, start + i)).join(""));
+      newEmpty.hidden = people.length > 0;
+      newEmpty.textContent = "아직 다른 사람이 없어요";
+    } catch (err) {
+      newEmpty.hidden = false;
+      newEmpty.textContent = "목록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요";
+    } finally {
+      listBusy = false;
+    }
+  };
   const openPicker = (mode) => {
     if (!live) return showLogin(true);
     pickMode = mode;
     document.getElementById("new-title").textContent = mode === "gift" ? "받는 사람" : "새 메시지";
     newQ.value = "";
     newResults.innerHTML = "";
+    people = [];
     newEmpty.hidden = false;
-    newEmpty.textContent = "이름의 첫 글자부터 입력해 보세요";
+    newEmpty.textContent = "불러오는 중이에요";
     sheetOpen(true, newSheet);
+    loadPeople(true);
   };
+  newResults.parentElement.addEventListener("scroll", (e) => {
+    const sc = e.target;
+    if (listMore && !newQ.value.trim() && sc.scrollTop + sc.clientHeight > sc.scrollHeight - 160) loadPeople(false);
+  }, { passive: true });
   document.getElementById("compose").addEventListener("click", () => openPicker("chat"));
   document.getElementById("new-cancel").addEventListener("click", () => sheetOpen(false));
   let searchTimer = 0;
@@ -489,10 +519,13 @@
   newQ.addEventListener("input", () => {
     clearTimeout(searchTimer);
     const q = newQ.value.trim();
+    searchSeq++;
     if (!q) {
       newResults.innerHTML = "";
+      people = [];
       newEmpty.hidden = false;
-      newEmpty.textContent = "이름의 첫 글자부터 입력해 보세요";
+      newEmpty.textContent = "불러오는 중이에요";
+      loadPeople(true);
       return;
     }
     searchTimer = setTimeout(async () => {
@@ -501,7 +534,7 @@
         const found = await window.cloud.searchUsers(q);
         if (seq !== searchSeq) return;
         people = found;
-        newResults.innerHTML = found.map((u, i) => `<li><button class="res-row" type="button" data-i="${i}">${avatarHTML(u.name || u.id, u.photo, "avatar contact")}<span class="res-main"><b>${esc(u.name || u.id)}</b><span>@${esc(u.id)}</span></span></button></li>`).join("");
+        newResults.innerHTML = found.map(rowHTML).join("");
         newEmpty.hidden = found.length > 0;
         newEmpty.textContent = "일치하는 사람이 없어요";
       } catch (err) {
@@ -774,7 +807,7 @@
     <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
     <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
     <div class="ac-bal"><div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div></div>
-    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b><span class="ac-fine-r">이 게임 안에서만 쓰는 가상 화폐예요. 실제 돈과는 관계없어요.</span></div>
+    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b></div>
     <div class="ac-bal ac-more-box">
       <button class="ac-note" id="ac-note" type="button" data-volatile></button>
       <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
@@ -1540,8 +1573,8 @@
       errEl.textContent = "아이디는 영문, 숫자, _ 로 3~20자예요";
       return;
     }
-    if (signup && (pw.length < 8 || pw.length > 64 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw))) {
-      errEl.textContent = "비밀번호는 8자 이상, 영문과 숫자를 함께 써 주세요";
+    if (signup && (pw.length < 6 || pw.length > 64)) {
+      errEl.textContent = "비밀번호는 6자 이상으로 써 주세요";
       return;
     }
     if (signup && pw !== pw2El.value) {

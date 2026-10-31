@@ -103,6 +103,7 @@ await t("이름으로 찾기는 한 번에 20명까지만, 한도 없이 전부 
   const db = pw("uB", "bob");
   await assertSucceeds(getDocs(query(collection(db, "profiles"), where("name", ">=", "김"), where("name", "<=", "김"), limit(20))));
   await assertFails(getDocs(query(collection(db, "profiles"), limit(21))));
+  await assertSucceeds(getDocs(query(collection(db, "profiles"), orderBy("name"), limit(20))));
   await assertFails(getDocs(collection(db, "profiles")));
 });
 

@@ -132,6 +132,7 @@ window.cloudReady = (async () => {
       return { id: s.id, ...d, at: ms(d.at) };
     };
 
+    let listCursor = null;
     window.cloud = {
       get uid() {
         return auth.currentUser?.uid || "";
@@ -209,6 +210,20 @@ window.cloudReady = (async () => {
             writeCache(d.id, d.data());
             return { uid: d.id, ...d.data() };
           });
+      },
+      // 모든 사람을 이름순으로 20명씩 보여줘요 (reset이면 처음부터, 아니면 이어서)
+      listUsers: async (reset) => {
+        if (reset) listCursor = null;
+        const base = [collection(db, "profiles"), orderBy("name")];
+        const snap = await getDocs(query(...base, ...(listCursor ? [startAfter(listCursor)] : []), limit(20)));
+        if (snap.docs.length) listCursor = snap.docs[snap.docs.length - 1];
+        const list = snap.docs
+          .filter((d) => d.id !== uidOf())
+          .map((d) => {
+            writeCache(d.id, d.data());
+            return { uid: d.id, ...d.data() };
+          });
+        return { list, more: snap.docs.length >= 20 };
       },
       setPhoto: async (photo) => {
         await updateDoc(doc(db, "profiles", uidOf()), { photo });
