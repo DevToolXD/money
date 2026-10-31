@@ -644,7 +644,7 @@ html[data-theme="dark"] .toss { --t-ink: #f2f4f6; --t-mid: #e5e8eb; --t-gray: #a
 .t-right { margin-left: auto; font-size: 17px; color: var(--t-gray); font-weight: 500; }
 .t-ico { display: grid; place-items: center; flex: none; width: 58px; height: 58px; border-radius: 50%; font-size: 28px; }
 .t-ico.sm { width: 48px; height: 48px; font-size: 23px; }
-.t-ico.cardico { width: 34px; height: 46px; border-radius: 8px; background: #3b4252; font-size: 0; }
+.t-ico.cardico { width: 34px; height: 34px; border-radius: 0; background: none; font-size: 0; }
 .t-rows { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 22px; }
 .t-row { display: flex; align-items: center; gap: 18px; }
 .t-main { display: grid; gap: 1px; min-width: 0; flex: 1; }
@@ -658,3 +658,42 @@ html[data-theme="dark"] .toss { --t-ink: #f2f4f6; --t-mid: #e5e8eb; --t-gray: #a
 .t-row.tx .ts-name { font-size: 18px; }
 .t-amt { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; color: var(--t-ink); }
 .t-amt.plus { color: var(--t-blue); }
+
+/* 돈 탭: 이모지 없이 검은 윤곽선 아이콘만 */
+.t-ico { background: rgba(120, 130, 150, 0.12) !important; color: var(--t-ink); }
+.t-ico svg { width: 26px; height: 26px; }
+.t-ico.cardico { background: none !important; }
+.t-ico.cardico svg { width: 34px; height: 34px; }
+.t-title.plain { justify-content: flex-start; }
+.t-big { display: block; margin-top: 18px; font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.035em; color: var(--t-ink); }
+.t-tap { display: block; width: calc(100% - 40px); text-align: left; transition: transform 0.25s var(--ease); }
+.t-tap:active { transform: scale(0.985); }
+.t-row.tx { width: 100%; }
+.t-row.tx .t-main { flex: 1 1 auto; min-width: 0; }
+.ts-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-amt { flex: none; white-space: nowrap; font-size: 17px; }
+.t-ico.sm { width: 44px; height: 44px; }
+.sheet.tall { max-height: 88%; display: flex; flex-direction: column; }
+.sheet-scroll { overflow-y: auto; margin: 0 -24px; padding: 0 24px 8px; scrollbar-width: none; }
+.sheet.tall .t-row.tx .ts-name { color: var(--t-ink); }
+.chart-seg { display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 999px; background: rgba(120, 120, 128, 0.14); }
+.chart-seg button { height: 38px; border-radius: 999px; font-size: 16px; font-weight: 700; color: var(--text-secondary); transition: background-color 0.3s var(--ease), color 0.3s, box-shadow 0.3s; }
+.chart-seg button[aria-selected="true"] { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+.chart-sum { display: grid; gap: 4px; margin: 22px 0 6px; }
+.chart-sum span { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
+.chart-sum b { font-size: 34px; line-height: 40px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.chart-box { position: relative; height: 210px; margin-top: 6px; touch-action: pan-y; }
+.chart-box svg { width: 100%; height: 100%; overflow: visible; }
+.chart-axis { position: relative; height: 22px; margin-bottom: 10px; }
+.chart-axis span { position: absolute; transform: translateX(-50%); font-size: 13px; font-weight: 600; color: var(--text-tertiary); white-space: nowrap; }
+.c-line { fill: none; stroke: #3182f6; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.c-area { opacity: 0; }
+.c-dot { fill: #fff; stroke: #3182f6; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0; }
+.c-guide { stroke: rgba(120, 130, 150, 0.5); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: 0; }
+.go .c-line { animation: draw 1.3s cubic-bezier(0.3, 0.7, 0.2, 1) forwards; }
+.go .c-area { animation: fadeIn 0.9s 0.6s ease forwards; }
+.go .c-dot { animation: dotIn 0.35s ease forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes dotIn { from { opacity: 0; } to { opacity: 1; } }
+.chart-tip { position: absolute; top: -4px; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; background: var(--text-primary); color: var(--bg-card); font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; }

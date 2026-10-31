@@ -9,7 +9,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=8">
+<link rel="stylesheet" href="app/app.css?v=9">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -28,35 +28,8 @@
     </section>
 
     <section class="screen toss" id="screen-money" data-screen="money" data-title="돈" data-notitle aria-label="돈">
-      <header class="toss-top"><span class="t-pay" aria-label="Pay">Pay</span><span class="t-bell" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg><i></i></span></header>
-      <div class="t-card">
-        <div class="t-pad"><h2 class="t-title">내 머니</h2><p class="t-acct">자본은행 가상계좌 1908-4169-7097</p>
-          <div class="t-bal"><b>1,250,000원</b><svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg><button class="t-btn" type="button">보내기</button></div></div>
-        <div class="t-line"><span class="t-ico cardico">💳</span><span class="ts-name">내 카드</span><span class="t-right">이번 달 82,641원</span></div>
-      </div>
-      <div class="t-card"><div class="t-pad"><h2 class="t-title">내 계좌<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></h2>
-        <ul class="t-rows">
-          <li class="t-row"><span class="t-ico" style="background:#dbe9ff">💵</span><span class="t-main"><span class="t-label">생활비 통장</span><b class="t-value">350,000원</b></span><button class="t-btn " type="button">보내기</button></li>
-          <li class="t-row"><span class="t-ico" style="background:#fdf0c8">🪙</span><span class="t-main"><span class="t-label">비상금 통장</span><b class="t-value">500,000원</b><span class="t-sub blue">쌓인 이자 55원</span></span><button class="t-btn grey" type="button">이자 받기</button></li>
-          <li class="t-row"><span class="t-ico" style="background:#d9f5e3">💰</span><span class="t-main"><span class="t-label">월급 통장</span><b class="t-value">400,000원</b></span><button class="t-btn " type="button">보내기</button></li>
-        </ul></div></div>
-      <div class="t-card"><div class="t-pad"><h2 class="t-title">이번 달 쓴 돈<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></h2>
-        <ul class="t-rows"><li class="t-row"><span class="t-ico" style="background:#6fd6a0">🗓️</span><span class="t-main"><span class="t-label">5월 지출</span><b class="t-value">82,641원</b></span></li></ul>
-        <div class="t-meter"><span style="width:27%"></span></div><p class="t-note">예산 300,000원 중 27%를 썼어요</p></div></div>
-      <div class="t-card"><div class="t-pad"><h2 class="t-title">사용내역<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></h2>
-        <p class="t-date">오늘</p>
-        <ul class="t-rows">
-          <li class="t-row tx"><span class="t-ico sm" style="background:#ffe9d6">🏪</span><span class="t-main"><b class="ts-name">편의점</b><span class="t-label">14:02 · 식비</span></span><b class="t-amt">-4,500원</b></li>
-          <li class="t-row tx"><span class="t-ico sm" style="background:#f1e6da">☕</span><span class="t-main"><b class="ts-name">카페</b><span class="t-label">09:15 · 카페</span></span><b class="t-amt">-5,800원</b></li>
-        </ul>
-        <p class="t-date">어제</p>
-        <ul class="t-rows">
-          <li class="t-row tx"><span class="t-ico sm" style="background:#d9f5e3">💰</span><span class="t-main"><b class="ts-name">월급</b><span class="t-label">18:30 · 입금</span></span><b class="t-amt plus">+400,000원</b></li>
-          <li class="t-row tx"><span class="t-ico sm" style="background:#dbe9ff">🚌</span><span class="t-main"><b class="ts-name">교통카드</b><span class="t-label">08:10 · 교통</span></span><b class="t-amt">-1,550원</b></li>
-          <li class="t-row tx"><span class="t-ico sm" style="background:#ffd9e4">🎁</span><span class="t-main"><b class="ts-name">친구에게 받음</b><span class="t-label">07:42 · 송금</span></span><b class="t-amt plus">+30,000원</b></li>
-        </ul></div></div>
-      <div class="t-card"><div class="t-pad"><h2 class="t-title">저금통<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></h2>
-        <ul class="t-rows"><li class="t-row"><span class="t-ico" style="background:#f4a5ad">🐷</span><span class="t-main"><span class="t-label">저금한 돈</span><b class="t-value">200,000원</b></span></li><li class="t-row"><span class="t-ico" style="background:#f0e6ff">📈</span><span class="t-main"><span class="t-label">목표 달성률</span><b class="t-value">64%</b></span></li></ul></div></div>
+      <header class="toss-top"><span class="t-bell" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg><i></i></span></header>
+      <div id="money-root"></div>
     </section>
     <section class="screen" id="screen-work" data-screen="work" data-title="일" aria-labelledby="title-work">
       <header class="large-title"><h1 id="title-work">일</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
@@ -124,10 +97,10 @@
       </div>
       <h2 class="section-title">설정</h2>
       <div class="card"><ul class="rows">
-        <li><div class="row"><span class="ico-sq" style="background:#ff453a">🔔</span><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></div></li>
-        <li><div class="row"><span class="ico-sq" style="background:#0a84ff">🔒</span><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
-        <li><div class="row"><span class="ico-sq" style="background:#30d158">💬</span><span class="row-main"><b>대화</b><span>배경화면은 대화 위쪽 이름을 눌러 바꿔요</span></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
-        <li><div class="row"><span class="ico-sq" style="background:#8e8e93">?</span><span class="row-main"><b>도움말</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#ff453a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg></span><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#0a84ff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.500"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#30d158"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 7 0 0 1-12.500 5.800L4 19l1.200-3.400A8 7 0 1 1 20 12z"/></svg></span><span class="row-main"><b>대화</b><span>배경화면은 대화 위쪽 이름을 눌러 바꿔요</span></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#8e8e93"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.500 9.500a2.500 2.500 0 1 1 3.600 2.200c-.8.4-1.100 1-1.100 1.800M12 17h.01"/></svg></span><span class="row-main"><b>도움말</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
       </ul></div>
       <div class="card" id="auth-row" hidden><button class="row logout" id="logout" type="button"><b>로그아웃</b></button></div>
     </section>
@@ -150,6 +123,21 @@
     <div class="sheet-head"><button class="link" id="sheet-cancel" type="button">취소</button><h2>프로필 편집</h2><button class="link" id="sheet-save" type="button" style="font-weight:700">저장</button></div>
     <label class="field">이름<input id="edit-name" type="text" maxlength="30"></label>
     <label class="field">소개<textarea id="edit-bio" rows="3" maxlength="120"></textarea></label>
+  </section>
+
+  <section class="sheet tall" id="history-sheet" aria-label="사용내역">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span></span><h2>사용내역</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
+    <div class="sheet-scroll" id="history-list"></div>
+  </section>
+
+  <section class="sheet tall" id="chart-sheet" aria-label="쓴 돈">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span></span><h2>쓴 돈</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
+    <div class="chart-seg" id="chart-seg" role="tablist"><button role="tab" data-r="y" aria-selected="false">년</button><button role="tab" data-r="m" aria-selected="true">월</button><button role="tab" data-r="d" aria-selected="false">일</button></div>
+    <div class="chart-sum"><span id="chart-label">그동안 쓴 합계</span><b id="chart-total">0 토큰</b></div>
+    <div class="chart-box"><svg id="chart" viewBox="0 0 340 200" preserveAspectRatio="none"></svg><div class="chart-tip" id="chart-tip" hidden></div></div>
+    <div class="chart-axis" id="chart-axis"></div>
   </section>
 
   <section class="sheet" id="new-sheet" aria-label="새 메시지">
@@ -209,6 +197,6 @@
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=5"></script>
 <script type="module" src="app/firebase.js?v=7"></script>
-<script src="app/app.js?v=11"></script>
+<script src="app/app.js?v=12"></script>
 </body>
 </html>

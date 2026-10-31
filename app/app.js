@@ -416,6 +416,162 @@
   });
 
 
+
+  /* ---------- 돈 (화폐 단위는 토큰) ---------- */
+  const IC = {
+    store: '<path d="M4 9l1.500-5h13L20 9M4 9v11h16V9M4 9c0 1.800 1.500 2.800 2.700 2.800S9.300 10.800 9.300 9c0 1.800 1.200 2.800 2.700 2.800s2.700-1 2.700-2.800c0 1.800 1.300 2.800 2.700 2.800S20 10.800 20 9M10 20v-5h4v5"/>',
+    cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.500a2.500 2.500 0 0 1 0 5H16M8 3v3M12 3v3"/>',
+    bus: '<rect x="5" y="4" width="14" height="14" rx="3"/><path d="M5 12h14M8 18v2M16 18v2M8.500 15h.01M15.500 15h.01"/>',
+    card: '<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10h18M7 15h3"/>',
+    income: '<circle cx="12" cy="12" r="8.500"/><path d="M12 16V8M8.500 11.500L12 8l3.500 3.500"/>',
+    gift: '<rect x="4" y="9" width="16" height="11" rx="2"/><path d="M3 9h18v3H3zM12 9v11M12 9C10 9 8 8 8 6.500S10.500 4.500 12 9zM12 9c2 0 4-1 4-2.500S13.500 4.500 12 9z"/>',
+    book: '<path d="M5 4.500h10a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3zM8 17h10"/>',
+    ticket: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12"/>',
+    bag: '<path d="M5 8h14l-1 12H6zM9 8V6.500a3 3 0 0 1 6 0V8"/>',
+  };
+  const ico = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
+  const rng = (seed) => () => ((seed = (seed + 0x6d2b79f5) | 0), (((Math.imul(seed ^ (seed >>> 15), 1 | seed) + (Math.imul(seed ^ (seed >>> 7), 61 | seed) ^ seed)) ^ 0) >>> 0) / 4294967296);
+  const SHOPS = [
+    ["편의점", "식비", "store", 1800, 7500],
+    ["카페", "카페", "cup", 3800, 7200],
+    ["교통카드", "교통", "bus", 1400, 4000],
+    ["서점", "문화", "book", 9000, 28000],
+    ["영화관", "문화", "ticket", 11000, 16000],
+    ["쇼핑", "쇼핑", "bag", 15000, 60000],
+  ];
+  const DAYS = 365 * 3;
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today0 = startOfDay(new Date());
+  const book = []; // 날짜순 내역 (지출은 음수, 입금은 양수)
+  const daily = new Array(DAYS).fill(0); // 하루 동안 쓴 돈. 마지막이 오늘
+  {
+    const rand = rng(20240131);
+    for (let i = DAYS - 1; i >= 0; i--) {
+      const date = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i);
+      const n = Math.floor(rand() * 3.2);
+      for (let k = 0; k < n; k++) {
+        const s = SHOPS[Math.floor(rand() * rand() * SHOPS.length)];
+        const amt = Math.round((s[3] + rand() * (s[4] - s[3])) / 100) * 100;
+        const at = new Date(date.getTime() + (8 + k * 4 + Math.floor(rand() * 3)) * 3600e3 + Math.floor(rand() * 59) * 60e3);
+        book.push({ t: at.getTime(), name: s[0], cat: s[1], icon: s[2], amt: -amt });
+        daily[DAYS - 1 - i] += amt;
+      }
+      if (date.getDate() === 25) book.push({ t: date.getTime() + 18.5 * 3600e3, name: "월급", cat: "입금", icon: "income", amt: 400000 });
+      else if (rand() < 0.02) book.push({ t: date.getTime() + 7.7 * 3600e3, name: "친구에게 받음", cat: "송금", icon: "gift", amt: 30000 });
+    }
+  }
+  const W = (n) => `${n.toLocaleString("ko-KR")} 토큰`;
+  const signed = (n) => `${n > 0 ? "+" : "-"}${Math.abs(n).toLocaleString("ko-KR")} 토큰`;
+  const hm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const dayName = (t) => {
+    const d = startOfDay(new Date(t));
+    const diff = Math.round((today0 - d) / 864e5);
+    return diff === 0 ? "오늘" : diff === 1 ? "어제" : `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  };
+  const recent = book.slice().sort((a, b) => b.t - a.t);
+  const monthSpent = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0);
+  const BUDGET = 300000;
+  const BALANCE = 1250000;
+  const txRow = (e) => `<li class="t-row tx"><span class="t-ico sm">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${hm(e.t)} · ${esc(e.cat)}</span></span><b class="t-amt${e.amt > 0 ? " plus" : ""}">${signed(e.amt)}</b></li>`;
+  const groups = (list) => {
+    let out = "";
+    let last = "";
+    for (const e of list) {
+      const g = dayName(e.t);
+      if (g !== last) out += `${last ? "</ul>" : ""}<p class="t-date">${g}</p><ul class="t-rows">`;
+      last = g;
+      out += txRow(e);
+    }
+    return out + (last ? "</ul>" : "");
+  };
+  const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
+  document.getElementById("money-root").innerHTML = `
+    <div class="t-card"><div class="t-pad"><h2 class="t-title plain">내 토큰</h2>
+      <div class="t-bal"><b>${BALANCE.toLocaleString("ko-KR")} 토큰</b></div></div>
+      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right">이번 달 ${monthSpent.toLocaleString("ko-KR")} 토큰</span></div></div>
+    <button class="t-card t-tap" id="open-chart" type="button"><div class="t-pad"><h2 class="t-title">이번 달 쓴 돈${chev2}</h2>
+      <b class="t-big">${W(monthSpent)}</b>
+      <div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent / BUDGET) * 100))}%"></span></div>
+      <p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent / BUDGET) * 100)}%를 썼어요</p></div></button>
+    <button class="t-card t-tap" id="open-history" type="button"><div class="t-pad"><h2 class="t-title">사용내역${chev2}</h2>
+      ${groups(recent.slice(0, 5))}</div></button>`;
+
+  const histSheet = document.getElementById("history-sheet");
+  const chartSheet = document.getElementById("chart-sheet");
+  document.getElementById("history-list").innerHTML = groups(recent.slice(0, 80));
+  document.getElementById("open-history").addEventListener("click", () => sheetOpen(true, histSheet));
+  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
+
+  /* 쓴 돈 꺾은선 그래프: 년 · 월 · 일 */
+  const series = (r) => {
+    const out = [];
+    if (r === "d") for (let i = 29; i >= 0; i--) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i); out.push({ l: `${d.getMonth() + 1}/${d.getDate()}`, v: daily[DAYS - 1 - i] }); }
+    else if (r === "m") {
+      for (let k = 11; k >= 0; k--) {
+        const first = new Date(today0.getFullYear(), today0.getMonth() - k, 1);
+        const next = new Date(first.getFullYear(), first.getMonth() + 1, 1);
+        let v = 0;
+        for (let i = 0; i < DAYS; i++) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - (DAYS - 1 - i)); if (d >= first && d < next) v += daily[i]; }
+        out.push({ l: `${first.getMonth() + 1}월`, v });
+      }
+    } else {
+      for (let k = 2; k >= 0; k--) {
+        const y = today0.getFullYear() - k;
+        let v = 0;
+        for (let i = 0; i < DAYS; i++) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - (DAYS - 1 - i)); if (d.getFullYear() === y) v += daily[i]; }
+        out.push({ l: `${y}년`, v });
+      }
+    }
+    return out;
+  };
+  const chart = document.getElementById("chart");
+  const tip = document.getElementById("chart-tip");
+  const LABEL = { d: "최근 30일 쓴 합계", m: "최근 12개월 쓴 합계", y: "그동안 쓴 합계" };
+  let range = "m";
+  const drawChart = (r) => {
+    range = r;
+    document.querySelectorAll("#chart-seg button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.r === r)));
+    const pts = series(r);
+    const total = pts.reduce((s, p) => s + p.v, 0);
+    document.getElementById("chart-label").textContent = LABEL[r];
+    document.getElementById("chart-total").textContent = W(total);
+    const max = Math.max(...pts.map((p) => p.v), 1);
+    const X = (i) => 14 + (i * 312) / Math.max(pts.length - 1, 1);
+    const Y = (v) => 180 - (v / max) * 150;
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(" ");
+    chart.innerHTML = `<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3182f6" stop-opacity="0.28"/><stop offset="1" stop-color="#3182f6" stop-opacity="0"/></linearGradient></defs>
+      <path d="${line} L${X(pts.length - 1)} 190 L${X(0)} 190Z" fill="url(#cg)" class="c-area"/>
+      <path d="${line}" pathLength="1" class="c-line"/>
+      ${pts.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.500" class="c-dot" style="animation-delay:${0.5 + (i / pts.length) * 0.9}s"/>`).join("")}
+      <line class="c-guide" x1="0" x2="0" y1="20" y2="190"/>`;
+    const ax = document.getElementById("chart-axis");
+    const every = Math.ceil(pts.length / 6);
+    ax.innerHTML = pts.map((p, i) => ((i % every === 0 && pts.length - 1 - i >= Math.ceil(every / 2)) || i === pts.length - 1 ? `<span style="left:${(X(i) / 340) * 100}%">${p.l}</span>` : "")).join("");
+    tip.hidden = true;
+    chart._pts = { pts, X, Y };
+    chart.classList.remove("go");
+    void chart.getBoundingClientRect();
+    chart.classList.add("go");
+  };
+  const scrub = (e) => {
+    const c = chart._pts;
+    if (!c) return;
+    const r = chart.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 340;
+    let best = 0;
+    c.pts.forEach((_, i) => { if (Math.abs(c.X(i) - x) < Math.abs(c.X(best) - x)) best = i; });
+    const g = chart.querySelector(".c-guide");
+    g.setAttribute("x1", c.X(best)); g.setAttribute("x2", c.X(best));
+    g.style.opacity = 1;
+    tip.hidden = false;
+    tip.textContent = `${c.pts[best].l} · ${W(c.pts[best].v)}`;
+    tip.style.left = `${clamp((c.X(best) / 340) * 100, 18, 82)}%`;
+  };
+  chart.addEventListener("pointerdown", scrub);
+  chart.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "touch") scrub(e); });
+  document.getElementById("chart-seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) drawChart(b.dataset.r); });
+  document.getElementById("open-chart").addEventListener("click", () => { sheetOpen(true, chartSheet); drawChart(range); });
+
   /* ---------- 로그인 ---------- */
   const loginEl = document.getElementById("login");
   const loginForm = document.getElementById("login-form");
