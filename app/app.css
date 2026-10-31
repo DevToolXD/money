@@ -547,6 +547,6 @@ img, svg { -webkit-user-drag: none; }
 
 /* 폭이 좁은 화면(작은 폰이나 확대해서 보는 경우): 바 양옆 여백과 계정 버튼 칸을 줄여서 탭 간격이 답답하지 않게 */
 @media (max-width: 380px) {
-  :root { --dock-side: 14px; --side-col: 78px; --bar-h: 72px; }
+  :root { --dock-side: 14px; --side-col: 66px; --bar-h: 64px; }
   .tab-account { margin-left: 10px; }
 }
