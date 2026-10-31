@@ -58,9 +58,9 @@
     const y = el.scrollTop;
     const h1 = el.querySelector(".large-title h1");
     if (!h1) {
-      // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요
+      // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요. 돈 탭처럼 data-notitle이면 제목 없이 유리만 나타나요
       topbar.style.setProperty("--p", clamp(y / 16, 0, 1));
-      topTitle.style.opacity = 1;
+      topTitle.style.opacity = el.hasAttribute("data-notitle") ? 0 : 1;
       topTitle.style.transform = "none";
       return;
     }

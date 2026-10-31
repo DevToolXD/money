@@ -612,3 +612,49 @@ html[data-theme="dark"] .alert-card { background: rgba(44, 44, 48, 0.88); color:
 .alert-btn:active { transform: scale(0.96); }
 .alert-btn.ok { background: var(--apple-blue); color: #fff; }
 #name-row label { border-top: 0 !important; border-bottom: 0.5px solid rgba(255, 255, 255, 0.22); }
+
+/* 돈 탭: 토스 홈 화면과 똑같이 */
+.toss { --t-blue: #3182f6; --t-ink: #191f28; --t-mid: #333d4b; --t-gray: #6b7684; --t-lgray: #8b95a1; padding-top: calc(var(--safe-top) + 14px); }
+html[data-theme="dark"] .toss { --t-ink: #f2f4f6; --t-mid: #e5e8eb; --t-gray: #a3a9b3; --t-lgray: #8b95a1; }
+.toss-top { display: flex; justify-content: flex-end; align-items: center; gap: 22px; padding: 6px 28px 18px; color: var(--t-mid); }
+.t-pay { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; padding: 0 6px; position: relative; }
+.t-pay::before, .t-pay::after { content: ""; position: absolute; width: 8px; height: 8px; border: 2.5px solid currentColor; }
+.t-pay::before { left: -4px; top: -2px; border-right: 0; border-bottom: 0; border-radius: 4px 0 0 0; box-shadow: 0 30px 0 -0.5px transparent; }
+.t-pay::after { right: -4px; bottom: -2px; border-left: 0; border-top: 0; border-radius: 0 0 4px 0; }
+.t-bell { position: relative; display: grid; place-items: center; }
+.t-bell svg { width: 30px; height: 30px; }
+.t-bell i { position: absolute; right: -1px; top: -1px; width: 10px; height: 10px; border-radius: 50%; background: #f04452; }
+.t-card { margin: 0 20px 14px; border-radius: 30px; background: var(--bg-card); color: var(--t-ink); overflow: hidden; }
+.t-pad { padding: 30px 28px 26px; }
+.t-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.03em; color: var(--t-mid); justify-content: space-between; }
+.t-title .tchev { width: 10px; height: 17px; color: var(--t-lgray); }
+.tchev { width: 9px; height: 15px; flex: none; color: var(--t-ink); }
+.t-acct { margin: 8px 0 0; font-size: 17px; color: var(--t-gray); font-weight: 500; }
+.t-bal { display: flex; align-items: center; gap: 10px; margin-top: 26px; }
+.t-bal b { font-size: 31px; line-height: 38px; font-weight: 700; letter-spacing: -0.035em; color: var(--t-ink); }
+.t-bal .t-btn { margin-left: auto; }
+.t-btn { flex: none; height: 42px; padding: 0 18px; border-radius: 14px; background: var(--t-blue); color: #fff; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; transition: transform 0.2s var(--ease), opacity 0.2s; }
+.t-btn:active { transform: scale(0.95); opacity: 0.85; }
+.t-btn.grey { background: rgba(120, 130, 150, 0.14); color: var(--t-mid); }
+.t-line { display: flex; align-items: center; gap: 16px; padding: 18px 28px 22px; border-top: 1px solid rgba(120, 130, 150, 0.14); }
+.t-line { white-space: nowrap; }
+.t-line .ts-name { flex: none; }
+.t-ico.cardico { flex: none; min-width: 34px; }
+.ts-name { font-size: 20px; font-weight: 600; color: var(--t-mid); letter-spacing: -0.02em; }
+.t-right { margin-left: auto; font-size: 17px; color: var(--t-gray); font-weight: 500; }
+.t-ico { display: grid; place-items: center; flex: none; width: 58px; height: 58px; border-radius: 50%; font-size: 28px; }
+.t-ico.sm { width: 48px; height: 48px; font-size: 23px; }
+.t-ico.cardico { width: 34px; height: 46px; border-radius: 8px; background: #3b4252; font-size: 0; }
+.t-rows { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 22px; }
+.t-row { display: flex; align-items: center; gap: 18px; }
+.t-main { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.t-label { font-size: 16px; color: var(--t-gray); font-weight: 500; }
+.t-value { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--t-ink); }
+.t-sub.blue { white-space: nowrap; font-size: 16px; font-weight: 600; color: var(--t-blue); }
+.t-meter { height: 10px; margin: 22px 0 10px; border-radius: 5px; background: rgba(120, 130, 150, 0.16); overflow: hidden; }
+.t-meter span { display: block; height: 100%; border-radius: 5px; background: #20c997; }
+.t-note { margin: 0; font-size: 16px; color: var(--t-gray); font-weight: 500; }
+.t-date { margin: 22px 0 -4px; font-size: 15px; color: var(--t-lgray); font-weight: 600; }
+.t-row.tx .ts-name { font-size: 18px; }
+.t-amt { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; color: var(--t-ink); }
+.t-amt.plus { color: var(--t-blue); }

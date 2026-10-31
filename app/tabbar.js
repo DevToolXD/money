@@ -929,7 +929,7 @@ void main() {
       p.lx = e.clientX;
       p.lt = now;
       // 빠르게 휙 넘기면 선택을 옮기는 게 아니라 핫바를 넘겨요. 렌즈는 제자리로 돌아가요
-      if (!p.flick && p.tabIndex < 4 && Math.abs(dx) > 18 && Math.abs(v) > 0.9) {
+      if (!p.flick && p.tabIndex < 4 && Math.abs(dx) > 10 && Math.abs(v) > 0.4) {
         p.flick = true;
         this.x.use(SPRING.move);
         this.x.target = this.geo[p.tabIndex].cx;
@@ -962,7 +962,7 @@ void main() {
       this.grab.target = 0;
 
       const dx = e.clientX - p.x0;
-      const flipped = commit && p.tabIndex < 4 && (p.flick || (Math.abs(dx) >= 70 && performance.now() - p.t0 < 260));
+      const flipped = commit && p.tabIndex < 4 && (p.flick || (Math.abs(dx) >= 40 && performance.now() - p.t0 < 420));
       let index = p.tabIndex;
       if (p.dragging && !flipped) {
         const ahead = this.x.target + this.x.v * 0.1;
