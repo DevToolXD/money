@@ -594,6 +594,15 @@
   };
   async function refresh() {
     paintHire();
+    const kindNow = ctx.company()?.kind ?? "food";
+    const food = kindNow === "food";
+    document.getElementById("biz-prod-title").hidden = !food;
+    document.getElementById("biz-list").closest(".card").hidden = !food;
+    document.getElementById("biz-lab").hidden = food;
+    if (!food) {
+      paintLab();
+      return;
+    }
     const cloud = ctx?.cloud();
     if (!cloud?.user || !ctx.company()) {
       products = [];
@@ -780,6 +789,7 @@
     stage.addEventListener("input", onInput);
     stage.addEventListener("focusout", onBlur);
     document.getElementById("biz-pick").addEventListener("click", open);
+    document.getElementById("biz-lab").addEventListener("click", labClick);
     document.getElementById("hire-minus").innerHTML = svgI('<path d="M5 12h14"/>');
     document.getElementById("hire-plus").innerHTML = svgI('<path d="M12 5v14M5 12h14"/>');
     document.getElementById("hire-minus").addEventListener("click", () => stepHire(-1));
@@ -841,8 +851,86 @@
       paintHire();
     }
   };
+  /* ---------- 연구실·발전소 (원자력 발전·컴퓨터·인공지능): 상품은 한 개예요. 숫자는 직원 일 탭에서 올라가요 ---------- */
+  const LAB_TITLE = { nuclear: "원자력 발전", pc: "컴퓨터", ai: "인공지능" };
+  const GEN = [50, 100, 200];
+  let genAmt = 50;
+  const fmtLab = (n) => Number(n || 0).toLocaleString("ko-KR");
+  const labHTML = (kind, L) => {
+    if (kind === "nuclear") {
+      const need = Math.ceil((genAmt * 100) / L.nperf);
+      return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개: 전기</p>
+        <p class="lab-big">${fmtLab(L.elec)}<small>전기 창고</small></p>
+        <p class="lab-sub">핵연료 ${fmtLab(L.nf)}개 · 성능 ${fmtLab(L.nperf)}</p>
+        <div class="gseg lab-amt" role="radiogroup" aria-label="발전량" style="--n:3;--i:${GEN.indexOf(genAmt)}">${GEN.map((a) => `<button type="button" role="radio" aria-checked="${a === genAmt}" data-amt="${a}">${a}</button>`).join("")}</div>
+        <p class="lab-sub">전기 ${genAmt}을 만들려면 핵연료 ${fmtLab(need)}개가 필요해요</p>
+        <button class="btn primary" type="button" data-lab="gen" ${L.nf < need ? "disabled" : ""}>발전하기</button>`;
+    }
+    if (kind === "pc") {
+      const released = L.cpuRel >= 0;
+      return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개</p>
+        <p class="lab-big">${fmtLab(L.cpu)}<small>개발 중 성능</small></p>
+        <p class="lab-sub">${released ? `출시한 성능 ${fmtLab(L.cpuRel)}` : "아직 출시하지 않았어요"}</p>
+        <button class="btn primary" type="button" data-lab="rel" ${L.cpu === 0 || L.cpu === L.cpuRel ? "disabled" : ""}>${released ? "다시 출시하기" : "출시하기"}</button>`;
+    }
+    const score = Math.floor(L.aiData / 10);
+    return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개</p>
+      <p class="lab-big">${fmtLab(L.aiData)}<small>MB 쌓인 데이터</small></p>
+      <p class="lab-sub">개발 점수 ${fmtLab(score)}${L.aiScore >= 0 ? ` · 출시 점수 ${fmtLab(L.aiScore)}` : " · 아직 출시 전이에요"}</p>
+      <button class="btn primary" type="button" data-lab="rel" ${score < 1 || score === L.aiScore ? "disabled" : ""}>${L.aiScore >= 0 ? "다시 출시하기" : "출시하기"}</button>`;
+  };
+  const paintLab = async () => {
+    const co = ctx?.company();
+    const box = document.getElementById("biz-lab");
+    if (!co || co.kind === "food" || !box) return;
+    try {
+      const L = await ctx.cloud().labGet(co.id);
+      if (ctx.company()?.id !== co.id) return; // 다른 회사로 바뀌었으면 그리지 않아요
+      box.innerHTML = labHTML(co.kind, L);
+    } catch (err) {
+      box.innerHTML = '<p class="lab-sub">연구실 숫자를 불러오지 못했어요</p>';
+    }
+  };
+  const labClick = async (e) => {
+    const co = ctx?.company();
+    if (!co) return;
+    const amt = e.target.closest("[data-amt]");
+    if (amt) {
+      genAmt = Number(amt.dataset.amt);
+      return paintLab();
+    }
+    const act = e.target.closest("[data-lab]");
+    if (!act || act.disabled) return;
+    act.disabled = true;
+    try {
+      if (act.dataset.lab === "gen") {
+        const want = genAmt;
+        const ok = await ctx.cloud().labChange(co.id, (L) => {
+          const need = Math.ceil((want * 100) / L.nperf);
+          if (L.nf < need) return null;
+          return { ...L, nf: L.nf - need, elec: L.elec + want };
+        });
+        ctx.toast(ok ? `전기 ${want}을 만들었어요` : "핵연료가 부족해요");
+      } else if (co.kind === "pc") {
+        await ctx.cloud().labChange(co.id, (L) => ({ ...L, cpuRel: L.cpu }));
+        ctx.toast("컴퓨터를 출시했어요");
+      } else {
+        await ctx.cloud().labChange(co.id, (L) => ({ ...L, aiScore: Math.floor(L.aiData / 10) }));
+        ctx.toast("인공지능을 출시했어요");
+      }
+    } catch (err) {
+      ctx.toast("처리하지 못했어요. 잠시 뒤 다시 해 주세요");
+    } finally {
+      paintLab();
+    }
+  };
   // 회사 종류 그림 (일 탭에서도 같은 그림을 써요)
   const kindSvg = (k) => svgI(ICON[k === "pc" ? "pc" : k === "ai" ? "ai" : k === "nuclear" ? "nuclear" : "food"]);
 
-  window.Business = { init, refresh, kindSvg };
+  // 사업 탭을 열 때: 연구실 숫자를 다시 읽어요 (상품 목록은 그대로 두어요)
+  const lab = () => {
+    const co = ctx?.company();
+    if (co && co.kind !== "food") paintLab();
+  };
+  window.Business = { init, refresh, kindSvg, lab };
 })();

@@ -671,6 +671,41 @@ await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·�
   same(s, 1);
 });
 
+console.log("\n[연구실]");
+const labRef = (db, cid = "uA") => doc(db, "companies/" + cid + "/lab/main");
+const labFields = (over = {}) => ({ nf: 0, nperf: 100, elec: 0, cpu: 0, cpuRel: -1, aiData: 0, aiScore: -1, ...over });
+await t("연구실: 사장과 그 회사 직원만 핵연료·부품·데이터 숫자를 올려요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
+  await seed((d) => setDoc(doc(d, "jobs/uB"), { cid: "uA", kind: "food", at: EPOCH }));
+  await assertSucceeds(setDoc(labRef(alice), labFields()));
+  await assertSucceeds(updateDoc(labRef(bob), { nperf: 120, nf: 5 })); // 직원: 핵연료 배합
+  await assertSucceeds(updateDoc(labRef(bob), { cpu: 6 })); // 직원: 부품 검사
+  await assertSucceeds(updateDoc(labRef(bob), { aiData: 50 })); // 직원: 데이터 받기
+  await assertFails(updateDoc(labRef(carol), { cpu: 9 })); // 회사 밖 사람은 못 해요
+  await assertFails(updateDoc(labRef(bob), { nperf: 110 })); // 성능은 줄일 수 없어요
+  await assertFails(updateDoc(labRef(bob), { cpu: 5 })); // 부품 점수도 줄일 수 없어요
+});
+await t("연구실: 출시 값은 사장만, 출시 성능은 지금 성능을 넘을 수 없어요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await seed((d) => setDoc(doc(d, "jobs/uB"), { cid: "uA", kind: "food", at: EPOCH }));
+  await assertSucceeds(setDoc(labRef(alice), labFields({ cpu: 6, aiData: 50 })));
+  await assertFails(updateDoc(labRef(bob), { cpuRel: 3 })); // 직원은 출시 못 해요
+  await assertFails(updateDoc(labRef(alice), { cpuRel: 7 })); // 지금 성능(6)보다 높게 출시할 수 없어요
+  await assertSucceeds(updateDoc(labRef(alice), { cpuRel: 6 })); // 출시
+  await assertFails(updateDoc(labRef(alice), { aiScore: 6 })); // 점수는 데이터의 10분의 1까지예요 (50 → 5)
+  await assertSucceeds(updateDoc(labRef(alice), { aiScore: 5 })); // AI 출시
+});
+await t("연구실: 전기는 쌓이기만 해요 (발전), 만들 때 사장 연구실이 먼저 있어야 해요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice");
+  await assertSucceeds(setDoc(labRef(alice), labFields({ nf: 20 })));
+  await assertSucceeds(updateDoc(labRef(alice), { elec: 50, nf: 10 })); // 발전하면 전기가 쌓이고 핵연료가 줄어요
+  await assertFails(updateDoc(labRef(alice), { elec: 40 })); // 전기는 줄일 수 없어요
+  await assertFails(setDoc(labRef(pw("uC", "carol"), "uA"), labFields())); // 회사 밖 사람은 만들 수 없어요
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

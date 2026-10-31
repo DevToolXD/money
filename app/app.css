@@ -1319,3 +1319,26 @@ html[data-theme="dark"] .draw { background: #fff; }
 .co-mark .avatar { width: 72px; height: 72px; font-size: 24px; }
 #co-save:disabled { opacity: 0.4; }
 .wk-kinds { margin: 14px 0 0; }
+
+/* 연구실·발전소·부품 검사판 */
+.card.biz-lab { display: grid; gap: 12px; padding: 22px; }
+.card.biz-lab[hidden] { display: none; }
+.lab-t { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+.lab-big { margin: 6px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.lab-big small { margin-left: 8px; font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.lab-sub { margin: 4px 0 0; font-size: 15px; line-height: 21px; color: var(--text-secondary); }
+.lab-amt { margin: 8px 0 4px; }
+.wk-nums { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; color: var(--text-secondary); }
+.wk-nums b { color: #000; font-variant-numeric: tabular-nums; }
+.wk-mix { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; border-radius: 26px; font-size: 17px; font-weight: 700; text-align: center; }
+.wk-mix:active { transform: scale(0.97); }
+.wk-board { position: relative; height: 240px; border-radius: 28px; overflow: hidden; }
+.wk-chip { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; fill: none; stroke: #000; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.wk-spot { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; animation: wkSpot 2.2s ease-out forwards; }
+.wk-spot.heat { background: radial-gradient(circle, rgba(255, 110, 60, 0.95) 0%, rgba(255, 140, 60, 0.55) 40%, rgba(255, 140, 60, 0) 70%); }
+.wk-spot.spark { background: radial-gradient(circle, #fff7b0 0%, rgba(255, 214, 70, 0.9) 30%, rgba(255, 214, 70, 0) 65%); box-shadow: 0 0 14px rgba(255, 214, 70, 0.9); }
+.wk-float { position: absolute; margin: -30px 0 0 -12px; font-size: 16px; font-weight: 800; color: #0a7cff; pointer-events: none; animation: wkFloat 0.7s ease-out forwards; }
+@keyframes wkSpot { 0% { transform: scale(0.4); opacity: 0; } 15% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { transform: scale(0.9); opacity: 0; } }
+@keyframes wkFloat { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-26px); opacity: 0; } }
+
+.section-title[hidden] { display: none; }

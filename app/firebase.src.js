@@ -36,6 +36,7 @@ import {
   getCountFromServer,
   documentId,
   writeBatch,
+  runTransaction,
   serverTimestamp,
   increment,
   Timestamp,
@@ -82,6 +83,11 @@ const companyOf = (id, d) => ({
   products: Array.isArray(d.products) ? d.products : [],
   at: ms(d.at),
 });
+// 연구실 숫자 기본값 (핵연료 성능 100, 컴퓨터·AI는 0, 출시 전은 -1)
+const labOf = (d) => {
+  const n = (v, dflt) => (Number.isInteger(v) ? v : dflt);
+  return { nf: n(d?.nf, 0), nperf: n(d?.nperf, 100), elec: n(d?.elec, 0), cpu: n(d?.cpu, 0), cpuRel: n(d?.cpuRel, -1), aiData: n(d?.aiData, 0), aiScore: n(d?.aiScore, -1) };
+};
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
 
 const PROFILE_TTL = 30 * 60 * 1000;
@@ -377,6 +383,21 @@ window.cloudReady = (async () => {
         return ref.id;
       },
 
+      // 연구실·발전소 숫자 (사장과 직원이 바꿔요). 아직 없으면 기본값으로 봐요
+      labGet: async (cid) => {
+        const s = await getDoc(doc(db, "companies", cid, "lab", "main")).catch(rethrow);
+        return labOf(s.exists() ? s.data() : null);
+      },
+      labChange: (cid, fn) =>
+        runTransaction(db, async (tx) => {
+          const ref = doc(db, "companies", cid, "lab", "main");
+          const s = await tx.get(ref);
+          const next = fn(labOf(s.exists() ? s.data() : null));
+          if (!next) return null;
+          const clean = labOf(next);
+          tx.set(ref, clean);
+          return clean;
+        }).catch(rethrow),
       /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
          이름 바꾸기, 판매 멈춤(paused), 판매 종료(active를 false로)만 바꿀 수 있어요 ----- */
       listProducts: async (cid = uidOf()) => {

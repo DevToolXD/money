@@ -2157,6 +2157,7 @@
     if (name === "money") renderMoney();
     if (name === "ranking") loadRank(false);
     if (name === "work") window.Work.refresh();
+    if (name === "business") window.Business.lab();
     backdrop?.setActive(name);
     tabbar.requestRender();
   });

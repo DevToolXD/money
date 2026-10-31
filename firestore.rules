@@ -130,6 +130,35 @@ service cloud.firestore {
           && !existsAfter(jobPath(request.auth.uid)))
       );
 
+      // 연구실·발전소 숫자: 핵연료 배합과 발전, 컴퓨터 부품 검사, AI 데이터 받기. 사장과 그 회사 직원만 해요.
+      //   성능·전기·데이터는 줄지 않아요. 출시 값(cpuRel, aiScore)은 사장만 바꿔요. AI 점수는 데이터의 10분의 1 이하예요
+      match /lab/{ld} {
+        function labOk(d) {
+          return d.keys().hasOnly(['nf', 'nperf', 'elec', 'cpu', 'cpuRel', 'aiData', 'aiScore'])
+            && d.nf is int && d.nf >= 0 && d.nf <= 1000000
+            && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
+            && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
+            && d.cpu is int && d.cpu >= 0 && d.cpu <= 1000000
+            && d.cpuRel is int && d.cpuRel >= -1 && d.cpuRel <= d.cpu
+            && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
+            && d.aiScore is int && d.aiScore >= -1 && (d.aiScore == -1 || d.aiScore * 10 <= d.aiData);
+        }
+        function labWho() {
+          return signedIn() && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid || get(jobPath(request.auth.uid)).data.cid == cid);
+        }
+        allow get: if signedIn();
+        allow create: if labWho() && labOk(request.resource.data)
+          && (request.resource.data.cpuRel == -1 && request.resource.data.aiScore == -1 || get(companyPath(cid)).data.get('owner', cid) == request.auth.uid);
+        allow update: if labWho() && labOk(request.resource.data)
+          && request.resource.data.nperf >= resource.data.nperf
+          && request.resource.data.elec >= resource.data.elec
+          && request.resource.data.cpu >= resource.data.cpu
+          && request.resource.data.aiData >= resource.data.aiData
+          && (request.resource.data.cpuRel == resource.data.cpuRel && request.resource.data.aiScore == resource.data.aiScore
+              || get(companyPath(cid)).data.get('owner', cid) == request.auth.uid);
+        allow delete: if false;
+      }
+
       // 팔 상품: 한 상품이 한 문서예요. 회사 사장만 만들고 고쳐요. 만들 때 종류·모양·색·원가·가격을 모두 검사해요 (원가·가격은 센트 정수예요: 50 = 0.5 토큰).
       // 나중에는 이름 바꾸기, 판매 멈춤·다시 시작(paused), 판매 종료(active를 false로)만 할 수 있어요. 판매를 끝낸 상품은 더 못 바꿔요
       match /products/{pid} {

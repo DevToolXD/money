@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=45">
+<link rel="stylesheet" href="app/app.css?v=47">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -84,8 +84,9 @@
           <div class="card biz-hero"><span class="biz-mark" id="biz-mark"></span><div><h2 id="biz-name"></h2><p id="biz-since"></p></div></div>
           <div class="biz-switch" id="biz-switch" hidden></div>
           <button class="btn" id="biz-more" type="button">회사 더 만들기 · 10 토큰</button>
-          <h2 class="section-title">판매 중인 상품</h2>
+          <h2 class="section-title" id="biz-prod-title">판매 중인 상품</h2>
           <div class="card biz-prod"><ul class="biz-list" id="biz-list"></ul><p class="biz-empty" id="biz-empty" hidden>아직 파는 상품이 없어요</p><button class="btn primary" id="biz-pick" type="button">팔 상품 정하기</button></div>
+          <div class="card biz-lab" id="biz-lab" hidden></div>
           <h2 class="section-title">직원 채용</h2>
           <div class="card hire" id="biz-hire">
             <p class="hire-stat" id="hire-stat">모집 중 0명 · 직원 0명</p>
@@ -321,10 +322,10 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=21"></script>
+<script type="module" src="app/firebase.js?v=22"></script>
 <script src="app/shapes.js?v=2"></script>
-<script src="app/biz.js?v=11"></script>
-<script src="app/work.js?v=3"></script>
-<script src="app/app.js?v=41"></script>
+<script src="app/biz.js?v=13"></script>
+<script src="app/work.js?v=4"></script>
+<script src="app/app.js?v=42"></script>
 </body>
 </html>

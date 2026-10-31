@@ -10,10 +10,10 @@
   const FRESH = 30000; // 이 시간이 지나지 않았으면 다시 읽지 않아요 (서버를 아껴요)
   const RM = matchMedia("(prefers-reduced-motion: reduce)");
   const HITS = [
-    { t: "날씨 기록 묶음", size: "1.2 GB" },
-    { t: "문장 연습장", size: "340 MB" },
-    { t: "그림 조각 모음", size: "2.8 GB" },
-    { t: "숫자 표 1만 줄", size: "96 MB" },
+    { t: "데이터 묶음 1" },
+    { t: "데이터 묶음 2" },
+    { t: "데이터 묶음 3" },
+    { t: "데이터 묶음 4" },
   ];
   const ICON = {
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
@@ -27,6 +27,7 @@
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
   };
   // 임시 시가총액: 창업 자본 10 토큰 + 직원 1명당 2 토큰 (매출이 생기면 여기에 더해요)
+  const fmtN = (n) => Number(n || 0).toLocaleString("ko-KR");
   const capOf = (c) => 10 + 2 * (c.staff || 0);
   const byName = (a, b) => a.name.localeCompare(b.name, "ko");
   const SORTS = [
@@ -192,16 +193,27 @@
     if (kind === "ai") {
       return `<div class="card wk-work wk-ai">
         <p class="wk-head">가짜 검색 연습</p>
-        <p class="wk-note">여기서 받는 데이터는 연습이라 아무 데도 저장되지 않아요.</p>
+        <p class="wk-note">아무 데이터나 받아 보세요. 받는 양은 랜덤이고, 많이 쌓일수록 인공지능이 좋아져요. 실제로 저장되는 파일은 없어요.</p>
+        <div class="wk-nums"><span>쌓인 데이터 <b id="lab-data">…</b> MB</span></div>
         <label class="gg wk-fake">${svgI(ICON.search, 18)}<input type="text" disabled placeholder="검색어를 입력해 보세요" aria-label="가짜 검색"></label>
-        <ul class="wk-hits">${HITS.map((h, i) => `<li class="wk-hit" style="--i:${i}"><span class="wk-hit-t"><b>${esc(h.t)}</b><span>${h.size} · 연습용</span></span><button type="button" class="gg wk-get" data-i="${i}">받기</button></li>`).join("")}</ul>
+        <ul class="wk-hits">${HITS.map((h, i) => `<li class="wk-hit" style="--i:${i}"><span class="wk-hit-t"><b>${esc(h.t)}</b><span>받으면 양이 보여요</span></span><button type="button" class="gg wk-get" data-i="${i}">받기</button></li>`).join("")}</ul>
         <p class="wk-count" id="wk-count">이번에 받은 데이터 ${got}개</p>
       </div>`;
     }
-    return `<div class="card wk-work wk-soon">
-      <div class="gg wk-soon-ic">${window.Business?.kindSvg(kind) ?? ""}</div>
-      <p class="wk-head">${KIND[kind]} 일은 아직 준비 중이에요</p>
-      <p class="wk-note">회사에 다니는 것까지는 돼요. 일하는 방법은 곧 열려요.</p>
+    if (kind === "nuclear") {
+      return `<div class="card wk-work wk-nuc">
+        <p class="wk-head">핵연료 배합</p>
+        <p class="wk-note">재료를 섞을 때마다 핵연료 성능이 랜덤으로 올라가요. 성능이 좋으면 같은 전기를 더 적은 핵연료로 만들어요.</p>
+        <div class="wk-nums"><span>핵연료 <b id="lab-nf">…</b>개</span><span>성능 <b id="lab-np">…</b></span></div>
+        <button type="button" class="gg wk-mix" id="wk-mix">재료 배합하기</button>
+        <p class="wk-count" id="wk-mixlog">아직 배합하지 않았어요</p>
+      </div>`;
+    }
+    return `<div class="card wk-work wk-pc">
+      <p class="wk-head">컴퓨터 부품 검사</p>
+      <p class="wk-note">열이 뜨거나 스파크가 튀는 곳을 누르면 성능이 랜덤으로 올라가요. 쌓일수록 개발 중인 컴퓨터가 좋아져요.</p>
+      <div class="gg wk-board" id="wk-board" aria-label="부품 검사판"><svg class="wk-chip" viewBox="0 0 120 120" aria-hidden="true"><rect x="34" y="34" width="52" height="52" rx="6"/><path d="M48 34V22M60 34V22M72 34V22M48 86v12M60 86v12M72 86v12M34 48H22M34 60H22M34 72H22M86 48h12M86 60h12M86 72h12"/></svg></div>
+      <div class="wk-nums"><span>개발 중 성능 <b id="lab-cpu">…</b></span><span>스택 <b id="wk-stack">0</b></span></div>
     </div>`;
   };
   const quitHTML = (c) => `<button type="button" class="gg wk-quit" data-quit="${esc(c.id)}" data-name="${esc(c.name)}">${esc(c.name)}에서 그만두기</button>`;
@@ -249,7 +261,7 @@
       if (note) note.textContent = "만들 상품을 불러오지 못했어요";
     }
   };
-  // 가짜 검색의 받기: 로딩 막대가 차고, 끝나면 받았다고만 보여줘요 (실제로 받는 것은 없어요)
+  // 가짜 검색의 받기: 로딩 막대가 차고 끝나면 랜덤한 양의 데이터가 쌓여요 (실제로 받는 것은 없어요)
   const fetchHit = (btn) => {
     if (btn.classList.contains("busy") || btn.classList.contains("done")) return;
     btn.classList.add("busy");
@@ -263,11 +275,13 @@
       fill.style.transform = `scaleX(${p})`;
       label.textContent = `${Math.round(p * 100)}%`;
       if (p < 1) return requestAnimationFrame(tick);
+      const mb = 20 + Math.floor(Math.random() * 381);
       btn.classList.remove("busy");
       btn.classList.add("done");
       btn.disabled = true;
-      btn.innerHTML = `${svgI(ICON.check, 16)}받았어요`;
+      btn.innerHTML = `${svgI(ICON.check, 16)}${mb} MB`;
       got += 1;
+      queueLab({ aiData: mb });
       countPop(`이번에 받은 데이터 ${got}개`);
     };
     requestAnimationFrame(tick);
@@ -289,17 +303,122 @@
       busy = false;
     }
   };
+  /* ---------- 연구실 숫자 (핵연료·부품·데이터): 누른 것은 모아서 2.5초에 한 번 서버에 보내요 ---------- */
+  let labCid = null;
+  let labView = null; // 화면에 보이는 숫자 (서버 숫자 + 아직 안 보낸 것)
+  let labPend = { nperf: 0, nf: 0, cpu: 0, aiData: 0 };
+  let labTimer = 0;
+  let boardTimer = 0;
+  let stack = 0;
+  const paintLabNums = () => {
+    if (!labView || !root) return;
+    const set = (id, v) => {
+      const el = root.querySelector("#" + id);
+      if (el) el.textContent = fmtN(v);
+    };
+    set("lab-nf", labView.nf);
+    set("lab-np", labView.nperf);
+    set("lab-cpu", labView.cpu);
+    set("lab-data", labView.aiData);
+  };
+  const flushLab = async () => {
+    clearTimeout(labTimer);
+    labTimer = 0;
+    const d = labPend;
+    if (!labCid || !(d.nperf || d.nf || d.cpu || d.aiData)) return;
+    const cid = labCid;
+    labPend = { nperf: 0, nf: 0, cpu: 0, aiData: 0 };
+    try {
+      await ctx.cloud().labChange(cid, (L) => ({ ...L, nf: L.nf + d.nf, nperf: L.nperf + d.nperf, cpu: L.cpu + d.cpu, aiData: L.aiData + d.aiData }));
+    } catch (err) {
+      console.warn("연구실 숫자를 올리지 못했어요:", err?.code || err);
+    }
+  };
+  const queueLab = (d) => {
+    for (const k of Object.keys(d)) {
+      labPend[k] += d[k];
+      if (labView) labView[k] += d[k];
+    }
+    paintLabNums();
+    if (!labTimer) labTimer = setTimeout(flushLab, 2500);
+  };
+  const loadLabView = async (cid) => {
+    try {
+      const L = await ctx.cloud().labGet(cid);
+      if (cid !== labCid) return;
+      labView = { ...L };
+      paintLabNums();
+    } catch (err) {
+      console.warn("연구실 숫자를 불러오지 못했어요:", err?.code || err);
+    }
+  };
+  // 핵연료 배합: 성능이 랜덤으로 올라가고 핵연료가 5개 생겨요
+  const mix = () => {
+    const r = 1 + Math.floor(Math.random() * 30);
+    queueLab({ nperf: r, nf: 5 });
+    const log = root.querySelector("#wk-mixlog");
+    if (log) log.textContent = `성능이 ${r} 올랐어요 · 핵연료 +5`;
+  };
+  // 부품 검사판: 열·스파크가 떴다가 사라져요. 누르면 성능이 랜덤으로 쌓여요
+  const stopGames = () => {
+    clearInterval(boardTimer);
+    boardTimer = 0;
+    stack = 0;
+  };
+  const spawnSpot = () => {
+    const board = root.querySelector("#wk-board");
+    if (!board || board.querySelectorAll(".wk-spot").length >= 6) return;
+    const spot = document.createElement("button");
+    spot.type = "button";
+    spot.className = "wk-spot " + (Math.random() < 0.5 ? "heat" : "spark");
+    spot.style.left = `${8 + Math.random() * 84}%`;
+    spot.style.top = `${8 + Math.random() * 84}%`;
+    spot.dataset.v = String(1 + Math.floor(Math.random() * 8));
+    board.appendChild(spot);
+    setTimeout(() => spot.remove(), 2200);
+  };
+  const startBoard = () => {
+    stopGames();
+    boardTimer = setInterval(spawnSpot, 650);
+  };
+  const hitSpot = (spot) => {
+    const v = Number(spot.dataset.v) || 1;
+    const board = root.querySelector("#wk-board");
+    const at = { left: spot.style.left, top: spot.style.top };
+    spot.remove();
+    stack += 1;
+    queueLab({ cpu: v });
+    const s = root.querySelector("#wk-stack");
+    if (s) s.textContent = String(stack);
+    if (board) {
+      const f = document.createElement("span");
+      f.className = "wk-float";
+      f.textContent = `+${v}`;
+      f.style.left = at.left;
+      f.style.top = at.top;
+      board.appendChild(f);
+      setTimeout(() => f.remove(), 700);
+    }
+  };
+
   const paintMine = (co, job, employer) => {
     view = "mine";
+    stopGames();
+    flushLab(); // 이전 회사의 숫자를 먼저 보내요
     const owner = Boolean(co);
     const primary = owner ? co : employer;
     const cid = owner ? co.id : employer.id;
     foodStep = 0;
+    labCid = cid;
+    labView = null;
     root.innerHTML = mineHTML(owner, primary, job, owner && employer ? employer : null);
     if (primary.kind === "food") {
       paintSteps();
       loadProducts(cid);
+      return;
     }
+    loadLabView(cid);
+    if (primary.kind === "pc") startBoard();
   };
   const fail = (msg) => {
     view = "error";
@@ -345,6 +464,9 @@
   /* ---------- 이벤트 (화면 한 곳에서 받아요) ---------- */
   const onClick = (e) => {
     const t = e.target;
+    const spot = t.closest(".wk-spot");
+    if (spot) return hitSpot(spot);
+    if (t.closest("#wk-mix")) return mix();
     const k = t.closest("[data-k]");
     if (k) return pickKind(k);
     const s = t.closest("[data-s]");
