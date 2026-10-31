@@ -4,8 +4,8 @@
 (() => {
   "use strict";
 
-  const KIND = { food: "식품", pc: "컴퓨터", ai: "인공지능" };
-  const KIND_FULL = { food: "식품 회사", pc: "컴퓨터 회사", ai: "인공지능 회사" };
+  const KIND = { food: "식품", pc: "컴퓨터", ai: "인공지능", nuclear: "원자력 발전" };
+  const KIND_FULL = { food: "식품 회사", pc: "컴퓨터 회사", ai: "인공지능 회사", nuclear: "원자력 발전 회사" };
   const KIND_IDX = { all: 0, food: 1, pc: 2, ai: 3 };
   const FRESH = 30000; // 이 시간이 지나지 않았으면 다시 읽지 않아요 (서버를 아껴요)
   const RM = matchMedia("(prefers-reduced-motion: reduce)");
@@ -65,12 +65,7 @@
   /* ---------- 취업: 회사 목록 ---------- */
   const marketHTML = () => `
     <p class="lead">회사를 골라 지원해요</p>
-    <div class="gseg wk-kinds" id="wk-kinds" role="radiogroup" aria-label="회사 종류" style="--n:4;--i:${KIND_IDX[kindSel]}">
-      <button type="button" role="radio" aria-checked="${kindSel === "all"}" data-k="all">전체</button>
-      <button type="button" role="radio" aria-checked="${kindSel === "food"}" data-k="food">식품</button>
-      <button type="button" role="radio" aria-checked="${kindSel === "pc"}" data-k="pc">컴퓨터</button>
-      <button type="button" role="radio" aria-checked="${kindSel === "ai"}" data-k="ai">인공지능</button>
-    </div>
+    <div class="wk-sorts wk-kinds" role="group" aria-label="회사 종류">${[["all", "전체"], ["food", "식품"], ["pc", "컴퓨터"], ["ai", "인공지능"], ["nuclear", "원자력 발전"]].map(([k, l]) => `<button type="button" class="gg wk-pill" aria-pressed="${kindSel === k}" data-k="${k}">${l}</button>`).join("")}</div>
     <label class="gg wk-search">${svgI(ICON.search, 18)}<input id="wk-q" type="search" placeholder="회사 이름으로 찾아요" autocomplete="off" maxlength="20" value="${esc(term)}" aria-label="회사 이름"></label>
     <div class="wk-sorts" role="group" aria-label="정렬">${SORTS.map((s) => `<button type="button" class="gg wk-pill" aria-pressed="${sortSel === s.id}" data-s="${s.id}">${s.label}</button>`).join("")}</div>
     <p class="wk-meta" id="wk-meta"></p>
@@ -204,8 +199,8 @@
       </div>`;
     }
     return `<div class="card wk-work wk-soon">
-      <div class="gg wk-soon-ic">${window.Business?.kindSvg("pc") ?? ""}</div>
-      <p class="wk-head">컴퓨터 일은 아직 준비 중이에요</p>
+      <div class="gg wk-soon-ic">${window.Business?.kindSvg(kind) ?? ""}</div>
+      <p class="wk-head">${KIND[kind]} 일은 아직 준비 중이에요</p>
       <p class="wk-note">회사에 다니는 것까지는 돼요. 일하는 방법은 곧 열려요.</p>
     </div>`;
   };
@@ -366,9 +361,7 @@
   };
   const pickKind = (b) => {
     kindSel = b.dataset.k;
-    const seg = b.closest(".gseg");
-    seg.style.setProperty("--i", String(KIND_IDX[kindSel]));
-    seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    b.parentElement.querySelectorAll("[data-k]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
     paintList();
   };
   const pickSort = (b) => {

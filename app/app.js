@@ -12,27 +12,6 @@
     }, 30);
   });
   const app = document.querySelector(".app");
-  // 위·아래 끝에서 더 끌어당겨 화면이 튕기고 밀리는 것을 막아요 (스크롤할 곳이 있으면 그 안에서만 움직여요)
-  let pullY = null;
-  document.addEventListener("touchstart", (e) => { pullY = e.touches[0].clientY; }, { passive: true });
-  document.addEventListener("touchend", () => { pullY = null; }, { passive: true });
-  document.addEventListener("touchcancel", () => { pullY = null; }, { passive: true });
-  document.addEventListener("touchmove", (e) => {
-    if (pullY == null || e.touches.length !== 1) return;
-    const t = e.target;
-    if (t && t.closest && t.closest("input, textarea")) return; // 글 칸은 그대로 둬요
-    const dy = e.touches[0].clientY - pullY;
-    if (dy === 0) return;
-    let el = t && t.nodeType === 1 ? t : null;
-    while (el && el !== document.body && el !== document.documentElement) {
-      const scrollable = el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
-      if (scrollable) break;
-      el = el.parentElement;
-    }
-    const scroller = el && el !== document.body && el !== document.documentElement ? el : null;
-    const atEdge = !scroller || (dy > 0 ? scroller.scrollTop <= 0 : scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1);
-    if (atEdge) e.preventDefault();
-  }, { passive: false });
   const nav = document.querySelector(".tabbar");
   const screens = new Map([...document.querySelectorAll(".screen")].map((el) => [el.dataset.screen, el]));
   const scheme = matchMedia("(prefers-color-scheme: dark)");
@@ -1154,8 +1133,7 @@
   const bizLoading = document.getElementById("biz-loading");
   const bizLogo = document.getElementById("biz-logo");
   const bizSwitch = document.getElementById("biz-switch");
-  const bizKind = document.getElementById("biz-kind");
-  const KIND_LABEL = { food: "식품 회사", pc: "컴퓨터 회사", ai: "인공지능 회사" };
+  const KIND_LABEL = { food: "식품 회사", pc: "컴퓨터 회사", ai: "인공지능 회사", nuclear: "원자력 발전 회사" };
   const markHTML = (name, logo, cls) => avatarHTML(name, logo, cls);
   const renderBiz = () => {
     bizLoading.hidden = company !== undefined;
@@ -1170,8 +1148,6 @@
     document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요 · ${KIND_LABEL[company.kind]}`;
     bizSwitch.hidden = companies.length < 2;
     bizSwitch.innerHTML = companies.map((c) => `<button type="button" class="gg wk-pill" aria-pressed="${c.id === company.id}" data-co="${esc(c.id)}">${esc(c.name)}</button>`).join("");
-    bizKind.style.setProperty("--i", String(Math.max(0, ["food", "pc", "ai"].indexOf(company.kind))));
-    bizKind.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.kind === company.kind)));
   };
   // 회사를 고르면 그 회사의 사업 화면을 그려요 (고른 회사는 기기에 기억해요)
   const selectCompany = (id) => {
@@ -1195,21 +1171,48 @@
     const b = e.target.closest("[data-co]");
     if (b) selectCompany(b.dataset.co);
   });
-  // 업종 바꾸기: 사장은 회사의 업종을 언제든 바꿀 수 있어요
-  bizKind.addEventListener("click", async (e) => {
+  // 회사 프로필: 사업 탭 오른쪽 위의 회사 마크를 누르면 열려요. 업종은 여기서 골라서 "업종 바꾸기"를 눌러야 바뀌어요
+  const coSheet = document.getElementById("company-sheet");
+  let coKind = "food";
+  const paintCoKinds = () => {
+    document.querySelectorAll("#co-kinds [data-kind]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === coKind)));
+    document.getElementById("co-save").disabled = !company || coKind === company.kind;
+  };
+  document.getElementById("co-kinds").addEventListener("click", (e) => {
     const b = e.target.closest("[data-kind]");
-    if (!b || !company || b.dataset.kind === company.kind) return;
-    const kind = b.dataset.kind;
+    if (!b) return;
+    coKind = b.dataset.kind;
+    paintCoKinds();
+  });
+  bizLogo.addEventListener("click", () => {
+    if (!company) return;
+    coKind = company.kind;
+    document.getElementById("co-mark").innerHTML = markHTML(company.name, company.logo, "avatar contact");
+    document.getElementById("co-name").textContent = company.name;
+    document.getElementById("co-since").textContent = `${KIND_LABEL[company.kind]}`;
+    document.getElementById("co-err").textContent = "";
+    paintCoKinds();
+    sheetOpen(true, coSheet);
+  });
+  document.getElementById("co-save").addEventListener("click", async () => {
+    if (!company || coKind === company.kind) return;
+    const btn = document.getElementById("co-save");
+    const err = document.getElementById("co-err");
+    btn.classList.add("busy");
     try {
-      await window.cloud.setCompanyKind(company.id, kind);
-      const next = { ...company, kind };
+      await window.cloud.setCompanyKind(company.id, coKind);
+      const next = { ...company, kind: coKind };
       companies = companies.map((c) => (c.id === company.id ? next : c));
       company = next;
       renderBiz();
       window.Work.refresh(true);
-      toast(`업종을 ${KIND_LABEL[kind]}로 바꿨어요`);
-    } catch (err) {
-      toast("업종을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요");
+      sheetOpen(false);
+      toast(`업종을 ${KIND_LABEL[coKind]}로 바꿨어요`);
+    } catch (e) {
+      err.textContent = "업종을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요";
+    } finally {
+      btn.classList.remove("busy");
+      paintCoKinds();
     }
   });
   // 창업
@@ -1242,9 +1245,7 @@
   // 회사 종류: 식품 · 컴퓨터 · 인공지능 (고르면 가운데 흰 칸이 미끄러져 가요)
   let foundKind = "food";
   const paintFoundKind = () => {
-    const box = document.getElementById("found-kinds");
-    box.style.setProperty("--i", String(Math.max(0, ["food", "pc", "ai"].indexOf(foundKind))));
-    box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.kind === foundKind)));
+    document.getElementById("found-kinds").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === foundKind)));
   };
   document.getElementById("found-kinds").addEventListener("click", (e) => {
     const b = e.target.closest("[data-kind]");

@@ -565,17 +565,16 @@ const opened = async (db, cid = "uA") => {
   return [s.data().open ?? 0, s.data().staff ?? 0];
 };
 const same = (a, b) => { if (a !== b) throw new Error(`기대 ${b}, 실제 ${a}`); };
-await t("사장은 채용 공고만 올려요: 인원 제한 없이 늘리지만, 줄이는 것은 안 돼요", async () => {
-  await coSeed();
+await t("사장은 채용 공고 숫자를 정한 수로 맞춰요: 0명 이상이면 몇 명이든, 줄이기도 돼요", async () => {
+  await coSeed({ open: 0 });
   const alice = pw("uA", "alice");
-  await assertSucceeds(updateDoc(coRef(alice), { open: increment(11) })); // 한 번에 많이 올려도 돼요
-  await assertFails(updateDoc(coRef(alice), { open: increment(-1) }));
-  await assertFails(updateDoc(coRef(alice), { open: increment(0) }));
-  await assertFails(updateDoc(coRef(alice), { open: increment(1), staff: 5 })); // 직원 수는 사장이 못 바꿔요
-  await assertFails(updateDoc(coRef(alice), { open: increment(1), name: "바뀐 이름" }));
-  await assertFails(updateDoc(coRef(pw("uB", "bob")), { open: increment(1) })); // 남의 회사 모집은 못 올려요
-  await assertSucceeds(updateDoc(coRef(alice), { open: increment(10) }));
-  await assertSucceeds(updateDoc(coRef(alice), { open: increment(100) })); // 모집 중 인원에 상한이 없어요
+  await assertSucceeds(updateDoc(coRef(alice), { open: 100 })); // 100명으로 맞추기
+  await assertSucceeds(updateDoc(coRef(alice), { open: 90 })); // 90명으로 줄이기
+  await assertFails(updateDoc(coRef(alice), { open: -1 })); // 음수는 안 돼요
+  await assertFails(updateDoc(coRef(alice), { open: "5" })); // 숫자가 아니면 안 돼요
+  await assertFails(updateDoc(coRef(alice), { open: 90, staff: 5 })); // 직원 수는 사장이 못 바꿔요
+  await assertFails(updateDoc(coRef(alice), { open: 91, name: "바뀐 이름" }));
+  await assertFails(updateDoc(coRef(pw("uB", "bob")), { open: 1 })); // 남의 회사 모집은 못 맞춰요
 });
 await t("입사: 일자리 기록과 모집·직원 수가 같은 묶음에서 함께 바뀔 때만 돼요", async () => {
   await coSeed({ open: 2 });
@@ -658,6 +657,8 @@ await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·�
   await assertFails(foundBatch(a, "uA", { cid: "c2" }).commit()); // 같은 번호의 회사는 또 못 만들어요
   await assertSucceeds(updateDoc(doc(a, "companies/c2"), { open: increment(3) })); // 사장 모집
   await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "ai" })); // 업종 바꾸기
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "nuclear" })); // 원자력 발전도 업종이에요
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "ai" }));
   await assertFails(updateDoc(doc(a, "companies/c2"), { kind: "bank" })); // 모르는 업종은 안 돼요
   await assertFails(updateDoc(doc(bob, "companies/c2"), { kind: "food" })); // 남의 회사 업종은 못 바꿔요
   await assertFails(updateDoc(doc(a, "companies/c2"), { name: "바뀐 이름" })); // 이름은 못 바꿔요

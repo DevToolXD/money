@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=44">
+<link rel="stylesheet" href="app/app.css?v=45">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -84,12 +84,6 @@
           <div class="card biz-hero"><span class="biz-mark" id="biz-mark"></span><div><h2 id="biz-name"></h2><p id="biz-since"></p></div></div>
           <div class="biz-switch" id="biz-switch" hidden></div>
           <button class="btn" id="biz-more" type="button">회사 더 만들기 · 10 토큰</button>
-          <h2 class="section-title">업종</h2>
-          <div class="gseg biz-kinds" id="biz-kind" role="radiogroup" aria-label="업종" style="--n:3;--i:0">
-            <button type="button" role="radio" aria-checked="true" data-kind="food">식품</button>
-            <button type="button" role="radio" aria-checked="false" data-kind="pc">컴퓨터</button>
-            <button type="button" role="radio" aria-checked="false" data-kind="ai">인공지능</button>
-          </div>
           <h2 class="section-title">판매 중인 상품</h2>
           <div class="card biz-prod"><ul class="biz-list" id="biz-list"></ul><p class="biz-empty" id="biz-empty" hidden>아직 파는 상품이 없어요</p><button class="btn primary" id="biz-pick" type="button">팔 상품 정하기</button></div>
           <h2 class="section-title">직원 채용</h2>
@@ -195,16 +189,31 @@
     <div class="sheet-scroll"><ul class="res-list" id="new-results"></ul><p class="empty" id="new-empty">이름의 첫 글자부터 입력해 보세요</p></div>
   </section>
 
+  <section class="sheet" id="company-sheet" aria-label="회사 프로필">
+    <div class="grabber"></div>
+    <div class="sheet-head"><button class="link" data-close type="button">닫기</button><h2>회사 프로필</h2><span style="width:36px"></span></div>
+    <div class="co-prof"><span class="co-mark" id="co-mark"></span><h3 id="co-name"></h3><p id="co-since"></p></div>
+    <p class="field-l">업종</p>
+    <div class="co-kinds" id="co-kinds" role="group" aria-label="업종">
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="food">식품</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="pc">컴퓨터</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="ai">인공지능</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="nuclear">원자력 발전</button>
+    </div>
+    <p class="login-error" id="co-err" role="alert"></p>
+    <button class="btn primary" id="co-save" type="button" disabled>업종 바꾸기</button>
+  </section>
   <section class="sheet" id="found-sheet" aria-label="회사 만들기">
     <div class="grabber"></div>
     <div class="sheet-head"><button class="link" id="found-cancel" type="button">취소</button><h2>회사 만들기</h2><span style="width:36px"></span></div>
     <p class="found-sub">회사 이름과 마크를 고르세요</p>
     <button class="found-logo" id="found-logo" type="button" aria-label="회사 마크 고르기"><span class="found-logo-img" id="found-logo-img"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.500A2.500 2.500 0 0 1 6.500 6h1.200l1.300-2h6l1.300 2h1.200A2.500 2.500 0 0 1 20 8.500v8A2.500 2.500 0 0 1 17.500 19h-11A2.500 2.500 0 0 1 4 16.500z"/><circle cx="12" cy="12.500" r="3.200"/></svg></button>
     <p class="field-l">회사 종류</p>
-    <div class="gseg found-kinds" id="found-kinds" role="radiogroup" aria-label="회사 종류" style="--n:3;--i:0">
-      <button type="button" role="radio" aria-checked="true" data-kind="food">식품</button>
-      <button type="button" role="radio" aria-checked="false" data-kind="pc">컴퓨터</button>
-      <button type="button" role="radio" aria-checked="false" data-kind="ai">인공지능</button>
+    <div class="found-kinds" id="found-kinds" role="group" aria-label="회사 종류">
+      <button class="gg wk-pill" type="button" aria-pressed="true" data-kind="food">식품</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="pc">컴퓨터</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="ai">인공지능</button>
+      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="nuclear">원자력 발전</button>
     </div>
     <label class="field">회사 이름<input id="found-name" type="text" maxlength="20" placeholder="회사 이름을 적어 주세요" autocomplete="off"></label>
     <p class="found-cost" id="found-cost"></p>
@@ -312,10 +321,10 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=20"></script>
+<script type="module" src="app/firebase.js?v=21"></script>
 <script src="app/shapes.js?v=2"></script>
-<script src="app/biz.js?v=10"></script>
-<script src="app/work.js?v=2"></script>
-<script src="app/app.js?v=40"></script>
+<script src="app/biz.js?v=11"></script>
+<script src="app/work.js?v=3"></script>
+<script src="app/app.js?v=41"></script>
 </body>
 </html>

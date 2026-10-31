@@ -70,7 +70,7 @@ const explain = (err) =>
 const toEmail = (id) => `${id.trim().toLowerCase()}@money-sim.app`;
 const ms = (t) => (t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0);
 // 회사 문서를 화면에서 쓰는 모양으로 바꿔요. 예전 회사는 종류·모집·직원 값이 없어서 기본값(식품, 0명)으로 봐요
-const KINDS = ["food", "pc", "ai"];
+const KINDS = ["food", "pc", "ai", "nuclear"];
 const companyOf = (id, d) => ({
   id,
   name: d.name || "",
@@ -341,8 +341,8 @@ window.cloudReady = (async () => {
           : getDocs(query(ref, orderBy("at", "desc"), limit(50)))).catch(rethrow);
         return snap.docs.map((d) => companyOf(d.id, d.data({ serverTimestamps: "estimate" })));
       },
-      // 채용 공고: 모집 인원을 n명 늘려요 (한 번에 10명, 모집 중은 20명까지는 서버가 지켜요)
-      postOpenings: (cid, n) => updateDoc(doc(db, "companies", cid), { open: increment(n) }).catch(rethrow),
+      // 채용 공고: 모집 인원을 정한 숫자(n명)로 맞춰요. 숫자에는 제한이 없어요
+      setOpenings: (cid, n) => updateDoc(doc(db, "companies", cid), { open: n }).catch(rethrow),
       // 업종 바꾸기 (사장만)
       setCompanyKind: (cid, kind) => updateDoc(doc(db, "companies", cid), { kind }).catch(rethrow),
       // 내가 다니는 회사 기록 (없으면 null)

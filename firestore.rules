@@ -93,7 +93,7 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.matches('^[^<>]{1,20}$')
         && photoOk(request.resource.data.logo)
-        && request.resource.data.kind in ['food', 'pc', 'ai']
+        && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
         && request.resource.data.products == []
         && request.resource.data.open == 0
         && request.resource.data.staff == 0
@@ -102,14 +102,14 @@ service cloud.firestore {
         && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
         && getAfter(walletPath(request.auth.uid)).data.bal == get(walletPath(request.auth.uid)).data.bal - 10;
       allow update: if signedIn() && (
-        // 사장: 채용 공고(모집 인원 늘리기)나 업종 바꾸기만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
+        // 사장: 채용 공고(모집 인원을 정한 수로 맞추기)나 업종 바꾸기만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
         (resource.data.get('owner', cid) == request.auth.uid && (
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
             && request.resource.data.open is int
-            && request.resource.data.open > resource.data.get('open', 0))
+            && request.resource.data.open >= 0)
           ||
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kind'])
-            && request.resource.data.kind in ['food', 'pc', 'ai']
+            && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
             && request.resource.data.kind != resource.data.get('kind', 'food'))
         ))
         ||
@@ -190,7 +190,7 @@ service cloud.firestore {
       allow create: if isMe(uid)
         && request.resource.data.keys().hasOnly(['cid', 'kind', 'at'])
         && request.resource.data.cid is string
-        && request.resource.data.kind in ['food', 'pc', 'ai']
+        && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
         && request.resource.data.at == request.time
         && get(companyPath(request.resource.data.cid)).data.get('owner', request.resource.data.cid) != uid
         && getAfter(companyPath(request.resource.data.cid)).data.get('kind', 'food') == request.resource.data.kind

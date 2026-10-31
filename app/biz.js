@@ -36,6 +36,7 @@
     chev: '<path d="M9 5l7 7-7 7"/>',
     back: '<path d="M15 5l-7 7 7 7"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    nuclear: '<circle cx="12" cy="12" r="1.8"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-60 12 12)"/>',
   };
 
   // 값이 정해진 것인지 (null 이 아니고 0 이상인 정수)
@@ -791,23 +792,30 @@
   };
 
   /* ---------- 직원 채용: 사람만 골라요 (인공지능 직원은 아직 막아 두었어요).
-     + − 로 올릴 인원을 정하고 모집 올리기를 누르면 채용 공고가 올라가요 (인원 제한은 없어요) ---------- */
-  let hireN = 1;
+     + − 로 정한 숫자가 곧 모집 인원이에요. 모집 인원 맞추기를 누르면 그 숫자로 맞춰져요 (숫자에는 제한이 없어요) ---------- */
+  let hireN = 0;
+  let hireFor = null;
   let hiring = false;
   const paintHire = () => {
     const co = ctx?.company();
     if (!co) return;
     const open = co.open ?? 0;
-    hireN = Math.max(hireN, 1);
+    if (hireFor !== co.id) {
+      hireFor = co.id;
+      hireN = open; // 회사를 바꾸면 지금 모집 인원부터 보여요
+    }
+    hireN = Math.max(0, hireN);
     document.getElementById("hire-stat").textContent = `모집 중 ${open}명 · 직원 ${co.staff ?? 0}명`;
     document.getElementById("hire-num").textContent = String(hireN);
-    document.getElementById("hire-minus").disabled = hireN <= 1;
+    document.getElementById("hire-minus").disabled = hireN <= 0;
     document.getElementById("hire-plus").disabled = false;
-    document.getElementById("hire-go").disabled = hiring;
-    document.getElementById("hire-note").textContent = "채용할 사람 수에는 제한이 없어요";
+    const go = document.getElementById("hire-go");
+    go.disabled = hiring || hireN === open;
+    go.textContent = `모집 인원 ${hireN}명으로 맞추기`;
+    document.getElementById("hire-note").textContent = "숫자에는 제한이 없어요. 정한 숫자가 그대로 모집 인원이 돼요";
   };
   const stepHire = (d) => {
-    hireN += d;
+    hireN = Math.max(0, hireN + d);
     paintHire();
     const el = document.getElementById("hire-num");
     el.classList.remove("pop");
@@ -822,11 +830,11 @@
     const btn = document.getElementById("hire-go");
     btn.classList.add("busy");
     try {
-      await ctx.cloud().postOpenings(co.id, n);
-      ctx.patchCompany({ open: (co.open ?? 0) + n });
-      ctx.toast(`${n}명을 모집해요`);
+      await ctx.cloud().setOpenings(co.id, n);
+      ctx.patchCompany({ open: n });
+      ctx.toast(`모집 인원을 ${n}명으로 맞췄어요`);
     } catch (err) {
-      ctx.toast("모집하지 못했어요. 잠시 뒤 다시 해 주세요");
+      ctx.toast("모집 인원을 맞추지 못했어요. 잠시 뒤 다시 해 주세요");
     } finally {
       hiring = false;
       btn.classList.remove("busy");
@@ -834,7 +842,7 @@
     }
   };
   // 회사 종류 그림 (일 탭에서도 같은 그림을 써요)
-  const kindSvg = (k) => svgI(ICON[k === "pc" ? "pc" : k === "ai" ? "ai" : "food"]);
+  const kindSvg = (k) => svgI(ICON[k === "pc" ? "pc" : k === "ai" ? "ai" : k === "nuclear" ? "nuclear" : "food"]);
 
   window.Business = { init, refresh, kindSvg };
 })();
