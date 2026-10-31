@@ -100,13 +100,11 @@ service cloud.firestore {
         && getAfter(walletPath(uid)).data.op.kind == 'found'
         && getAfter(walletPath(uid)).data.bal == get(walletPath(uid)).data.bal - 10;
       allow update: if signedIn() && (
-        // 사장: 채용 공고만 올려요. 한 번에 1~10명씩, 모집 중은 최대 20명까지예요
+        // 사장: 채용 공고만 올려요. 모집 인원은 제한 없이 늘릴 수 있어요 (내리는 것은 안 돼요)
         (isMe(uid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
           && request.resource.data.open is int
-          && request.resource.data.open > resource.data.get('open', 0)
-          && request.resource.data.open - resource.data.get('open', 0) <= 10
-          && request.resource.data.open <= 20)
+          && request.resource.data.open > resource.data.get('open', 0))
         ||
         // 입사: 같은 묶음에서 내 일자리 기록이 생기고, 모집이 1명 줄고 직원이 1명 늘어요
         (request.auth.uid != uid

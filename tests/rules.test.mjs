@@ -563,18 +563,17 @@ const opened = async (db, cid = "uA") => {
   return [s.data().open ?? 0, s.data().staff ?? 0];
 };
 const same = (a, b) => { if (a !== b) throw new Error(`기대 ${b}, 실제 ${a}`); };
-await t("사장은 채용 공고만 올려요: 한 번에 1~10명, 모집 중은 최대 20명", async () => {
+await t("사장은 채용 공고만 올려요: 인원 제한 없이 늘리지만, 줄이는 것은 안 돼요", async () => {
   await coSeed();
   const alice = pw("uA", "alice");
-  await assertFails(updateDoc(coRef(alice), { open: increment(11) }));
+  await assertSucceeds(updateDoc(coRef(alice), { open: increment(11) })); // 한 번에 많이 올려도 돼요
   await assertFails(updateDoc(coRef(alice), { open: increment(-1) }));
   await assertFails(updateDoc(coRef(alice), { open: increment(0) }));
   await assertFails(updateDoc(coRef(alice), { open: increment(1), staff: 5 })); // 직원 수는 사장이 못 바꿔요
   await assertFails(updateDoc(coRef(alice), { open: increment(1), name: "바뀐 이름" }));
   await assertFails(updateDoc(coRef(pw("uB", "bob")), { open: increment(1) })); // 남의 회사 모집은 못 올려요
   await assertSucceeds(updateDoc(coRef(alice), { open: increment(10) }));
-  await assertSucceeds(updateDoc(coRef(alice), { open: increment(10) }));
-  await assertFails(updateDoc(coRef(alice), { open: increment(1) })); // 모집 중 20명을 넘어요
+  await assertSucceeds(updateDoc(coRef(alice), { open: increment(100) })); // 모집 중 인원에 상한이 없어요
 });
 await t("입사: 일자리 기록과 모집·직원 수가 같은 묶음에서 함께 바뀔 때만 돼요", async () => {
   await coSeed({ open: 2 });
