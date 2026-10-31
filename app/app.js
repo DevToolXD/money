@@ -351,6 +351,70 @@
     }, 900);
   });
 
+
+  /* ---------- 로그인 ---------- */
+  const loginEl = document.getElementById("login");
+  const loginForm = document.getElementById("login-form");
+  const emailEl = document.getElementById("login-email");
+  const pwEl = document.getElementById("login-pw");
+  const errEl = document.getElementById("login-error");
+  const submitBtn = document.getElementById("login-submit");
+  const googleBtn = document.getElementById("login-google");
+  let signup = false;
+  const setMode = (on) => {
+    signup = on;
+    document.getElementById("login-title").textContent = on ? "계정 만들기" : "로그인";
+    submitBtn.textContent = on ? "계정 만들기" : "로그인";
+    document.getElementById("login-switch").innerHTML = on ? "이미 계정이 있나요? <b>로그인</b>" : "계정이 없나요? <b>계정 만들기</b>";
+    pwEl.autocomplete = on ? "new-password" : "current-password";
+    errEl.textContent = "";
+  };
+  const showLogin = (on) => {
+    loginEl.hidden = false;
+    requestAnimationFrame(() => loginEl.classList.toggle("is-open", on));
+    if (on) setMode(false);
+  };
+  document.getElementById("open-login").addEventListener("click", () => showLogin(true));
+  document.getElementById("login-close").addEventListener("click", () => showLogin(false));
+  document.getElementById("login-switch").addEventListener("click", () => setMode(!signup));
+  const run = async (fn) => {
+    if (!window.cloud) {
+      errEl.textContent = "지금은 서버에 연결되어 있지 않아요";
+      return;
+    }
+    errEl.textContent = "";
+    submitBtn.disabled = googleBtn.disabled = true;
+    try {
+      await fn(window.cloud);
+      location.reload(); // 로그인한 계정의 저장 값을 처음부터 불러와요
+    } catch (err) {
+      errEl.textContent = err.message;
+      submitBtn.disabled = googleBtn.disabled = false;
+    }
+  };
+  loginForm.addEventListener("submit", (e) => e.preventDefault());
+  submitBtn.addEventListener("click", () => {
+    const email = emailEl.value.trim();
+    const pw = pwEl.value;
+    if (!email || !pw) {
+      errEl.textContent = "이메일과 비밀번호를 입력해 주세요";
+      return;
+    }
+    run((c) => (signup ? c.signUp(email, pw) : c.signIn(email, pw)));
+  });
+  googleBtn.addEventListener("click", () => run((c) => c.google()));
+  document.getElementById("logout").addEventListener("click", async () => {
+    await window.cloud?.signOut();
+    location.reload();
+  });
+  const renderAuth = (cloud) => {
+    const signedIn = Boolean(cloud) && !cloud.user.anonymous;
+    document.getElementById("auth-card").hidden = signedIn;
+    document.getElementById("auth-row").hidden = !signedIn;
+    if (signedIn) document.getElementById("auth-email").textContent = cloud.user.email || cloud.user.name;
+  };
+  renderAuth(null);
+
   /* ---------- 계정 ---------- */
   const nameEl = document.getElementById("profile-name");
   const bioEl = document.getElementById("profile-bio");
@@ -452,6 +516,7 @@
 
   // 클라우드에 저장해 둔 것이 있으면 불러와서 덮어써요 (연결이 안 되면 이 기기 값 그대로)
   Promise.race([window.cloudReady, new Promise((r) => setTimeout(() => r(null), 6000))]).then(async (cloud) => {
+    renderAuth(cloud);
     try {
       const data = cloud && (await cloud.load());
       if (data) {
