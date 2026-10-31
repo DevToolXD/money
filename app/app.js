@@ -146,7 +146,7 @@
         (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}${avatarHTML(c.name, c.photo)}<div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
-    emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : "로그인하면 대화를 시작할 수 있어요";
+    emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : window.cloud?.user || store.get("auth-hint", "null") !== "null" ? (window.__booted ? "서버에 연결하지 못했어요. 새로고침해 주세요" : "불러오는 중이에요") : "로그인하면 대화를 시작할 수 있어요";
     emptyMsg.hidden = shown.length > 0 || pins.length > 0;
     const sc = document.getElementById("stat-chats");
     if (sc) sc.textContent = chats.length;
@@ -497,7 +497,10 @@
     }
   };
   const openPicker = (mode) => {
-    if (!live) return showLogin(true);
+    if (!live) {
+      if (window.cloud?.user) return toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요");
+      return showLogin(true);
+    }
     pickMode = mode;
     document.getElementById("new-title").textContent = mode === "gift" ? "받는 사람" : "새 메시지";
     newQ.value = "";
@@ -1751,6 +1754,7 @@
   // 로그인한 계정이면 서버에서 지갑, 대화, 설정을 불러와요. 로그인하지 않았거나 연결이 안 되면 로그인 화면만 보여줘요
   let started = false;
   const boot = async (cloud) => {
+    window.__booted = true;
     renderAuth(cloud);
     if (!cloud || !cloud.user || started) {
       renderChats();
