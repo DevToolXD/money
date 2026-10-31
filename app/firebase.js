@@ -18,6 +18,7 @@ const MESSAGES = {
   "auth/cancelled-popup-request": "로그인 창이 닫혔어요",
   "auth/popup-blocked": "팝업이 막혔어요. 허용한 뒤 다시 눌러 주세요",
   "auth/operation-not-allowed": "이 로그인 방법이 아직 켜지지 않았어요",
+  "auth/admin-restricted-operation": "익명 로그인이 꺼져 있어요",
   "auth/unauthorized-domain": "이 주소는 아직 허용되지 않았어요",
   "auth/network-request-failed": "인터넷 연결을 확인해 주세요",
 };
@@ -25,7 +26,10 @@ const toEmail = (id) => `${id.trim().toLowerCase()}@money-sim.app`;
 const explain = (err) => MESSAGES[err?.code] || "로그인하지 못했어요. 잠시 뒤 다시 해 주세요";
 
 window.cloudReady = (async () => {
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) return null;
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    window.cloudError = "설정값이 비어 있어요";
+    return null;
+  }
   try {
     const [{ initializeApp }, A, { getFirestore, doc, getDoc, setDoc }] = await Promise.all([
       import(`${BASE}/firebase-app.js`),
@@ -63,6 +67,8 @@ window.cloudReady = (async () => {
     return window.cloud;
   } catch (err) {
     console.warn("파이어베이스에 연결하지 못했어요:", err);
+    // 화면에서 원인을 알려 주려고 남겨 둬요
+    window.cloudError = err?.code ? explain(err) + ` (${err.code})` : `연결하지 못했어요 (${err?.message || err})`;
     return null;
   }
 })();

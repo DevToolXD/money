@@ -400,12 +400,14 @@
   document.getElementById("login-close").addEventListener("click", () => showLogin(false));
   document.getElementById("login-switch").addEventListener("click", () => setMode(!signup));
   const run = async (fn) => {
-    if (!window.cloud) {
-      errEl.textContent = "지금은 서버에 연결되어 있지 않아요";
-      return;
-    }
     errEl.textContent = "";
     submitBtn.disabled = true;
+    await window.cloudReady; // 연결이 아직 끝나지 않았을 수 있어요
+    if (!window.cloud) {
+      errEl.textContent = `서버에 연결하지 못했어요: ${window.cloudError || "알 수 없는 오류"}`;
+      submitBtn.disabled = false;
+      return;
+    }
     try {
       await fn(window.cloud);
       location.reload(); // 로그인한 계정의 저장 값을 처음부터 불러와요
