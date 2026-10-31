@@ -93,3 +93,13 @@ WebGL을 못 쓰거나 셰이더 컴파일이 실패하거나 컨텍스트를 �
 - 스프링 값은 [dazecoop/liquid-glass](https://github.com/dazecoop/liquid-glass)(MIT)가 아이폰 26에서 잰 값에서 출발해, 더 짧고 되튀지 않게 바꿨어요. 코드는 쓰지 않았어요.
 - 화면 모양은 첨부해 주신 Apple Store 앱 스크린샷과 UI 명세를 따랐어요.
 - 톱니바퀴 아이콘은 첨부해 주신 이미지를 벡터로 따서 만들었고, 종이비행기도 첨부해 주신 윤곽선 이미지를 따랐어요.
+
+## 파이어베이스 연결
+
+익명 로그인으로 프로필, 대화 배경화면, 대화(고정·알림·메시지)를 Firestore의 `users/{내 uid}` 문서에 저장하고 다시 열면 불러와요. 설정값이 비어 있으면 이 기기에만 저장해요.
+
+1. [콘솔](https://console.firebase.google.com)에서 프로젝트를 만들고, 프로젝트 설정 → 내 앱에 웹 앱(`</>`)을 추가해요.
+2. 나온 `firebaseConfig` 값을 `app/firebase-config.js`에 붙여 넣어요.
+3. Authentication → 로그인 방법에서 **익명**을 켜요.
+4. Firestore Database를 만들고(프로덕션 모드), 규칙에 `firestore.rules` 내용을 붙여 게시해요.
+5. Authentication → 설정 → 승인된 도메인에 `devtoolxd.github.io`를 추가해요.

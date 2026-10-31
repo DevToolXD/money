@@ -72,6 +72,24 @@
     set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* 저장을 못 해도 괜찮아요 */ } },
   };
 
+  /* ---------- 파이어베이스로 저장·불러오기 ---------- */
+  let hydrated = false;
+  let saveTimer = 0;
+  const walls = () => Object.fromEntries(chats.map((c) => [c.id, store.get("wall-" + c.id, "white")]));
+  const persist = () => {
+    if (!hydrated || !window.cloud) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      window.cloud
+        .save({
+          profile: { name: store.get("profile-name", "내 계정"), bio: store.get("profile-bio", "소개를 추가해 보세요") },
+          walls: walls(),
+          chats: chats.map(({ id, last, time, unread, pin, muted, msgs }) => ({ id, last, time, unread: Boolean(unread), pin: Boolean(pin), muted: Boolean(muted), msgs: msgs.map((m) => ({ w: m[0], t: m[1], b: m[2] || "" })) })),
+        })
+        .catch((err) => console.warn("저장하지 못했어요:", err));
+    }, 800);
+  };
+
   /* ---------- 메시지 ---------- */
   const chats = [
     { id: "minji", name: "민지", last: "내일 점심 뭐 먹을까?", time: "오후 2:14", unread: true, pin: true, msgs: [["them", "오늘 뭐 해?"], ["me", "집에서 쉬고 있어"], ["them", "내일 점심 뭐 먹을까?"]], reply: "좋아! 그럼 그때 봐" },
@@ -91,6 +109,7 @@
   const chev = '<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
   let onlyUnread = false;
   const renderChats = () => {
+    persist();
     const q = searchEl.value.trim();
     const match = (c) => (c.name.includes(q) || c.last.includes(q)) && (!onlyUnread || c.unread);
     const pins = q || onlyUnread ? [] : chats.filter((c) => c.pin);
@@ -280,6 +299,7 @@
     b.addEventListener("click", () => {
       store.set("wall-" + openChat.id, b.dataset.pick);
       applyWall();
+      persist();
     })
   );
   document.getElementById("wall-done").addEventListener("click", () => sheetOpen(false));
@@ -369,6 +389,7 @@
     store.set("profile-name", editName.value.trim() || "내 계정");
     store.set("profile-bio", editBio.value.trim() || "소개를 추가해 보세요");
     applyProfile();
+    persist();
     sheetOpen(false);
   });
   document.getElementById("share-profile").addEventListener("click", () => {
@@ -428,4 +449,31 @@
     for (const name of screens.keys()) if (name !== firstScreen) backdrop.ensure(name);
   }
   updateChrome(screens.get(firstScreen));
+
+  // 클라우드에 저장해 둔 것이 있으면 불러와서 덮어써요 (연결이 안 되면 이 기기 값 그대로)
+  Promise.race([window.cloudReady, new Promise((r) => setTimeout(() => r(null), 6000))]).then(async (cloud) => {
+    try {
+      const data = cloud && (await cloud.load());
+      if (data) {
+        if (data.profile) {
+          store.set("profile-name", data.profile.name);
+          store.set("profile-bio", data.profile.bio);
+          applyProfile();
+        }
+        for (const [id, w] of Object.entries(data.walls || {})) store.set("wall-" + id, w);
+        if (data.chats) {
+          const saved = new Map(data.chats.map((c) => [c.id, c]));
+          for (let i = chats.length - 1; i >= 0; i--) if (!saved.has(chats[i].id)) chats.splice(i, 1);
+          for (const c of chats) {
+            const s = saved.get(c.id);
+            Object.assign(c, { last: s.last, time: s.time, unread: s.unread, pin: s.pin, muted: s.muted, msgs: (s.msgs || []).map((m) => [m.w, m.t, m.b || undefined]) });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("저장해 둔 값을 불러오지 못했어요:", err);
+    }
+    hydrated = true;
+    renderChats();
+  });
 })();
