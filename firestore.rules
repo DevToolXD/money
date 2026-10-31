@@ -94,11 +94,43 @@ service cloud.firestore {
         && request.resource.data.at == request.time
         && getAfter(walletPath(uid)).data.op.kind == 'found'
         && getAfter(walletPath(uid)).data.bal == get(walletPath(uid)).data.bal - 10;
-      allow update: if isMe(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['products'])
-        && request.resource.data.products is list
-        && request.resource.data.products.size() <= 20
-        && request.resource.data.products.hasOnly(['water', 'drink', 'energy', 'coffee', 'bread', 'meat', 'ai-assistant', 'ai-agent', 'ai-dev', 'pc-office', 'pc-power', 'pc-server']);
+      // 회사 정보는 더 바꿀 수 없어요. 파는 상품은 아래 products 모음에서 따로 관리해요
+      allow update: if false;
+
+      // 팔 상품: 한 상품이 한 문서예요. 만들 때 종류·모양·색·가격을 모두 검사하고, 나중에는 '판매 종료'(active를 false로)만 할 수 있어요
+      match /products/{pid} {
+        allow get: if signedIn();
+        allow list: if signedIn() && request.query.limit <= 50;
+        allow create: if isMe(uid)
+          && exists(companyPath(uid))
+          && request.resource.data.keys().hasOnly(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'cap', 'capColor', 'content', 'cost', 'price', 'active', 'at'])
+          && request.resource.data.keys().hasAll(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'cost', 'price', 'active', 'at'])
+          && request.resource.data.owner == uid
+          && request.resource.data.cat == 'food'
+          && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
+          && request.resource.data.item in ['water', 'jelly', 'chips', 'bread', 'lunchbox', 'meat', 'bar', 'drink', 'coffee']
+          && (
+            (request.resource.data.group == 'water' && request.resource.data.item == 'water')
+            || (request.resource.data.group == 'snack' && request.resource.data.item in ['jelly', 'chips', 'bread'])
+            || (request.resource.data.group == 'meal' && request.resource.data.item in ['lunchbox', 'meat'])
+            || (request.resource.data.group == 'energy' && request.resource.data.item in ['bar', 'drink', 'coffee'])
+          )
+          && request.resource.data.name is string
+          && request.resource.data.name.matches('^[^<>]{1,30}$')
+          && request.resource.data.shape is int && request.resource.data.shape >= 0 && request.resource.data.shape <= 49
+          && request.resource.data.color is int && request.resource.data.color >= -1 && request.resource.data.color <= 49
+          && (!('cap' in request.resource.data) || (request.resource.data.item == 'water' && request.resource.data.cap is int && request.resource.data.cap >= 0 && request.resource.data.cap <= 49))
+          && (!('capColor' in request.resource.data) || (request.resource.data.item == 'water' && request.resource.data.capColor is int && request.resource.data.capColor >= -1 && request.resource.data.capColor <= 49))
+          && (!('content' in request.resource.data) || (request.resource.data.content is int && request.resource.data.content >= 0 && request.resource.data.content <= 5))
+          && request.resource.data.cost is int && request.resource.data.cost >= 1 && request.resource.data.cost <= 999999
+          && request.resource.data.price is int && request.resource.data.price >= 1 && request.resource.data.price <= 99999999
+          && request.resource.data.active == true
+          && request.resource.data.at == request.time;
+        allow update: if isMe(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+          && request.resource.data.active == false;
+        allow delete: if false;
+      }
     }
 
     // ----- 상태(배고픔·목마름·에너지): 값은 시간이 지나면 닳기만 해요. 쓰러졌을 때만 기록하고, 그때 다 10%로 돌아오며 1·2·3시간… 쉬어요 -----

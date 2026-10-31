@@ -1130,25 +1130,6 @@
   window.__vitals = { get: () => vit, set: (v) => { vit = v; startVitals(); } }; // 시험용
 
   /* ---------- 사업: 창업, 대시보드, 팔 상품 ---------- */
-  const CATS = {
-    ai: { label: "AI", d: '<rect x="6" y="6" width="12" height="12" rx="2.500"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/>' },
-    food: { label: "음식", d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
-    pc: { label: "컴퓨터", d: '<rect x="3.500" y="4.500" width="17" height="11.500" rx="2"/><path d="M9 20h6M12 16v4"/>' },
-  };
-  const PRODUCTS = [
-    { id: "ai-assistant", cat: "ai", name: "AI 비서", sub: "일정과 메일을 챙겨 줘요" },
-    { id: "ai-agent", cat: "ai", name: "AI 상담원", sub: "손님 문의에 대신 답해 줘요" },
-    { id: "ai-dev", cat: "ai", name: "AI 개발자", sub: "프로그램을 대신 만들어 줘요" },
-    { id: "water", cat: "food", name: "물", sub: "목마름을 채워요" },
-    { id: "drink", cat: "food", name: "음료", sub: "달콤한 음료예요" },
-    { id: "energy", cat: "food", name: "에너지음료", sub: "에너지를 빠르게 채워요" },
-    { id: "coffee", cat: "food", name: "커피", sub: "잠을 깨워 줘요" },
-    { id: "bread", cat: "food", name: "빵", sub: "배고픔을 달래요" },
-    { id: "meat", cat: "food", name: "고기", sub: "든든하게 배를 채워요" },
-    { id: "pc-office", cat: "pc", name: "사무용 컴퓨터", sub: "AI 직원을 돌리기 좋아요" },
-    { id: "pc-power", cat: "pc", name: "고성능 컴퓨터", sub: "큰 AI도 거뜬히 돌려요" },
-    { id: "pc-server", cat: "pc", name: "AI 서버", sub: "회사 전체의 AI를 돌려요" },
-  ];
   let company; // undefined: 불러오는 중, null: 아직 회사가 없어요
   const bizNone = document.getElementById("biz-none");
   const bizDash = document.getElementById("biz-dash");
@@ -1166,13 +1147,6 @@
     document.getElementById("biz-name").textContent = company.name;
     const d = new Date(company.at || Date.now());
     document.getElementById("biz-since").textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일에 창업했어요`;
-    // 판매 중인 상품을 하나씩 보여줘요. 각 줄의 "판매 종료"로 그 상품만 그만 팔아요
-    const chosen = company.products.map((id) => PRODUCTS.find((p) => p.id === id)).filter(Boolean);
-    document.getElementById("biz-list").innerHTML = chosen
-      .map((p) => `<li class="biz-item" data-id="${p.id}"><span class="prod-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CATS[p.cat].d}</svg></span><span class="prod-main"><b>${esc(p.name)}</b><span>${esc(p.sub)}</span></span><button class="biz-end" type="button" data-end="${p.id}">판매 종료</button></li>`)
-      .join("");
-    document.getElementById("biz-empty").hidden = chosen.length > 0;
-    document.getElementById("biz-pick").textContent = "상품 추가하기";
   };
   const loadCompany = async (cloud) => {
     try {
@@ -1182,8 +1156,17 @@
       console.warn("회사를 불러오지 못했어요:", err?.code || err);
     }
     renderBiz();
+    if (company) window.Business.refresh();
   };
   // 창업
+  // 사업 탭: 팔 상품 정하기 화면과 판매 목록 (app/biz.js)
+  window.Business.init({
+    cloud: () => window.cloud,
+    company: () => company,
+    safeImg: (v, max) => safeImg(v, max),
+    toast: (m) => toast(m),
+    ask: (o) => ask(o),
+  });
   const foundName = document.getElementById("found-name");
   const foundErr = document.getElementById("found-err");
   const foundGo = document.getElementById("found-go");
@@ -1234,6 +1217,7 @@
       logTx({ t: Date.now(), name: "창업", cat: "사업", icon: "store", amt: -10 });
       sheetOpen(false);
       renderBiz();
+      window.Business.refresh();
       toast(`${name}을(를) 창업했어요`);
     } catch (err) {
       foundErr.textContent = err?.code === "permission-denied" ? "창업하지 못했어요. 이미 회사가 있거나 토큰이 부족해요" : "창업하지 못했어요. 잠시 뒤 다시 해 주세요";
@@ -1242,80 +1226,6 @@
       foundGo.classList.remove("busy");
     }
   });
-  // 팔 상품 고르기
-  const prodList = document.getElementById("prod-list");
-  const prodSeg = document.getElementById("prod-seg");
-  let prodCat = "ai";
-  let prodSel = new Set();
-  let prodSaveT = 0;
-  const saveProd = async () => {
-    clearTimeout(prodSaveT);
-    if (!company) return;
-    const next = [...prodSel];
-    if (next.length === company.products.length && next.every((x) => company.products.includes(x))) return;
-    try {
-      await window.cloud.saveProducts(next);
-      company.products = next;
-      renderBiz();
-    } catch (err) {
-      toast("상품을 저장하지 못했어요");
-    }
-  };
-  const paintProd = () => {
-    prodList.innerHTML = PRODUCTS.filter((p) => p.cat === prodCat)
-      .map((p, i) => `<li class="prod-row${prodSel.has(p.id) ? " on" : ""}" data-id="${p.id}" style="--i:${i}" role="button" tabindex="0"><span class="prod-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${CATS[p.cat].d}</svg></span><span class="prod-main"><b>${esc(p.name)}</b><span>${esc(p.sub)}</span></span><span class="prod-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></span></li>`)
-      .join("");
-  };
-  // 판매 종료: 그 상품만 목록에서 빼요. 다시 추가하면 또 팔 수 있어요
-  document.getElementById("biz-list").addEventListener("click", async (e) => {
-    const b = e.target.closest("[data-end]");
-    if (!b || !company) return;
-    const id = b.dataset.end;
-    const name = PRODUCTS.find((x) => x.id === id)?.name || "이 상품";
-    const ok = await ask({ title: `"${name}" 판매를 끝낼까요?`, body: "끝내면 이 상품은 더 이상 팔리지 않아요. 나중에 다시 추가할 수 있어요.", ok: "판매 종료", cancel: "취소" });
-    if (!ok) return;
-    const next = company.products.filter((x) => x !== id);
-    const item = b.closest(".biz-item");
-    item?.classList.add("out");
-    try {
-      await window.cloud.saveProducts(next);
-      company.products = next;
-      setTimeout(renderBiz, 240);
-      toast(`${name} 판매를 끝냈어요`);
-    } catch (err) {
-      item?.classList.remove("out");
-      toast("판매를 끝내지 못했어요");
-    }
-  });
-  document.getElementById("biz-pick").addEventListener("click", () => {
-    prodSel = new Set(company?.products || []);
-    prodCat = "ai";
-    prodSeg.dataset.i = "0";
-    prodSeg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.cat === "ai")));
-    paintProd();
-    sheetOpen(true, document.getElementById("prod-sheet"));
-  });
-  prodSeg.addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-cat]");
-    if (!b || b.dataset.cat === prodCat) return;
-    prodCat = b.dataset.cat;
-    prodSeg.dataset.i = String(["ai", "food", "pc"].indexOf(prodCat));
-    prodSeg.querySelectorAll("button").forEach((o) => o.setAttribute("aria-selected", String(o === b)));
-    prodList.classList.add("out");
-    setTimeout(() => { paintProd(); prodList.classList.remove("out"); }, 140);
-  });
-  prodList.addEventListener("click", (e) => {
-    const row = e.target.closest(".prod-row");
-    if (!row) return;
-    const id = row.dataset.id;
-    if (prodSel.has(id)) prodSel.delete(id);
-    else prodSel.add(id);
-    row.classList.toggle("on", prodSel.has(id));
-    navigator.vibrate?.(5);
-    clearTimeout(prodSaveT);
-    prodSaveT = setTimeout(saveProd, 900);
-  });
-  document.getElementById("prod-done").addEventListener("click", () => { saveProd(); sheetOpen(false); });
 
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
   const startWallet = () =>

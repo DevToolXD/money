@@ -317,7 +317,22 @@ window.cloudReady = (async () => {
         b.update(walletRef(), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } });
         await b.commit();
       },
-      saveProducts: (products) => updateDoc(doc(db, "companies", uidOf()), { products }),
+
+      /* ----- 팔 상품: 한 상품이 한 문서예요. 판매 종료는 active만 false로 바꿔요 ----- */
+      listProducts: async () => {
+        const snap = await getDocs(query(collection(db, "companies", uidOf(), "products"), where("active", "==", true), limit(50))).catch(rethrow);
+        return snap.docs.map((d) => {
+          const v = d.data({ serverTimestamps: "estimate" });
+          return { ...v, id: d.id, at: ms(v.at) };
+        });
+      },
+      createProduct: async (p) => {
+        const ref = doc(collection(db, "companies", uidOf(), "products"));
+        const data = Object.fromEntries(Object.entries({ ...p, owner: uidOf(), active: true, at: serverTimestamp() }).filter(([, v]) => v !== undefined));
+        await setDoc(ref, data).catch(rethrow);
+        return ref.id;
+      },
+      endProduct: (id) => updateDoc(doc(db, "companies", uidOf(), "products", id), { active: false }).catch(rethrow),
 
       /* ----- 상태 (배고픔·목마름·에너지) ----- */
       loadVitals: async () => {

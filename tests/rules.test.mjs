@@ -430,23 +430,80 @@ await t("회사 이름·마크·여분의 값은 검사해요", async () => {
   await assertFails(foundBatch(a, "uA", { extra: { owner: "uB" } }).commit());
   await assertSucceeds(foundBatch(a, "uA", { name: "Good 회사 1", logo: JPEG }).commit());
 });
-await t("팔 상품은 정해진 목록에서만 바꾸고, 이름·마크는 못 바꿔요", async () => {
-  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: [], at: EPOCH }); });
-  const a = pw("uA", "alice");
-  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: ["water", "coffee", "ai-dev"] }));
-  await assertFails(updateDoc(doc(a, "companies/uA"), { products: ["water", "bomb"] }));
-  await assertFails(updateDoc(doc(a, "companies/uA"), { name: "다른 이름" }));
-  await assertFails(updateDoc(doc(pw("uB", "bob"), "companies/uA"), { products: ["water"] }));
-  await assertSucceeds(getDoc(doc(pw("uB", "bob"), "companies/uA")));
-  await assertFails(getDoc(doc(anon(), "companies/uA")));
+console.log("\n[사업 상품]");
+const coSeed = () => seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: [], at: EPOCH }); });
+const pid = () => "p" + Math.random().toString(36).slice(2, 10);
+const pdoc = (over = {}) => ({ owner: "uA", cat: "food", group: "water", item: "water", name: "생수 500ml", shape: 1, cap: 3, capColor: 5, color: -1, cost: 5, price: 10, active: true, at: serverTimestamp(), ...over });
+await t("상품은 회사가 있고 내 회사일 때만 만들 수 있어요", async () => {
+  await seed(seedBase);
+  await assertFails(setDoc(doc(pw("uC", "carol"), "companies/uC/products/" + pid()), pdoc({ owner: "uC" }))); // 회사가 없어요
+  await coSeed();
+  await assertSucceeds(setDoc(doc(pw("uA", "alice"), "companies/uA/products/" + pid()), pdoc()));
+  await assertFails(setDoc(doc(pw("uA", "alice"), "companies/uA/products/" + pid()), pdoc({ owner: "uB" }))); // 남의 이름으로
+  await assertFails(setDoc(doc(pw("uB", "bob"), "companies/uA/products/" + pid()), pdoc({ owner: "uB" }))); // 남의 회사에
 });
-
-await t("판매 종료: 상품을 목록에서 빼는 것도 같은 규칙으로 되고, 21개는 막혀요", async () => {
-  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", products: ["water", "coffee", "ai-dev"], at: EPOCH }); });
+await t("상품 종류·모양·색·뚜껑은 정해진 범위와 짝만 받아요", async () => {
+  await coSeed();
   const a = pw("uA", "alice");
-  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: ["water", "ai-dev"] }));
-  await assertSucceeds(updateDoc(doc(a, "companies/uA"), { products: [] }));
-  await assertFails(updateDoc(doc(a, "companies/uA"), { products: Array(21).fill("water") }));
+  const ok = (over) => assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc(over)));
+  const bad = (over) => assertFails(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc(over)));
+  await bad({ cat: "pc" });
+  await bad({ item: "bomb", group: "water" });
+  await bad({ item: "jelly" }); // 물 종류(group)와 안 맞아요
+  await bad({ group: "snack", item: "water" });
+  await bad({ shape: 50 });
+  await bad({ shape: -1 });
+  await bad({ color: 50 });
+  await bad({ color: -2 });
+  await bad({ cap: 50 });
+  await bad({ item: "jelly", group: "snack", cap: 3, capColor: 5 }); // 뚜껑은 물에만
+  await bad({ item: "coffee", group: "energy", content: 9 });
+  await ok({ color: -1 });
+  await ok({ shape: 49, cap: 0, capColor: -1 });
+  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), { owner: "uA", cat: "food", group: "energy", item: "coffee", name: "커피 · 모카", shape: 3, color: 7, content: 5, cost: 4, price: 8, active: true, at: serverTimestamp() }));
+});
+await t("이름·가격·원가·시간은 정해진 값만 받아요", async () => {
+  await coSeed();
+  const a = pw("uA", "alice");
+  const bad = (over) => assertFails(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc(over)));
+  await bad({ name: "<b>x</b>" });
+  await bad({ name: "" });
+  await bad({ name: "가".repeat(31) });
+  await bad({ price: 0 });
+  await bad({ cost: 0 });
+  await bad({ price: "10" });
+  await bad({ price: 1.5 });
+  await bad({ price: 100000000 });
+  await bad({ cost: 1000000 });
+  await bad({ active: false });
+  await bad({ at: Timestamp.fromMillis(1) });
+  await bad({ extra: 1 });
+  await assertSucceeds(setDoc(doc(a, "companies/uA/products/" + pid()), pdoc({ name: "가".repeat(30), price: 99999999, cost: 999999 })));
+});
+await t("판매 종료는 active를 false로 바꾸는 것만, 지우기는 안 돼요", async () => {
+  await coSeed();
+  const id = pid();
+  await seed((d) => setDoc(doc(d, "companies/uA/products/" + id), pdoc({ at: EPOCH })));
+  const ref = doc(pw("uA", "alice"), "companies/uA/products/" + id);
+  await assertFails(updateDoc(ref, { name: "다른 이름" }));
+  await assertFails(updateDoc(ref, { price: 1 }));
+  await assertFails(updateDoc(ref, { active: true }));
+  await assertFails(updateDoc(doc(pw("uB", "bob"), "companies/uA/products/" + id), { active: false }));
+  await assertFails(deleteDoc(ref));
+  await assertSucceeds(updateDoc(ref, { active: false }));
+});
+await t("상품은 로그인한 사람이 보고, 목록은 50개까지 읽어요", async () => {
+  await coSeed();
+  await assertSucceeds(getDoc(doc(pw("uB", "bob"), "companies/uA/products/" + pid())));
+  await assertFails(getDoc(doc(anon(), "companies/uA/products/x")));
+  await assertSucceeds(getDocs(query(collection(pw("uB", "bob"), "companies/uA/products"), where("active", "==", true), limit(50))));
+  await assertFails(getDocs(query(collection(pw("uB", "bob"), "companies/uA/products"), where("active", "==", true), limit(51))));
+  await assertFails(getDocs(collection(pw("uB", "bob"), "companies/uA/products")));
+});
+await t("회사 정보와 예전 상품 목록은 더 이상 바꿀 수 없어요", async () => {
+  await coSeed();
+  await assertFails(updateDoc(doc(pw("uA", "alice"), "companies/uA"), { products: ["water"] }));
+  await assertFails(updateDoc(doc(pw("uA", "alice"), "companies/uA"), { name: "바뀐 이름" }));
 });
 
 console.log("\n[상태]");
