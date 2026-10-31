@@ -175,6 +175,28 @@
     }
   };
 
+  /* ---------- 핵연료 배합 재료와 그림 ---------- */
+  const MIX_MAX = 8; // 한 번에 넣을 수 있는 스포이드 방울 수
+  const REAGENTS = [
+    { name: "분말", rgb: [196, 58, 58] },
+    { name: "안정제", rgb: [244, 196, 60] },
+    { name: "촉매", rgb: [52, 110, 214] },
+  ];
+  const rgbCss = (c) => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  // 재료를 방울 수만큼 섞은 색 (방울이 하나도 없으면 null)
+  const mixRgb = (counts) => {
+    const n = counts[0] + counts[1] + counts[2];
+    if (!n) return null;
+    return [0, 1, 2].map((ch) => Math.round(REAGENTS.reduce((s, r, i) => s + counts[i] * r.rgb[ch], 0) / n));
+  };
+  // 두 색이 얼마나 가까운지 (1은 같은 색, 0은 아주 다른 색)
+  const closeOf = (a, b) => Math.max(0, Math.min(1, 1 - Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) / 100));
+  const bottleSvg = (rgb) => `<svg viewBox="0 0 40 48" aria-hidden="true"><rect x="14" y="1.5" width="12" height="6" rx="2" fill="none" stroke="#000" stroke-width="1.8"/><path d="M16 8v6Q8 17 8 26v14q0 6 6 6h12q6 0 6-6V26q0-9-8-12V8" fill="none" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="11" y="29" width="18" height="14" rx="3" fill="${rgbCss(rgb)}"/></svg>`;
+  // 플라스크: 120×150 그림. 액체 높이는 방울 수에 따라 올라가요 (눈금 2·4·6·8방울)
+  const FLASK_SVG = `<svg viewBox="0 0 120 150" aria-hidden="true"><defs><clipPath id="wk-flask-clip"><path d="M50 14H70V52L104 124Q109 136 96 139H24Q11 136 16 124L50 52Z"/></clipPath></defs><g clip-path="url(#wk-flask-clip)"><rect class="lab-liquid" x="0" y="60" width="120" height="90" style="transform:translateY(80px);fill:transparent"/></g><path d="M50 14H70M50 14V52L16 124Q11 136 24 139H96Q109 136 104 124L70 52V14" fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M94.5 119.25H99.5M85.4 99.5H90.4M76.1 79.75H81.1M66.8 60H71.8" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  // 스포이드: 고무 주머니와 관. 관 안의 액체는 고른 재료 색이에요
+  const DROPPER_SVG = `<svg viewBox="0 0 34 70" aria-hidden="true"><rect x="10" y="1" width="14" height="22" rx="7" fill="none" stroke="#000" stroke-width="1.8"/><path d="M13 23V52L17 66L21 52V23" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><rect class="lab-dropper-liq" x="14.5" y="28" width="5" height="22" rx="2" fill="#f2f2f7"/></svg>`;
+
   /* ---------- 일: 사장이거나 직원일 때 ---------- */
   const workHTML = (kind) => {
     if (kind === "food") {
@@ -203,10 +225,26 @@
     if (kind === "nuclear") {
       return `<div class="card wk-work wk-nuc">
         <p class="wk-head">핵연료 배합</p>
-        <p class="wk-note">핵연료는 처음부터 있어요. 재료를 섞을 때마다 성능이 랜덤으로 올라가고, 성능이 좋을수록 발전이 빨라요.</p>
+        <p class="wk-note">재료를 고르고 플라스크를 누르면 스포이드로 한 방울씩 떨어져요. 목표 색에 가깝게 섞은 뒤, 아래 버튼을 손을 떼지 않고 꾹 누르면 섞여요. 가까울수록 핵연료 성능이 많이 올라가요.</p>
         <div class="wk-nums"><span>핵연료 성능 <b id="lab-np">…</b></span></div>
-        <button type="button" class="gg wk-mix" id="wk-mix">재료 배합하기</button>
-        <p class="wk-count" id="wk-mixlog">아직 배합하지 않았어요</p>
+        <div class="lab-bench">
+          <div class="lab-top">
+            <span class="lab-sw" id="wk-target" aria-hidden="true"></span>
+            <div class="lab-meta"><b>목표 색</b><span id="wk-match">일치 0%</span><span class="lab-meter" aria-hidden="true"><i id="wk-meter"></i></span></div>
+          </div>
+          <div class="lab-flaskwrap">
+            <div class="lab-dropper" id="wk-dropper" aria-hidden="true">${DROPPER_SVG}</div>
+            <button type="button" class="lab-flask" id="wk-flask" aria-label="선택한 재료를 한 방울 떨어뜨리기">${FLASK_SVG}</button>
+          </div>
+          <p class="lab-drops" id="wk-drops">0 / ${MIX_MAX} 방울</p>
+          <div class="lab-reagents" role="radiogroup" aria-label="재료 고르기">${REAGENTS.map((r, i) => `<button type="button" class="lab-reagent" role="radio" aria-checked="${i === 0}" data-r="${i}">${bottleSvg(r.rgb)}<b>${r.name}</b><span id="wk-rc${i}">0방울</span></button>`).join("")}</div>
+          <div class="lab-actions">
+            <button type="button" class="btn lab-reset" id="wk-reset">비우기</button>
+            <button type="button" class="btn primary lab-stir" id="wk-stir">꾹 눌러 섞기</button>
+          </div>
+          <span class="lab-stirbar" aria-hidden="true"><i id="wk-stirbar"></i></span>
+        </div>
+        <p class="wk-count" id="wk-mixlog">재료를 고르고 플라스크를 눌러 보세요</p>
       </div>`;
     }
     return `<div class="card wk-work wk-pc">
@@ -359,12 +397,175 @@
       console.warn("연구실 숫자를 불러오지 못했어요:", err?.code || err);
     }
   };
-  // 핵연료 배합: 핵연료는 처음부터 있고, 성능만 랜덤으로 올라가요
-  const mix = () => {
-    const r = 1 + Math.floor(Math.random() * 30);
-    queueLab({ nperf: r });
-    const log = root.querySelector("#wk-mixlog");
-    if (log) log.textContent = `핵연료 성능이 ${r} 올랐어요`;
+  // 핵연료 배합: 재료를 스포이드로 한 방울씩 떨어뜨리고, 꾹 눌러 섞어요. 목표 색에 가까울수록 성능이 더 많이 올라요
+  let mixCounts = [0, 0, 0];
+  let mixSel = 0;
+  let mixGoal = null;
+  let stirStart = 0;
+  let stirRaf = 0;
+  const STIR_MS = 1600; // 꾹 누르고 있어야 하는 시간
+  const mixTotal = () => mixCounts[0] + mixCounts[1] + mixCounts[2];
+  const setLog = (t) => {
+    const el = root?.querySelector("#wk-mixlog");
+    if (el) el.textContent = t;
+  };
+  // 목표 색은 재료를 8방울 안에서 섞어 만들 수 있는 색이에요 (맞출 수 있는 문제)
+  const newGoal = () => {
+    for (;;) {
+      const counts = [0, 1, 2].map(() => Math.floor(Math.random() * 5));
+      const n = counts[0] + counts[1] + counts[2];
+      if (n >= 3 && n <= MIX_MAX) return { rgb: mixRgb(counts) };
+    }
+  };
+  const paintGoal = () => {
+    const sw = root?.querySelector("#wk-target");
+    if (sw && mixGoal) sw.style.setProperty("--c", rgbCss(mixGoal.rgb));
+  };
+  const paintReagents = () => {
+    REAGENTS.forEach((_, i) => {
+      root?.querySelector(`[data-r="${i}"]`)?.setAttribute("aria-checked", String(i === mixSel));
+      const c = root?.querySelector(`#wk-rc${i}`);
+      if (c) c.textContent = `${mixCounts[i]}방울`;
+    });
+    const liq = root?.querySelector("#wk-dropper .lab-dropper-liq");
+    if (liq) liq.style.fill = rgbCss(REAGENTS[mixSel].rgb);
+  };
+  const paintMix = () => {
+    const total = mixTotal();
+    const rgb = mixRgb(mixCounts);
+    const liquid = root?.querySelector(".lab-liquid");
+    if (liquid) {
+      liquid.style.transform = `translateY(${(1 - Math.min(1, total / MIX_MAX)) * 80}px)`;
+      liquid.style.fill = rgb ? rgbCss(rgb) : "transparent";
+    }
+    const pct = rgb && mixGoal ? Math.round(closeOf(rgb, mixGoal.rgb) * 100) : 0;
+    const m = root?.querySelector("#wk-match");
+    if (m) m.textContent = `일치 ${pct}%`;
+    const bar = root?.querySelector("#wk-meter");
+    if (bar) bar.style.width = `${pct}%`;
+    const d = root?.querySelector("#wk-drops");
+    if (d) d.textContent = `${total} / ${MIX_MAX} 방울`;
+    paintReagents();
+  };
+  const floatText = (text, top) => {
+    const wrap = root?.querySelector(".lab-flaskwrap");
+    if (!wrap) return;
+    const f = document.createElement("span");
+    f.className = "wk-float";
+    f.textContent = text;
+    f.style.left = "50%";
+    f.style.top = top;
+    wrap.appendChild(f);
+    setTimeout(() => f.remove(), 900);
+  };
+  // 스포이드 한 방울: 고른 재료가 플라스크 액체 면에 떨어져요
+  const dropMix = () => {
+    if (stirStart) return;
+    if (mixTotal() >= MIX_MAX) return setLog("더는 못 넣어요. 꾹 눌러 섞어 보세요");
+    mixCounts[mixSel] += 1;
+    const total = mixTotal();
+    const wrap = root?.querySelector(".lab-flaskwrap");
+    if (wrap) {
+      // 떨어질 거리: 방울이 닿을 액체 면까지 (플라스크 그림의 좌표를 화면 픽셀로 바꿔요)
+      const surface = 11.25 + (60 + (1 - total / MIX_MAX) * 80) * 1.25;
+      const drop = document.createElement("span");
+      drop.className = "lab-drop";
+      drop.style.setProperty("--c", rgbCss(REAGENTS[mixSel].rgb));
+      drop.style.setProperty("--fall", `${Math.max(0, surface - 62)}px`);
+      wrap.appendChild(drop);
+      setTimeout(() => drop.remove(), 600);
+      const dip = wrap.querySelector("#wk-dropper");
+      if (dip) {
+        dip.classList.remove("dip");
+        void dip.offsetWidth; // 같은 애니메이션을 다시 시작해요
+        dip.classList.add("dip");
+      }
+    }
+    paintMix();
+    setLog(`${REAGENTS[mixSel].name} 한 방울을 떨어뜨렸어요`);
+  };
+  const pickReagent = (i) => {
+    if (stirStart) return;
+    mixSel = i;
+    paintReagents();
+  };
+  const resetMix = () => {
+    if (stirStart) return;
+    mixCounts = [0, 0, 0];
+    paintMix();
+    setLog("비웠어요. 재료를 골라 다시 떨어뜨려 보세요");
+  };
+  const stirBar = (p) => {
+    const el = root?.querySelector("#wk-stirbar");
+    if (el) el.style.width = `${Math.round(p * 100)}%`;
+  };
+  // 꾹 누르고 있는 동안 섞여요. STIR_MS를 채우면 배합이 끝나요. 중간에 손을 떼면 처음부터예요
+  const stirBegin = (e) => {
+    if (stirStart || !root) return;
+    if (e.type === "keydown" && e.repeat) return;
+    if (!mixTotal()) return setLog("재료를 먼저 떨어뜨려 주세요");
+    stirStart = Date.now();
+    root.querySelector("#wk-flask")?.classList.add("is-stir");
+    setLog("저어 주세요. 손을 떼면 멈춰요");
+    const tick = () => {
+      if (!stirStart) return;
+      const p = Math.min(1, (Date.now() - stirStart) / STIR_MS);
+      stirBar(p);
+      if (p >= 1) return stirDone();
+      stirRaf = requestAnimationFrame(tick);
+    };
+    stirRaf = requestAnimationFrame(tick);
+  };
+  const stirCancel = () => {
+    if (!stirStart) return;
+    cancelAnimationFrame(stirRaf);
+    stirStart = 0;
+    stirBar(0);
+    root?.querySelector("#wk-flask")?.classList.remove("is-stir");
+    setLog("조금 더 저어 주세요. 끝까지 누르고 있어야 섞여요");
+  };
+  // 배합 끝: 목표 색과 가까울수록 성능이 더 많이 올라요 (1~30). 기록은 바로 모아서 보내요
+  const stirDone = () => {
+    cancelAnimationFrame(stirRaf);
+    stirStart = 0;
+    stirBar(0);
+    const close = closeOf(mixRgb(mixCounts), mixGoal.rgb);
+    const gain = 1 + Math.floor(Math.random() * (4 + Math.round(26 * close)));
+    queueLab({ nperf: gain });
+    root?.querySelector("#wk-flask")?.classList.remove("is-stir");
+    floatText(`성능 +${gain}`, "96px");
+    setLog(`핵연료 성능이 ${gain} 올랐어요 · 목표 색과 ${Math.round(close * 100)}% 일치`);
+    mixCounts = [0, 0, 0];
+    mixGoal = newGoal();
+    paintGoal();
+    paintMix();
+  };
+  const startMix = () => {
+    stirStart = 0;
+    mixCounts = [0, 0, 0];
+    mixSel = 0;
+    mixGoal = newGoal();
+    paintGoal();
+    paintMix();
+    setLog("재료를 고르고 플라스크를 눌러 한 방울씩 떨어뜨려 보세요");
+    const stir = root?.querySelector("#wk-stir");
+    if (!stir) return;
+    stir.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      try { stir.setPointerCapture(e.pointerId); } catch (err) { /* 지원하지 않으면 그냥 둬요 */ }
+      stirBegin(e);
+    });
+    stir.addEventListener("pointerup", stirCancel);
+    stir.addEventListener("pointercancel", stirCancel);
+    stir.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        stirBegin(e);
+      }
+    });
+    stir.addEventListener("keyup", (e) => {
+      if (e.key === "Enter" || e.key === " ") stirCancel();
+    });
   };
   // 부품 검사판: 열·스파크가 떴다가 사라져요. 누르면 용량·속도·전기 가운데 하나가 랜덤으로 쌓여요
   const STAT = [["cap", "용량"], ["spd", "속도"], ["pow", "전기"]];
@@ -372,6 +573,8 @@
     clearInterval(boardTimer);
     boardTimer = 0;
     stack = 0;
+    cancelAnimationFrame(stirRaf);
+    stirStart = 0;
   };
   const spawnSpot = () => {
     const board = root.querySelector("#wk-board");
@@ -427,6 +630,7 @@
       return;
     }
     loadLabView(cid);
+    if (primary.kind === "nuclear") startMix();
     if (primary.kind === "pc") startBoard();
   };
   const fail = (msg) => {
@@ -475,7 +679,10 @@
     const t = e.target;
     const spot = t.closest(".wk-spot");
     if (spot) return hitSpot(spot);
-    if (t.closest("#wk-mix")) return mix();
+    if (t.closest("#wk-flask")) return dropMix();
+    const rg = t.closest("[data-r]");
+    if (rg) return pickReagent(Number(rg.dataset.r));
+    if (t.closest("#wk-reset")) return resetMix();
     const k = t.closest("[data-k]");
     if (k) return pickKind(k);
     const s = t.closest("[data-s]");

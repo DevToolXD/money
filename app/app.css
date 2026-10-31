@@ -1333,10 +1333,44 @@ html[data-theme="dark"] .draw { background: #fff; }
 .lab-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0 4px; font-size: 15px; color: var(--text-secondary); }
 .lab-input { width: 120px; padding: 10px 12px; border: 0; border-radius: 14px; background: #f2f2f7; font: inherit; font-size: 20px; font-weight: 800; text-align: right; color: #000; font-variant-numeric: tabular-nums; }
 .lab-input:focus { outline: 2px solid #0a7cff; outline-offset: 1px; }
+/* 핵연료 배합 벤치: 재료 병, 스포이드, 플라스크, 꾹 눌러 섞기 */
+.lab-bench { display: grid; gap: 14px; }
+.lab-top { display: flex; align-items: center; gap: 14px; }
+.lab-sw { width: 46px; height: 46px; flex: none; border-radius: 50%; background: var(--c, #f2f2f7); transition: background-color 0.4s ease; }
+.lab-meta { display: grid; gap: 4px; min-width: 0; font-size: 15px; color: var(--text-secondary); }
+.lab-meta b { color: #000; font-weight: 700; }
+.lab-meter { display: block; width: 140px; height: 6px; border-radius: 3px; background: #f2f2f7; overflow: hidden; }
+.lab-meter i { display: block; height: 100%; width: 0; border-radius: 3px; background: #0a7cff; transition: width 0.3s ease; }
+.lab-flaskwrap { position: relative; justify-self: center; width: 150px; height: 200px; }
+.lab-flask { position: absolute; left: 0; bottom: 0; width: 150px; height: 190px; padding: 0; border: 0; background: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.lab-flask svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.lab-liquid { transition: transform 0.45s ease, fill 0.45s ease; }
+.lab-dropper { position: absolute; left: 50%; top: 0; width: 34px; height: 70px; margin-left: -17px; pointer-events: none; transform-origin: 50% 0; }
+.lab-dropper svg { display: block; width: 100%; height: 100%; }
+.lab-dropper-liq { transition: fill 0.3s ease; }
+.lab-dropper.dip { animation: labDip 0.5s ease; }
+.lab-drop { position: absolute; left: 50%; top: 62px; width: 9px; height: 12px; margin-left: -4.5px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: var(--c, #0a7cff); pointer-events: none; animation: labDrop 0.55s ease-in forwards; }
+.lab-flask.is-stir svg { animation: labStir 0.9s ease-in-out infinite; }
+.lab-drops { margin: 0; text-align: center; font-size: 15px; font-weight: 700; color: #000; font-variant-numeric: tabular-nums; }
+.lab-reagents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lab-reagent { display: grid; justify-items: center; gap: 2px; padding: 12px 6px 10px; border: 0; border-radius: 20px; background: #f2f2f7; color: #000; font: inherit; -webkit-tap-highlight-color: transparent; }
+.lab-reagent svg { width: 38px; height: 46px; }
+.lab-reagent b { font-size: 14px; font-weight: 700; }
+.lab-reagent span { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.lab-reagent[aria-checked="true"] { background: #fff; box-shadow: inset 0 0 0 2px #0a7cff; }
+.lab-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; }
+.lab-stir { touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.lab-stirbar { display: block; height: 6px; border-radius: 3px; background: #f2f2f7; overflow: hidden; }
+.lab-stirbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: #0a7cff; }
+@keyframes labDrop { 0% { transform: translateY(-4px) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(var(--fall, 60px)) scale(1); opacity: 0; } }
+@keyframes labDip { 0% { transform: translateY(0) rotate(0); } 35% { transform: translateY(10px) rotate(-8deg); } 100% { transform: translateY(0) rotate(0); } }
+@keyframes labStir { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-5deg); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .lab-liquid, .lab-sw, .lab-meter i, .lab-stirbar i, .lab-dropper-liq { transition: none; }
+  .lab-dropper.dip, .lab-drop, .lab-flask.is-stir svg { animation: none; }
+}
 .wk-nums { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; color: var(--text-secondary); }
 .wk-nums b { color: #000; font-variant-numeric: tabular-nums; }
-.wk-mix { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; border-radius: 26px; font-size: 17px; font-weight: 700; text-align: center; }
-.wk-mix:active { transform: scale(0.97); }
 .wk-board { position: relative; height: 240px; border-radius: 28px; overflow: hidden; }
 .wk-chip { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; fill: none; stroke: #000; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .wk-spot { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; animation: wkSpot 2.2s ease-out forwards; }
