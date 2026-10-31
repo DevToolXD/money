@@ -54,7 +54,7 @@
     </section>
     <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
       <header class="large-title"><h1 id="title-account">계정</h1></header>
-      <div class="card pad" id="auth-card" hidden><h2 class="card-title" style="font-size:24px">로그인하고 이어 쓰세요</h2><p class="card-body">다른 기기에서도 같은 대화와 프로필을 볼 수 있어요.</p><button class="btn primary" id="open-login" type="button" style="margin-top:16px;width:100%">로그인 또는 가입</button></div>
+      <div class="card" id="auth-card" hidden><div class="art photo"></div><div class="art-text"><p class="eyebrow">내 계정</p><h2 class="card-title">로그인 하세요</h2><p class="card-body">로그인하면 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p><button class="btn primary" id="open-login" type="button" style="margin-top:18px;width:100%">로그인</button></div></div>
       <div class="card pad profile">
         <div class="profile-top"><span class="avatar-default" id="profile-avatar"></span>
           <div class="stats"><div><b>0</b><span>게시물</span></div><div><b>0</b><span>팔로워</span></div><div><b>0</b><span>팔로잉</span></div></div></div>
@@ -99,7 +99,7 @@
   </section>
 
   <section class="login" id="login" aria-label="로그인" hidden>
-    <div class="blobs" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="slides" id="slides" aria-hidden="true"><i style="background-image:url(assets/login/1.jpg)"></i><i style="background-image:url(assets/login/2.jpg)"></i><i style="background-image:url(assets/login/3.jpg)"></i><i style="background-image:url(assets/login/4.jpg)"></i><i style="background-image:url(assets/login/5.jpg)"></i></div><div class="scrim" aria-hidden="true"></div>
     <button class="glass-btn round lg" id="login-close" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="login-body">
       <h2 class="login-title" id="login-title">로그인</h2>

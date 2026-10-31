@@ -368,7 +368,17 @@
     pwEl.autocomplete = on ? "new-password" : "current-password";
     errEl.textContent = "";
   };
+  // 로그인 뒷배경: 사진 다섯 장이 번갈아 부드럽게 바뀌어요
+  const slides = [...document.querySelectorAll("#slides i")];
+  let slide = 0;
+  let slideTimer = 0;
+  const showSlide = (n) => slides.forEach((s, i) => s.classList.toggle("on", i === n));
   const showLogin = (on) => {
+    clearInterval(slideTimer);
+    if (on) {
+      showSlide(slide);
+      slideTimer = setInterval(() => showSlide((slide = (slide + 1) % slides.length)), 5000);
+    }
     loginEl.hidden = false;
     requestAnimationFrame(() => loginEl.classList.toggle("is-open", on));
     if (on) setMode(false);
