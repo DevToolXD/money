@@ -531,3 +531,15 @@ html[data-theme="dark"] .platter {
   .pill { transition: none; }
 }
 html[data-theme="dark"] .lg-btn.primary { background: rgba(10, 132, 255, 0.9); }
+
+/* 꾹 눌러도 글자가 선택되거나 복사·공유 메뉴가 뜨지 않게 (입력칸은 글을 쓸 수 있어야 해서 예외) */
+html, body, .app, .app * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.app input, .app textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+img, svg { -webkit-user-drag: none; }
