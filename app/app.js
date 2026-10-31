@@ -77,7 +77,7 @@
   let saveTimer = 0;
   const walls = () => Object.fromEntries(chats.map((c) => [c.id, store.get("wall-" + c.id, "white")]));
   const persist = () => {
-    if (!hydrated || !window.cloud) return;
+    if (!hydrated || !window.cloud || live) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       window.cloud
@@ -108,6 +108,21 @@
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const chev = '<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
   let onlyUnread = false;
+  let live = false; // 로그인한 계정이면 진짜 사람과의 대화를 불러와요
+  let unsubMsgs = null;
+  let prefs = {};
+  try { prefs = JSON.parse(store.get("prefs", "{}")); } catch (_) { /* 처음이에요 */ }
+  const touchPref = (c) => {
+    if (!c.live) return;
+    prefs[c.id] = { pin: Boolean(c.pin), muted: Boolean(c.muted), hidden: Boolean(c.hidden) };
+    store.set("prefs", JSON.stringify(prefs));
+  };
+  const fmtTime = (t) => {
+    if (!t) return "";
+    const d = new Date(t);
+    const hm = `${d.getHours() < 12 ? "오전" : "오후"} ${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  };
   const renderChats = () => {
     persist();
     const q = searchEl.value.trim();
@@ -169,12 +184,27 @@
     document.getElementById("thread-avatar").textContent = initials(openChat.name);
     document.getElementById("thread-badge").textContent = chats.filter((c) => c.unread).length;
     applyWall();
-    renderThread();
+    if (openChat.live) {
+      const chat = openChat;
+      unsubMsgs?.();
+      chat.msgs = [];
+      renderThread();
+      unsubMsgs = window.cloud.watchMessages(chat.id, (list) => {
+        const grew = list.length > chat.msgs.length;
+        chat.msgs = list.map((m) => [m.from === window.cloud.uid ? "me" : "them", m.text, chat.name]);
+        if (openChat === chat) {
+          renderThread(grew ? list.length - 1 : -1);
+          window.cloud.markRead(chat.id);
+        }
+      });
+    } else renderThread();
     app.classList.add("in-thread");
     thread.classList.add("is-open");
     renderChats();
   };
   const close = () => {
+    unsubMsgs?.();
+    unsubMsgs = null;
     thread.classList.remove("is-open");
     app.classList.remove("in-thread");
     input.blur();
@@ -277,10 +307,10 @@
   const chatItems = (el) => {
     const c = chats.find((x) => x.id === el.dataset.id);
     return [
-      { icon: "pin", label: c.pin ? "고정 해제" : "고정", run: () => ((c.pin = !c.pin), renderChats()) },
+      { icon: "pin", label: c.pin ? "고정 해제" : "고정", run: () => ((c.pin = !c.pin), touchPref(c), renderChats()) },
       { icon: "unread", label: c.unread ? "읽음으로 표시" : "읽지 않음으로 표시", run: () => ((c.unread = !c.unread), renderChats()) },
-      { icon: "mute", label: c.muted ? "알림 켜기" : "알림 가리기", run: () => ((c.muted = !c.muted), renderChats()) },
-      { icon: "trash", label: "삭제", danger: true, run: () => (chats.splice(chats.indexOf(c), 1), renderChats()) },
+      { icon: "mute", label: c.muted ? "알림 켜기" : "알림 가리기", run: () => ((c.muted = !c.muted), touchPref(c), renderChats()) },
+      { icon: "trash", label: "삭제", danger: true, run: () => ((c.hidden = true), touchPref(c), chats.splice(chats.indexOf(c), 1), renderChats()) },
     ];
   };
   longPress(list, (t) => t.closest(".chat-row"), chatItems);
@@ -329,7 +359,33 @@
     filterBtn.setAttribute("aria-pressed", String(onlyUnread));
     renderChats();
   });
-  document.getElementById("compose").addEventListener("click", () => open("minji"));
+  const newSheet = document.getElementById("new-sheet");
+  const newId = document.getElementById("new-id");
+  const newErr = document.getElementById("new-error");
+  document.getElementById("compose").addEventListener("click", () => {
+    if (!live) return open("minji");
+    newId.value = "";
+    newErr.textContent = "";
+    sheetOpen(true, newSheet);
+  });
+  document.getElementById("new-cancel").addEventListener("click", () => sheetOpen(false));
+  document.getElementById("new-go").addEventListener("click", async () => {
+    const id = newId.value.trim();
+    if (!id) return;
+    newErr.textContent = "";
+    try {
+      const u = await window.cloud.findUser(id);
+      if (!u) return (newErr.textContent = "그런 아이디가 없어요");
+      if (u.uid === window.cloud.uid) return (newErr.textContent = "내 아이디예요");
+      const cid = await window.cloud.openChat(u.uid, u.id);
+      if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.id, live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
+      sheetOpen(false);
+      renderChats();
+      open(cid);
+    } catch (err) {
+      newErr.textContent = "상대를 찾지 못했어요. 잠시 뒤 다시 해 주세요";
+    }
+  });
   document.getElementById("thread-back").addEventListener("click", close);
   document.getElementById("composer").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -338,6 +394,10 @@
     const chat = openChat;
     input.value = "";
     input.dispatchEvent(new Event("input"));
+    if (chat.live) {
+      window.cloud.send(chat.id, text).catch((err) => console.warn("보내지 못했어요:", err));
+      return;
+    }
     chat.msgs.push(["me", text]);
     chat.last = text;
     chat.time = "방금";
@@ -549,8 +609,38 @@
   updateChrome(screens.get(firstScreen));
 
   // 클라우드에 저장해 둔 것이 있으면 불러와서 덮어써요 (연결이 안 되면 이 기기 값 그대로)
-  Promise.race([window.cloudReady, new Promise((r) => setTimeout(() => r(null), 6000))]).then(async (cloud) => {
+  const boot = async (cloud) => {
     renderAuth(cloud);
+    if (cloud && !cloud.user.anonymous) {
+      // 로그인한 계정: 샘플 대화 대신 진짜 대화를 실시간으로 받아요
+      live = true;
+      chats.length = 0;
+      renderChats();
+      cloud.watchChats((list) => {
+        const old = new Map(chats.map((c) => [c.id, c]));
+        const next = list
+          .filter((d) => !prefs[d.id]?.hidden)
+          .map((d) => {
+            const other = Object.entries(d.names || {}).find(([uid]) => uid !== cloud.uid);
+            return {
+              id: d.id,
+              live: true,
+              name: other ? other[1] : "알 수 없음",
+              last: d.last || "",
+              time: fmtTime(d.lastAt),
+              lastAt: d.lastAt || 0,
+              unread: Boolean(d.lastFrom && d.lastFrom !== cloud.uid && (d.reads?.[cloud.uid] || 0) < d.lastAt) && openChat?.id !== d.id,
+              pin: Boolean(prefs[d.id]?.pin),
+              muted: Boolean(prefs[d.id]?.muted),
+              msgs: old.get(d.id)?.msgs || [],
+            };
+          })
+          .sort((a, b) => b.lastAt - a.lastAt);
+        chats.splice(0, chats.length, ...next);
+        if (openChat?.live) openChat = chats.find((c) => c.id === openChat.id) || openChat;
+        renderChats();
+      });
+    }
     try {
       const data = cloud && (await cloud.load());
       if (data) {
@@ -560,7 +650,7 @@
           applyProfile();
         }
         for (const [id, w] of Object.entries(data.walls || {})) store.set("wall-" + id, w);
-        if (data.chats) {
+        if (data.chats && !live) {
           const saved = new Map(data.chats.map((c) => [c.id, c]));
           for (let i = chats.length - 1; i >= 0; i--) if (!saved.has(chats[i].id)) chats.splice(i, 1);
           for (const c of chats) {
@@ -574,5 +664,14 @@
     }
     hydrated = true;
     renderChats();
+  };
+  // 연결은 느린 폰에서 몇 초 걸릴 수 있어요. 끝나면 언제든 바로 반영하고, 8초가 지나도 안 끝나면 일단 로그인 전 화면으로 보여요
+  let booted = false;
+  window.cloudReady.then((cloud) => {
+    booted = true;
+    boot(cloud);
   });
+  setTimeout(() => {
+    if (!booted) boot(null);
+  }, 8000);
 })();

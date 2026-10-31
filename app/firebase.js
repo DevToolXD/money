@@ -1,7 +1,7 @@
 /* 파이어베이스 연결: 처음에는 익명으로 로그인하고, 아이디·비밀번호로 가입·로그인(익명 계정을 이어붙임)할 수 있어요.
    내 상태(프로필·배경화면·대화)는 Firestore의 users/{uid} 문서 하나에 저장해요.
    설정값이 비어 있거나 연결에 실패하면 window.cloud는 null이고, 앱은 이 기기(localStorage)에만 저장해요. */
-import { firebaseConfig } from "./firebase-config.js?v=5";
+import { firebaseConfig } from "./firebase-config.js?v=6";
 
 const BASE = "https://www.gstatic.com/firebasejs/11.0.2";
 
@@ -31,13 +31,14 @@ window.cloudReady = (async () => {
     return null;
   }
   try {
-    const [{ initializeApp }, A, { getFirestore, doc, getDoc, setDoc }] = await Promise.all([
+    const [{ initializeApp }, A, F] = await Promise.all([
       import(`${BASE}/firebase-app.js`),
       import(`${BASE}/firebase-auth.js`),
       import(`${BASE}/firebase-firestore.js`),
     ]);
     const app = initializeApp(firebaseConfig);
     const auth = A.getAuth(app);
+    const { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc } = F;
     const db = getFirestore(app);
     auth.languageCode = "ko";
     const user = await new Promise((resolve, reject) => {
@@ -60,9 +61,38 @@ window.cloudReady = (async () => {
       save: (data) => setDoc(doc(db, "users", auth.currentUser.uid), { ...data, updatedAt: Date.now() }),
       // 가입: 지금의 익명 계정에 이메일을 이어붙여서 그동안 쓴 것이 그대로 남아요
       // 아이디는 안 보이는 가짜 이메일(아이디@money-sim.app)로 바꿔서 파이어베이스 이메일 로그인에 써요
-      signUp: (id, pw) => wrap(() => A.linkWithCredential(auth.currentUser, A.EmailAuthProvider.credential(toEmail(id), pw))),
+      signUp: (id, pw) =>
+        wrap(async () => {
+          await A.linkWithCredential(auth.currentUser, A.EmailAuthProvider.credential(toEmail(id), pw));
+          // 다른 사람이 아이디로 나를 찾을 수 있게 등록해요
+          await setDoc(doc(db, "usernames", id.trim().toLowerCase()), { uid: auth.currentUser.uid, id: id.trim() });
+        }),
       signIn: (id, pw) => wrap(() => A.signInWithEmailAndPassword(auth, toEmail(id), pw)),
       signOut: () => A.signOut(auth),
+
+      /* ----- 사람 사이의 메시지 ----- */
+      findUser: async (id) => {
+        const s = await getDoc(doc(db, "usernames", id.trim().toLowerCase()));
+        return s.exists() ? s.data() : null;
+      },
+      chatId: (other) => [auth.currentUser.uid, other].sort().join("_"),
+      openChat: async (other, otherId) => {
+        const me = auth.currentUser;
+        const cid = [me.uid, other].sort().join("_");
+        const myId = (me.email || "").replace(/@money-sim\.app$/, "");
+        await setDoc(doc(db, "chats", cid), { members: [me.uid, other], names: { [me.uid]: myId, [other]: otherId } }, { merge: true });
+        return cid;
+      },
+      watchChats: (cb) =>
+        onSnapshot(query(collection(db, "chats"), where("members", "array-contains", auth.currentUser.uid)), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))),
+      watchMessages: (cid, cb) =>
+        onSnapshot(query(collection(db, "chats", cid, "messages"), orderBy("at")), (snap) => cb(snap.docs.map((d) => d.data()))),
+      send: async (cid, text) => {
+        const at = Date.now();
+        await addDoc(collection(db, "chats", cid, "messages"), { from: auth.currentUser.uid, text, at });
+        await updateDoc(doc(db, "chats", cid), { last: text, lastAt: at, lastFrom: auth.currentUser.uid, [`reads.${auth.currentUser.uid}`]: at });
+      },
+      markRead: (cid) => updateDoc(doc(db, "chats", cid), { [`reads.${auth.currentUser.uid}`]: Date.now() }).catch(() => {}),
     };
     return window.cloud;
   } catch (err) {
