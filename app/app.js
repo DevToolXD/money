@@ -428,6 +428,7 @@
     book: '<path d="M5 4.500h10a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3zM8 17h10"/>',
     ticket: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12"/>',
     bag: '<path d="M5 8h14l-1 12H6zM9 8V6.500a3 3 0 0 1 6 0V8"/>',
+    percent: '<circle cx="12" cy="12" r="8.500"/><path d="M15.500 8.500l-7 7M9 9.500h.01M15 14.500h.01"/>',
   };
   const ico = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
   const rng = (seed) => () => ((seed = (seed + 0x6d2b79f5) | 0), (((Math.imul(seed ^ (seed >>> 15), 1 | seed) + (Math.imul(seed ^ (seed >>> 7), 61 | seed) ^ seed)) ^ 0) >>> 0) / 4294967296);
@@ -453,6 +454,7 @@
         const s = SHOPS[Math.floor(rand() * rand() * SHOPS.length)];
         const amt = Math.round((s[3] + rand() * (s[4] - s[3])) / 100) * 100;
         const at = new Date(date.getTime() + (8 + k * 4 + Math.floor(rand() * 3)) * 3600e3 + Math.floor(rand() * 59) * 60e3);
+        if (at.getTime() > Date.now()) continue; // 아직 안 온 시각의 내역은 없어요
         book.push({ t: at.getTime(), name: s[0], cat: s[1], icon: s[2], amt: -amt });
         daily[DAYS - 1 - i] += amt;
       }
@@ -468,11 +470,16 @@
     const diff = Math.round((today0 - d) / 864e5);
     return diff === 0 ? "오늘" : diff === 1 ? "어제" : `${d.getMonth() + 1}월 ${d.getDate()}일`;
   };
-  const recent = book.slice().sort((a, b) => b.t - a.t);
-  const monthSpent = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0);
+  const staticRecent = book.slice().sort((a, b) => b.t - a.t);
+  let dyn = [];
+  try { dyn = JSON.parse(store.get("bank-tx", "[]")); } catch (_) { /* 처음이에요 */ }
+  const allTx = () => [...dyn, ...staticRecent].sort((a, b) => b.t - a.t);
+  const monthSpent = () => daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0);
   const BUDGET = 300000;
-  const BALANCE = 1250000;
-  const txRow = (e) => `<li class="t-row tx"><span class="t-ico sm">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${hm(e.t)} · ${esc(e.cat)}</span></span><b class="t-amt${e.amt > 0 ? " plus" : ""}">${signed(e.amt)}</b></li>`;
+  const CATC = { 식비: "#ffe6d2", 카페: "#f0e4d6", 교통: "#dbe8ff", 문화: "#ece1ff", 쇼핑: "#ffdbe6", 입금: "#ffe0e0", 송금: "#ffe0e0", 은행: "#d6f1e6" };
+  const num = (n) => Math.abs(n).toLocaleString("ko-KR");
+  const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
+  const txRow = (e) => `<li class="t-row tx"><span class="t-ico sm" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${hm(e.t)} · ${esc(e.cat)}</span></span>${amtHTML(e.amt)}</li>`;
   const groups = (list) => {
     let out = "";
     let last = "";
@@ -485,28 +492,237 @@
     return out + (last ? "</ul>" : "");
   };
   const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
+
+  /* ---- 은행: 이자 상품과 복리 ---- */
+  const YEAR_S = 365 * 24 * 3600;
+  const RATES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+  // 값: 연이율이 두 배가 되면 값은 약 3.5배. 5%는 20,000 토큰, 50%는 거의 처음 가진 돈 전부예요
+  const PRICE = (r) => Math.round((20000 * Math.pow(r / 5, 1.8)) / 1000) * 1000;
+  const perSec = (r) => Math.pow(1 + r / 100, 1 / YEAR_S) - 1; // 연이율 r%를 복리로 초마다 쪼갠 이율
+  let bank = { rate: 0, bal: 1250000, acc: 0, t: Date.now() };
+  try { Object.assign(bank, JSON.parse(store.get("bank", "{}"))); } catch (_) { /* 처음이에요 */ }
+  let lastCloud = 0;
+  const saveBank = (force = false) => {
+    store.set("bank", JSON.stringify(bank));
+    store.set("bank-tx", JSON.stringify(dyn.slice(0, 200)));
+    if (window.cloud && (force || Date.now() - lastCloud > 15000)) {
+      lastCloud = Date.now();
+      window.cloud.save({ bank }).catch(() => {});
+    }
+  };
+  const logTx = (e) => { dyn.unshift(e); if (dyn.length > 200) dyn.length = 200; };
+  // secs초 동안 쌓인 이자를 한꺼번에 계산해요. 소수 이자는 모아 두었다가 1 토큰이 되면 받아요
+  const accrue = (secs) => {
+    if (bank.rate <= 0 || secs <= 0) return 0;
+    const total = (bank.bal + bank.acc) * Math.pow(1 + perSec(bank.rate), secs);
+    const nb = Math.floor(total);
+    const pay = nb - bank.bal;
+    bank.acc = total - nb;
+    bank.bal = nb;
+    return pay;
+  };
+  const nextIn = () => {
+    const r = perSec(bank.rate);
+    const per = (bank.bal + bank.acc) * r;
+    return per >= 1 ? 1 : Math.max(1, Math.ceil((1 - bank.acc) / per));
+  };
+  const intervalText = () => {
+    if (bank.rate <= 0) return "";
+    const per = bank.bal * perSec(bank.rate);
+    return per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / per)}초마다 1 토큰`;
+  };
+  const orderIds = ["spend", "bank", "hist"];
+  const savedOrder = store.get("money-order", "").split(",").filter((x) => orderIds.includes(x));
+  const order = [...savedOrder, ...orderIds.filter((x) => !savedOrder.includes(x))];
+  const CARDS = {
+    spend: () => `<button class="t-card t-tap movable" data-id="spend" id="open-chart" type="button"><div class="t-pad"><h2 class="t-title">이번 달 쓴 토큰${chev2}</h2>
+      <b class="t-big">${W(monthSpent())}</b>
+      <div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent() / BUDGET) * 100))}%"></span></div>
+      <p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent() / BUDGET) * 100)}%를 썼어요</p></div></button>`,
+    bank: () => `<button class="t-card t-tap movable" data-id="bank" id="open-bank" type="button"><div class="t-pad"><h2 class="t-title">이자 상품${chev2}</h2>
+      <b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note"></p></div></button>`,
+    hist: () => `<button class="t-card t-tap movable" data-id="hist" id="open-history" type="button"><div class="t-pad"><h2 class="t-title">거래내역${chev2}</h2><div id="tx-top"></div></div></button>`,
+  };
   document.getElementById("money-root").innerHTML = `
     <div class="t-card"><div class="t-pad"><h2 class="t-title plain">내 토큰</h2>
-      <div class="t-bal"><b>${BALANCE.toLocaleString("ko-KR")} 토큰</b></div></div>
-      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right">이번 달 ${monthSpent.toLocaleString("ko-KR")} 토큰</span></div></div>
-    <button class="t-card t-tap" id="open-chart" type="button"><div class="t-pad"><h2 class="t-title">이번 달 쓴 돈${chev2}</h2>
-      <b class="t-big">${W(monthSpent)}</b>
-      <div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent / BUDGET) * 100))}%"></span></div>
-      <p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent / BUDGET) * 100)}%를 썼어요</p></div></button>
-    <button class="t-card t-tap" id="open-history" type="button"><div class="t-pad"><h2 class="t-title">사용내역${chev2}</h2>
-      ${groups(recent.slice(0, 5))}</div></button>`;
+      <div class="t-bal"><b id="bal-num"></b></div></div>
+      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div></div>
+    <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
+  const renderMoney = () => {
+    document.getElementById("bal-num").textContent = W(bank.bal);
+    document.getElementById("card-month").textContent = `이번 달 ${monthSpent().toLocaleString("ko-KR")} 토큰`;
+    const rateEl = document.getElementById("bank-rate");
+    const noteEl = document.getElementById("bank-note");
+    if (bank.rate > 0) {
+      rateEl.textContent = `연 ${bank.rate}% 복리`;
+      noteEl.textContent = `${intervalText()} · 다음 이자까지 ${nextIn()}초`;
+    } else {
+      rateEl.textContent = "가입한 상품이 없어요";
+      noteEl.textContent = `연 5% 상품 ${PRICE(5).toLocaleString("ko-KR")} 토큰부터 시작해요`;
+    }
+    document.getElementById("tx-top").innerHTML = groups(allTx().slice(0, 5));
+  };
+  const renderHistory = () => { document.getElementById("history-list").innerHTML = groups(allTx().slice(0, 80)); };
+  renderMoney();
 
   const histSheet = document.getElementById("history-sheet");
   const chartSheet = document.getElementById("chart-sheet");
-  document.getElementById("history-list").innerHTML = groups(recent.slice(0, 80));
-  document.getElementById("open-history").addEventListener("click", () => sheetOpen(true, histSheet));
+  const bankSheet = document.getElementById("bank-sheet");
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
 
+  const renderProducts = () => {
+    document.getElementById("bank-bal").textContent = `내 토큰 ${W(bank.bal)}`;
+    document.getElementById("bank-list").innerHTML = RATES.map((r) => {
+      const price = PRICE(r);
+      const own = bank.rate === r;
+      const lower = r < bank.rate;
+      const afford = bank.bal >= price;
+      const label = own ? "가입 중" : lower ? "보유 중" : afford ? "구입" : "토큰 부족";
+      const per = bank.bal * perSec(r);
+      const every = per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / per)}초마다 1 토큰`;
+      return `<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">${ico("percent")}</span><span class="t-main"><b class="ts-name">연 ${r}% 복리</b><span class="t-label">${every}</span></span><span class="prod-side"><b class="prod-price">${price.toLocaleString("ko-KR")} 토큰</b><button class="t-btn small ${own || lower || !afford ? "grey" : ""}" data-buy="${r}" type="button" ${own || lower || !afford ? "disabled" : ""}>${label}</button></span></li>`;
+    }).join("");
+  };
+  document.getElementById("bank-list").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-buy]");
+    if (!btn || btn.disabled) return;
+    const r = Number(btn.dataset.buy);
+    const price = PRICE(r);
+    const ok = await ask({ title: `연 ${r}% 이자 상품`, body: `${price.toLocaleString("ko-KR")} 토큰을 내고 구입할까요? 구입하면 내 토큰이 복리로 계속 늘어나요.`, ok: "구입", cancel: "취소" });
+    if (!ok || bank.bal < price) return;
+    accrue(Math.floor((Date.now() - bank.t) / 1000));
+    bank.t = Date.now();
+    bank.bal -= price;
+    bank.rate = r;
+    daily[DAYS - 1] += price;
+    logTx({ t: Date.now(), name: "이자 상품 구입", cat: "은행", icon: "percent", amt: -price });
+    saveBank(true);
+    renderMoney();
+    renderProducts();
+  });
+  // 1초마다: 쌓인 이자를 정산해요 (탭을 떠나 있던 시간도 한꺼번에 계산)
+  const tick = () => {
+    const secs = Math.floor((Date.now() - bank.t) / 1000);
+    if (secs >= 1) {
+      const pay = accrue(secs);
+      bank.t += secs * 1000;
+      if (pay > 0) {
+        logTx({ t: Date.now(), name: "이자", cat: "은행", icon: "percent", amt: pay });
+        saveBank();
+      }
+    }
+    renderMoney();
+    if (bankSheet.classList.contains("is-open")) renderProducts();
+    if (histSheet.classList.contains("is-open")) renderHistory();
+  };
+  tick();
+  setInterval(tick, 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+
+  document.getElementById("movable").addEventListener("click", (e) => {
+    if (dragSwallow) return;
+    const c = e.target.closest(".movable");
+    if (!c) return;
+    if (c.dataset.id === "hist") { renderHistory(); sheetOpen(true, histSheet); }
+    else if (c.dataset.id === "bank") { renderProducts(); sheetOpen(true, bankSheet); }
+    else { sheetOpen(true, chartSheet); drawChart(range); }
+  });
+
+  /* ---- 꾹 눌러서 카드 순서 바꾸기 (내 토큰·내 카드 칸은 고정) ---- */
+  let dragSwallow = false;
+  {
+    const root = document.getElementById("movable");
+    const scr = screens.get("money");
+    let st = null;
+    const contentY = (y) => y - scr.getBoundingClientRect().top + scr.scrollTop;
+    const place = () => {
+      const { el } = st;
+      el.style.transform = `translateY(${contentY(st.y) - st.grab - el.offsetTop}px) scale(1.03)`;
+    };
+    const reorder = () => {
+      const { el } = st;
+      const sibs = [...root.children].filter((c) => c !== el);
+      const center = contentY(st.y) - st.grab + el.offsetHeight / 2;
+      let before = null;
+      for (const s of sibs) if (center < s.offsetTop + s.offsetHeight / 2) { before = s; break; }
+      if ((before || null) === el.nextElementSibling) return;
+      const tops = new Map(sibs.map((s) => [s, s.offsetTop]));
+      root.insertBefore(el, before);
+      for (const s of sibs) {
+        const d = tops.get(s) - s.offsetTop;
+        if (!d) continue;
+        s.style.transition = "none";
+        s.style.transform = `translateY(${d}px)`;
+        void s.offsetHeight;
+        s.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+        s.style.transform = "";
+      }
+    };
+    const loop = () => {
+      if (!st || !st.active) return;
+      const r = scr.getBoundingClientRect();
+      const speed = st.y < r.top + 120 ? -10 : st.y > r.bottom - 170 ? 10 : 0;
+      if (speed) scr.scrollTop += speed;
+      place();
+      reorder();
+      st.raf = requestAnimationFrame(loop);
+    };
+    const end = () => {
+      if (!st) return;
+      clearTimeout(st.timer);
+      const s = st;
+      st = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      if (!s.active) return;
+      cancelAnimationFrame(s.raf);
+      const el = s.el;
+      el.style.transition = "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s";
+      el.style.transform = "";
+      el.classList.remove("lifting");
+      setTimeout(() => { el.style.transition = ""; }, 380);
+      store.set("money-order", [...root.children].map((c) => c.dataset.id).join(","));
+      setTimeout(() => (dragSwallow = false), 120);
+    };
+    const move = (e) => {
+      if (!st) return;
+      st.y = e.clientY;
+      if (!st.active && Math.hypot(e.clientX - st.x0, e.clientY - st.y0) > 10) {
+        clearTimeout(st.timer);
+        st = null;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+      }
+    };
+    root.addEventListener("pointerdown", (e) => {
+      const el = e.target.closest(".movable");
+      if (!el || st || (e.pointerType === "mouse" && e.button !== 0)) return;
+      st = { el, x0: e.clientX, y0: e.clientY, y: e.clientY, active: false };
+      st.timer = setTimeout(() => {
+        st.active = true;
+        dragSwallow = true;
+        navigator.vibrate?.(14);
+        st.grab = contentY(st.y) - el.offsetTop;
+        el.style.transition = "box-shadow 0.25s";
+        el.classList.add("lifting");
+        loop();
+      }, 450);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+    });
+    // 끌어올린 뒤에는 화면이 같이 스크롤되지 않게 막아요
+    document.addEventListener("touchmove", (e) => { if (st && st.active) e.preventDefault(); }, { passive: false });
+  }
+
   /* 쓴 돈 꺾은선 그래프: 년 · 월 · 일 */
+  // 1년: 한 달씩 12개, 1개월: 하루씩 30개, 1일: 한 시간씩 24개
   const series = (r) => {
     const out = [];
-    if (r === "d") for (let i = 29; i >= 0; i--) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i); out.push({ l: `${d.getMonth() + 1}/${d.getDate()}`, v: daily[DAYS - 1 - i] }); }
-    else if (r === "m") {
+    if (r === "m") for (let i = 29; i >= 0; i--) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i); out.push({ l: `${d.getMonth() + 1}/${d.getDate()}`, v: daily[DAYS - 1 - i] }); }
+    else if (r === "y") {
       for (let k = 11; k >= 0; k--) {
         const first = new Date(today0.getFullYear(), today0.getMonth() - k, 1);
         const next = new Date(first.getFullYear(), first.getMonth() + 1, 1);
@@ -515,19 +731,20 @@
         out.push({ l: `${first.getMonth() + 1}월`, v });
       }
     } else {
-      for (let k = 2; k >= 0; k--) {
-        const y = today0.getFullYear() - k;
-        let v = 0;
-        for (let i = 0; i < DAYS; i++) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - (DAYS - 1 - i)); if (d.getFullYear() === y) v += daily[i]; }
-        out.push({ l: `${y}년`, v });
+      const end = Date.now();
+      const spend = allTx().filter((e) => e.amt < 0 && e.t > end - 24 * 3600e3);
+      for (let h = 23; h >= 0; h--) {
+        const hi = end - h * 3600e3;
+        const lo = hi - 3600e3;
+        out.push({ l: `${new Date(lo).getHours()}시`, v: spend.filter((e) => e.t > lo && e.t <= hi).reduce((s, e) => s - e.amt, 0) });
       }
     }
     return out;
   };
   const chart = document.getElementById("chart");
   const tip = document.getElementById("chart-tip");
-  const LABEL = { d: "최근 30일 쓴 합계", m: "최근 12개월 쓴 합계", y: "그동안 쓴 합계" };
-  let range = "m";
+  const LABEL = { y: "1년 동안 쓴 토큰", m: "1개월 동안 쓴 토큰", d: "1일 동안 쓴 토큰" };
+  let range = "m"; // 처음에는 1개월
   const drawChart = (r) => {
     range = r;
     document.querySelectorAll("#chart-seg button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.r === r)));
@@ -570,8 +787,7 @@
   chart.addEventListener("pointerdown", scrub);
   chart.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "touch") scrub(e); });
   document.getElementById("chart-seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) drawChart(b.dataset.r); });
-  document.getElementById("open-chart").addEventListener("click", () => { sheetOpen(true, chartSheet); drawChart(range); });
-
+  
   /* ---------- 로그인 ---------- */
   const loginEl = document.getElementById("login");
   const loginForm = document.getElementById("login-form");
@@ -862,6 +1078,11 @@
           store.set("profile-name", data.profile.name);
           store.set("profile-bio", data.profile.bio);
           applyProfile();
+        }
+        if (data.bank && data.bank.t > bank.t) {
+          Object.assign(bank, data.bank);
+          store.set("bank", JSON.stringify(bank));
+          tick();
         }
         for (const [id, w] of Object.entries(data.walls || {})) store.set("wall-" + id, w);
         if (data.chats && !live) {

@@ -59,7 +59,7 @@ window.cloudReady = (async () => {
         const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
         return snap.exists() ? snap.data() : null;
       },
-      save: (data) => setDoc(doc(db, "users", auth.currentUser.uid), { ...data, updatedAt: Date.now() }),
+      save: (data) => setDoc(doc(db, "users", auth.currentUser.uid), { ...data, updatedAt: Date.now() }, { merge: true }),
       // 가입: 지금의 익명 계정에 이메일을 이어붙여서 그동안 쓴 것이 그대로 남아요
       // 아이디는 안 보이는 가짜 이메일(아이디@money-sim.app)로 바꿔서 파이어베이스 이메일 로그인에 써요
       signUp: (id, pw, name) =>

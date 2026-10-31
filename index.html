@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=9">
+<link rel="stylesheet" href="app/app.css?v=11">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -125,19 +125,26 @@
     <label class="field">소개<textarea id="edit-bio" rows="3" maxlength="120"></textarea></label>
   </section>
 
-  <section class="sheet tall" id="history-sheet" aria-label="사용내역">
+  <section class="sheet tall" id="history-sheet" aria-label="거래내역">
     <div class="grabber"></div>
-    <div class="sheet-head"><span></span><h2>사용내역</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
+    <div class="sheet-head"><span></span><h2>거래내역</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
     <div class="sheet-scroll" id="history-list"></div>
   </section>
 
   <section class="sheet tall" id="chart-sheet" aria-label="쓴 돈">
     <div class="grabber"></div>
-    <div class="sheet-head"><span></span><h2>쓴 돈</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
-    <div class="chart-seg" id="chart-seg" role="tablist"><button role="tab" data-r="y" aria-selected="false">년</button><button role="tab" data-r="m" aria-selected="true">월</button><button role="tab" data-r="d" aria-selected="false">일</button></div>
-    <div class="chart-sum"><span id="chart-label">그동안 쓴 합계</span><b id="chart-total">0 토큰</b></div>
+    <div class="sheet-head"><span></span><h2>쓴 토큰</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
+    <div class="chart-seg" id="chart-seg" role="tablist"><button role="tab" data-r="y" aria-selected="false">1년</button><button role="tab" data-r="m" aria-selected="true">1개월</button><button role="tab" data-r="d" aria-selected="false">1일</button></div>
+    <div class="chart-sum"><span id="chart-label">1개월 동안 쓴 토큰</span><b id="chart-total">0 토큰</b></div>
     <div class="chart-box"><svg id="chart" viewBox="0 0 340 200" preserveAspectRatio="none"></svg><div class="chart-tip" id="chart-tip" hidden></div></div>
     <div class="chart-axis" id="chart-axis"></div>
+  </section>
+
+  <section class="sheet tall" id="bank-sheet" aria-label="이자 상품">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span></span><h2>이자 상품</h2><button class="link" data-close type="button" style="font-weight:700">완료</button></div>
+    <p class="bank-bal" id="bank-bal"></p>
+    <div class="sheet-scroll"><ul class="t-rows" id="bank-list"></ul></div>
   </section>
 
   <section class="sheet" id="new-sheet" aria-label="새 메시지">
@@ -197,6 +204,6 @@
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=5"></script>
 <script type="module" src="app/firebase.js?v=7"></script>
-<script src="app/app.js?v=12"></script>
+<script src="app/app.js?v=13"></script>
 </body>
 </html>
