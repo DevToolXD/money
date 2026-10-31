@@ -360,13 +360,26 @@
   const errEl = document.getElementById("login-error");
   const submitBtn = document.getElementById("login-submit");
     let signup = false;
-  const setMode = (on) => {
-    signup = on;
-    document.getElementById("login-title").textContent = on ? "계정 만들기" : "로그인";
-    submitBtn.textContent = on ? "계정 만들기" : "로그인";
-    document.getElementById("login-switch").innerHTML = on ? "이미 계정이 있나요? <b>로그인</b>" : "계정이 없나요? <b>계정 만들기</b>";
-    pwEl.autocomplete = on ? "new-password" : "current-password";
-    errEl.textContent = "";
+  const pw2El = document.getElementById("login-pw2");
+  const setMode = (on, animate = true) => {
+    const apply = () => {
+      signup = on;
+      document.getElementById("login-title").textContent = on ? "계정 만들기" : "로그인";
+      document.getElementById("login-sub").textContent = on ? "아이디와 비밀번호만 정하면 바로 시작할 수 있어요." : "아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.";
+      submitBtn.textContent = on ? "계정 만들기" : "로그인";
+      document.getElementById("login-switch").innerHTML = on ? "이미 계정이 있나요? <b>로그인</b>" : "계정이 없나요? <b>계정 만들기</b>";
+      pwEl.autocomplete = on ? "new-password" : "current-password";
+      errEl.textContent = "";
+      pw2El.value = "";
+    };
+    // 글자는 흐려졌다가 바뀌고, 비밀번호 확인 칸은 동시에 펼쳐지거나 접혀요
+    loginEl.classList.toggle("signup", on);
+    if (!animate || reduceMotion.matches) return apply();
+    loginEl.classList.add("swapping");
+    setTimeout(() => {
+      apply();
+      loginEl.classList.remove("swapping");
+    }, 200);
   };
   // 로그인 뒷배경: 사진 다섯 장이 번갈아 부드럽게 바뀌어요
   const slides = [...document.querySelectorAll("#slides i")];
@@ -381,7 +394,7 @@
     }
     loginEl.hidden = false;
     requestAnimationFrame(() => loginEl.classList.toggle("is-open", on));
-    if (on) setMode(false);
+    if (on) setMode(false, false);
   };
   document.getElementById("open-login").addEventListener("click", () => showLogin(true));
   document.getElementById("login-close").addEventListener("click", () => showLogin(false));
@@ -411,6 +424,10 @@
     }
     if (!/^[A-Za-z0-9_]{3,20}$/.test(id)) {
       errEl.textContent = "아이디는 영문, 숫자, _ 로 3~20자예요";
+      return;
+    }
+    if (signup && pw !== pw2El.value) {
+      errEl.textContent = "비밀번호가 서로 달라요";
       return;
     }
     run((c) => (signup ? c.signUp(id, pw) : c.signIn(id, pw)));

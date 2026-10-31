@@ -9,7 +9,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=3">
+<link rel="stylesheet" href="app/app.css?v=4">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -102,11 +102,12 @@
     <div class="slides" id="slides" aria-hidden="true"><i style="background-image:url(assets/login/1.jpg?v=3)"></i><i style="background-image:url(assets/login/2.jpg?v=3)"></i><i style="background-image:url(assets/login/3.jpg?v=3)"></i><i style="background-image:url(assets/login/4.jpg?v=3)"></i><i style="background-image:url(assets/login/5.jpg?v=3)"></i></div><div class="scrim" aria-hidden="true"></div>
     <button class="glass-btn round lg" id="login-close" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="login-body">
-      <h2 class="login-title" id="login-title">로그인</h2>
-      <p class="login-sub" id="login-sub">아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p>
+      <div class="swap" id="swap"><h2 class="login-title" id="login-title">로그인</h2>
+      <p class="login-sub" id="login-sub">아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p></div>
       <form id="login-form" class="lg-card" novalidate>
         <label><span>아이디</span><input id="login-email" type="text" inputmode="latin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="영문, 숫자, _ 3~20자"></label>
         <label><span>비밀번호</span><input id="login-pw" type="password" autocomplete="current-password" placeholder="6자 이상"></label>
+        <div class="extra" id="pw2-row"><div><label><span>비밀번호 확인</span><input id="login-pw2" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label></div></div>
       </form>
       <p class="login-error" id="login-error" role="alert"></p>
       <button class="lg-btn primary" id="login-submit" type="submit" form="login-form">로그인</button>
@@ -138,6 +139,6 @@
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=3"></script>
 <script type="module" src="app/firebase.js"></script>
-<script src="app/app.js?v=3"></script>
+<script src="app/app.js?v=4"></script>
 </body>
 </html>
