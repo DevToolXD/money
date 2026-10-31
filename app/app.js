@@ -359,8 +359,7 @@
   const pwEl = document.getElementById("login-pw");
   const errEl = document.getElementById("login-error");
   const submitBtn = document.getElementById("login-submit");
-  const googleBtn = document.getElementById("login-google");
-  let signup = false;
+    let signup = false;
   const setMode = (on) => {
     signup = on;
     document.getElementById("login-title").textContent = on ? "계정 만들기" : "로그인";
@@ -383,26 +382,29 @@
       return;
     }
     errEl.textContent = "";
-    submitBtn.disabled = googleBtn.disabled = true;
+    submitBtn.disabled = true;
     try {
       await fn(window.cloud);
       location.reload(); // 로그인한 계정의 저장 값을 처음부터 불러와요
     } catch (err) {
       errEl.textContent = err.message;
-      submitBtn.disabled = googleBtn.disabled = false;
+      submitBtn.disabled = false;
     }
   };
   loginForm.addEventListener("submit", (e) => e.preventDefault());
   submitBtn.addEventListener("click", () => {
-    const email = emailEl.value.trim();
+    const id = emailEl.value.trim();
     const pw = pwEl.value;
-    if (!email || !pw) {
-      errEl.textContent = "이메일과 비밀번호를 입력해 주세요";
+    if (!id || !pw) {
+      errEl.textContent = "아이디와 비밀번호를 입력해 주세요";
       return;
     }
-    run((c) => (signup ? c.signUp(email, pw) : c.signIn(email, pw)));
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(id)) {
+      errEl.textContent = "아이디는 영문, 숫자, _ 로 3~20자예요";
+      return;
+    }
+    run((c) => (signup ? c.signUp(id, pw) : c.signIn(id, pw)));
   });
-  googleBtn.addEventListener("click", () => run((c) => c.google()));
   document.getElementById("logout").addEventListener("click", async () => {
     await window.cloud?.signOut();
     location.reload();
@@ -411,7 +413,7 @@
     const signedIn = Boolean(cloud) && !cloud.user.anonymous;
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
-    if (signedIn) document.getElementById("auth-email").textContent = cloud.user.email || cloud.user.name;
+    if (signedIn) document.getElementById("auth-email").textContent = cloud.user.id;
   };
   renderAuth(null);
 
