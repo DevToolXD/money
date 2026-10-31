@@ -63,6 +63,23 @@ service cloud.firestore {
     function msgPath(cid, mid) { return /databases/$(database)/documents/chats/$(cid)/messages/$(mid); }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
 
+    // ----- 랭킹: 내 지갑 잔액과 똑같은 값만 쓸 수 있어요 (이름·아이디도 내 프로필과 같아야 해요). 20초에 한 번만 갱신해요 -----
+    match /ranks/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 50;
+      allow create: if rankOk(uid);
+      allow update: if rankOk(uid) && request.time >= resource.data.at + duration.value(20, 's');
+    }
+    function rankOk(uid) {
+      return isMe(uid)
+        && request.resource.data.keys().hasOnly(['id', 'name', 'bal', 'at'])
+        && request.resource.data.at == request.time
+        && request.resource.data.bal is int
+        && request.resource.data.bal == get(walletPath(uid)).data.bal
+        && request.resource.data.id == get(/databases/$(database)/documents/profiles/$(uid)).data.id
+        && request.resource.data.name == get(/databases/$(database)/documents/profiles/$(uid)).data.name;
+    }
+
     match /wallets/{uid} {
       allow get: if isMe(uid);
 

@@ -33,6 +33,8 @@ import {
   startAfter,
   onSnapshot,
   getDocs,
+  getCountFromServer,
+  documentId,
   writeBatch,
   serverTimestamp,
   increment,
@@ -141,6 +143,7 @@ window.cloudReady = (async () => {
     };
 
     let listCursor = null;
+    const rank = { sent: null, at: 0, me: null, top: null, topAt: 0 };
     let ensured = "";
     window.cloud = {
       get uid() {
@@ -246,6 +249,41 @@ window.cloudReady = (async () => {
             return { uid: d.id, ...d.data() };
           });
         return { list, more: snap.docs.length >= 20 };
+      },
+      /* ----- 랭킹: 내 지갑 잔액을 공개 순위표에 올려요 (서버 규칙이 지갑 잔액과 같은 값만 받아요) ----- */
+      syncRank: async (bal) => {
+        const uid = uidOf();
+        if (rank.sent === bal) return "same";
+        if (Date.now() - rank.at < 21000) return "soon"; // 방금 썼으면 쉬어요
+        const ref = doc(db, "ranks", uid);
+        if (rank.sent === null) {
+          const cur = await getDoc(ref);
+          rank.sent = cur.exists() ? cur.data().bal : -1;
+          if (rank.sent === bal) return "same";
+        }
+        if (!rank.me) rank.me = (await getDoc(doc(db, "profiles", uid))).data();
+        await setDoc(ref, { id: rank.me.id, name: rank.me.name, bal, at: serverTimestamp() });
+        rank.sent = bal;
+        rank.at = Date.now();
+        return "sent";
+      },
+      // 가장 토큰이 많은 50명 (45초 동안은 다시 읽지 않아요)
+      loadRanks: async (force) => {
+        if (!force && rank.top && Date.now() - rank.topAt < 45000) return rank.top;
+        const snap = await getDocs(query(collection(db, "ranks"), orderBy("bal", "desc"), limit(50)));
+        rank.top = snap.docs.map((d) => ({ uid: d.id, id: d.data().id, name: d.data().name, bal: d.data().bal }));
+        rank.topAt = Date.now();
+        return rank.top;
+      },
+      // 나보다 많이 가진 사람 수 (50명까지만 세요)
+      countAbove: async (bal) => (await getCountFromServer(query(collection(db, "ranks"), where("bal", ">", bal), limit(50)))).data().count,
+      loadRanksOf: async (uids) => {
+        const out = [];
+        for (let i = 0; i < uids.length && i < 30; i += 10) {
+          const snap = await getDocs(query(collection(db, "ranks"), where(documentId(), "in", uids.slice(i, i + 10)), limit(10)));
+          for (const d of snap.docs) out.push({ uid: d.id, id: d.data().id, name: d.data().name, bal: d.data().bal });
+        }
+        return out;
       },
       setPhoto: async (photo) => {
         await updateDoc(doc(db, "profiles", uidOf()), { photo });

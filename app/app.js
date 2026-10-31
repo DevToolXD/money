@@ -18,8 +18,9 @@
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
   // 색 토큰(design-system)과 탭 바가 같은 테마를 보게 해요
+  let darkHold = false; // 랭킹 탭은 늘 어두운 화면이라 위쪽 바와 탭 바도 어둡게 맞춰요
   const applyTheme = () => {
-    root.dataset.theme = scheme.matches ? "dark" : "light";
+    root.dataset.theme = scheme.matches || darkHold ? "dark" : "light";
   };
   applyTheme();
 
@@ -915,11 +916,93 @@
     if (histSheet.classList.contains("is-open")) renderHistory();
   }
   setInterval(tick, 1000);
+  /* ---------- 랭킹: 토큰을 가장 많이 가진 순서 ---------- */
+  const fmtTok = (n) => (n >= 1e8 ? `${(n / 1e8).toFixed(1).replace(/\.0$/, "")}억` : Number(n).toLocaleString("ko-KR"));
+  const CROWN = '<svg class="rk-crown" viewBox="0 0 28 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l5.500 5L14 3l5.500 9L25 7l-2 11H5L3 7z"/><path d="M6 21h16"/></svg>';
+  const rkPodium = document.getElementById("rk-podium");
+  const rkList = document.getElementById("rk-list");
+  const rkEmpty = document.getElementById("rk-empty");
+  const rkMe = document.getElementById("rk-me");
+  let rankSeg = "all";
+  let rankBusy = false;
+  let rankAt = 0;
+  const photoOf = (uid) => window.cloud?.peek(uid)?.photo || "";
+  const podCol = (u, n) =>
+    u
+      ? `<div class="rk-col g${n}">${CROWN}<span class="rk-n">${n}</span>${avatarHTML(u.name, photoOf(u.uid), "avatar contact")}<b class="rk-name">${esc(u.name)}</b><span class="rk-val">${fmtTok(u.bal)}</span></div>`
+      : `<div class="rk-col g${n} empty"><span class="rk-n">${n}</span><b class="rk-name">—</b><span class="rk-val">&nbsp;</span></div>`;
+  const paintRank = (list, myRank) => {
+    const me = window.cloud?.uid;
+    rkPodium.innerHTML = podCol(list[1], 2) + podCol(list[0], 1) + podCol(list[2], 3);
+    rkList.innerHTML = list
+      .slice(3)
+      .map((u, i) => `<li class="rk-row${u.uid === me ? " me" : ""}"><span class="rk-rn">${i + 4}</span>${avatarHTML(u.name, photoOf(u.uid), "avatar contact")}<span class="rk-rname">${esc(u.name)}</span><span class="rk-rval">${fmtTok(u.bal)}</span></li>`)
+      .join("");
+    rkEmpty.hidden = list.length > 1;
+    rkEmpty.textContent = rankSeg === "chat" ? "대화한 사람이 있으면 여기서 토큰 순위를 비교해요" : "아직 순위에 오른 사람이 적어요";
+    rkMe.hidden = !bank.ready;
+    rkMe.innerHTML = `<span class="rk-mn">${myRank}</span>${avatarHTML(store.get("profile-name", "나"), store.get("profile-photo", ""), "avatar contact")}<b>나</b><span class="rk-mval">${fmtTok(bank.bal)} 토큰</span>`;
+  };
+  const loadRank = async (force) => {
+    const cloud = window.cloud;
+    if (!cloud?.user || !live || rankBusy) return;
+    if (!force && Date.now() - rankAt < 20000) return; // 탭을 오갈 때마다 서버를 읽지 않아요
+    rankBusy = true;
+    try {
+      if (bank.ready) await cloud.syncRank(bank.bal).catch(() => {}); // 내 잔액을 먼저 순위표에 올려요
+      let list;
+      if (rankSeg === "all") list = (await cloud.loadRanks(force)).slice();
+      else {
+        list = await cloud.loadRanksOf([...new Set(chats.map((c) => c.other).filter(Boolean))]);
+        if (!list.some((u) => u.uid === cloud.uid)) list.push({ uid: cloud.uid, name: store.get("profile-name", "나"), bal: bank.bal });
+        list.sort((a, b) => b.bal - a.bal);
+      }
+      await cloud.fetchProfiles(list.slice(0, 12).map((u) => u.uid)).catch(() => 0); // 위쪽 사람들 사진
+      const at = list.findIndex((u) => u.uid === cloud.uid);
+      let myRank = at >= 0 ? String(at + 1) : "50+";
+      if (at < 0) {
+        try {
+          const above = await cloud.countAbove(bank.bal);
+          if (above < 50) myRank = String(above + 1);
+        } catch (_) { /* 순위를 못 세면 50+로 보여줘요 */ }
+      }
+      paintRank(list, myRank);
+      rankAt = Date.now();
+    } catch (err) {
+      rkEmpty.hidden = false;
+      rkEmpty.textContent = "순위를 불러오지 못했어요. 잠시 뒤 다시 해 주세요";
+    } finally {
+      rankBusy = false;
+    }
+  };
+  const rkSeg = document.querySelector(".rk-seg");
+  rkSeg.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-seg]");
+    if (!b || b.dataset.seg === rankSeg) return;
+    rankSeg = b.dataset.seg;
+    rkSeg.dataset.on = rankSeg === "chat" ? "1" : "0";
+    rkSeg.querySelectorAll("button").forEach((o) => o.setAttribute("aria-selected", String(o === b)));
+    loadRank(true);
+  });
+  nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "ranking") loadRank(true); });
+  // 지갑이 바뀌면 잠시 뒤 내 순위표 값도 맞춰요 (서버가 20초에 한 번만 받아요)
+  let rankTimer = 0;
+  const pushRank = (delay) => {
+    clearTimeout(rankTimer);
+    rankTimer = setTimeout(async () => {
+      if (!window.cloud?.user || !bank.ready) return;
+      const r = await window.cloud.syncRank(bank.bal).catch(() => "err");
+      if (r === "soon") pushRank(22000);
+    }, delay);
+  };
+
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
   const startWallet = () =>
     window.cloud.watchWallet((w) => {
       if (!w) return;
+      const firstBal = bank.ready ? bank.bal : null;
       bank = { ready: true, rate: w.rate, bal: w.bal, t: w.t };
+      if (firstBal !== w.bal) pushRank(firstBal === null ? 6000 : 4000);
       renderMoney();
       if (bankSheet.classList.contains("is-open")) renderProducts();
       if (!startWallet.first) { startWallet.first = true; setTimeout(claimNow, 3000); }
@@ -1621,6 +1704,7 @@
     const mon = screens.get("money");
     mon.classList.toggle("guest", !signedIn);
     mon.classList.toggle("member", signedIn);
+    screens.get("ranking").classList.toggle("guest", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
@@ -1727,6 +1811,11 @@
     topTitle.textContent = screens.get(name).dataset.title;
     updateChrome(screens.get(name));
     if (name === "money") renderMoney();
+    if ((name === "ranking") !== darkHold) {
+      darkHold = name === "ranking";
+      applyTheme();
+    }
+    if (name === "ranking") loadRank(false);
     backdrop?.setActive(name);
     tabbar.requestRender();
   });

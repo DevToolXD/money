@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=20">
+<link rel="stylesheet" href="app/app.css?v=23">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -56,11 +56,16 @@
       <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
     </section>
     <section class="screen" id="screen-ranking" data-screen="ranking" data-title="랭킹" aria-labelledby="title-ranking">
-      <header class="large-title"><h1 id="title-ranking">랭킹</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
-      <p class="lead">누가 가장 앞서 있을까요?</p>
-      <div class="card"><div class="art warm"></div><div class="art-text"><p class="eyebrow">곧 열려요</p><h2 class="card-title">아직 순위가 없어요</h2><p class="card-body">돈을 모으면 이곳에서 순위를 볼 수 있어요.</p></div></div>
-      <h2 class="section-title">이번 주 순위</h2>
-      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+      <div id="rank-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
+      <div id="rank-root">
+        <header class="large-title"><h1 id="title-ranking">랭킹</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
+        <p class="rk-sub">토큰을 가장 많이 가진 사람들이에요.<small>1 토큰 = 1 달러로 쳐요</small></p>
+        <div class="rk-podium" id="rk-podium"></div>
+        <div class="rk-seg" role="tablist"><i id="rk-pill"></i><button type="button" role="tab" data-seg="all" aria-selected="true">전체</button><button type="button" role="tab" data-seg="chat" aria-selected="false">대화 상대</button></div>
+        <ul class="rk-list" id="rk-list"></ul>
+        <p class="rk-empty" id="rk-empty" hidden></p>
+        <div class="rk-me" id="rk-me"></div>
+      </div>
     </section>
     <section class="screen" id="screen-manage" data-screen="manage" data-title="관리" aria-labelledby="title-manage">
       <header class="large-title"><h1 id="title-manage">관리</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
@@ -252,7 +257,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=6"></script>
-<script type="module" src="app/firebase.js?v=12"></script>
-<script src="app/app.js?v=25"></script>
+<script type="module" src="app/firebase.js?v=13"></script>
+<script src="app/app.js?v=26"></script>
 </body>
 </html>
