@@ -104,3 +104,7 @@ WebGL을 못 쓰거나 셰이더 컴파일이 실패하거나 컨텍스트를 �
 3. Authentication → 로그인 방법에서 **익명**을 켜요.
 4. Firestore Database를 만들고(프로덕션 모드), 규칙에 `firestore.rules` 내용을 붙여 게시해요.
 5. Authentication → 설정 → 승인된 도메인에 `devtoolxd.github.io`를 추가해요.
+
+## 자본 디자인
+
+이 프로젝트의 디자인 이름이에요. 실제 Apple Store 앱(iOS 26) 모양을 따르고, 자세한 규칙은 `CLAUDE.md`에 있어요.

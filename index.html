@@ -9,7 +9,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=4">
+<link rel="stylesheet" href="app/app.css?v=5">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -55,21 +55,26 @@
     <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
       <header class="large-title"><h1 id="title-account">계정</h1></header>
       <div id="auth-card" hidden><h2 class="guest-title">로그인 하세요</h2><button class="btn primary" id="open-login" type="button">로그인</button></div>
-      <div class="card pad profile">
-        <div class="profile-top"><span class="avatar-default" id="profile-avatar"></span>
-          <div class="stats"><div><b>0</b><span>게시물</span></div><div><b>0</b><span>팔로워</span></div><div><b>0</b><span>팔로잉</span></div></div></div>
-        <p class="name" id="profile-name">내 계정</p><p class="bio" id="profile-bio">소개를 추가해 보세요</p>
-        <div class="profile-actions"><button class="btn js-edit-profile" type="button">프로필 편집</button><button class="btn" id="share-profile" type="button">프로필 공유</button></div>
+      <div class="card pad profile center">
+        <span class="avatar-default" id="profile-avatar"></span>
+        <h2 class="profile-name" id="profile-name">내 계정</h2>
+        <p class="profile-id" id="profile-id"></p>
+        <p class="bio" id="profile-bio">소개를 추가해 보세요</p>
+        <button class="btn primary js-edit-profile" type="button" style="margin-top:18px;width:100%">프로필 편집</button>
       </div>
-      <div class="card"><div class="segment" role="tablist" style="border-top:0"><button role="tab" aria-selected="true" aria-label="게시물"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/></svg></button><button role="tab" aria-selected="false" aria-label="태그됨"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5.5h16v11H13l-4.5 3.5v-3.5H4z"/><circle cx="12" cy="11" r="2.2"/></svg></button></div>
-        <div class="empty-posts"><i>📷</i><h2 class="card-title" style="font-size:24px">첫 게시물을 공유해 보세요</h2><p class="card-body">공유한 사진과 영상이 여기에 보여요.</p></div></div>
+      <h2 class="section-title">내 활동</h2>
+      <div class="two-up">
+        <div class="stat"><b id="stat-chats">0</b><span>대화</span></div>
+        <div class="stat"><b id="stat-days">1</b><span>함께한 날</span></div>
+      </div>
       <h2 class="section-title">설정</h2>
       <div class="card"><ul class="rows">
-        <li><div class="row"><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></div></li>
-        <li><div class="row"><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
-        <li id="auth-row" hidden><div class="row"><span class="row-main"><b>로그인됨</b><span id="auth-email"></span></span><button class="link" id="logout" type="button" style="color:var(--status-red);font-weight:600">로그아웃</button></div></li>
-        <li><div class="row"><span class="row-main"><b>도움말</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#ff453a">🔔</span><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#0a84ff">🔒</span><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#30d158">💬</span><span class="row-main"><b>대화</b><span>배경화면은 대화 위쪽 이름을 눌러 바꿔요</span></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
+        <li><div class="row"><span class="ico-sq" style="background:#8e8e93">?</span><span class="row-main"><b>도움말</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
       </ul></div>
+      <div class="card" id="auth-row" hidden><button class="row logout" id="logout" type="button"><b>로그아웃</b></button></div>
     </section>
   </main>
 
@@ -146,6 +151,6 @@
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=3"></script>
 <script type="module" src="app/firebase.js?v=6"></script>
-<script src="app/app.js?v=6"></script>
+<script src="app/app.js?v=8"></script>
 </body>
 </html>

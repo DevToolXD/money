@@ -2,6 +2,15 @@
   "use strict";
 
   const root = document.documentElement;
+  // firebase.js는 모듈이라 이 파일보다 늦게 실행돼요. 올라올 때까지 기다렸다가 연결 결과를 받아요
+  const cloudPromise = new Promise((resolve) => {
+    const t = setInterval(() => {
+      if (window.cloudReady) {
+        clearInterval(t);
+        window.cloudReady.then(resolve);
+      }
+    }, 30);
+  });
   const app = document.querySelector(".app");
   const nav = document.querySelector(".tabbar");
   const screens = new Map([...document.querySelectorAll(".screen")].map((el) => [el.dataset.screen, el]));
@@ -91,15 +100,7 @@
   };
 
   /* ---------- 메시지 ---------- */
-  const chats = [
-    { id: "minji", name: "민지", last: "내일 점심 뭐 먹을까?", time: "오후 2:14", unread: true, pin: true, msgs: [["them", "오늘 뭐 해?"], ["me", "집에서 쉬고 있어"], ["them", "내일 점심 뭐 먹을까?"]], reply: "좋아! 그럼 그때 봐" },
-    { id: "mom", name: "엄마", last: "밥은 먹었니?", time: "오전 11:02", unread: true, pin: true, msgs: [["them", "밥은 먹었니?"]], reply: "그래, 조심히 다녀" },
-    { id: "junho", name: "준호", last: "ㅋㅋㅋ 그거 봤어?", time: "어제", unread: false, pin: true, msgs: [["them", "ㅋㅋㅋ 그거 봤어?"], ["me", "아직 못 봤어"]], reply: "꼭 봐봐" },
-    { id: "team", name: "회사 동료들", group: true, last: "회의 시간 3시로 바뀌었어요", time: "어제", unread: false, msgs: [["them", "회의 시간 3시로 바뀌었어요", "수진"], ["them", "확인 부탁드려요", "도현"], ["me", "네 확인했어요"]], reply: "감사합니다", replyBy: "수진" },
-    { id: "jiyun", name: "이지윤", last: "응", time: "화요일", unread: false, msgs: [["them", "응"]], reply: "ㅇㅋ" },
-    { id: "taeho", name: "박태호", last: "?", time: "월요일", unread: false, msgs: [["them", "?"]], reply: "ㅋㅋ" },
-    { id: "delivery", name: "택배 안내", last: "(광고) 배송이 시작되었어요. 오늘 중으로 도착할 예정이에요", time: "월요일", unread: false, msgs: [["them", "(광고) 배송이 시작되었어요. 오늘 중으로 도착할 예정이에요"]], reply: "문의는 고객센터로 부탁드려요" },
-  ];
+  const chats = []; // 처음에는 비어 있어요. 로그인하면 진짜 대화가 들어와요
   const initials = (n) => (n === "회사 동료들" ? "회사" : n.length >= 3 ? n.slice(-2) : n);
   const list = document.getElementById("chat-list");
   const pinnedEl = document.getElementById("pinned");
@@ -138,7 +139,10 @@
         (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span><div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
+    emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : "로그인하면 대화를 시작할 수 있어요";
     emptyMsg.hidden = shown.length > 0 || pins.length > 0;
+    const sc = document.getElementById("stat-chats");
+    if (sc) sc.textContent = chats.length;
   };
   renderChats();
   searchEl.addEventListener("input", renderChats);
@@ -363,7 +367,7 @@
   const newId = document.getElementById("new-id");
   const newErr = document.getElementById("new-error");
   document.getElementById("compose").addEventListener("click", () => {
-    if (!live) return open("minji");
+    if (!live) return showLogin(true);
     newId.value = "";
     newErr.textContent = "";
     sheetOpen(true, newSheet);
@@ -462,7 +466,7 @@
   const run = async (fn) => {
     errEl.textContent = "";
     submitBtn.disabled = true;
-    await window.cloudReady; // 연결이 아직 끝나지 않았을 수 있어요
+    await cloudPromise; // 연결이 아직 끝나지 않았을 수 있어요
     if (!window.cloud) {
       errEl.textContent = `서버에 연결하지 못했어요: ${window.cloudError || "알 수 없는 오류"}`;
       submitBtn.disabled = false;
@@ -506,7 +510,11 @@
     app.classList.toggle("guest-account", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
-    if (signedIn) document.getElementById("auth-email").textContent = cloud.user.id;
+    document.getElementById("profile-id").textContent = signedIn ? "@" + cloud.user.id : "";
+    if (signedIn) {
+      if (!store.get("joined", "")) store.set("joined", String(Date.now()));
+      document.getElementById("stat-days").textContent = Math.max(1, Math.ceil((Date.now() - Number(store.get("joined", Date.now()))) / 864e5));
+    }
   };
 
   /* ---------- 계정 ---------- */
@@ -549,9 +557,6 @@
     applyProfile();
     persist();
     sheetOpen(false);
-  });
-  document.getElementById("share-profile").addEventListener("click", () => {
-    if (navigator.share) navigator.share({ title: nameEl.textContent, url: location.href }).catch(() => {});
   });
   const notify = document.getElementById("toggle-notify");
   notify.addEventListener("click", () => notify.setAttribute("aria-checked", String(notify.getAttribute("aria-checked") !== "true")));
@@ -667,7 +672,7 @@
   };
   // 연결은 느린 폰에서 몇 초 걸릴 수 있어요. 끝나면 언제든 바로 반영하고, 8초가 지나도 안 끝나면 일단 로그인 전 화면으로 보여요
   let booted = false;
-  window.cloudReady.then((cloud) => {
+  cloudPromise.then((cloud) => {
     booted = true;
     boot(cloud);
   });

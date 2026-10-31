@@ -582,3 +582,18 @@ img, svg { -webkit-user-drag: none; }
 .lg-card .extra > div { overflow: hidden; min-height: 0; }
 .lg-card .extra label { border-top: 0.5px solid rgba(120, 120, 128, 0.3); }
 .signup .lg-card .extra { grid-template-rows: 1fr; opacity: 1; }
+
+/* 계정: 자본 디자인 */
+.profile.center { display: grid; justify-items: center; text-align: center; padding-top: 32px; }
+.profile.center #profile-avatar { width: 108px; height: 108px; }
+.profile.center #profile-avatar.avatar { font-size: 42px; background: linear-gradient(135deg, #7b8de8, #a6a0ee); }
+.profile-name { margin: 16px 0 0; font-size: 28px; line-height: 33px; font-weight: 800; letter-spacing: -0.022em; }
+.profile-id { margin: 2px 0 0; font-size: 17px; color: var(--text-tertiary); font-weight: 500; }
+.profile-id:empty { display: none; }
+.profile.center .bio { margin: 8px 0 0; }
+.stat { display: grid; align-content: center; justify-items: center; gap: 4px; min-height: 120px; border-radius: var(--radius-card); background: var(--bg-card); }
+.stat b { font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -0.03em; }
+.stat span { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.ico-sq { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 9px; color: #fff; font-size: 17px; font-weight: 700; }
+.row.logout { justify-content: center; color: var(--status-red); }
+.row.logout b { color: var(--status-red); font-size: 17px; }
