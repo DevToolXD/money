@@ -10,6 +10,7 @@ service cloud.firestore {
     match /usernames/{id} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update: if request.auth != null && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
     }
 
     // 두 사람 사이의 대화: 참가자만 읽고 쓸 수 있어요
@@ -21,6 +22,8 @@ service cloud.firestore {
       match /messages/{mid} {
         allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members;
         allow create: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members && request.resource.data.from == request.auth.uid;
+        // 받기(done)와 투표(votes)만 참가자가 고칠 수 있어요
+        allow update: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'votes']);
       }
     }
   }

@@ -9,7 +9,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=11">
+<link rel="stylesheet" href="app/app.css?v=12">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -28,7 +28,6 @@
     </section>
 
     <section class="screen toss" id="screen-money" data-screen="money" data-title="돈" data-notitle aria-label="돈">
-      <header class="toss-top"><span class="t-bell" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg><i></i></span></header>
       <div id="money-root"></div>
     </section>
     <section class="screen" id="screen-work" data-screen="work" data-title="일" aria-labelledby="title-work">
@@ -113,7 +112,7 @@
       <span class="t-glass round" aria-hidden="true"><svg viewBox="0 0 30 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="2" y="3" width="18" height="16" rx="4"/><path d="M22 9l6-4v12l-6-4z" fill="currentColor"/></svg></span>
     </header>
     <div class="bubbles" id="bubbles"></div>
-    <form class="composer" id="composer"><span class="plus" aria-hidden="true"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M13 3v20M3 13h20"/></svg></span>
+    <form class="composer" id="composer"><button class="plus" id="plus" type="button" aria-label="더 보내기"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M13 3v20M3 13h20"/></svg></button>
       <label class="field-glass"><input id="composer-input" type="text" placeholder="메시지" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" id="send-icon"><path d="M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2"/></svg></button></label></form>
   </section>
 
@@ -121,6 +120,7 @@
   <section class="sheet" id="sheet" aria-label="프로필 편집">
     <div class="grabber"></div>
     <div class="sheet-head"><button class="link" id="sheet-cancel" type="button">취소</button><h2>프로필 편집</h2><button class="link" id="sheet-save" type="button" style="font-weight:700">저장</button></div>
+    <button class="photo-edit" id="photo-edit" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.500-2.500h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.500"/></svg>프로필 사진 바꾸기</button>
     <label class="field">이름<input id="edit-name" type="text" maxlength="30"></label>
     <label class="field">소개<textarea id="edit-bio" rows="3" maxlength="120"></textarea></label>
   </section>
@@ -147,11 +147,32 @@
     <div class="sheet-scroll"><ul class="t-rows" id="bank-list"></ul></div>
   </section>
 
-  <section class="sheet" id="new-sheet" aria-label="새 메시지">
+  <section class="sheet tall" id="new-sheet" aria-label="새 메시지">
     <div class="grabber"></div>
-    <div class="sheet-head"><button class="link" id="new-cancel" type="button">취소</button><h2>새 메시지</h2><button class="link" id="new-go" type="button" style="font-weight:700">시작</button></div>
-    <label class="field">받는 사람 아이디<input id="new-id" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="상대의 아이디"></label>
-    <p class="login-error" id="new-error" role="alert" style="text-align:left"></p>
+    <div class="sheet-head"><button class="link" id="new-cancel" type="button">취소</button><h2 id="new-title">새 메시지</h2><span style="width:36px"></span></div>
+    <label class="searchfield sheet-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/></svg><input id="new-q" type="search" placeholder="이름 검색" autocomplete="off" aria-label="이름 검색"></label>
+    <div class="sheet-scroll"><ul class="res-list" id="new-results"></ul><p class="empty" id="new-empty">이름의 첫 글자부터 입력해 보세요</p></div>
+  </section>
+
+  <section class="sheet dark" id="gift-sheet" aria-label="토큰 보내기">
+    <div class="grabber"></div>
+    <p class="gift-to" id="gift-to"></p>
+    <div class="gift-row"><button class="gbtn" id="g-minus" type="button" aria-label="줄이기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button><button class="gamt" id="g-amt" type="button" aria-label="금액 직접 입력"><span id="g-num">100</span></button><button class="gbtn" id="g-plus" type="button" aria-label="늘리기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <button class="gkeys-toggle" id="g-keytoggle" type="button">키패드 보기</button>
+    <div class="keypad" id="keypad" hidden><button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button><button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button><button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button><button type="button" data-k="00">00</button><button type="button" data-k="0">0</button><button type="button" data-k="back" aria-label="지우기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11v12H9l-5-6z"/><path d="M13 9.500l4 5M17 9.500l-4 5"/></svg></button></div>
+    <p class="gift-bal" id="gift-bal"></p>
+    <div class="gift-actions"><button class="gact" id="g-request" type="button">요청</button><button class="gact" id="g-send" type="button">보내기</button></div>
+  </section>
+
+  <section class="sheet tall" id="poll-sheet" aria-label="투표 만들기">
+    <div class="grabber"></div>
+    <div class="sheet-head"><button class="link" id="poll-cancel" type="button">취소</button><h2>투표 만들기</h2><button class="link" id="poll-send" type="button" style="font-weight:700">보내기</button></div>
+    <div class="sheet-scroll">
+      <label class="field">질문<input id="poll-q" type="text" maxlength="60" placeholder="무엇을 물어볼까요?"></label>
+      <div id="poll-opts"></div>
+      <button class="link" id="poll-add" type="button">선택지 추가</button>
+      <p class="login-error" id="poll-err" role="alert" style="text-align:left"></p>
+    </div>
   </section>
 
   <section class="sheet" id="wall-sheet" aria-label="배경화면">
@@ -178,6 +199,30 @@
     </div>
   </section>
 
+  <div class="attach-back" id="attach-back"><div class="attach" id="attach" role="menu">
+    <button type="button" role="menuitem" data-a="camera"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.500-2.500h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.500"/></svg></span>카메라</button>
+    <button type="button" role="menuitem" data-a="photo"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="3"/><circle cx="9" cy="10" r="1.500"/><path d="M5 17l4.500-4.500 3.500 3.500 2.500-2.500L20 16"/></svg></span>사진</button>
+    <button type="button" role="menuitem" data-a="draw"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3"/></svg></span>그리기</button>
+    <button type="button" role="menuitem" data-a="poll"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>투표</button>
+    <button type="button" role="menuitem" data-a="token"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.500"/><path d="M12 7.500v9M9.500 10h4a1.500 1.500 0 0 1 0 3h-3a1.500 1.500 0 0 0 0 3h4"/></svg></span>토큰 선물</button>
+  </div></div>
+  <input type="file" id="file-camera" accept="image/*" capture="environment" hidden>
+  <input type="file" id="file-photo" accept="image/*" hidden>
+  <input type="file" id="file-poll" accept="image/*" hidden>
+  <input type="file" id="file-profile" accept="image/*" hidden>
+
+  <div class="draw" id="draw" hidden>
+    <canvas id="draw-canvas"></canvas>
+    <div class="draw-top">
+      <button class="glass-btn round lg" id="draw-close" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div class="draw-undo"><button id="draw-undo" type="button" aria-label="되돌리기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M5 12h8a5 5 0 0 1 0 10"/></svg></button><button id="draw-redo" type="button" aria-label="다시"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M19 12h-8a5 5 0 0 0 0 10"/></svg></button></div>
+      <button class="glass-btn round lg primary" id="draw-ok" type="button" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.500l4.500 4.500L19 7"/></svg></button>
+    </div>
+    <div class="draw-tools"><button class="pen-btn" id="draw-pen" type="button" aria-label="펜"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l4 5v10l-4 3-4-3V8z"/><path d="M8 13h8"/></svg></button><div class="palette" id="palette" hidden></div></div>
+  </div>
+  <div class="viewer" id="viewer" hidden><img id="viewer-img" alt=""></div>
+  <div class="toast" id="toast" role="status"></div>
+
   <div class="alert" id="alert" hidden><div class="alert-card"><h3 id="alert-title"></h3><p id="alert-body"></p><div class="alert-actions"><button class="alert-btn" id="alert-cancel" type="button">취소</button><button class="alert-btn ok" id="alert-ok" type="button">확인</button></div></div></div>
 
   <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div><div class="ctx-stack" id="ctx-stack"><div class="ctx-preview" id="ctx-preview"></div><div class="ctx-menu big" id="ctx-menu2" role="menu"></div></div></div>
@@ -203,7 +248,7 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=5"></script>
-<script type="module" src="app/firebase.js?v=7"></script>
-<script src="app/app.js?v=13"></script>
+<script type="module" src="app/firebase.js?v=8"></script>
+<script src="app/app.js?v=14"></script>
 </body>
 </html>

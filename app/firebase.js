@@ -1,7 +1,7 @@
 /* 파이어베이스 연결: 처음에는 익명으로 로그인하고, 아이디·비밀번호로 가입·로그인(익명 계정을 이어붙임)할 수 있어요.
    내 상태(프로필·배경화면·대화)는 Firestore의 users/{uid} 문서 하나에 저장해요.
    설정값이 비어 있거나 연결에 실패하면 window.cloud는 null이고, 앱은 이 기기(localStorage)에만 저장해요. */
-import { firebaseConfig } from "./firebase-config.js?v=7";
+import { firebaseConfig } from "./firebase-config.js?v=8";
 
 const BASE = "https://www.gstatic.com/firebasejs/11.0.2";
 
@@ -39,7 +39,7 @@ window.cloudReady = (async () => {
     const app = initializeApp(firebaseConfig);
     // 로그인은 이 기기에 계속 남아요 (indexedDB, 안 되면 localStorage)
     const auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence] });
-    const { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc } = F;
+    const { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, limit, getDocs } = F;
     const db = getFirestore(app);
     auth.languageCode = "ko";
     const user = await new Promise((resolve, reject) => {
@@ -62,12 +62,12 @@ window.cloudReady = (async () => {
       save: (data) => setDoc(doc(db, "users", auth.currentUser.uid), { ...data, updatedAt: Date.now() }, { merge: true }),
       // 가입: 지금의 익명 계정에 이메일을 이어붙여서 그동안 쓴 것이 그대로 남아요
       // 아이디는 안 보이는 가짜 이메일(아이디@money-sim.app)로 바꿔서 파이어베이스 이메일 로그인에 써요
-      signUp: (id, pw, name) =>
+      signUp: (id, pw, name, photo = "") =>
         wrap(async () => {
           await A.linkWithCredential(auth.currentUser, A.EmailAuthProvider.credential(toEmail(id), pw));
           // 다른 사람이 아이디로 나를 찾을 수 있게 등록해요
           await A.updateProfile(auth.currentUser, { displayName: name });
-          await setDoc(doc(db, "usernames", id.trim().toLowerCase()), { uid: auth.currentUser.uid, id: id.trim(), name });
+          await setDoc(doc(db, "usernames", id.trim().toLowerCase()), { uid: auth.currentUser.uid, id: id.trim(), name, photo });
         }),
       signIn: (id, pw) => wrap(() => A.signInWithEmailAndPassword(auth, toEmail(id), pw)),
       signOut: () => A.signOut(auth),
@@ -77,23 +77,39 @@ window.cloudReady = (async () => {
         const s = await getDoc(doc(db, "usernames", id.trim().toLowerCase()));
         return s.exists() ? s.data() : null;
       },
-      chatId: (other) => [auth.currentUser.uid, other].sort().join("_"),
-      openChat: async (other, otherId) => {
+      // 이름으로 찾기: 이름이 입력한 글자로 시작하는 사람 (내가 아닌 사람만)
+      searchUsers: async (q) => {
+        const t = q.trim();
+        if (!t) return [];
+        const snap = await getDocs(query(collection(db, "usernames"), where("name", ">=", t), where("name", "<=", t + "\uf8ff"), limit(20)));
+        return snap.docs.map((d) => d.data()).filter((u) => u.uid !== auth.currentUser.uid);
+      },
+      setPhoto: async (photo, chatIds = []) => {
+        const me = auth.currentUser;
+        const id = (me.email || "").replace(/@money-sim\.app$/, "").toLowerCase();
+        await Promise.all([
+          id ? updateDoc(doc(db, "usernames", id), { photo }).catch(() => {}) : null,
+          ...chatIds.map((cid) => updateDoc(doc(db, "chats", cid), { [`photos.${me.uid}`]: photo }).catch(() => {})),
+        ]);
+      },
+      openChat: async (other, otherName, otherPhoto = "", myPhoto = "") => {
         const me = auth.currentUser;
         const cid = [me.uid, other].sort().join("_");
         const myName = me.displayName || (me.email || "").replace(/@money-sim\.app$/, "");
-        await setDoc(doc(db, "chats", cid), { members: [me.uid, other], names: { [me.uid]: myName, [other]: otherId } }, { merge: true });
+        await setDoc(doc(db, "chats", cid), { members: [me.uid, other], names: { [me.uid]: myName, [other]: otherName }, photos: { [me.uid]: myPhoto, [other]: otherPhoto } }, { merge: true });
         return cid;
       },
       watchChats: (cb) =>
         onSnapshot(query(collection(db, "chats"), where("members", "array-contains", auth.currentUser.uid)), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))),
       watchMessages: (cid, cb) =>
-        onSnapshot(query(collection(db, "chats", cid, "messages"), orderBy("at")), (snap) => cb(snap.docs.map((d) => d.data()))),
-      send: async (cid, text) => {
+        onSnapshot(query(collection(db, "chats", cid, "messages"), orderBy("at")), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })))),
+      // payload: { type: "text" | "photo" | "draw" | "gift" | "request" | "poll", ... }, preview: 대화 목록에 보일 짧은 글
+      send: async (cid, payload, preview) => {
         const at = Date.now();
-        await addDoc(collection(db, "chats", cid, "messages"), { from: auth.currentUser.uid, text, at });
-        await updateDoc(doc(db, "chats", cid), { last: text, lastAt: at, lastFrom: auth.currentUser.uid, [`reads.${auth.currentUser.uid}`]: at });
+        await addDoc(collection(db, "chats", cid, "messages"), { ...payload, from: auth.currentUser.uid, at });
+        await updateDoc(doc(db, "chats", cid), { last: preview, lastAt: at, lastFrom: auth.currentUser.uid, [`reads.${auth.currentUser.uid}`]: at });
       },
+      updateMsg: (cid, mid, data) => updateDoc(doc(db, "chats", cid, "messages", mid), data),
       markRead: (cid) => updateDoc(doc(db, "chats", cid), { [`reads.${auth.currentUser.uid}`]: Date.now() }).catch(() => {}),
     };
     return window.cloud;

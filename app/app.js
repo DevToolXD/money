@@ -107,6 +107,8 @@
   const emptyMsg = document.getElementById("chat-empty");
   const searchEl = document.getElementById("chat-search");
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const avatarHTML = (name, photo, cls = "avatar contact") =>
+    photo ? `<span class="${cls} photo" style="background-image:url(${photo})"></span>` : `<span class="${cls}">${esc(initials(name))}</span>`;
   const chev = '<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
   let onlyUnread = false;
   let live = false; // 로그인한 계정이면 진짜 사람과의 대화를 불러와요
@@ -131,12 +133,12 @@
     const pins = q || onlyUnread ? [] : chats.filter((c) => c.pin);
     pinnedEl.hidden = !pins.length;
     pinnedEl.innerHTML = pins
-      .map((c) => `<button class="pin${c.unread ? " is-unread" : ""}" type="button" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span>${esc(c.name)}</button>`)
+      .map((c) => `<button class="pin${c.unread ? " is-unread" : ""}" type="button" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}${avatarHTML(c.name, c.photo)}${esc(c.name)}</button>`)
       .join("");
     const shown = chats.filter((c) => !pins.includes(c) && match(c));
     list.innerHTML = shown
       .map(
-        (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}<span class="avatar contact">${esc(initials(c.name))}</span><div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
+        (c) => `<li><div class="chat-row" role="button" tabindex="0" data-id="${c.id}">${c.unread ? '<i class="dot"></i>' : ""}${avatarHTML(c.name, c.photo)}<div class="chat-main"><div class="chat-top"><b>${esc(c.name)}</b><span class="meta">${c.muted ? '<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>' : ""}${c.time}${chev}</span></div><p class="chat-prev">${esc(c.last)}</p></div><button class="del" type="button" data-del="${c.id}">삭제</button></div></li>`
       )
       .join("");
     emptyMsg.textContent = chats.length ? "결과가 없어요" : live ? "메시지가 없어요. 위쪽 버튼으로 대화를 시작해 보세요" : "로그인하면 대화를 시작할 수 있어요";
@@ -155,17 +157,45 @@
   let openChat = null;
 
   // 대화 화면: 메시지 목록을 다시 그려요 (fresh는 방금 생긴 말풍선 번호)
+  const claimed = new Set(JSON.parse(store.get("claimed", "[]")));
+  const preview = (m) => (m.type === "photo" ? "사진" : m.type === "draw" ? "그림" : m.type === "gift" ? `토큰 ${Number(m.amount).toLocaleString("ko-KR")} 선물` : m.type === "request" ? `토큰 ${Number(m.amount).toLocaleString("ko-KR")} 요청` : m.type === "poll" ? `투표: ${m.poll?.q || ""}` : m.text || "");
+  // 글이 아닌 메시지(사진, 그림, 토큰, 투표)는 말풍선 대신 카드로 그려요
+  const cardHTML = (m, who, i) => {
+    const t = m.type;
+    if (t === "photo" || t === "draw") return `<button class="media${t === "draw" ? " drawn" : ""}" data-view="${i}" type="button"><img src="${m.img}" alt="${t === "draw" ? "그림" : "사진"}"></button>`;
+    if (t === "gift" || t === "request") {
+      const gift = t === "gift";
+      let btn;
+      if (m.done) btn = `<span class="cash-state">${gift ? (who === "me" ? "상대가 받았어요" : "받았어요") : (who === "me" ? "상대가 보냈어요" : "보냈어요")}</span>`;
+      else if (who === "me") btn = `<span class="cash-state">${gift ? "상대가 받으면 완료돼요" : "요청했어요"}</span>`;
+      else btn = `<button class="cash-btn" data-act="${gift ? "accept" : "pay"}" data-i="${i}" type="button">${gift ? "받기" : "보내기"}</button>`;
+      return `<div class="cash"><p class="cash-tag">${gift ? "토큰 선물" : "토큰 요청"}</p><div class="cash-amt"><b>${Number(m.amount).toLocaleString("ko-KR")}</b><span>토큰</span></div>${btn}</div>`;
+    }
+    if (t === "poll") {
+      const votes = Object.values(m.votes || {});
+      const mine = (m.votes || {})[window.cloud?.uid];
+      return `<div class="poll"><p class="poll-q">${esc(m.poll.q)}</p>${m.poll.options
+        .map((o, k) => {
+          const n = votes.filter((v) => v === k).length;
+          const pct = votes.length ? Math.round((n / votes.length) * 100) : 0;
+          return `<button class="poll-opt${mine === k ? " on" : ""}" data-vote="${k}" data-i="${i}" type="button"><i class="po-bar" style="width:${pct}%"></i>${o.img ? `<img src="${o.img}" alt="">` : ""}<span class="po-t">${esc(o.t || `선택지 ${k + 1}`)}</span><span class="po-n">${n}</span></button>`;
+        })
+        .join("")}<p class="poll-meta">${votes.length}명 투표했어요${mine === undefined ? " · 눌러서 투표" : ""}</p></div>`;
+    }
+    return "";
+  };
   const threadHTML = (chat, fresh = -1) => {
     const msgs = chat.msgs;
     let html = `<div class="stamp">오늘 ${chat.time.includes(":") ? chat.time : "오후 2:14"}</div>`;
-    msgs.forEach(([who, text, by], i) => {
+    msgs.forEach(([who, text, by, raw], i) => {
       const next = msgs[i + 1];
       const last = !next || next[0] !== who || next[2] !== by;
-      const b = `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(text)}</div>`;
+      const card = raw && raw.type && raw.type !== "text" ? cardHTML(raw, who, i) : "";
+      const b = card || `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(text)}</div>`;
       if (who === "me") html += `<div class="line me">${b}</div>`;
       else {
         if (chat.group && last) html += `<div class="sender">${esc(by || "")}</div>`;
-        html += `<div class="line">${last ? `<span class="avatar contact">${esc(initials(by || chat.name))}</span>` : '<span style="width:38px"></span>'}${b}</div>`;
+        html += `<div class="line">${last ? avatarHTML(by || chat.name, chat.photo) : '<span style="width:38px"></span>'}${b}</div>`;
       }
     });
     if (msgs.length && msgs[msgs.length - 1][0] === "me") html += '<div class="read">전송됨</div>';
@@ -185,7 +215,10 @@
     if (!openChat) return;
     openChat.unread = false;
     document.getElementById("thread-name").textContent = openChat.name;
-    document.getElementById("thread-avatar").textContent = initials(openChat.name);
+    const tav = document.getElementById("thread-avatar");
+    tav.textContent = openChat.photo ? "" : initials(openChat.name);
+    tav.style.backgroundImage = openChat.photo ? `url(${openChat.photo})` : "";
+    tav.classList.toggle("photo", Boolean(openChat.photo));
     document.getElementById("thread-badge").textContent = chats.filter((c) => c.unread).length;
     applyWall();
     if (openChat.live) {
@@ -195,7 +228,7 @@
       renderThread();
       unsubMsgs = window.cloud.watchMessages(chat.id, (list) => {
         const grew = list.length > chat.msgs.length;
-        chat.msgs = list.map((m) => [m.from === window.cloud.uid ? "me" : "them", m.text, chat.name]);
+        chat.msgs = list.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]);
         if (openChat === chat) {
           renderThread(grew ? list.length - 1 : -1);
           window.cloud.markRead(chat.id);
@@ -364,30 +397,67 @@
     renderChats();
   });
   const newSheet = document.getElementById("new-sheet");
-  const newId = document.getElementById("new-id");
-  const newErr = document.getElementById("new-error");
-  document.getElementById("compose").addEventListener("click", () => {
+  const newQ = document.getElementById("new-q");
+  const newResults = document.getElementById("new-results");
+  const newEmpty = document.getElementById("new-empty");
+  let pickMode = "chat"; // "chat": 대화 열기, "gift": 토큰 보내기 받는 사람 고르기
+  let people = [];
+  const openPicker = (mode) => {
     if (!live) return showLogin(true);
-    newId.value = "";
-    newErr.textContent = "";
+    pickMode = mode;
+    document.getElementById("new-title").textContent = mode === "gift" ? "받는 사람" : "새 메시지";
+    newQ.value = "";
+    newResults.innerHTML = "";
+    newEmpty.hidden = false;
+    newEmpty.textContent = "이름의 첫 글자부터 입력해 보세요";
     sheetOpen(true, newSheet);
-  });
+  };
+  document.getElementById("compose").addEventListener("click", () => openPicker("chat"));
   document.getElementById("new-cancel").addEventListener("click", () => sheetOpen(false));
-  document.getElementById("new-go").addEventListener("click", async () => {
-    const id = newId.value.trim();
-    if (!id) return;
-    newErr.textContent = "";
+  let searchTimer = 0;
+  let searchSeq = 0;
+  newQ.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = newQ.value.trim();
+    if (!q) {
+      newResults.innerHTML = "";
+      newEmpty.hidden = false;
+      newEmpty.textContent = "이름의 첫 글자부터 입력해 보세요";
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      const seq = ++searchSeq;
+      try {
+        const found = await window.cloud.searchUsers(q);
+        if (seq !== searchSeq) return;
+        people = found;
+        newResults.innerHTML = found.map((u, i) => `<li><button class="res-row" type="button" data-i="${i}">${avatarHTML(u.name || u.id, u.photo, "avatar contact")}<span class="res-main"><b>${esc(u.name || u.id)}</b><span>@${esc(u.id)}</span></span></button></li>`).join("");
+        newEmpty.hidden = found.length > 0;
+        newEmpty.textContent = "일치하는 사람이 없어요";
+      } catch (err) {
+        newEmpty.hidden = false;
+        newEmpty.textContent = "찾지 못했어요. 잠시 뒤 다시 해 주세요";
+      }
+    }, 250);
+  });
+  const ensureChat = async (u) => {
+    const cid = await window.cloud.openChat(u.uid, u.name || u.id, u.photo || "", store.get("profile-photo", ""));
+    if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.name || u.id, photo: u.photo || "", live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
+    return cid;
+  };
+  newResults.addEventListener("click", async (e) => {
+    const row = e.target.closest(".res-row");
+    if (!row) return;
+    const u = people[Number(row.dataset.i)];
     try {
-      const u = await window.cloud.findUser(id);
-      if (!u) return (newErr.textContent = "그런 아이디가 없어요");
-      if (u.uid === window.cloud.uid) return (newErr.textContent = "내 아이디예요");
-      const cid = await window.cloud.openChat(u.uid, u.name || u.id);
-      if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.name || u.id, live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
+      const cid = await ensureChat(u);
       sheetOpen(false);
       renderChats();
-      open(cid);
+      if (pickMode === "gift") openGift(cid, u.name || u.id);
+      else open(cid);
     } catch (err) {
-      newErr.textContent = "상대를 찾지 못했어요. 잠시 뒤 다시 해 주세요";
+      newEmpty.hidden = false;
+      newEmpty.textContent = "상대와 연결하지 못했어요. 잠시 뒤 다시 해 주세요";
     }
   });
   document.getElementById("thread-back").addEventListener("click", close);
@@ -399,7 +469,7 @@
     input.value = "";
     input.dispatchEvent(new Event("input"));
     if (chat.live) {
-      window.cloud.send(chat.id, text).catch((err) => console.warn("보내지 못했어요:", err));
+      window.cloud.send(chat.id, { type: "text", text }, text).catch((err) => console.warn("보내지 못했어요:", err));
       return;
     }
     chat.msgs.push(["me", text]);
@@ -479,18 +549,9 @@
   const CATC = { 식비: "#ffe6d2", 카페: "#f0e4d6", 교통: "#dbe8ff", 문화: "#ece1ff", 쇼핑: "#ffdbe6", 입금: "#ffe0e0", 송금: "#ffe0e0", 은행: "#d6f1e6" };
   const num = (n) => Math.abs(n).toLocaleString("ko-KR");
   const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
-  const txRow = (e) => `<li class="t-row tx"><span class="t-ico sm" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${hm(e.t)} · ${esc(e.cat)}</span></span>${amtHTML(e.amt)}</li>`;
-  const groups = (list) => {
-    let out = "";
-    let last = "";
-    for (const e of list) {
-      const g = dayName(e.t);
-      if (g !== last) out += `${last ? "</ul>" : ""}<p class="t-date">${g}</p><ul class="t-rows">`;
-      last = g;
-      out += txRow(e);
-    }
-    return out + (last ? "</ul>" : "");
-  };
+  const kindOf = (e) => (e.amt > 0 ? "받음" : e.cat === "은행" ? "이자 상품" : "사용");
+  const txRow = (e) => `<li class="t-row tx"><span class="t-ico" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${esc(e.cat)}</span><span class="t-label">${dayName(e.t)} ${hm(e.t)}</span></span>${amtHTML(e.amt)}<svg class="tchev gr" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>`;
+  const groups = (list) => `<ul class="t-rows">${list.map(txRow).join("")}</ul>`;
   const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
 
   /* ---- 은행: 이자 상품과 복리 ---- */
@@ -534,22 +595,45 @@
   const orderIds = ["spend", "bank", "hist"];
   const savedOrder = store.get("money-order", "").split(",").filter((x) => orderIds.includes(x));
   const order = [...savedOrder, ...orderIds.filter((x) => !savedOrder.includes(x))];
+  const cashArt = () => {
+    // 검은 카드 위의 점 무늬: 아래 가운데에서 반원으로 퍼지는 색 점들 (바깥으로 갈수록 커지고 흐려져요)
+    let d = "";
+    const cx = 170;
+    const cy = 232;
+    for (let r = 34, ring = 0; r < 215; r += 15, ring++) {
+      const n = Math.max(8, Math.round((Math.PI * r) / 15.5));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n;
+        const a = Math.PI * (1 - t);
+        const x = cx + Math.cos(a) * r * 1.08;
+        const y = cy - Math.sin(a) * r;
+        const hue = 168 - t * 128 - (ring % 2) * 6;
+        const size = 1.5 + (r / 215) * 4.2;
+        const op = 1 - (r / 215) * 0.35;
+        d += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${size.toFixed(2)}" fill="hsl(${hue.toFixed(0)} 52% ${64 - (r / 215) * 14}%)" opacity="${op.toFixed(2)}"/>`;
+      }
+    }
+    return `<svg class="ac-art" viewBox="0 0 340 218" preserveAspectRatio="xMidYMax slice" aria-hidden="true">${d}</svg>`;
+  };
+  const sv2 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const mv = (id, title, body, extra = "") => `<div class="movable mv" data-id="${id}" role="button" tabindex="0"${extra}><h2 class="ac-h">${title}${chev2}</h2><div class="ac-box">${body}</div></div>`;
   const CARDS = {
-    spend: () => `<button class="t-card t-tap movable" data-id="spend" id="open-chart" type="button"><div class="t-pad"><h2 class="t-title">이번 달 쓴 토큰${chev2}</h2>
-      <b class="t-big">${W(monthSpent())}</b>
-      <div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent() / BUDGET) * 100))}%"></span></div>
-      <p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent() / BUDGET) * 100)}%를 썼어요</p></div></button>`,
-    bank: () => `<button class="t-card t-tap movable" data-id="bank" id="open-bank" type="button"><div class="t-pad"><h2 class="t-title">이자 상품${chev2}</h2>
-      <b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note"></p></div></button>`,
-    hist: () => `<button class="t-card t-tap movable" data-id="hist" id="open-history" type="button"><div class="t-pad"><h2 class="t-title">거래내역${chev2}</h2><div id="tx-top"></div></div></button>`,
+    spend: () => mv("spend", "이번 달 쓴 토큰", `<b class="t-big">${W(monthSpent())}</b><div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent() / BUDGET) * 100))}%"></span></div><p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent() / BUDGET) * 100)}%를 썼어요</p>`, ' id="open-chart"'),
+    bank: () => mv("bank", "이자 상품", '<b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note"></p>', ' id="open-bank"'),
+    hist: () => mv("hist", "최근 거래내역", '<div id="tx-top"></div>', ' id="open-history"'),
   };
   document.getElementById("money-root").innerHTML = `
-    <div class="t-card"><div class="t-pad"><h2 class="t-title plain">내 토큰</h2>
-      <div class="t-bal"><b id="bal-num"></b></div></div>
-      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div></div>
+    <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
+    <div class="ac-card"><span class="ac-word">토큰</span>${cashArt()}</div>
+    <div class="ac-bal">
+      <div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num"></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div>
+      <button class="ac-note" id="ac-note" type="button"></button>
+      <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
+    </div>
     <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
   const renderMoney = () => {
-    document.getElementById("bal-num").textContent = W(bank.bal);
+    document.getElementById("bal-num").innerHTML = `${bank.bal.toLocaleString("ko-KR")}<small> 토큰</small>`;
+    document.getElementById("ac-note").textContent = bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${intervalText()}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요";
     document.getElementById("card-month").textContent = `이번 달 ${monthSpent().toLocaleString("ko-KR")} 토큰`;
     const rateEl = document.getElementById("bank-rate");
     const noteEl = document.getElementById("bank-note");
@@ -568,6 +652,8 @@
   const histSheet = document.getElementById("history-sheet");
   const chartSheet = document.getElementById("chart-sheet");
   const bankSheet = document.getElementById("bank-sheet");
+  document.getElementById("ac-search").addEventListener("click", () => { renderHistory(); sheetOpen(true, histSheet); });
+  for (const id of ["ac-more", "ac-note"]) document.getElementById(id).addEventListener("click", () => { renderProducts(); sheetOpen(true, bankSheet); });
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
 
   const renderProducts = () => {
@@ -788,6 +874,340 @@
   chart.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "touch") scrub(e); });
   document.getElementById("chart-seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) drawChart(b.dataset.r); });
   
+  /* ---------- 대화 더하기: 사진, 그리기, 투표, 토큰 선물 ---------- */
+  const toastEl = document.getElementById("toast");
+  let toastTimer = 0;
+  const toast = (t) => {
+    toastEl.textContent = t;
+    toastEl.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("on"), 1900);
+  };
+  const sendTo = (cid, payload) => window.cloud.send(cid, payload, preview(payload));
+
+  // 사진을 줄여서 글자(데이터 주소)로 만들어요. 서버에 그대로 저장돼요
+  const readImage = (file, max, q = 0.72, square = false) =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const sw = square ? Math.min(img.width, img.height) : img.width;
+        const sh = square ? sw : img.height;
+        const sx = (img.width - sw) / 2;
+        const sy = (img.height - sh) / 2;
+        const k = Math.min(1, max / Math.max(sw, sh));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(sw * k));
+        c.height = Math.max(1, Math.round(sh * k));
+        c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        let out = c.toDataURL("image/jpeg", q);
+        for (let s = q; out.length > 520000 && s > 0.3; s -= 0.1) out = c.toDataURL("image/jpeg", s);
+        resolve(out);
+      };
+      img.onerror = () => reject(new Error("사진을 열지 못했어요"));
+      img.src = url;
+    });
+
+  /* + 메뉴 */
+  const attachBack = document.getElementById("attach-back");
+  document.getElementById("plus").addEventListener("click", () => {
+    if (!openChat?.live) return;
+    attachBack.classList.add("is-open");
+  });
+  attachBack.addEventListener("pointerdown", (e) => { if (e.target === attachBack) attachBack.classList.remove("is-open"); });
+  const fileCamera = document.getElementById("file-camera");
+  const filePhoto = document.getElementById("file-photo");
+  const sendPhoto = async (file) => {
+    if (!file || !openChat?.live) return;
+    const cid = openChat.id;
+    try {
+      const img = await readImage(file, 900, 0.72);
+      await sendTo(cid, { type: "photo", img });
+    } catch (err) {
+      toast("사진을 보내지 못했어요");
+    }
+  };
+  fileCamera.addEventListener("change", () => { sendPhoto(fileCamera.files[0]); fileCamera.value = ""; });
+  filePhoto.addEventListener("change", () => { sendPhoto(filePhoto.files[0]); filePhoto.value = ""; });
+  document.getElementById("attach").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-a]");
+    if (!b) return;
+    attachBack.classList.remove("is-open");
+    const a = b.dataset.a;
+    if (a === "camera") fileCamera.click();
+    else if (a === "photo") filePhoto.click();
+    else if (a === "draw") openDraw();
+    else if (a === "poll") openPoll();
+    else if (a === "token") openGift(openChat.id, openChat.name);
+  });
+
+  /* 사진 크게 보기 */
+  const viewer = document.getElementById("viewer");
+  bubbles.addEventListener("click", async (e) => {
+    const chat = openChat;
+    if (!chat) return;
+    const media = e.target.closest("[data-view]");
+    if (media) {
+      document.getElementById("viewer-img").src = chat.msgs[Number(media.dataset.view)][3].img;
+      viewer.hidden = false;
+      requestAnimationFrame(() => viewer.classList.add("is-open"));
+      return;
+    }
+    const act = e.target.closest("[data-act]");
+    if (act) {
+      const m = chat.msgs[Number(act.dataset.i)][3];
+      if (act.dataset.act === "accept") {
+        if (m.done || claimed.has(m.id)) return;
+        claimed.add(m.id);
+        store.set("claimed", JSON.stringify([...claimed]));
+        accrue(Math.floor((Date.now() - bank.t) / 1000));
+        bank.t = Date.now();
+        bank.bal += Number(m.amount);
+        logTx({ t: Date.now(), name: `${chat.name}님의 선물`, cat: "송금", icon: "gift", amt: Number(m.amount) });
+        saveBank(true);
+        renderMoney();
+        window.cloud.updateMsg(chat.id, m.id, { done: true }).catch(() => {});
+        toast(`토큰 ${Number(m.amount).toLocaleString("ko-KR")}을 받았어요`);
+      } else if (act.dataset.act === "pay") {
+        if (m.done) return;
+        if (bank.bal < Number(m.amount)) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+        const yes = await ask({ title: `토큰 ${Number(m.amount).toLocaleString("ko-KR")}을 보낼까요?`, body: `${chat.name}님의 요청이에요.`, ok: "보내기", cancel: "취소" });
+        if (!yes) return;
+        accrue(Math.floor((Date.now() - bank.t) / 1000));
+        bank.t = Date.now();
+        bank.bal -= Number(m.amount);
+        logTx({ t: Date.now(), name: `${chat.name}님에게 선물`, cat: "송금", icon: "gift", amt: -Number(m.amount) });
+        saveBank(true);
+        renderMoney();
+        await sendTo(chat.id, { type: "gift", amount: Number(m.amount) });
+        window.cloud.updateMsg(chat.id, m.id, { done: true }).catch(() => {});
+        toast("보냈어요");
+      }
+      return;
+    }
+    const vote = e.target.closest("[data-vote]");
+    if (vote) {
+      const m = chat.msgs[Number(vote.dataset.i)][3];
+      window.cloud.updateMsg(chat.id, m.id, { [`votes.${window.cloud.uid}`]: Number(vote.dataset.vote) }).catch(() => toast("투표하지 못했어요"));
+    }
+  });
+  viewer.addEventListener("click", () => {
+    viewer.classList.remove("is-open");
+    setTimeout(() => (viewer.hidden = true), 250);
+  });
+
+  /* 토큰 선물과 요청: 검은 시트. 숫자를 누르면 직접 입력할 수 있어요 */
+  const giftSheet = document.getElementById("gift-sheet");
+  const gNum = document.getElementById("g-num");
+  const keypad = document.getElementById("keypad");
+  let gift = { cid: "", name: "", amt: 100 };
+  const showAmt = () => {
+    gNum.textContent = gift.amt.toLocaleString("ko-KR");
+    gNum.parentElement.style.fontSize = gift.amt >= 1e7 ? "46px" : gift.amt >= 1e6 ? "58px" : gift.amt >= 1e5 ? "68px" : "80px";
+    document.getElementById("gift-bal").textContent = `내 토큰 ${W(bank.bal)}`;
+  };
+  function openGift(cid, name) {
+    gift = { cid, name, amt: gift.amt > 0 ? gift.amt : 100 };
+    document.getElementById("gift-to").textContent = `${name}님에게`;
+    keypad.hidden = true;
+    fresh = true;
+    document.getElementById("g-keytoggle").textContent = "키패드 보기";
+    showAmt();
+    sheetOpen(true, giftSheet);
+  }
+  const step = (dir) => {
+    const s = gift.amt >= 100000 ? 10000 : gift.amt >= 10000 ? 1000 : 100;
+    gift.amt = Math.max(0, Math.min(99999999, gift.amt + dir * s));
+    showAmt();
+    navigator.vibrate?.(6);
+  };
+  for (const [id, dir] of [["g-minus", -1], ["g-plus", 1]]) {
+    const btn = document.getElementById(id);
+    let hold = 0;
+    let rep = 0;
+    const stop = () => { clearTimeout(hold); clearInterval(rep); };
+    btn.addEventListener("pointerdown", () => {
+      step(dir);
+      hold = setTimeout(() => (rep = setInterval(() => step(dir), 90)), 380);
+    });
+    for (const t of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(t, stop);
+  }
+  const toggleKeys = (on) => {
+    keypad.hidden = !on;
+    document.getElementById("g-keytoggle").textContent = on ? "키패드 숨기기" : "키패드 보기";
+  };
+  document.getElementById("g-amt").addEventListener("click", () => toggleKeys(keypad.hidden));
+  document.getElementById("g-keytoggle").addEventListener("click", () => toggleKeys(keypad.hidden));
+  let fresh = false;
+  keypad.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-k]");
+    if (!b) return;
+    const k = b.dataset.k;
+    let s = fresh ? "" : String(gift.amt);
+    fresh = false;
+    s = k === "back" ? s.slice(0, -1) : s === "0" ? k.replace(/^0+/, "") : s + k;
+    gift.amt = Math.min(99999999, Number(s || 0));
+    showAmt();
+    navigator.vibrate?.(5);
+  });
+  document.getElementById("g-send").addEventListener("click", async () => {
+    if (gift.amt < 1) return toast("보낼 토큰을 정해 주세요");
+    if (gift.amt > bank.bal) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+    const { cid, name, amt } = gift;
+    try {
+      await sendTo(cid, { type: "gift", amount: amt });
+    } catch (err) {
+      return toast("보내지 못했어요");
+    }
+    accrue(Math.floor((Date.now() - bank.t) / 1000));
+    bank.t = Date.now();
+    bank.bal -= amt;
+    logTx({ t: Date.now(), name: `${name}님에게 선물`, cat: "송금", icon: "gift", amt: -amt });
+    saveBank(true);
+    renderMoney();
+    sheetOpen(false);
+    toast(`${name}님에게 토큰 ${amt.toLocaleString("ko-KR")}을 보냈어요`);
+  });
+  document.getElementById("g-request").addEventListener("click", async () => {
+    if (gift.amt < 1) return toast("요청할 토큰을 정해 주세요");
+    try {
+      await sendTo(gift.cid, { type: "request", amount: gift.amt });
+      sheetOpen(false);
+      toast(`${gift.name}님에게 토큰 ${gift.amt.toLocaleString("ko-KR")}을 요청했어요`);
+    } catch (err) {
+      toast("요청하지 못했어요");
+    }
+  });
+  document.getElementById("ac-send")?.addEventListener("click", () => openPicker("gift"));
+
+  /* 사진 투표 */
+  const pollSheet = document.getElementById("poll-sheet");
+  const pollOpts = document.getElementById("poll-opts");
+  const filePoll = document.getElementById("file-poll");
+  let poll = [];
+  let pollPick = 0;
+  const drawPollOpts = () => {
+    pollOpts.innerHTML = poll
+      .map((o, i) => `<div class="poll-edit"><button class="poll-photo${o.img ? " has" : ""}" data-p="${i}" type="button" aria-label="사진 고르기" ${o.img ? `style="background-image:url(${o.img})"` : ""}>${o.img ? "" : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'}</button><input type="text" data-t="${i}" maxlength="30" placeholder="선택지 ${i + 1}" value="${esc(o.t)}"></div>`)
+      .join("");
+    document.getElementById("poll-add").hidden = poll.length >= 4;
+  };
+  function openPoll() {
+    poll = [{ t: "", img: "" }, { t: "", img: "" }];
+    document.getElementById("poll-q").value = "";
+    document.getElementById("poll-err").textContent = "";
+    drawPollOpts();
+    sheetOpen(true, pollSheet);
+  }
+  pollOpts.addEventListener("input", (e) => { const i = e.target.dataset.t; if (i !== undefined) poll[Number(i)].t = e.target.value; });
+  pollOpts.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-p]");
+    if (!b) return;
+    pollPick = Number(b.dataset.p);
+    filePoll.click();
+  });
+  filePoll.addEventListener("change", async () => {
+    const f = filePoll.files[0];
+    filePoll.value = "";
+    if (!f) return;
+    try {
+      poll[pollPick].img = await readImage(f, 420, 0.7);
+      drawPollOpts();
+    } catch (err) { toast("사진을 열지 못했어요"); }
+  });
+  document.getElementById("poll-add").addEventListener("click", () => { if (poll.length < 4) { poll.push({ t: "", img: "" }); drawPollOpts(); } });
+  document.getElementById("poll-cancel").addEventListener("click", () => sheetOpen(false));
+  document.getElementById("poll-send").addEventListener("click", async () => {
+    const q = document.getElementById("poll-q").value.trim();
+    const opts = poll.filter((o) => o.t.trim() || o.img);
+    const err = document.getElementById("poll-err");
+    if (!q) return (err.textContent = "질문을 적어 주세요");
+    if (opts.length < 2) return (err.textContent = "선택지를 두 개 이상 만들어 주세요");
+    try {
+      await sendTo(openChat.id, { type: "poll", poll: { q, options: opts.map((o) => ({ t: o.t.trim(), img: o.img })) }, votes: {} });
+      sheetOpen(false);
+    } catch (e) { err.textContent = "보내지 못했어요. 잠시 뒤 다시 해 주세요"; }
+  });
+
+  /* 그리기: 그려서 설명해요 */
+  const drawEl = document.getElementById("draw");
+  const dc = document.getElementById("draw-canvas");
+  const dctx = dc.getContext("2d");
+  const COLORS = ["#111111", "#0a7cff", "#ff3b30", "#34c759", "#ff9f0a"];
+  let strokes = [];
+  let redo = [];
+  let ink = { color: COLORS[0], w: 5 };
+  const palette = document.getElementById("palette");
+  palette.innerHTML = COLORS.map((c, i) => `<button type="button" data-c="${c}" style="background:${c}" aria-label="색 ${i + 1}"></button>`).join("");
+  palette.addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) { ink.color = b.dataset.c; palette.hidden = true; } });
+  document.getElementById("draw-pen").addEventListener("click", () => (palette.hidden = !palette.hidden));
+  const paintAll = () => {
+    dctx.clearRect(0, 0, dc.width, dc.height);
+    dctx.lineCap = dctx.lineJoin = "round";
+    for (const s of strokes) {
+      dctx.strokeStyle = dctx.fillStyle = s.color;
+      dctx.lineWidth = s.w * dpr2;
+      const p = s.pts;
+      if (p.length === 1) { dctx.beginPath(); dctx.arc(p[0][0], p[0][1], (s.w * dpr2) / 2, 0, 7); dctx.fill(); continue; }
+      dctx.beginPath();
+      dctx.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length - 1; i++) dctx.quadraticCurveTo(p[i][0], p[i][1], (p[i][0] + p[i + 1][0]) / 2, (p[i][1] + p[i + 1][1]) / 2);
+      dctx.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
+      dctx.stroke();
+    }
+  };
+  let dpr2 = 1;
+  function openDraw() {
+    drawEl.hidden = false;
+    strokes = [];
+    redo = [];
+    palette.hidden = true;
+    dpr2 = Math.min(2, window.devicePixelRatio || 1);
+    requestAnimationFrame(() => {
+      dc.width = Math.round(drawEl.clientWidth * dpr2);
+      dc.height = Math.round(drawEl.clientHeight * dpr2);
+      paintAll();
+      drawEl.classList.add("is-open");
+    });
+  }
+  const closeDraw = () => { drawEl.classList.remove("is-open"); setTimeout(() => (drawEl.hidden = true), 280); };
+  let cur = null;
+  dc.addEventListener("pointerdown", (e) => {
+    palette.hidden = true;
+    dc.setPointerCapture(e.pointerId);
+    const r = dc.getBoundingClientRect();
+    cur = { color: ink.color, w: ink.w, pts: [[(e.clientX - r.left) * dpr2, (e.clientY - r.top) * dpr2]] };
+    strokes.push(cur);
+    redo = [];
+    paintAll();
+  });
+  dc.addEventListener("pointermove", (e) => {
+    if (!cur) return;
+    const r = dc.getBoundingClientRect();
+    cur.pts.push([(e.clientX - r.left) * dpr2, (e.clientY - r.top) * dpr2]);
+    paintAll();
+  });
+  for (const t of ["pointerup", "pointercancel"]) dc.addEventListener(t, () => (cur = null));
+  document.getElementById("draw-undo").addEventListener("click", () => { if (strokes.length) { redo.push(strokes.pop()); paintAll(); } });
+  document.getElementById("draw-redo").addEventListener("click", () => { if (redo.length) { strokes.push(redo.pop()); paintAll(); } });
+  document.getElementById("draw-close").addEventListener("click", closeDraw);
+  document.getElementById("draw-ok").addEventListener("click", async () => {
+    if (!strokes.length) return closeDraw();
+    const k = Math.min(1, 900 / dc.width);
+    const out = document.createElement("canvas");
+    out.width = Math.round(dc.width * k);
+    out.height = Math.round(dc.height * k);
+    const o = out.getContext("2d");
+    o.fillStyle = "#fff";
+    o.fillRect(0, 0, out.width, out.height);
+    o.drawImage(dc, 0, 0, out.width, out.height);
+    let img = out.toDataURL("image/png");
+    if (img.length > 520000) img = out.toDataURL("image/jpeg", 0.8);
+    closeDraw();
+    try { await sendTo(openChat.id, { type: "draw", img }); } catch (err) { toast("그림을 보내지 못했어요"); }
+  });
+
   /* ---------- 로그인 ---------- */
   const loginEl = document.getElementById("login");
   const loginForm = document.getElementById("login-form");
@@ -908,7 +1328,7 @@
     }
     const sure = await ask({ title: `"${name}" 님이 실명이 맞나요?`, body: "실명이 아니면 이용이 제한될 수 있어요. 가입한 뒤에는 이름을 바꾸기 어려워요.", ok: "실명이에요", cancel: "다시 입력" });
     if (!sure) return realNameEl.focus();
-    run((c) => c.signUp(id, pw, name));
+    run((c) => c.signUp(id, pw, name, store.get("profile-photo", "")));
   });
   document.getElementById("logout").addEventListener("click", async () => {
     await window.cloud?.signOut();
@@ -948,11 +1368,35 @@
     bioEl.textContent = store.get("profile-bio", "소개를 추가해 보세요");
     // 이름을 바꾸면 기본 프로필(회색 사람 모양) 대신 이름의 첫 글자가 보여요
     const custom = name !== "내 계정";
+    const photo = store.get("profile-photo", "");
     avatarEl.className = custom ? "avatar" : "avatar-default";
     avatarEl.style.width = avatarEl.style.height = "";
     avatarEl.textContent = custom ? name[0] : "";
+    avatarEl.style.backgroundImage = photo ? `url(${photo})` : "";
+    if (photo) { avatarEl.classList.add("has-photo"); avatarEl.textContent = ""; }
   };
   applyProfile();
+  const fileProfile = document.getElementById("file-profile");
+  const pickPhoto = () => fileProfile.click();
+  document.getElementById("photo-edit").addEventListener("click", pickPhoto);
+  avatarEl.addEventListener("click", pickPhoto);
+  fileProfile.addEventListener("change", async () => {
+    const f = fileProfile.files[0];
+    fileProfile.value = "";
+    if (!f) return;
+    try {
+      const data = await readImage(f, 192, 0.82, true);
+      store.set("profile-photo", data);
+      applyProfile();
+      if (window.cloud) {
+        window.cloud.save({ photo: data }).catch(() => {});
+        window.cloud.setPhoto(data, chats.filter((c) => c.live).map((c) => c.id));
+      }
+      toast("프로필 사진을 바꿨어요");
+    } catch (err) {
+      toast("사진을 바꾸지 못했어요");
+    }
+  });
   const sheet = document.getElementById("sheet");
   const dim = document.getElementById("dim");
   const editName = document.getElementById("edit-name");
@@ -1056,6 +1500,7 @@
               id: d.id,
               live: true,
               name: other ? other[1] : "알 수 없음",
+              photo: other ? d.photos?.[other[0]] || "" : "",
               last: d.last || "",
               time: fmtTime(d.lastAt),
               lastAt: d.lastAt || 0,
@@ -1074,6 +1519,7 @@
     try {
       const data = cloud && (await cloud.load());
       if (data) {
+        if (data.photo && !store.get("profile-photo", "")) { store.set("profile-photo", data.photo); applyProfile(); }
         if (data.profile) {
           store.set("profile-name", data.profile.name);
           store.set("profile-bio", data.profile.bio);
