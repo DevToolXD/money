@@ -1440,8 +1440,11 @@
       showSlide(slide);
       slideTimer = setInterval(() => showSlide((slide = (slide + 1) % slides.length)), 5000);
     }
+    clearTimeout(showLogin.hideT);
     loginEl.hidden = false;
     requestAnimationFrame(() => loginEl.classList.toggle("is-open", on));
+    // 닫은 뒤에는 화면에서 완전히 빼서 뒤에서 아무것도 그리지 않게 해요
+    if (!on) showLogin.hideT = setTimeout(() => { loginEl.hidden = true; slides.forEach((s) => s.classList.remove("on")); }, 700);
     if (on) {
       setMode(false, false);
       warned = false;
@@ -1453,6 +1456,13 @@
   document.getElementById("login-switch").addEventListener("click", () => setMode(!signup));
   // 비밀번호를 계속 틀리면 잠깐 막아요 (5번 틀리면 30초, 그다음부터 두 배씩, 최대 10분)
   const lockState = () => { try { return JSON.parse(store.get("login-lock", "{}")); } catch (_) { return {}; } };
+  let busy = false;
+  const setBusy = (on) => {
+    busy = on;
+    submitBtn.classList.toggle("busy", on);
+    submitBtn.setAttribute("aria-busy", String(on));
+    if (!on) submitBtn.blur();
+  };
   const run = async (fn, isLogin = false) => {
     errEl.textContent = "";
     const lock = lockState();
@@ -1460,20 +1470,26 @@
       errEl.textContent = `시도가 너무 많아요. ${Math.ceil((lock.until - Date.now()) / 1000)}초 뒤에 다시 해 주세요`;
       return;
     }
-    submitBtn.disabled = true;
+    if (busy) return;
+    setBusy(true);
     await cloudPromise; // 연결이 아직 끝나지 않았을 수 있어요
     if (!window.cloud) {
       errEl.textContent = `서버에 연결하지 못했어요: ${window.cloudError || "알 수 없는 오류"}`;
-      submitBtn.disabled = false;
+      setBusy(false);
       return;
     }
     try {
       await fn(window.cloud);
       store.set("login-lock", "{}");
-      location.reload(); // 로그인한 계정의 저장 값을 처음부터 불러와요
+      // 새로고침 없이 바로 들어가요: 가입하면 이미 로그인된 상태라 화면만 로그인한 계정으로 바꿔요
+      started = false;
+      await boot(window.cloud);
+      showLogin(false);
+      setBusy(false);
+      pwEl.value = pw2El.value = "";
     } catch (err) {
       errEl.textContent = err.message;
-      submitBtn.disabled = false;
+      setBusy(false);
       if (isLogin) {
         const n = (lock.n || 0) + 1;
         store.set("login-lock", JSON.stringify({ n, until: n >= 5 ? Date.now() + Math.min(600, 30 * 2 ** (n - 5)) * 1000 : 0 }));
@@ -1482,6 +1498,8 @@
   };
   loginForm.addEventListener("submit", (e) => e.preventDefault());
   submitBtn.addEventListener("click", async () => {
+    submitBtn.blur(); // 눌린 모양이 남지 않게 해요
+    if (busy) return;
     const id = emailEl.value.trim();
     const pw = pwEl.value;
     if (!id || !pw) {
