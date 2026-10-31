@@ -59,12 +59,16 @@
     const h1 = el.querySelector(".large-title h1");
     if (!h1) {
       // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요. 돈 탭처럼 data-notitle이면 제목 없이 유리만 나타나요
-      topbar.style.setProperty("--p", clamp(y / 16, 0, 1));
+      const p0 = clamp(y / 16, 0, 1);
+      topbar.style.setProperty("--p", p0);
+      topbar.classList.toggle("on", p0 > 0);
       topTitle.style.opacity = el.hasAttribute("data-notitle") ? 0 : 1;
       topTitle.style.transform = "none";
       return;
     }
-    topbar.style.setProperty("--p", clamp((y - 28) / 20, 0, 1));
+    const p = clamp((y - 28) / 20, 0, 1);
+    topbar.style.setProperty("--p", p);
+    topbar.classList.toggle("on", p > 0);
     const t = clamp((y - 34) / 14, 0, 1);
     topTitle.style.opacity = t;
     topTitle.style.transform = `translateY(${(1 - t) * 5}px)`;
@@ -81,23 +85,23 @@
     set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* 저장을 못 해도 괜찮아요 */ } },
   };
 
-  /* ---------- 파이어베이스로 저장·불러오기 ---------- */
-  let hydrated = false;
+  /* ---------- 내 설정 저장: 프로필 글과 대화 배경만, 바뀐 뒤 3초 모아서 한 번에 ---------- */
+  const WALLS = ["white", "sunset", "aurora", "night", "mint"];
+  let wallMap = {};
+  try { wallMap = JSON.parse(store.get("walls", "{}")); } catch (_) { /* 처음이에요 */ }
   let saveTimer = 0;
-  const walls = () => Object.fromEntries(chats.map((c) => [c.id, store.get("wall-" + c.id, "white")]));
-  const persist = () => {
-    if (!hydrated || !window.cloud || live) return;
+  const saveSettings = () => {
+    if (!window.cloud?.user) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      window.cloud
-        .save({
-          profile: { name: store.get("profile-name", "내 계정"), bio: store.get("profile-bio", "소개를 추가해 보세요") },
-          walls: walls(),
-          chats: chats.map(({ id, last, time, unread, pin, muted, msgs }) => ({ id, last, time, unread: Boolean(unread), pin: Boolean(pin), muted: Boolean(muted), msgs: msgs.map((m) => ({ w: m[0], t: m[1], b: m[2] || "" })) })),
-        })
-        .catch((err) => console.warn("저장하지 못했어요:", err));
-    }, 800);
+      const walls = Object.fromEntries(Object.entries(wallMap).filter(([, w]) => WALLS.includes(w)).slice(0, 150));
+      window.cloud.saveSettings({ profile: { name: store.get("profile-name", "내 계정").slice(0, 30), bio: store.get("profile-bio", "").slice(0, 120) }, walls }).catch(() => {});
+    }, 3000);
   };
+  // 안전한 이미지 주소만 화면에 넣어요 (남이 보낸 값이 스타일이나 속성을 깨고 나오지 못하게)
+  const IMG_RE = /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+  const safeImg = (s, max = 140000) => (typeof s === "string" && s.length <= max && IMG_RE.test(s) ? s : "");
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   /* ---------- 메시지 ---------- */
   const chats = []; // 처음에는 비어 있어요. 로그인하면 진짜 대화가 들어와요
@@ -107,8 +111,10 @@
   const emptyMsg = document.getElementById("chat-empty");
   const searchEl = document.getElementById("chat-search");
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const avatarHTML = (name, photo, cls = "avatar contact") =>
-    photo ? `<span class="${cls} photo" style="background-image:url(${photo})"></span>` : `<span class="${cls}">${esc(initials(name))}</span>`;
+  const avatarHTML = (name, photo, cls = "avatar contact") => {
+    const p = safeImg(photo, 40000);
+    return p ? `<span class="${cls} photo" style="background-image:url(${p})"></span>` : `<span class="${cls}">${esc(initials(name))}</span>`;
+  };
   const chev = '<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
   let onlyUnread = false;
   let live = false; // 로그인한 계정이면 진짜 사람과의 대화를 불러와요
@@ -127,7 +133,6 @@
     return d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}월 ${d.getDate()}일`;
   };
   const renderChats = () => {
-    persist();
     const q = searchEl.value.trim();
     const match = (c) => (c.name.includes(q) || c.last.includes(q)) && (!onlyUnread || c.unread);
     const pins = q || onlyUnread ? [] : chats.filter((c) => c.pin);
@@ -157,91 +162,153 @@
   let openChat = null;
 
   // 대화 화면: 메시지 목록을 다시 그려요 (fresh는 방금 생긴 말풍선 번호)
-  const claimed = new Set(JSON.parse(store.get("claimed", "[]")));
   const preview = (m) => (m.type === "photo" ? "사진" : m.type === "draw" ? "그림" : m.type === "gift" ? `토큰 ${Number(m.amount).toLocaleString("ko-KR")} 선물` : m.type === "request" ? `토큰 ${Number(m.amount).toLocaleString("ko-KR")} 요청` : m.type === "poll" ? `투표: ${m.poll?.q || ""}` : m.text || "");
   // 글이 아닌 메시지(사진, 그림, 토큰, 투표)는 말풍선 대신 카드로 그려요
   const cardHTML = (m, who, i) => {
     const t = m.type;
-    if (t === "photo" || t === "draw") return `<button class="media${t === "draw" ? " drawn" : ""}" data-view="${i}" type="button"><img src="${m.img}" alt="${t === "draw" ? "그림" : "사진"}"></button>`;
+    if (t === "photo" || t === "draw") {
+      const src = safeImg(m.img);
+      return src ? `<button class="media${t === "draw" ? " drawn" : ""}" data-view="${i}" type="button"><img src="${src}" alt="${t === "draw" ? "그림" : "사진"}" decoding="async" loading="lazy"></button>` : '<div class="bubble">열 수 없는 사진이에요</div>';
+    }
     if (t === "gift" || t === "request") {
       const gift = t === "gift";
+      const amount = Math.max(0, Math.floor(Number(m.amount) || 0));
       let btn;
-      if (m.done) btn = `<span class="cash-state">${gift ? (who === "me" ? "상대가 받았어요" : "받았어요") : (who === "me" ? "상대가 보냈어요" : "보냈어요")}</span>`;
+      if (m.done) btn = `<span class="cash-state">${gift ? (who === "me" ? "상대가 받았어요" : "받았어요") : who === "me" ? "상대가 보냈어요" : "보냈어요"}</span>`;
       else if (who === "me") btn = `<span class="cash-state">${gift ? "상대가 받으면 완료돼요" : "요청했어요"}</span>`;
       else btn = `<button class="cash-btn" data-act="${gift ? "accept" : "pay"}" data-i="${i}" type="button">${gift ? "받기" : "보내기"}</button>`;
-      return `<div class="cash"><p class="cash-tag">${gift ? "토큰 선물" : "토큰 요청"}</p><div class="cash-amt"><b>${Number(m.amount).toLocaleString("ko-KR")}</b><span>토큰</span></div>${btn}</div>`;
+      return `<div class="cash"><p class="cash-tag">${gift ? "토큰 선물" : "토큰 요청"}</p><div class="cash-amt"><b>${amount.toLocaleString("ko-KR")}</b><span>토큰</span></div>${btn}</div>`;
     }
-    if (t === "poll") {
+    if (t === "poll" && m.poll && Array.isArray(m.poll.options)) {
       const votes = Object.values(m.votes || {});
       const mine = (m.votes || {})[window.cloud?.uid];
-      return `<div class="poll"><p class="poll-q">${esc(m.poll.q)}</p>${m.poll.options
+      return `<div class="poll"><p class="poll-q">${esc(String(m.poll.q))}</p>${m.poll.options
         .map((o, k) => {
           const n = votes.filter((v) => v === k).length;
           const pct = votes.length ? Math.round((n / votes.length) * 100) : 0;
-          return `<button class="poll-opt${mine === k ? " on" : ""}" data-vote="${k}" data-i="${i}" type="button"><i class="po-bar" style="width:${pct}%"></i>${o.img ? `<img src="${o.img}" alt="">` : ""}<span class="po-t">${esc(o.t || `선택지 ${k + 1}`)}</span><span class="po-n">${n}</span></button>`;
+          const img = safeImg(o.img, 60000);
+          return `<button class="poll-opt${mine === k ? " on" : ""}" data-vote="${k}" data-i="${i}" type="button"><i class="po-bar" style="width:${pct}%"></i>${img ? `<img src="${img}" alt="" decoding="async" loading="lazy">` : ""}<span class="po-t">${esc(String(o.t || `선택지 ${k + 1}`))}</span><span class="po-n">${n}</span></button>`;
         })
         .join("")}<p class="poll-meta">${votes.length}명 투표했어요${mine === undefined ? " · 눌러서 투표" : ""}</p></div>`;
     }
     return "";
   };
-  const threadHTML = (chat, fresh = -1) => {
+  // 한 줄(보낸 사람 이름표 + 말풍선이나 카드)을 만들어요. sig는 이 줄이 바뀌었는지 알아보는 표시예요
+  const rowOf = (chat, i, fresh) => {
     const msgs = chat.msgs;
-    let html = `<div class="stamp">오늘 ${chat.time.includes(":") ? chat.time : "오후 2:14"}</div>`;
-    msgs.forEach(([who, text, by, raw], i) => {
-      const next = msgs[i + 1];
-      const last = !next || next[0] !== who || next[2] !== by;
-      const card = raw && raw.type && raw.type !== "text" ? cardHTML(raw, who, i) : "";
-      const b = card || `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(text)}</div>`;
-      if (who === "me") html += `<div class="line me">${b}</div>`;
-      else {
-        if (chat.group && last) html += `<div class="sender">${esc(by || "")}</div>`;
-        html += `<div class="line">${last ? avatarHTML(by || chat.name, chat.photo) : '<span style="width:38px"></span>'}${b}</div>`;
+    const [who, text, by, raw] = msgs[i];
+    const next = msgs[i + 1];
+    const last = !next || next[0] !== who || next[2] !== by;
+    const card = raw && raw.type && raw.type !== "text" ? cardHTML(raw, who, i) : "";
+    const b = card || `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(String(text))}</div>`;
+    const line = who === "me" ? `<div class="line me">${b}</div>` : `<div class="line">${last ? avatarHTML(by || chat.name, chat.photo) : '<span style="width:38px"></span>'}${b}</div>`;
+    const key = raw?.id || String(i);
+    const sig = `${key}|${last ? 1 : 0}|${raw?.done ? 1 : 0}|${raw?.votes ? JSON.stringify(raw.votes) : ""}|${i}`;
+    return { key, sig, html: `<div class="mrow" data-k="${esc(key)}" data-sig="${esc(sig)}">${line}</div>` };
+  };
+  // 이미 그려진 줄은 건드리지 않고 바뀐 줄만 갈아끼우고 새 줄만 붙여요 (사진이 있는 대화에서 다시 그리느라 버벅이지 않게)
+  const syncRows = (items) => {
+    const cur = [...bubbles.querySelectorAll(":scope > .mrow")];
+    let i = 0;
+    for (; i < items.length && i < cur.length && cur[i].dataset.k === items[i].key; i++) {
+      if (cur[i].dataset.sig !== items[i].sig) {
+        const t = document.createElement("template");
+        t.innerHTML = items[i].html;
+        cur[i].replaceWith(t.content.firstElementChild);
       }
-    });
-    if (msgs.length && msgs[msgs.length - 1][0] === "me") html += '<div class="read">전송됨</div>';
-    return html;
+    }
+    for (let k = cur.length - 1; k >= i; k--) cur[k].remove(); // 순서가 달라졌으면 뒤쪽만 지우고 다시 붙여요
+    const read = bubbles.querySelector(":scope > .read");
+    for (; i < items.length; i++) (read || bubbles).insertAdjacentHTML(read ? "beforebegin" : "beforeend", items[i].html);
   };
   const renderThread = (fresh = -1) => {
-    bubbles.innerHTML = threadHTML(openChat, fresh);
-    bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: fresh >= 0 && !reduceMotion.matches ? "smooth" : "auto" });
+    const chat = openChat;
+    const msgs = chat.msgs;
+    const stampText = `오늘 ${chat.time.includes(":") ? chat.time : "오후 2:14"}`;
+    let head = bubbles.querySelector(":scope > .stamp");
+    if (!head) {
+      bubbles.insertAdjacentHTML("afterbegin", `<div class="stamp"></div>`);
+      head = bubbles.querySelector(":scope > .stamp");
+    }
+    if (head.textContent !== stampText) head.textContent = stampText;
+    let more = bubbles.querySelector(":scope > .more");
+    if (chat.more && !more) head.insertAdjacentHTML("afterend", '<button class="more" type="button">이전 메시지 더 보기</button>');
+    else if (!chat.more && more) more.remove();
+    syncRows(msgs.map((_, i) => rowOf(chat, i, fresh)));
+    let read = bubbles.querySelector(":scope > .read");
+    const mineLast = msgs.length && msgs[msgs.length - 1][0] === "me";
+    if (mineLast && !read) bubbles.insertAdjacentHTML("beforeend", '<div class="read">전송됨</div>');
+    else if (!mineLast && read) read.remove();
+    if (fresh !== -2) bubbles.scrollTo({ top: bubbles.scrollHeight, behavior: fresh >= 0 && !reduceMotion.matches ? "smooth" : "auto" });
   };
   const applyWall = () => {
-    const wall = store.get("wall-" + openChat.id, "white");
+    const wall = wallMap[openChat.id] || "white";
     thread.dataset.wall = wall;
     document.querySelectorAll("[data-pick]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.pick === wall)));
   };
+  let readMark = "";
   const open = (id) => {
     openChat = chats.find((c) => c.id === id);
     if (!openChat) return;
-    openChat.unread = false;
-    document.getElementById("thread-name").textContent = openChat.name;
+    const chat = openChat;
+    chat.unread = false;
+    document.getElementById("thread-name").textContent = chat.name;
     const tav = document.getElementById("thread-avatar");
-    tav.textContent = openChat.photo ? "" : initials(openChat.name);
-    tav.style.backgroundImage = openChat.photo ? `url(${openChat.photo})` : "";
-    tav.classList.toggle("photo", Boolean(openChat.photo));
+    const tp = safeImg(chat.photo, 40000);
+    tav.textContent = tp ? "" : initials(chat.name);
+    tav.style.backgroundImage = tp ? `url(${tp})` : "";
+    tav.classList.toggle("photo", Boolean(tp));
     document.getElementById("thread-badge").textContent = chats.filter((c) => c.unread).length;
     applyWall();
-    if (openChat.live) {
-      const chat = openChat;
-      unsubMsgs?.();
-      chat.msgs = [];
-      renderThread();
-      unsubMsgs = window.cloud.watchMessages(chat.id, (list) => {
-        const grew = list.length > chat.msgs.length;
-        chat.msgs = list.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]);
-        if (openChat === chat) {
-          renderThread(grew ? list.length - 1 : -1);
+    unsubMsgs?.();
+    chat.msgs = [];
+    chat.older = [];
+    chat.more = false;
+    bubbles.innerHTML = "";
+    renderThread(-2);
+    // 최근 40개만 실시간으로 받아요. 더 옛날 것은 "이전 메시지 더 보기"로 불러요
+    unsubMsgs = window.cloud.watchMessages(chat.id, (list, hasMore) => {
+      const prevLen = chat.msgs.length - chat.older.length;
+      const all = [...chat.older, ...list];
+      const grew = list.length > prevLen && prevLen > 0;
+      chat.msgs = all.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]);
+      if (!chat.olderLoaded) chat.more = hasMore;
+      if (openChat === chat) {
+        renderThread(grew || prevLen === 0 ? (prevLen === 0 ? -1 : all.length - 1) : -2);
+        const lastRaw = list[list.length - 1];
+        if (lastRaw && lastRaw.from !== window.cloud.uid && readMark !== lastRaw.id) {
+          readMark = lastRaw.id;
           window.cloud.markRead(chat.id);
         }
-      });
-    } else renderThread();
+      }
+    });
     app.classList.add("in-thread");
     thread.classList.add("is-open");
     renderChats();
   };
+  bubbles.addEventListener("click", async (e) => {
+    if (!e.target.closest(".more") || !openChat) return;
+    const chat = openChat;
+    const oldest = chat.msgs[0]?.[3];
+    if (!oldest) return;
+    const h0 = bubbles.scrollHeight;
+    try {
+      const { list, more } = await window.cloud.loadOlder(chat.id, oldest.at);
+      chat.older = [...list, ...chat.older];
+      chat.olderLoaded = true;
+      chat.more = more;
+      chat.msgs = [...list.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]), ...chat.msgs];
+      bubbles.querySelectorAll(":scope > .mrow").forEach((r) => r.remove()); // 앞에 끼워 넣는 거라 줄을 다시 붙여요
+      renderThread(-2);
+      bubbles.scrollTop = bubbles.scrollHeight - h0;
+    } catch (err) {
+      toast("이전 메시지를 불러오지 못했어요");
+    }
+  });
   const close = () => {
     unsubMsgs?.();
     unsubMsgs = null;
+    readMark = "";
     thread.classList.remove("is-open");
     app.classList.remove("in-thread");
     input.blur();
@@ -271,9 +338,14 @@
   const showChatMenu = (chat, items) => {
     const pv = document.getElementById("ctx-preview");
     const m2 = document.getElementById("ctx-menu2");
-    pv.dataset.wall = store.get("wall-" + chat.id, "white");
-    const tmp = { ...chat, msgs: chat.msgs.slice(-9) };
-    pv.innerHTML = `<div class="pv">${threadHTML(tmp)}</div>`;
+    pv.dataset.wall = wallMap[chat.id] || "white";
+    // 미리보기는 마지막 글을 먼저 보여주고, 최근 9개를 한 번만 읽어 와요 (꾹 눌렀을 때만 읽기가 생겨요)
+    const draw = (msgs) => {
+      const tmp = { name: chat.name, photo: chat.photo, msgs: msgs.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]) };
+      pv.innerHTML = `<div class="pv">${tmp.msgs.map((_, i) => rowOf(tmp, i, -1).html).join("")}</div>`;
+    };
+    draw(chat.last ? [{ id: "p0", type: "text", text: chat.last, from: chat.lastFrom }] : []);
+    window.cloud.loadOlder(chat.id, Date.now() + 60000, 9).then(({ list }) => { if (ctxBack.classList.contains("mode-stack")) draw(list); }).catch(() => {});
     pv.onclick = () => (hideMenu(), open(chat.id));
     m2.innerHTML = items.map(itemHTML).join("");
     m2.onclick = (e) => {
@@ -354,19 +426,17 @@
   longPress(pinnedEl, (t) => t.closest(".pin"), chatItems);
   longPress(bubbles, (t) => t.closest(".bubble"), (el) => {
     const i = Number(el.dataset.i);
-    return [
-      { icon: "copy", label: "복사", run: () => navigator.clipboard?.writeText(openChat.msgs[i][1]).catch(() => {}) },
-      { icon: "trash", label: "삭제", danger: true, run: () => (openChat.msgs.splice(i, 1), (openChat.last = openChat.msgs.length ? openChat.msgs[openChat.msgs.length - 1][1] : ""), renderThread(), renderChats()) },
-    ];
+    return [{ icon: "copy", label: "복사", run: () => navigator.clipboard?.writeText(String(openChat.msgs[i][1])).catch(() => {}) }];
   });
 
   /* 배경화면 */
   document.getElementById("thread-name-btn").addEventListener("click", () => sheetOpen(true, document.getElementById("wall-sheet")));
   document.querySelectorAll("[data-pick]").forEach((b) =>
     b.addEventListener("click", () => {
-      store.set("wall-" + openChat.id, b.dataset.pick);
+      if (WALLS.includes(b.dataset.pick)) wallMap[openChat.id] = b.dataset.pick;
+      store.set("walls", JSON.stringify(wallMap));
       applyWall();
-      persist();
+      saveSettings();
     })
   );
   document.getElementById("wall-done").addEventListener("click", () => sheetOpen(false));
@@ -441,51 +511,55 @@
     }, 250);
   });
   const ensureChat = async (u) => {
-    const cid = await window.cloud.openChat(u.uid, u.name || u.id, u.photo || "", store.get("profile-photo", ""));
-    if (!chats.some((c) => c.id === cid)) chats.unshift({ id: cid, name: u.name || u.id, photo: u.photo || "", live: true, last: "", time: "", lastAt: Date.now(), unread: false, msgs: [] });
-    return cid;
+    const cid = await window.cloud.openChat(u.uid);
+    let c = chats.find((x) => x.id === cid);
+    if (!c) {
+      c = { id: cid, other: u.uid, name: u.name || u.id, photo: u.photo || "", live: true, last: "", lastFrom: "", time: "", lastAt: Date.now(), unread: false, msgs: [] };
+      chats.unshift(c);
+    }
+    return c;
   };
   newResults.addEventListener("click", async (e) => {
     const row = e.target.closest(".res-row");
     if (!row) return;
     const u = people[Number(row.dataset.i)];
     try {
-      const cid = await ensureChat(u);
+      const c = await ensureChat(u);
       sheetOpen(false);
       renderChats();
-      if (pickMode === "gift") openGift(cid, u.name || u.id);
-      else open(cid);
+      if (pickMode === "gift") openGift(c.id, c.other, c.name);
+      else open(c.id);
     } catch (err) {
       newEmpty.hidden = false;
       newEmpty.textContent = "상대와 연결하지 못했어요. 잠시 뒤 다시 해 주세요";
     }
   });
   document.getElementById("thread-back").addEventListener("click", close);
+  // 서버 규칙이 0.6초보다 빨리 연달아 보내는 걸 막아서, 보내기는 줄을 세워 0.7초 간격으로 보내요
+  let sendChain = Promise.resolve();
+  let lastSendAt = 0;
+  const queueSend = (fn) => {
+    const run = sendChain.then(async () => {
+      const wait = 700 - (Date.now() - lastSendAt);
+      if (wait > 0) await sleep(wait);
+      try {
+        return await fn();
+      } finally {
+        lastSendAt = Date.now();
+      }
+    });
+    sendChain = run.catch(() => {});
+    return run;
+  };
   document.getElementById("composer").addEventListener("submit", (e) => {
     e.preventDefault();
-    const text = input.value.trim();
+    const text = input.value.trim().slice(0, 1000);
     if (!text || !openChat) return;
     const chat = openChat;
     input.value = "";
     input.dispatchEvent(new Event("input"));
-    if (chat.live) {
-      window.cloud.send(chat.id, { type: "text", text }, text).catch((err) => console.warn("보내지 못했어요:", err));
-      return;
-    }
-    chat.msgs.push(["me", text]);
-    chat.last = text;
-    chat.time = "방금";
-    renderThread(chat.msgs.length - 1);
-    setTimeout(() => {
-      chat.msgs.push(["them", chat.reply, chat.replyBy]);
-      chat.last = chat.reply;
-      if (openChat === chat) renderThread(chat.msgs.length - 1);
-      else chat.unread = true;
-      renderChats();
-    }, 900);
+    queueSend(() => window.cloud.send(chat.id, chat.other, { type: "text", text }, text)).catch(() => toast("보내지 못했어요"));
   });
-
-
 
   /* ---------- 돈 (화폐 단위는 토큰) ---------- */
   const IC = {
@@ -541,112 +615,182 @@
     return diff === 0 ? "오늘" : diff === 1 ? "어제" : `${d.getMonth() + 1}월 ${d.getDate()}일`;
   };
   const staticRecent = book.slice().sort((a, b) => b.t - a.t);
+  // 이 기기에서 일어난 이자·상품·선물 기록이에요 (보여주기용이고, 진짜 잔액은 서버 지갑이 지켜요)
   let dyn = [];
-  try { dyn = JSON.parse(store.get("bank-tx", "[]")); } catch (_) { /* 처음이에요 */ }
-  const allTx = () => [...dyn, ...staticRecent].sort((a, b) => b.t - a.t);
-  const monthSpent = () => daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0);
+  try { dyn = JSON.parse(store.get("bank-tx", "[]")).filter((e) => e && typeof e.t === "number" && typeof e.amt === "number" && typeof e.name === "string" && IC[e.icon]).slice(0, 200); } catch (_) { /* 처음이에요 */ }
+  let txVer = 0;
+  // 새 기록은 늘 맨 앞에 들어가니 매번 정렬하지 않아도 돼요
+  const topTx = (n) => dyn.concat(staticRecent.slice(0, n)).slice(0, n);
+  let monthSum = 0;
+  const calcMonth = () => { monthSum = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0); };
+  calcMonth();
   const BUDGET = 300000;
   const CATC = { 식비: "#ffe6d2", 카페: "#f0e4d6", 교통: "#dbe8ff", 문화: "#ece1ff", 쇼핑: "#ffdbe6", 입금: "#ffe0e0", 송금: "#ffe0e0", 은행: "#d6f1e6" };
   const num = (n) => Math.abs(n).toLocaleString("ko-KR");
   const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
-  const kindOf = (e) => (e.amt > 0 ? "받음" : e.cat === "은행" ? "이자 상품" : "사용");
-  const txRow = (e) => `<li class="t-row tx"><span class="t-ico" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${esc(e.cat)}</span><span class="t-label">${dayName(e.t)} ${hm(e.t)}</span></span>${amtHTML(e.amt)}<svg class="tchev gr" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>`;
+  const txRow = (e) => `<li class="t-row tx"><span class="t-ico" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${esc(String(e.cat))}</span><span class="t-label">${dayName(e.t)} ${hm(e.t)}</span></span>${amtHTML(e.amt)}<svg class="tchev gr" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>`;
   const groups = (list) => `<ul class="t-rows">${list.map(txRow).join("")}</ul>`;
   const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
+  const logTx = (e) => {
+    dyn.unshift(e);
+    if (dyn.length > 200) dyn.length = 200;
+    txVer++;
+    store.set("bank-tx", JSON.stringify(dyn));
+  };
 
-  /* ---- 은행: 이자 상품과 복리 ---- */
+  /* ---- 은행: 이자 상품과 복리. 잔액은 서버 지갑이 지켜요 (firestore.rules) ---- */
   const YEAR_S = 365 * 24 * 3600;
   const RATES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-  // 값: 연이율이 두 배가 되면 값은 약 3.5배. 5%는 20,000 토큰, 50%는 거의 처음 가진 돈 전부예요
+  // 값: 연이율이 두 배가 되면 값은 약 3.5배. 5%는 20,000 토큰이고 50%는 처음 받은 토큰보다 조금 더 비싸요. 서버 규칙에도 같은 표가 있어요
   const PRICE = (r) => Math.round((20000 * Math.pow(r / 5, 1.8)) / 1000) * 1000;
-  const perSec = (r) => Math.pow(1 + r / 100, 1 / YEAR_S) - 1; // 연이율 r%를 복리로 초마다 쪼갠 이율
-  let bank = { rate: 0, bal: 1250000, acc: 0, t: Date.now() };
-  try { Object.assign(bank, JSON.parse(store.get("bank", "{}"))); } catch (_) { /* 처음이에요 */ }
-  let lastCloud = 0;
-  const saveBank = (force = false) => {
-    store.set("bank", JSON.stringify(bank));
-    store.set("bank-tx", JSON.stringify(dyn.slice(0, 200)));
-    if (window.cloud && (force || Date.now() - lastCloud > 15000)) {
-      lastCloud = Date.now();
-      window.cloud.save({ bank }).catch(() => {});
+  const growth = (rate, secs) => Math.pow(1 + rate / 100, secs / YEAR_S) - 1; // 연 rate% 복리로 secs초 동안 늘어나는 비율
+  let bank = { ready: false, rate: 0, bal: 0, t: Date.now() };
+  // 아직 서버에 정산하지 않은 이자 (화면에서는 바로 더해 보여주고, 서버 정산은 10분에 한 번만 해서 쓰기를 아껴요)
+  const pending = () => (bank.rate > 0 && bank.ready ? Math.floor(bank.bal * growth(bank.rate, Math.min(Math.max(0, (Date.now() - bank.t) / 1000), 7 * 86400))) : 0);
+  const shownBal = () => bank.bal + pending();
+  const nextIn = () => {
+    const g = pending();
+    const need = (g + 1) / Math.max(1, bank.bal);
+    const secs = (YEAR_S * Math.log(1 + need)) / Math.log(1 + bank.rate / 100);
+    return Math.max(1, Math.ceil(secs - (Date.now() - bank.t) / 1000));
+  };
+  const everyText = (bal, rate) => {
+    const per = bal * growth(rate, 1);
+    return per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / Math.max(per, 1e-9)).toLocaleString("ko-KR")}초마다 1 토큰`;
+  };
+  // 지갑을 쓰는 일은 줄을 세워 2.2초 간격으로 해요 (서버 규칙이 2초보다 빠른 연속 쓰기를 막아요)
+  let walletChain = Promise.resolve();
+  let lastWalletWrite = 0;
+  const walletOp = (fn) => {
+    const run = walletChain.then(async () => {
+      const wait = 2200 - (Date.now() - lastWalletWrite);
+      if (wait > 0) await sleep(wait);
+      try {
+        return await fn();
+      } finally {
+        lastWalletWrite = Date.now();
+      }
+    });
+    walletChain = run.catch(() => {});
+    return run;
+  };
+  // 쌓인 이자를 서버에 정산해요. 같은 이자가 나오는 가장 짧은 시간만 쓰고 나머지 시간은 다음으로 넘겨서, 소수점 이자가 사라지지 않아요
+  let claiming = false;
+  const claimNow = async () => {
+    if (!window.cloud?.user || !bank.ready || bank.rate <= 0 || claiming) return;
+    const avail = Math.min(7 * 86400, Math.floor((Date.now() - bank.t) / 1000) - 15); // 15초는 폰과 서버 시계 차이를 위한 여유예요
+    if (avail < 1) return;
+    const all = Math.floor(bank.bal * growth(bank.rate, avail));
+    if (all < 1) return;
+    let lo = 1;
+    let hi = avail;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (Math.floor(bank.bal * growth(bank.rate, mid)) >= all) hi = mid;
+      else lo = mid + 1;
+    }
+    const gain = Math.floor(bank.bal * growth(bank.rate, lo));
+    const tNew = bank.t + lo * 1000;
+    claiming = true;
+    try {
+      await walletOp(() => window.cloud.claimInterest(gain, tNew));
+      logTx({ t: Date.now(), name: "이자", cat: "은행", icon: "percent", amt: gain });
+    } catch (err) {
+      console.warn("이자를 정산하지 못했어요:", err?.code || err);
+    } finally {
+      claiming = false;
     }
   };
-  const logTx = (e) => { dyn.unshift(e); if (dyn.length > 200) dyn.length = 200; };
-  // secs초 동안 쌓인 이자를 한꺼번에 계산해요. 소수 이자는 모아 두었다가 1 토큰이 되면 받아요
-  const accrue = (secs) => {
-    if (bank.rate <= 0 || secs <= 0) return 0;
-    const total = (bank.bal + bank.acc) * Math.pow(1 + perSec(bank.rate), secs);
-    const nb = Math.floor(total);
-    const pay = nb - bank.bal;
-    bank.acc = total - nb;
-    bank.bal = nb;
-    return pay;
-  };
-  const nextIn = () => {
-    const r = perSec(bank.rate);
-    const per = (bank.bal + bank.acc) * r;
-    return per >= 1 ? 1 : Math.max(1, Math.ceil((1 - bank.acc) / per));
-  };
-  const intervalText = () => {
-    if (bank.rate <= 0) return "";
-    const per = bank.bal * perSec(bank.rate);
-    return per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / per)}초마다 1 토큰`;
-  };
+  setInterval(() => { if (!document.hidden) claimNow(); }, 10 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) claimNow(); else tick(); });
+
   const orderIds = ["spend", "bank", "hist"];
   const savedOrder = store.get("money-order", "").split(",").filter((x) => orderIds.includes(x));
   const order = [...savedOrder, ...orderIds.filter((x) => !savedOrder.includes(x))];
-  const cashArt = () => {
-    // 검은 카드 위의 점 무늬: 아래 가운데에서 반원으로 퍼지는 색 점들 (바깥으로 갈수록 커지고 흐려져요)
-    let d = "";
-    const cx = 170;
-    const cy = 232;
+  // 검은 카드 위의 점 무늬: 한 번만 캔버스에 그려요 (점 600개짜리 SVG를 화면에 두면 화면 사진을 찍을 때마다 무거워요)
+  const paintArt = (cv) => {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth || 350;
+    const h = cv.clientHeight || 218;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const c = cv.getContext("2d");
+    c.scale(dpr, dpr);
+    const k = Math.max(w / 340, h / 218);
+    const ox = (w - 340 * k) / 2;
+    const oy = h - 218 * k;
     for (let r = 34, ring = 0; r < 215; r += 15, ring++) {
       const n = Math.max(8, Math.round((Math.PI * r) / 15.5));
-      for (let k = 0; k <= n; k++) {
-        const t = k / n;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
         const a = Math.PI * (1 - t);
-        const x = cx + Math.cos(a) * r * 1.08;
-        const y = cy - Math.sin(a) * r;
-        const hue = 168 - t * 128 - (ring % 2) * 6;
-        const size = 1.5 + (r / 215) * 4.2;
-        const op = 1 - (r / 215) * 0.35;
-        d += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${size.toFixed(2)}" fill="hsl(${hue.toFixed(0)} 52% ${64 - (r / 215) * 14}%)" opacity="${op.toFixed(2)}"/>`;
+        const x = 170 + Math.cos(a) * r * 1.08;
+        const y = 232 - Math.sin(a) * r;
+        c.globalAlpha = 1 - (r / 215) * 0.35;
+        c.fillStyle = `hsl(${(168 - t * 128 - (ring % 2) * 6).toFixed(0)} 52% ${64 - (r / 215) * 14}%)`;
+        c.beginPath();
+        c.arc(ox + x * k, oy + y * k, (1.5 + (r / 215) * 4.2) * k, 0, 6.2832);
+        c.fill();
       }
     }
-    return `<svg class="ac-art" viewBox="0 0 340 218" preserveAspectRatio="xMidYMax slice" aria-hidden="true">${d}</svg>`;
   };
   const sv2 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mv = (id, title, body, extra = "") => `<div class="movable mv" data-id="${id}" role="button" tabindex="0"${extra}><h2 class="ac-h">${title}${chev2}</h2><div class="ac-box">${body}</div></div>`;
   const CARDS = {
-    spend: () => mv("spend", "이번 달 쓴 토큰", `<b class="t-big">${W(monthSpent())}</b><div class="t-meter"><span style="width:${Math.min(100, Math.round((monthSpent() / BUDGET) * 100))}%"></span></div><p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${Math.round((monthSpent() / BUDGET) * 100)}%를 썼어요</p>`, ' id="open-chart"'),
-    bank: () => mv("bank", "이자 상품", '<b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note"></p>', ' id="open-bank"'),
+    spend: () => mv("spend", "이번 달 쓴 토큰", '<div id="spend-body"></div>', ' id="open-chart"'),
+    bank: () => mv("bank", "이자 상품", '<b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note" data-volatile></p>', ' id="open-bank"'),
     hist: () => mv("hist", "최근 거래내역", '<div id="tx-top"></div>', ' id="open-history"'),
   };
   document.getElementById("money-root").innerHTML = `
     <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
-    <div class="ac-card"><span class="ac-word">토큰</span>${cashArt()}</div>
+    <div class="ac-card"><span class="ac-word">토큰</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
     <div class="ac-bal">
-      <div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num"></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div>
-      <button class="ac-note" id="ac-note" type="button"></button>
+      <div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div>
+      <button class="ac-note" id="ac-note" type="button" data-volatile></button>
       <div class="t-line"><span class="t-ico cardico">${ico("card")}</span><span class="ts-name">내 카드</span><span class="t-right" id="card-month"></span></div>
     </div>
     <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
-  const renderMoney = () => {
-    document.getElementById("bal-num").innerHTML = `${bank.bal.toLocaleString("ko-KR")}<small> 토큰</small>`;
-    document.getElementById("ac-note").textContent = bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${intervalText()}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요";
-    document.getElementById("card-month").textContent = `이번 달 ${monthSpent().toLocaleString("ko-KR")} 토큰`;
-    const rateEl = document.getElementById("bank-rate");
-    const noteEl = document.getElementById("bank-note");
-    if (bank.rate > 0) {
-      rateEl.textContent = `연 ${bank.rate}% 복리`;
-      noteEl.textContent = `${intervalText()} · 다음 이자까지 ${nextIn()}초`;
-    } else {
-      rateEl.textContent = "가입한 상품이 없어요";
-      noteEl.textContent = `연 5% 상품 ${PRICE(5).toLocaleString("ko-KR")} 토큰부터 시작해요`;
-    }
-    document.getElementById("tx-top").innerHTML = groups(allTx().slice(0, 5));
+  const artEl = document.getElementById("ac-art");
+  paintArt(artEl);
+  new ResizeObserver(() => paintArt(artEl)).observe(artEl);
+
+  // 바뀐 것만 화면에 써요 (같은 글을 매초 다시 쓰면 화면 사진 갱신이 계속 일어나요)
+  const shown = {};
+  const put = (id, html, asHTML = false) => {
+    if (shown[id] === html) return;
+    shown[id] = html;
+    const el = document.getElementById(id);
+    if (el) el[asHTML ? "innerHTML" : "textContent"] = html;
   };
-  const renderHistory = () => { document.getElementById("history-list").innerHTML = groups(allTx().slice(0, 80)); };
+  let renderedTx = -1;
+  let renderedMonth = -1;
+  const renderMoney = () => {
+    put("bal-num", bank.ready ? `${shownBal().toLocaleString("ko-KR")}<small> 토큰</small>` : "—", true);
+    put("ac-note", !bank.ready ? "지갑을 불러오는 중이에요" : bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${everyText(shownBal(), bank.rate)}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요");
+    put("card-month", `이번 달 ${monthSum.toLocaleString("ko-KR")} 토큰`);
+    if (bank.ready && bank.rate > 0) {
+      put("bank-rate", `연 ${bank.rate}% 복리`);
+      put("bank-note", `${everyText(shownBal(), bank.rate)} · 다음 이자까지 ${nextIn()}초`);
+    } else {
+      put("bank-rate", "가입한 상품이 없어요");
+      put("bank-note", `연 5% 상품 ${PRICE(5).toLocaleString("ko-KR")} 토큰부터 시작해요`);
+    }
+    if (renderedMonth !== monthSum) {
+      renderedMonth = monthSum;
+      const pct = Math.round((monthSum / BUDGET) * 100);
+      put("spend-body", `<b class="t-big">${W(monthSum)}</b><div class="t-meter"><span style="width:${Math.min(100, pct)}%"></span></div><p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${pct}%를 썼어요</p>`, true);
+    }
+    if (renderedTx !== txVer) {
+      renderedTx = txVer;
+      put("tx-top", groups(topTx(5)), true);
+    }
+  };
+  let renderedHist = -1;
+  const renderHistory = () => {
+    if (renderedHist === txVer) return;
+    renderedHist = txVer;
+    document.getElementById("history-list").innerHTML = groups(topTx(80));
+  };
   renderMoney();
 
   const histSheet = document.getElementById("history-sheet");
@@ -656,54 +800,64 @@
   for (const id of ["ac-more", "ac-note"]) document.getElementById(id).addEventListener("click", () => { renderProducts(); sheetOpen(true, bankSheet); });
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
 
+  let productSig = "";
   const renderProducts = () => {
-    document.getElementById("bank-bal").textContent = `내 토큰 ${W(bank.bal)}`;
+    const sig = `${bank.rate}|${bank.bal}|${bank.ready}`;
+    if (sig === productSig) return;
+    productSig = sig;
+    document.getElementById("bank-bal").textContent = `내 토큰 ${bank.ready ? W(bank.bal) : "—"}`;
     document.getElementById("bank-list").innerHTML = RATES.map((r) => {
       const price = PRICE(r);
       const own = bank.rate === r;
       const lower = r < bank.rate;
-      const afford = bank.bal >= price;
+      const afford = bank.ready && bank.bal >= price;
+      const off = own || lower || !afford;
       const label = own ? "가입 중" : lower ? "보유 중" : afford ? "구입" : "토큰 부족";
-      const per = bank.bal * perSec(r);
-      const every = per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / per)}초마다 1 토큰`;
-      return `<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">${ico("percent")}</span><span class="t-main"><b class="ts-name">연 ${r}% 복리</b><span class="t-label">${every}</span></span><span class="prod-side"><b class="prod-price">${price.toLocaleString("ko-KR")} 토큰</b><button class="t-btn small ${own || lower || !afford ? "grey" : ""}" data-buy="${r}" type="button" ${own || lower || !afford ? "disabled" : ""}>${label}</button></span></li>`;
+      return `<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">${ico("percent")}</span><span class="t-main"><b class="ts-name">연 ${r}% 복리</b><span class="t-label">${everyText(bank.bal, r)}</span></span><span class="prod-side"><b class="prod-price">${price.toLocaleString("ko-KR")} 토큰</b><button class="t-btn small ${off ? "grey" : ""}" data-buy="${r}" type="button" ${off ? "disabled" : ""}>${label}</button></span></li>`;
     }).join("");
   };
+  let buying = false;
   document.getElementById("bank-list").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-buy]");
-    if (!btn || btn.disabled) return;
+    if (!btn || btn.disabled || buying) return;
     const r = Number(btn.dataset.buy);
+    if (!RATES.includes(r)) return;
     const price = PRICE(r);
     const ok = await ask({ title: `연 ${r}% 이자 상품`, body: `${price.toLocaleString("ko-KR")} 토큰을 내고 구입할까요? 구입하면 내 토큰이 복리로 계속 늘어나요.`, ok: "구입", cancel: "취소" });
     if (!ok || bank.bal < price) return;
-    accrue(Math.floor((Date.now() - bank.t) / 1000));
-    bank.t = Date.now();
-    bank.bal -= price;
-    bank.rate = r;
-    daily[DAYS - 1] += price;
-    logTx({ t: Date.now(), name: "이자 상품 구입", cat: "은행", icon: "percent", amt: -price });
-    saveBank(true);
-    renderMoney();
-    renderProducts();
-  });
-  // 1초마다: 쌓인 이자를 정산해요 (탭을 떠나 있던 시간도 한꺼번에 계산)
-  const tick = () => {
-    const secs = Math.floor((Date.now() - bank.t) / 1000);
-    if (secs >= 1) {
-      const pay = accrue(secs);
-      bank.t += secs * 1000;
-      if (pay > 0) {
-        logTx({ t: Date.now(), name: "이자", cat: "은행", icon: "percent", amt: pay });
-        saveBank();
-      }
+    buying = true;
+    try {
+      await claimNow(); // 지금까지 쌓인 이자를 먼저 받아 두어요 (상품을 사면 이자 시계가 새로 시작해요)
+      await walletOp(() => window.cloud.buyProduct(r, price));
+      daily[DAYS - 1] += price;
+      calcMonth();
+      logTx({ t: Date.now(), name: "이자 상품 구입", cat: "은행", icon: "percent", amt: -price });
+      toast(`연 ${r}% 이자 상품에 가입했어요`);
+    } catch (err) {
+      toast("구입하지 못했어요. 잠시 뒤 다시 해 주세요");
+    } finally {
+      buying = false;
     }
-    renderMoney();
-    if (bankSheet.classList.contains("is-open")) renderProducts();
+  });
+  // 1초마다 화면에 보이는 숫자만 새로 계산해요. 보이지 않으면(다른 탭, 화면 꺼짐) 아무것도 하지 않아요
+  function tick() {
+    if (document.hidden || !bank.ready) return;
+    const moneyOn = screens.get("money").classList.contains("is-active");
+    const bankOpen = bankSheet.classList.contains("is-open");
+    if (moneyOn || bankOpen) renderMoney();
+    if (bankOpen) renderProducts();
     if (histSheet.classList.contains("is-open")) renderHistory();
-  };
-  tick();
+  }
   setInterval(tick, 1000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });
+  // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
+  const startWallet = () =>
+    window.cloud.watchWallet((w) => {
+      if (!w) return;
+      bank = { ready: true, rate: w.rate, bal: w.bal, t: w.t };
+      renderMoney();
+      if (bankSheet.classList.contains("is-open")) renderProducts();
+      if (!startWallet.first) { startWallet.first = true; setTimeout(claimNow, 3000); }
+    });
 
   document.getElementById("movable").addEventListener("click", (e) => {
     if (dragSwallow) return;
@@ -877,33 +1031,39 @@
   /* ---------- 대화 더하기: 사진, 그리기, 투표, 토큰 선물 ---------- */
   const toastEl = document.getElementById("toast");
   let toastTimer = 0;
-  const toast = (t) => {
+  function toast(t) {
     toastEl.textContent = t;
     toastEl.classList.add("on");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toastEl.classList.remove("on"), 1900);
-  };
-  const sendTo = (cid, payload) => window.cloud.send(cid, payload, preview(payload));
+  }
+  const sendPayload = (chat, payload) => queueSend(() => window.cloud.send(chat.id, chat.other, payload, preview(payload)));
 
-  // 사진을 줄여서 글자(데이터 주소)로 만들어요. 서버에 그대로 저장돼요
-  const readImage = (file, max, q = 0.72, square = false) =>
+  // 사진을 줄여서 글자(데이터 주소)로 만들어요. cap(글자 수)을 넘지 않을 때까지 화질과 크기를 줄여요. 서버 규칙도 같은 한도로 막아요
+  const readImage = (file, max, cap, { q = 0.7, square = false } = {}) =>
     new Promise((resolve, reject) => {
+      if (!file || !/^image\//.test(file.type) || file.size > 25 * 1024 * 1024) return reject(new Error("사진이 아니에요"));
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
+        URL.revokeObjectURL(url);
         const sw = square ? Math.min(img.width, img.height) : img.width;
         const sh = square ? sw : img.height;
         const sx = (img.width - sw) / 2;
         const sy = (img.height - sh) / 2;
-        const k = Math.min(1, max / Math.max(sw, sh));
-        const c = document.createElement("canvas");
-        c.width = Math.max(1, Math.round(sw * k));
-        c.height = Math.max(1, Math.round(sh * k));
-        c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        let out = c.toDataURL("image/jpeg", q);
-        for (let s = q; out.length > 520000 && s > 0.3; s -= 0.1) out = c.toDataURL("image/jpeg", s);
-        resolve(out);
+        let k = Math.min(1, max / Math.max(sw, sh));
+        for (let tries = 0; tries < 6; tries++) {
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(sw * k));
+          c.height = Math.max(1, Math.round(sh * k));
+          c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+          for (let s = q; s >= 0.34; s -= 0.08) {
+            const out = c.toDataURL("image/jpeg", s);
+            if (out.length <= cap) return resolve(out);
+          }
+          k *= 0.8;
+        }
+        reject(new Error("사진이 너무 커요"));
       };
       img.onerror = () => reject(new Error("사진을 열지 못했어요"));
       img.src = url;
@@ -912,18 +1072,18 @@
   /* + 메뉴 */
   const attachBack = document.getElementById("attach-back");
   document.getElementById("plus").addEventListener("click", () => {
-    if (!openChat?.live) return;
+    if (!openChat) return;
     attachBack.classList.add("is-open");
   });
   attachBack.addEventListener("pointerdown", (e) => { if (e.target === attachBack) attachBack.classList.remove("is-open"); });
   const fileCamera = document.getElementById("file-camera");
   const filePhoto = document.getElementById("file-photo");
   const sendPhoto = async (file) => {
-    if (!file || !openChat?.live) return;
-    const cid = openChat.id;
+    if (!file || !openChat) return;
+    const chat = openChat;
     try {
-      const img = await readImage(file, 900, 0.72);
-      await sendTo(cid, { type: "photo", img });
+      const img = await readImage(file, 720, 130000, { q: 0.66 });
+      await sendPayload(chat, { type: "photo", img });
     } catch (err) {
       toast("사진을 보내지 못했어요");
     }
@@ -939,57 +1099,54 @@
     else if (a === "photo") filePhoto.click();
     else if (a === "draw") openDraw();
     else if (a === "poll") openPoll();
-    else if (a === "token") openGift(openChat.id, openChat.name);
+    else if (a === "token") openGift(openChat.id, openChat.other, openChat.name);
   });
 
-  /* 사진 크게 보기 */
+  /* 사진 크게 보기, 토큰 받기·보내기, 투표 */
   const viewer = document.getElementById("viewer");
   bubbles.addEventListener("click", async (e) => {
     const chat = openChat;
     if (!chat) return;
     const media = e.target.closest("[data-view]");
     if (media) {
-      document.getElementById("viewer-img").src = chat.msgs[Number(media.dataset.view)][3].img;
+      const src = safeImg(chat.msgs[Number(media.dataset.view)]?.[3]?.img);
+      if (!src) return;
+      document.getElementById("viewer-img").src = src;
       viewer.hidden = false;
       requestAnimationFrame(() => viewer.classList.add("is-open"));
       return;
     }
     const act = e.target.closest("[data-act]");
     if (act) {
-      const m = chat.msgs[Number(act.dataset.i)][3];
+      const m = chat.msgs[Number(act.dataset.i)]?.[3];
+      if (!m || m.done) return;
+      const amount = Number(m.amount);
       if (act.dataset.act === "accept") {
-        if (m.done || claimed.has(m.id)) return;
-        claimed.add(m.id);
-        store.set("claimed", JSON.stringify([...claimed]));
-        accrue(Math.floor((Date.now() - bank.t) / 1000));
-        bank.t = Date.now();
-        bank.bal += Number(m.amount);
-        logTx({ t: Date.now(), name: `${chat.name}님의 선물`, cat: "송금", icon: "gift", amt: Number(m.amount) });
-        saveBank(true);
-        renderMoney();
-        window.cloud.updateMsg(chat.id, m.id, { done: true }).catch(() => {});
-        toast(`토큰 ${Number(m.amount).toLocaleString("ko-KR")}을 받았어요`);
+        try {
+          await walletOp(() => window.cloud.claimGift(chat.id, m.id, amount));
+          logTx({ t: Date.now(), name: `${chat.name}님의 선물`, cat: "송금", icon: "gift", amt: amount });
+          toast(`토큰 ${amount.toLocaleString("ko-KR")}을 받았어요`);
+        } catch (err) {
+          toast("받지 못했어요. 잠시 뒤 다시 해 주세요");
+        }
       } else if (act.dataset.act === "pay") {
-        if (m.done) return;
-        if (bank.bal < Number(m.amount)) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
-        const yes = await ask({ title: `토큰 ${Number(m.amount).toLocaleString("ko-KR")}을 보낼까요?`, body: `${chat.name}님의 요청이에요.`, ok: "보내기", cancel: "취소" });
+        if (!bank.ready || bank.bal < amount) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+        const yes = await ask({ title: `토큰 ${amount.toLocaleString("ko-KR")}을 보낼까요?`, body: `${chat.name}님의 요청이에요.`, ok: "보내기", cancel: "취소" });
         if (!yes) return;
-        accrue(Math.floor((Date.now() - bank.t) / 1000));
-        bank.t = Date.now();
-        bank.bal -= Number(m.amount);
-        logTx({ t: Date.now(), name: `${chat.name}님에게 선물`, cat: "송금", icon: "gift", amt: -Number(m.amount) });
-        saveBank(true);
-        renderMoney();
-        await sendTo(chat.id, { type: "gift", amount: Number(m.amount) });
-        window.cloud.updateMsg(chat.id, m.id, { done: true }).catch(() => {});
-        toast("보냈어요");
+        try {
+          await walletOp(() => window.cloud.payRequest(chat.id, chat.other, m.id, amount));
+          logTx({ t: Date.now(), name: `${chat.name}님에게 선물`, cat: "송금", icon: "gift", amt: -amount });
+          toast("보냈어요");
+        } catch (err) {
+          toast("보내지 못했어요. 잠시 뒤 다시 해 주세요");
+        }
       }
       return;
     }
     const vote = e.target.closest("[data-vote]");
     if (vote) {
-      const m = chat.msgs[Number(vote.dataset.i)][3];
-      window.cloud.updateMsg(chat.id, m.id, { [`votes.${window.cloud.uid}`]: Number(vote.dataset.vote) }).catch(() => toast("투표하지 못했어요"));
+      const m = chat.msgs[Number(vote.dataset.i)]?.[3];
+      if (m) window.cloud.vote(chat.id, m.id, Number(vote.dataset.vote)).catch(() => toast("투표하지 못했어요"));
     }
   });
   viewer.addEventListener("click", () => {
@@ -1001,14 +1158,14 @@
   const giftSheet = document.getElementById("gift-sheet");
   const gNum = document.getElementById("g-num");
   const keypad = document.getElementById("keypad");
-  let gift = { cid: "", name: "", amt: 100 };
+  let gift = { cid: "", to: "", name: "", amt: 100 };
   const showAmt = () => {
     gNum.textContent = gift.amt.toLocaleString("ko-KR");
     gNum.parentElement.style.fontSize = gift.amt >= 1e7 ? "46px" : gift.amt >= 1e6 ? "58px" : gift.amt >= 1e5 ? "68px" : "80px";
-    document.getElementById("gift-bal").textContent = `내 토큰 ${W(bank.bal)}`;
+    document.getElementById("gift-bal").textContent = `내 토큰 ${bank.ready ? W(bank.bal) : "—"}`;
   };
-  function openGift(cid, name) {
-    gift = { cid, name, amt: gift.amt > 0 ? gift.amt : 100 };
+  function openGift(cid, to, name) {
+    gift = { cid, to, name, amt: gift.amt > 0 ? gift.amt : 100 };
     document.getElementById("gift-to").textContent = `${name}님에게`;
     keypad.hidden = true;
     fresh = true;
@@ -1051,32 +1208,37 @@
     showAmt();
     navigator.vibrate?.(5);
   });
+  let giftBusy = false;
   document.getElementById("g-send").addEventListener("click", async () => {
+    if (giftBusy) return;
     if (gift.amt < 1) return toast("보낼 토큰을 정해 주세요");
-    if (gift.amt > bank.bal) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
-    const { cid, name, amt } = gift;
+    if (!bank.ready || gift.amt > bank.bal) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+    const { cid, to, name, amt } = gift;
+    giftBusy = true;
     try {
-      await sendTo(cid, { type: "gift", amount: amt });
+      await queueSend(() => walletOp(() => window.cloud.sendGift(cid, to, amt)));
+      logTx({ t: Date.now(), name: `${name}님에게 선물`, cat: "송금", icon: "gift", amt: -amt });
+      sheetOpen(false);
+      toast(`${name}님에게 토큰 ${amt.toLocaleString("ko-KR")}을 보냈어요`);
     } catch (err) {
-      return toast("보내지 못했어요");
+      toast("보내지 못했어요. 잠시 뒤 다시 해 주세요");
+    } finally {
+      giftBusy = false;
     }
-    accrue(Math.floor((Date.now() - bank.t) / 1000));
-    bank.t = Date.now();
-    bank.bal -= amt;
-    logTx({ t: Date.now(), name: `${name}님에게 선물`, cat: "송금", icon: "gift", amt: -amt });
-    saveBank(true);
-    renderMoney();
-    sheetOpen(false);
-    toast(`${name}님에게 토큰 ${amt.toLocaleString("ko-KR")}을 보냈어요`);
   });
   document.getElementById("g-request").addEventListener("click", async () => {
+    if (giftBusy) return;
     if (gift.amt < 1) return toast("요청할 토큰을 정해 주세요");
+    const { cid, to, name, amt } = gift;
+    giftBusy = true;
     try {
-      await sendTo(gift.cid, { type: "request", amount: gift.amt });
+      await queueSend(() => window.cloud.send(cid, to, { type: "request", amount: amt, done: false }, `토큰 ${amt.toLocaleString("ko-KR")} 요청`));
       sheetOpen(false);
-      toast(`${gift.name}님에게 토큰 ${gift.amt.toLocaleString("ko-KR")}을 요청했어요`);
+      toast(`${name}님에게 토큰 ${amt.toLocaleString("ko-KR")}을 요청했어요`);
     } catch (err) {
       toast("요청하지 못했어요");
+    } finally {
+      giftBusy = false;
     }
   });
   document.getElementById("ac-send")?.addEventListener("click", () => openPicker("gift"));
@@ -1089,7 +1251,7 @@
   let pollPick = 0;
   const drawPollOpts = () => {
     pollOpts.innerHTML = poll
-      .map((o, i) => `<div class="poll-edit"><button class="poll-photo${o.img ? " has" : ""}" data-p="${i}" type="button" aria-label="사진 고르기" ${o.img ? `style="background-image:url(${o.img})"` : ""}>${o.img ? "" : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'}</button><input type="text" data-t="${i}" maxlength="30" placeholder="선택지 ${i + 1}" value="${esc(o.t)}"></div>`)
+      .map((o, i) => `<div class="poll-edit"><button class="poll-photo${o.img ? " has" : ""}" data-p="${i}" type="button" aria-label="사진 고르기" ${o.img ? `style="background-image:url(${safeImg(o.img, 60000)})"` : ""}>${o.img ? "" : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'}</button><input type="text" data-t="${i}" maxlength="30" placeholder="선택지 ${i + 1}" value="${esc(o.t)}"></div>`)
       .join("");
     document.getElementById("poll-add").hidden = poll.length >= 4;
   };
@@ -1112,20 +1274,20 @@
     filePoll.value = "";
     if (!f) return;
     try {
-      poll[pollPick].img = await readImage(f, 420, 0.7);
+      poll[pollPick].img = await readImage(f, 320, 45000, { q: 0.62 });
       drawPollOpts();
     } catch (err) { toast("사진을 열지 못했어요"); }
   });
   document.getElementById("poll-add").addEventListener("click", () => { if (poll.length < 4) { poll.push({ t: "", img: "" }); drawPollOpts(); } });
   document.getElementById("poll-cancel").addEventListener("click", () => sheetOpen(false));
   document.getElementById("poll-send").addEventListener("click", async () => {
-    const q = document.getElementById("poll-q").value.trim();
+    const q = document.getElementById("poll-q").value.trim().slice(0, 60);
     const opts = poll.filter((o) => o.t.trim() || o.img);
     const err = document.getElementById("poll-err");
     if (!q) return (err.textContent = "질문을 적어 주세요");
     if (opts.length < 2) return (err.textContent = "선택지를 두 개 이상 만들어 주세요");
     try {
-      await sendTo(openChat.id, { type: "poll", poll: { q, options: opts.map((o) => ({ t: o.t.trim(), img: o.img })) }, votes: {} });
+      await sendPayload(openChat, { type: "poll", poll: { q, options: opts.map((o) => ({ t: o.t.trim().slice(0, 30), img: o.img })) }, votes: {} });
       sheetOpen(false);
     } catch (e) { err.textContent = "보내지 못했어요. 잠시 뒤 다시 해 주세요"; }
   });
@@ -1194,7 +1356,7 @@
   document.getElementById("draw-close").addEventListener("click", closeDraw);
   document.getElementById("draw-ok").addEventListener("click", async () => {
     if (!strokes.length) return closeDraw();
-    const k = Math.min(1, 900 / dc.width);
+    const k = Math.min(1, 720 / dc.width);
     const out = document.createElement("canvas");
     out.width = Math.round(dc.width * k);
     out.height = Math.round(dc.height * k);
@@ -1203,9 +1365,11 @@
     o.fillRect(0, 0, out.width, out.height);
     o.drawImage(dc, 0, 0, out.width, out.height);
     let img = out.toDataURL("image/png");
-    if (img.length > 520000) img = out.toDataURL("image/jpeg", 0.8);
+    for (let q = 0.8; img.length > 130000 && q > 0.3; q -= 0.1) img = out.toDataURL("image/jpeg", q);
+    if (img.length > 130000) { toast("그림이 너무 커요. 조금 줄여서 다시 보내 주세요"); return; }
     closeDraw();
-    try { await sendTo(openChat.id, { type: "draw", img }); } catch (err) { toast("그림을 보내지 못했어요"); }
+    const chat = openChat;
+    try { await queueSend(() => window.cloud.send(chat.id, chat.other, { type: "draw", img }, "그림")); } catch (err) { toast("그림을 보내지 못했어요"); }
   });
 
   /* ---------- 로그인 ---------- */
@@ -1284,11 +1448,18 @@
       realNameEl.value = "";
     }
   };
-  document.getElementById("open-login").addEventListener("click", () => showLogin(true));
+  document.querySelectorAll("#open-login, .js-open-login").forEach((b) => b.addEventListener("click", () => showLogin(true)));
   document.getElementById("login-close").addEventListener("click", () => showLogin(false));
   document.getElementById("login-switch").addEventListener("click", () => setMode(!signup));
-  const run = async (fn) => {
+  // 비밀번호를 계속 틀리면 잠깐 막아요 (5번 틀리면 30초, 그다음부터 두 배씩, 최대 10분)
+  const lockState = () => { try { return JSON.parse(store.get("login-lock", "{}")); } catch (_) { return {}; } };
+  const run = async (fn, isLogin = false) => {
     errEl.textContent = "";
+    const lock = lockState();
+    if (isLogin && lock.until > Date.now()) {
+      errEl.textContent = `시도가 너무 많아요. ${Math.ceil((lock.until - Date.now()) / 1000)}초 뒤에 다시 해 주세요`;
+      return;
+    }
     submitBtn.disabled = true;
     await cloudPromise; // 연결이 아직 끝나지 않았을 수 있어요
     if (!window.cloud) {
@@ -1298,10 +1469,15 @@
     }
     try {
       await fn(window.cloud);
+      store.set("login-lock", "{}");
       location.reload(); // 로그인한 계정의 저장 값을 처음부터 불러와요
     } catch (err) {
       errEl.textContent = err.message;
       submitBtn.disabled = false;
+      if (isLogin) {
+        const n = (lock.n || 0) + 1;
+        store.set("login-lock", JSON.stringify({ n, until: n >= 5 ? Date.now() + Math.min(600, 30 * 2 ** (n - 5)) * 1000 : 0 }));
+      }
     }
   };
   loginForm.addEventListener("submit", (e) => e.preventDefault());
@@ -1316,11 +1492,15 @@
       errEl.textContent = "아이디는 영문, 숫자, _ 로 3~20자예요";
       return;
     }
+    if (signup && (pw.length < 8 || pw.length > 64 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw))) {
+      errEl.textContent = "비밀번호는 8자 이상, 영문과 숫자를 함께 써 주세요";
+      return;
+    }
     if (signup && pw !== pw2El.value) {
       errEl.textContent = "비밀번호가 서로 달라요";
       return;
     }
-    if (!signup) return run((c) => c.signIn(id, pw));
+    if (!signup) return run((c) => c.signIn(id, pw), true);
     const name = realNameEl.value.trim().replace(/\s+/g, " ");
     if (!/^[가-힣]{2,6}$/.test(name) && !/^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$/.test(name)) {
       errEl.textContent = "실명을 입력해 주세요 (한글 2~6자 또는 영문 이름)";
@@ -1328,24 +1508,31 @@
     }
     const sure = await ask({ title: `"${name}" 님이 실명이 맞나요?`, body: "실명이 아니면 이용이 제한될 수 있어요. 가입한 뒤에는 이름을 바꾸기 어려워요.", ok: "실명이에요", cancel: "다시 입력" });
     if (!sure) return realNameEl.focus();
-    run((c) => c.signUp(id, pw, name, store.get("profile-photo", "")));
+    run((c) => c.signUp(id, pw, name, safeImg(store.get("profile-photo", ""), 40000)));
   });
   document.getElementById("logout").addEventListener("click", async () => {
     await window.cloud?.signOut();
-    store.set("auth-hint", "null");
+    // 같이 쓰는 기기에 내 정보가 남지 않게 지워요
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith("pf:") || ["auth-hint", "bank-tx", "prefs", "walls", "profile-name", "profile-bio", "profile-photo", "money-order", "acct-ok", "joined", "login-lock"].includes(k)) localStorage.removeItem(k);
+    } catch (_) { /* 지우지 못해도 로그아웃은 됐어요 */ }
     location.reload();
   });
   // 로그인한 적이 있으면 연결이 끝나기 전에도 로그인된 화면을 바로 보여줘요 (깜빡임 없이)
   const hint = () => { try { return JSON.parse(store.get("auth-hint", "null")); } catch (_) { return null; } };
   const renderAuth = (cloud) => {
     const h = cloud ? null : hint();
-    const signedIn = cloud ? !cloud.user.anonymous : Boolean(h);
-    const id = cloud ? cloud.user.id : h?.id || "";
+    const signedIn = cloud ? Boolean(cloud.user) : Boolean(h);
+    const id = cloud ? cloud.user?.id || "" : h?.id || "";
     if (cloud) store.set("auth-hint", signedIn ? JSON.stringify({ id }) : "null");
     const acct = screens.get("account");
     acct.classList.toggle("guest", !signedIn);
     acct.classList.toggle("member", signedIn);
     app.classList.toggle("guest-account", !signedIn);
+    // 돈 탭도 로그인해야 보여요 (지갑이 서버에 있어요)
+    const mon = screens.get("money");
+    mon.classList.toggle("guest", !signedIn);
+    mon.classList.toggle("member", signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
@@ -1368,7 +1555,7 @@
     bioEl.textContent = store.get("profile-bio", "소개를 추가해 보세요");
     // 이름을 바꾸면 기본 프로필(회색 사람 모양) 대신 이름의 첫 글자가 보여요
     const custom = name !== "내 계정";
-    const photo = store.get("profile-photo", "");
+    const photo = safeImg(store.get("profile-photo", ""), 40000);
     avatarEl.className = custom ? "avatar" : "avatar-default";
     avatarEl.style.width = avatarEl.style.height = "";
     avatarEl.textContent = custom ? name[0] : "";
@@ -1385,13 +1572,10 @@
     fileProfile.value = "";
     if (!f) return;
     try {
-      const data = await readImage(f, 192, 0.82, true);
+      const data = await readImage(f, 160, 36000, { q: 0.8, square: true });
       store.set("profile-photo", data);
       applyProfile();
-      if (window.cloud) {
-        window.cloud.save({ photo: data }).catch(() => {});
-        window.cloud.setPhoto(data, chats.filter((c) => c.live).map((c) => c.id));
-      }
+      if (window.cloud?.user) await window.cloud.setPhoto(data);
       toast("프로필 사진을 바꿨어요");
     } catch (err) {
       toast("사진을 바꾸지 못했어요");
@@ -1420,7 +1604,7 @@
     store.set("profile-name", editName.value.trim() || "내 계정");
     store.set("profile-bio", editBio.value.trim() || "소개를 추가해 보세요");
     applyProfile();
-    persist();
+    saveSettings();
     sheetOpen(false);
   });
   const notify = document.getElementById("toggle-notify");
@@ -1454,6 +1638,7 @@
     if (openChat && name !== "messages") close();
     topTitle.textContent = screens.get(name).dataset.title;
     updateChrome(screens.get(name));
+    if (name === "money") renderMoney();
     backdrop?.setActive(name);
     tabbar.requestRender();
   });
@@ -1478,75 +1663,90 @@
   }
   updateChrome(screens.get(firstScreen));
 
-  // 클라우드에 저장해 둔 것이 있으면 불러와서 덮어써요 (연결이 안 되면 이 기기 값 그대로)
+  // 로그인한 계정이면 서버에서 지갑, 대화, 설정을 불러와요. 로그인하지 않았거나 연결이 안 되면 로그인 화면만 보여줘요
+  let started = false;
   const boot = async (cloud) => {
     renderAuth(cloud);
-    if (cloud && !cloud.user.anonymous && cloud.user.name && store.get("profile-name", "내 계정") === "내 계정") {
+    if (!cloud || !cloud.user || started) {
+      renderChats();
+      renderMoney();
+      return;
+    }
+    started = true;
+    live = true;
+    if (cloud.user.name && store.get("profile-name", "내 계정") === "내 계정") {
       store.set("profile-name", cloud.user.name);
       applyProfile();
     }
-    if (cloud && !cloud.user.anonymous) {
-      // 로그인한 계정: 샘플 대화 대신 진짜 대화를 실시간으로 받아요
-      live = true;
-      chats.length = 0;
+    try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); }
+    startWallet();
+    chats.length = 0;
+    renderChats();
+    cloud.watchChats((docs) => {
+      const old = new Map(chats.map((c) => [c.id, c]));
+      const me = cloud.uid;
+      const missing = [];
+      const next = docs
+        .filter((d) => !prefs[d.id]?.hidden && d.last) // 아무도 글을 보내지 않은 빈 대화는 목록에 안 보여요
+        .map((d) => {
+          const other = d.members.find((u) => u !== me) || "";
+          const p = cloud.peek(other);
+          if (!p) missing.push(other);
+          const o = old.get(d.id);
+          const f = {
+            id: d.id,
+            other,
+            live: true,
+            name: p ? p.name || p.id : o?.name || "…",
+            photo: p ? p.photo || "" : o?.photo || "",
+            last: d.last,
+            lastFrom: d.lastFrom,
+            time: fmtTime(d.lastAt),
+            lastAt: d.lastAt,
+            unread: Boolean(d.lastFrom && d.lastFrom !== me && (d.reads[me] || 0) < d.lastAt) && openChat?.id !== d.id,
+            pin: Boolean(prefs[d.id]?.pin),
+            muted: Boolean(prefs[d.id]?.muted),
+          };
+          // 같은 대화는 같은 객체를 그대로 써요 (열려 있는 대화의 메시지 듣기가 이 객체를 붙잡고 있어요)
+          return o ? Object.assign(o, f) : { ...f, msgs: [], older: [], more: false, olderLoaded: false };
+        })
+        .sort((a, b) => b.lastAt - a.lastAt);
+      // 방금 만든 대화(아직 글이 없는 것)가 목록에서 사라지지 않게 유지해요
+      for (const o of old.values()) if (o.live && !next.some((c) => c.id === o.id) && openChat?.id === o.id) next.push(o);
+      chats.splice(0, chats.length, ...next);
+      if (openChat) openChat = chats.find((c) => c.id === openChat.id) || openChat;
       renderChats();
-      cloud.watchChats((list) => {
-        const old = new Map(chats.map((c) => [c.id, c]));
-        const next = list
-          .filter((d) => !prefs[d.id]?.hidden)
-          .map((d) => {
-            const other = Object.entries(d.names || {}).find(([uid]) => uid !== cloud.uid);
-            return {
-              id: d.id,
-              live: true,
-              name: other ? other[1] : "알 수 없음",
-              photo: other ? d.photos?.[other[0]] || "" : "",
-              last: d.last || "",
-              time: fmtTime(d.lastAt),
-              lastAt: d.lastAt || 0,
-              unread: Boolean(d.lastFrom && d.lastFrom !== cloud.uid && (d.reads?.[cloud.uid] || 0) < d.lastAt) && openChat?.id !== d.id,
-              pin: Boolean(prefs[d.id]?.pin),
-              muted: Boolean(prefs[d.id]?.muted),
-              msgs: old.get(d.id)?.msgs || [],
-            };
-          })
-          .sort((a, b) => b.lastAt - a.lastAt);
-        chats.splice(0, chats.length, ...next);
-        if (openChat?.live) openChat = chats.find((c) => c.id === openChat.id) || openChat;
-        renderChats();
-      });
-    }
+      // 사람 정보가 없는 대화는 한 번에 모아서 읽어 와요 (30분 동안 기억해서 다시 읽지 않아요)
+      if (missing.length) cloud.fetchProfiles(missing).then((n) => { if (n) refreshNames(); });
+    });
     try {
-      const data = cloud && (await cloud.load());
-      if (data) {
-        if (data.photo && !store.get("profile-photo", "")) { store.set("profile-photo", data.photo); applyProfile(); }
-        if (data.profile) {
-          store.set("profile-name", data.profile.name);
-          store.set("profile-bio", data.profile.bio);
-          applyProfile();
-        }
-        if (data.bank && data.bank.t > bank.t) {
-          Object.assign(bank, data.bank);
-          store.set("bank", JSON.stringify(bank));
-          tick();
-        }
-        for (const [id, w] of Object.entries(data.walls || {})) store.set("wall-" + id, w);
-        if (data.chats && !live) {
-          const saved = new Map(data.chats.map((c) => [c.id, c]));
-          for (let i = chats.length - 1; i >= 0; i--) if (!saved.has(chats[i].id)) chats.splice(i, 1);
-          for (const c of chats) {
-            const s = saved.get(c.id);
-            Object.assign(c, { last: s.last, time: s.time, unread: s.unread, pin: s.pin, muted: s.muted, msgs: (s.msgs || []).map((m) => [m.w, m.t, m.b || undefined]) });
-          }
-        }
+      const data = await cloud.loadSettings();
+      if (data?.profile) {
+        store.set("profile-name", String(data.profile.name || "내 계정").slice(0, 30));
+        store.set("profile-bio", String(data.profile.bio || "").slice(0, 120));
+        applyProfile();
+      }
+      if (data?.walls) {
+        wallMap = Object.fromEntries(Object.entries(data.walls).filter(([, w]) => WALLS.includes(w)));
+        store.set("walls", JSON.stringify(wallMap));
       }
     } catch (err) {
-      console.warn("저장해 둔 값을 불러오지 못했어요:", err);
+      console.warn("저장해 둔 설정을 불러오지 못했어요:", err?.code || err);
     }
-    hydrated = true;
+    // 내 프로필 사진이 서버에만 있으면 가져와요
+    const me = cloud.peek(cloud.uid);
+    if (me?.photo && !store.get("profile-photo", "")) { store.set("profile-photo", me.photo); applyProfile(); }
+    else if (!me) cloud.fetchProfiles([cloud.uid]).then(() => { const p = cloud.peek(cloud.uid); if (p?.photo && !store.get("profile-photo", "")) { store.set("profile-photo", p.photo); applyProfile(); } });
+  };
+  // 캐시에 사람 정보가 들어오면 이름과 사진을 다시 채워요
+  const refreshNames = () => {
+    for (const c of chats) {
+      const p = window.cloud.peek(c.other);
+      if (p) { c.name = p.name || p.id; c.photo = p.photo || ""; }
+    }
     renderChats();
   };
-  // 연결은 느린 폰에서 몇 초 걸릴 수 있어요. 끝나면 언제든 바로 반영하고, 8초가 지나도 안 끝나면 일단 로그인 전 화면으로 보여요
+  // 연결은 느린 폰에서 몇 초 걸릴 수 있어요. 끝나면 바로 반영하고, 8초가 지나도 안 끝나면 일단 지금 화면으로 보여요
   let booted = false;
   cloudPromise.then((cloud) => {
     booted = true;

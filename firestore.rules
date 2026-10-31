@@ -1,29 +1,227 @@
 rules_version = '2';
+
+// 서버(규칙)가 지키는 것
+//  - 익명 로그인은 아무것도 못 해요. 아이디·비밀번호로 가입한 계정만 써요.
+//  - 토큰 지갑(wallets)은 값을 마음대로 못 바꿔요: 이자는 시간이 흐른 만큼만, 상품은 정해진 값만, 선물은 보낸 만큼만 빠지고 받은 만큼만 늘어요.
+//  - 쓰기는 속도를 제한하고(메시지 0.6초, 지갑 2초), 모든 글자와 사진은 크기와 모양을 검사해요.
+//  - 사람 정보는 profiles 한 곳에만 두고, 내 것만 만들고 사진만 바꿀 수 있어요.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 내 문서(users/내uid)만 읽고 쓸 수 있어요
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function myId() { return request.auth.token.email.split('@')[0]; }
+    function img(v, max) {
+      return v is string && v.size() <= max && v.matches('^data:image/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$');
+    }
+    function photoOk(v) { return v == '' || img(v, 40000); }
+
+    // ----- 사람 정보: 로그인한 사람은 볼 수 있고(찾기는 한 번에 20명까지), 내 것만 만들어요 -----
+    match /profiles/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 20;
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['id', 'name', 'photo'])
+        && request.resource.data.id == myId()
+        && request.resource.data.id.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.name is string
+        && (request.resource.data.name.matches('^[가-힣]{2,6}$') || request.resource.data.name.matches('^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$'))
+        && photoOk(request.resource.data.photo);
+      allow update: if isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])
+        && photoOk(request.resource.data.photo);
+    }
+
+    // ----- 내 설정 (나만 읽고 써요) -----
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isMe(uid);
+      allow write: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['profile', 'walls', 'updatedAt'])
+        && (!('profile' in request.resource.data) || (
+              request.resource.data.profile.keys().hasOnly(['name', 'bio'])
+              && request.resource.data.profile.name is string && request.resource.data.profile.name.size() <= 30
+              && request.resource.data.profile.bio is string && request.resource.data.profile.bio.size() <= 120))
+        && (!('walls' in request.resource.data) || (request.resource.data.walls is map && request.resource.data.walls.size() <= 200));
     }
 
-    // 아이디 → uid 찾기표: 로그인한 사람은 읽을 수 있고, 내 uid로 한 번만 만들 수 있어요
-    match /usernames/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update: if request.auth != null && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+    // ----- 토큰 지갑 -----
+    function prices() {
+      return {'5': 20000, '10': 70000, '15': 144000, '20': 243000, '25': 362000, '30': 503000, '35': 664000, '40': 844000, '45': 1044000, '50': 1262000};
+    }
+    // 연이율 r%를 초당 이율로 (ln(1+r/100) / 1년의 초)
+    function perSec() {
+      return {'5': 0.00000000154712596, '10': 0.00000000302226598, '15': 0.00000000443182212, '20': 0.00000000578137864, '25': 0.00000000707583559,
+              '30': 0.00000000831951625, '35': 0.00000000951625420, '40': 0.0000000106694646, '45': 0.0000000117822031, '50': 0.0000000128572142};
+    }
+    // 복리로 쌓일 수 있는 이자의 위쪽 한계: x + x², x = 초당 이율 × 걸린 초 (e^x - 1 보다 항상 커요)
+    function maxGain(bal, rate, secs) {
+      return bal * (perSec()[string(rate)] * secs + perSec()[string(rate)] * secs * perSec()[string(rate)] * secs);
+    }
+    function msgPath(cid, mid) { return /databases/$(database)/documents/chats/$(cid)/messages/$(mid); }
+    function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
+
+    match /wallets/{uid} {
+      allow get: if isMe(uid);
+
+      // 처음 한 번만, 정해진 금액으로 만들어요 (실명 프로필이 있어야 해요)
+      allow create: if isMe(uid)
+        && exists(/databases/$(database)/documents/profiles/$(uid))
+        && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
+        && request.resource.data.bal == 1250000
+        && request.resource.data.rate == 0
+        && request.resource.data.t == request.time
+        && request.resource.data.wt == request.time
+        && request.resource.data.op == {'kind': 'init'};
+
+      allow update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
+        && request.resource.data.wt == request.time
+        && request.time >= resource.data.wt + duration.value(2, 's')
+        && request.resource.data.bal is int
+        && request.resource.data.bal >= 0
+        && request.resource.data.rate is int
+        && (
+          // 이자: 걸린 시간만큼의 복리를 넘을 수 없고, 한 번에 최대 7일치예요
+          (request.resource.data.op.kind == 'interest'
+            && resource.data.rate > 0
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t > resource.data.t
+            && request.resource.data.t <= request.time
+            && request.resource.data.t - resource.data.t <= duration.value(7, 'd')
+            && request.resource.data.bal > resource.data.bal
+            && (request.resource.data.bal - resource.data.bal) <=
+               maxGain(resource.data.bal, resource.data.rate, (request.resource.data.t - resource.data.t).seconds()))
+          ||
+          // 이자 상품 구입: 정해진 값만 내고, 지금보다 높은 이율만 살 수 있어요
+          (request.resource.data.op.kind == 'buy'
+            && request.resource.data.rate > resource.data.rate
+            && request.resource.data.t == request.time
+            && request.resource.data.bal == resource.data.bal - prices()[string(request.resource.data.rate)])
+          ||
+          // 선물 보내기: 같은 묶음에서 만든 선물 메시지의 금액만큼만 줄어요
+          (request.resource.data.op.kind == 'gift'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && !exists(msgPath(request.resource.data.op.cid, request.resource.data.op.mid))
+            && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.type == 'gift'
+            && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.from == request.auth.uid
+            && request.resource.data.bal == resource.data.bal - getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
+          ||
+          // 선물 받기: 받는 사람이 아직 안 받은 선물을 받음으로 바꾸는 묶음에서만, 그 금액만큼 늘어요
+          (request.resource.data.op.kind == 'claim'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.type == 'gift'
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.to == request.auth.uid
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == false
+            && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == true
+            && request.resource.data.bal == resource.data.bal + get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
+        );
     }
 
-    // 두 사람 사이의 대화: 참가자만 읽고 쓸 수 있어요
+    // ----- 두 사람의 대화 -----
     match /chats/{cid} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.members;
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.members && request.resource.data.members.size() == 2;
-      allow update: if request.auth != null && request.auth.uid in resource.data.members && request.resource.data.members == resource.data.members;
+      allow get: if signedIn() && request.auth.uid in resource.data.members;
+      allow list: if signedIn() && request.auth.uid in resource.data.members && request.query.limit <= 100;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'last', 'lastAt', 'lastFrom', 'reads'])
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && request.auth.uid in request.resource.data.members
+        && cid == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.members[0]))
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.members[1]))
+        && request.resource.data.last == ''
+        && request.resource.data.lastFrom == ''
+        && request.resource.data.lastAt == timestamp.date(1970, 1, 1)
+        && request.resource.data.reads == {};
+
+      allow update: if signedIn() && request.auth.uid in resource.data.members && (
+        // 메시지를 보낼 때: 마지막 글을 갱신하고, 0.6초보다 빨리 연달아 보낼 수 없어요
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last', 'lastAt', 'lastFrom'])
+          && request.resource.data.last is string && request.resource.data.last.size() <= 200
+          && request.resource.data.lastFrom == request.auth.uid
+          && request.resource.data.lastAt == request.time
+          && request.time >= resource.data.lastAt + duration.value(600, 'ms'))
+        ||
+        // 읽음 표시: 내 칸만
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reads'])
+          && request.resource.data.reads.diff(resource.data.reads).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.reads[request.auth.uid] == request.time)
+      );
 
       match /messages/{mid} {
-        allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members;
-        allow create: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members && request.resource.data.from == request.auth.uid;
-        // 받기(done)와 투표(votes)만 참가자가 고칠 수 있어요
-        allow update: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(cid)).data.members && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'votes']);
+        function chatDoc() { return get(/databases/$(database)/documents/chats/$(cid)); }
+        function body(d) {
+          return (d.type == 'text'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'text'])
+                    && d.text is string && d.text.size() >= 1 && d.text.size() <= 1000)
+              || ((d.type == 'photo' || d.type == 'draw')
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'img'])
+                    && img(d.img, 140000))
+              || (d.type == 'request'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'amount', 'done'])
+                    && d.amount is int && d.amount >= 1 && d.amount <= 99999999
+                    && d.done == false)
+              || (d.type == 'gift'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'amount', 'done'])
+                    && d.amount is int && d.amount >= 1 && d.amount <= 99999999
+                    && d.done == false
+                    // 같은 묶음에서 내 지갑이 그만큼 줄어야 보낼 수 있어요
+                    && getAfter(walletPath(request.auth.uid)).data.op.kind == 'gift'
+                    && getAfter(walletPath(request.auth.uid)).data.op.mid == mid
+                    && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
+                    && getAfter(walletPath(request.auth.uid)).data.bal >= 0)
+              || (d.type == 'poll'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'poll', 'votes'])
+                    && d.votes == {}
+                    && d.poll.keys().hasOnly(['q', 'options'])
+                    && d.poll.q is string && d.poll.q.size() >= 1 && d.poll.q.size() <= 60
+                    && d.poll.options is list && d.poll.options.size() >= 2 && d.poll.options.size() <= 4
+                    && opt(d.poll.options[0]) && opt(d.poll.options[1])
+                    && (d.poll.options.size() < 3 || opt(d.poll.options[2]))
+                    && (d.poll.options.size() < 4 || opt(d.poll.options[3])));
+        }
+        function opt(o) {
+          return o is map && o.keys().hasOnly(['t', 'img'])
+              && o.t is string && o.t.size() <= 30
+              && o.img is string && (o.img == '' || img(o.img, 50000))
+              && (o.t != '' || o.img != '');
+        }
+
+        allow get: if signedIn() && request.auth.uid in chatDoc().data.members;
+        allow list: if signedIn() && request.auth.uid in chatDoc().data.members && request.query.limit <= 60;
+
+        allow create: if signedIn()
+          && request.auth.uid in chatDoc().data.members
+          && request.resource.data.from == request.auth.uid
+          && request.resource.data.to in chatDoc().data.members
+          && request.resource.data.to != request.auth.uid
+          && request.resource.data.at == request.time
+          // 같은 묶음에서 대화 문서의 마지막 글이 갱신돼야 해요 (속도 제한은 그 갱신이 해요)
+          && getAfter(/databases/$(database)/documents/chats/$(cid)).data.lastAt == request.time
+          && body(request.resource.data);
+
+        allow update: if signedIn() && request.auth.uid in chatDoc().data.members && (
+          // 받기·보냈어요 표시: 받는 사람만, 한 번만
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done'])
+            && resource.data.type in ['gift', 'request']
+            && resource.data.to == request.auth.uid
+            && resource.data.done == false
+            && request.resource.data.done == true)
+          ||
+          // 투표: 내 표만, 선택지 안에서
+          (resource.data.type == 'poll'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes'])
+            && request.resource.data.votes.diff(resource.data.votes).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.votes[request.auth.uid] is int
+            && request.resource.data.votes[request.auth.uid] >= 0
+            && request.resource.data.votes[request.auth.uid] < resource.data.poll.options.size())
+        );
       }
     }
   }
