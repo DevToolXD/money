@@ -638,7 +638,7 @@
   let monthSum = 0;
   const calcMonth = () => { monthSum = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0); };
   calcMonth();
-  const BUDGET = 300000;
+  const BUDGET = 300;
   const CATC = { 식비: "#ffe6d2", 카페: "#f0e4d6", 교통: "#dbe8ff", 문화: "#ece1ff", 쇼핑: "#ffdbe6", 입금: "#ffe0e0", 송금: "#ffe0e0", 은행: "#d6f1e6" };
   const num = (n) => Math.abs(n).toLocaleString("ko-KR");
   const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
@@ -658,7 +658,7 @@
   const YEAR_S = 365 * 24 * 3600;
   const RATES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
   // 값: 연이율이 두 배가 되면 값은 약 3.5배. 5%는 20,000 토큰이고 50%는 처음 받은 토큰보다 조금 더 비싸요. 서버 규칙에도 같은 표가 있어요
-  const PRICE = (r) => Math.round((20000 * Math.pow(r / 5, 1.8)) / 1000) * 1000;
+  const PRICE = (r) => Math.round(20 * Math.pow(r / 5, 1.8)); // 1 토큰 = 1 달러쯤으로 맞춘 값 (firestore.rules의 가격표와 같아야 해요)
   const growth = (rate, secs) => Math.pow(1 + rate / 100, secs / YEAR_S) - 1; // 연 rate% 복리로 secs초 동안 늘어나는 비율
   let bank = { ready: false, rate: 0, bal: 0, t: Date.now() };
   // 아직 서버에 정산하지 않은 이자 (화면에서는 바로 더해 보여주고, 서버 정산은 10분에 한 번만 해서 쓰기를 아껴요)
@@ -967,6 +967,84 @@
   window.addEventListener("cloud-down", showCloudDown);
   if (window.cloudDown) showCloudDown();
   document.getElementById("cloud-down").addEventListener("click", (e) => { e.currentTarget.hidden = true; });
+
+  /* ---------- 관리 화면 (owner 전용 버튼으로 열어요, 탭 바에는 없어요) ---------- */
+  const goScreen = (name) => {
+    showScreen(name);
+    topTitle.textContent = screens.get(name).dataset.title;
+    updateChrome(screens.get(name));
+    backdrop?.setActive(name);
+    tabbar.requestRender();
+  };
+  document.getElementById("open-manage").addEventListener("click", () => goScreen("manage"));
+  document.getElementById("manage-back").addEventListener("click", () => goScreen("account"));
+  nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && app.dataset.screen === "manage") goScreen("account"); });
+
+  /* ---------- 상태 (배고픔·목마름·에너지): 어느 탭에서나 떠 있는 동그란 버튼으로 열어요 ---------- */
+  const STATS = [
+    { label: "배고픔", v: 72, c: "#f5a54a", d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
+    { label: "목마름", v: 41, c: "#4c8dff", d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
+    { label: "에너지", v: 89, c: "#4cd37a", d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
+  ];
+  const statHTML = (u, cls) => `<div class="${cls}"><span class="st-ic" style="--c:${u.c}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg></span><b class="st-name">${u.label}</b><b class="st-pct">${u.v}<small>%</small></b><span class="st-bar"><i style="width:${u.v}%;background:${u.c}"></i></span></div>`;
+  document.getElementById("sp-cards").innerHTML = STATS.map((u) => statHTML(u, "sp-card")).join("");
+  document.getElementById("st-list").innerHTML = STATS.map((u) => `<li>${statHTML(u, "st-row")}</li>`).join("");
+  const stBubble = document.getElementById("status-bubble");
+  const stPanel = document.getElementById("status-panel");
+  const stScrim = document.getElementById("status-scrim");
+  const openStatus = (on) => {
+    stPanel.classList.toggle("is-open", on);
+    stScrim.classList.toggle("is-open", on);
+    stBubble.classList.toggle("is-hidden", on);
+    stPanel.inert = !on;
+  };
+  openStatus(false);
+  document.getElementById("status-close").addEventListener("click", () => openStatus(false));
+  stScrim.addEventListener("click", () => openStatus(false));
+  // 동그란 버튼은 끌어서 옮길 수 있고, 놓으면 가까운 가장자리에 붙어요. 위치는 이 기기에 기억해요
+  {
+    const SIZE = 46;
+    const place = (xf, yf, animate) => {
+      const W = app.clientWidth;
+      const H = app.clientHeight;
+      const x = clamp(xf * W - SIZE / 2, 8, W - SIZE - 8);
+      const y = clamp(yf * H - SIZE / 2, 60, H - 200);
+      stBubble.style.transition = animate ? "left 0.35s var(--ease), top 0.35s var(--ease)" : "none";
+      stBubble.style.left = `${x}px`;
+      stBubble.style.top = `${y}px`;
+    };
+    let pos = { x: 0.93, y: 0.36 };
+    try { const v = JSON.parse(store.get("status-pos", "null")); if (v && v.x >= 0 && v.x <= 1 && v.y >= 0 && v.y <= 1) pos = v; } catch (_) { /* 처음이에요 */ }
+    place(pos.x, pos.y, false);
+    window.addEventListener("resize", () => place(pos.x, pos.y, false));
+    let drag = null;
+    stBubble.addEventListener("pointerdown", (e) => {
+      stBubble.setPointerCapture(e.pointerId);
+      const r = stBubble.getBoundingClientRect();
+      drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, moved: false };
+      stBubble.classList.add("is-drag");
+    });
+    stBubble.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+      drag.moved = true;
+      const a = app.getBoundingClientRect();
+      pos = { x: (e.clientX - a.left - drag.dx + SIZE / 2) / a.width, y: (e.clientY - a.top - drag.dy + SIZE / 2) / a.height };
+      place(pos.x, pos.y, false);
+    });
+    const end = (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const moved = drag.moved;
+      drag = null;
+      stBubble.classList.remove("is-drag");
+      if (!moved) return openStatus(true);
+      pos.x = pos.x < 0.5 ? 0.07 : 0.93; // 가까운 가장자리에 붙어요
+      place(pos.x, pos.y, true);
+      store.set("status-pos", JSON.stringify(pos));
+    };
+    stBubble.addEventListener("pointerup", end);
+    stBubble.addEventListener("pointercancel", () => { drag = null; stBubble.classList.remove("is-drag"); });
+  }
 
   // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
   const startWallet = () =>
@@ -1680,6 +1758,7 @@
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
+    document.getElementById("open-manage").hidden = !(signedIn && id.toLowerCase() === "owner"); // 관리 버튼은 아이디가 owner인 사람에게만 보여요 (서버 기능이 생기면 규칙에서도 막아요)
     if (signedIn) {
       if (!store.get("joined", "")) store.set("joined", String(Date.now()));
       document.getElementById("stat-days").textContent = Math.max(1, Math.ceil((Date.now() - Number(store.get("joined", Date.now()))) / 864e5));

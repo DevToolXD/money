@@ -152,9 +152,9 @@ await t("이자 상품: 정해진 값만 내고 살 수 있어요", async () => 
   const db = pw("uA", "alice");
   await assertFails(updateDoc(doc(db, "wallets/uA"), { rate: 50, bal: 1250000, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } })); // 공짜
   await assertFails(updateDoc(doc(db, "wallets/uA"), { rate: 50, bal: 1250000 - 20000, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } })); // 5% 값으로 50%
-  await assertSucceeds(updateDoc(doc(db, "wallets/uA"), { rate: 30, bal: 1250000 - 503000, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } }));
+  await assertSucceeds(updateDoc(doc(db, "wallets/uA"), { rate: 30, bal: 1250000 - 503, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } }));
   await sleep(2100);
-  await assertFails(updateDoc(doc(db, "wallets/uA"), { rate: 10, bal: 747000 - 70000, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } })); // 낮은 이율로 갈아타기
+  await assertFails(updateDoc(doc(db, "wallets/uA"), { rate: 10, bal: 1250000 - 503 - 70, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "buy" } })); // 낮은 이율로 갈아타기
 });
 await t("이자: 흐른 시간만큼의 복리만 받을 수 있어요", async () => {
   await seed(async (s) => {

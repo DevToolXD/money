@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=25">
+<link rel="stylesheet" href="app/app.css?v=27">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -20,7 +20,7 @@
   <div class="topbar" id="topbar">
     <span class="topbar-title" id="topbar-title">메시지</span>
     <div class="nav-set" data-for="messages"><button class="glass-btn" id="edit-chats" type="button">편집</button><div class="nav-right"><button class="glass-btn round" id="filter-unread" type="button" aria-pressed="false" aria-label="읽지 않은 대화만 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg></button><button class="glass-btn round" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></div></div>
-    <div class="nav-set" data-for="account"><span></span><button class="glass-btn js-edit-profile" type="button">편집</button></div>
+    <div class="nav-set" data-for="account"><button class="glass-btn" id="open-manage" type="button" hidden>관리</button><button class="glass-btn js-edit-profile" type="button">편집</button></div>
   </div>
 
   <button class="cloud-down" id="cloud-down" type="button" hidden><b>서버 데이터베이스가 꺼져 있어요</b><span>관리자가 Firebase 콘솔에서 Firestore 데이터베이스를 만들어야 메시지·돈·랭킹이 동작해요. 눌러서 닫기</span></button>
@@ -60,7 +60,7 @@
       <div id="rank-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="rank-root">
         <header class="large-title"><h1 id="title-ranking">랭킹</h1></header>
-        <p class="rk-sub">토큰을 가장 많이 가진 사람들이에요.<small>1 토큰 = 1 달러로 쳐요</small></p>
+        <p class="rk-sub">토큰을 가장 많이 가진 사람들이에요.</p>
         <div class="rk-podium" id="rk-podium"></div>
         <ul class="rk-list" id="rk-list"></ul>
         <p class="rk-empty" id="rk-empty" hidden></p>
@@ -68,18 +68,18 @@
       </div>
     </section>
     <section class="screen" id="screen-manage" data-screen="manage" data-title="관리" aria-labelledby="title-manage">
-      <header class="large-title"><h1 id="title-manage">관리</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
-      <p class="lead">내 돈과 설정을 한곳에서.</p>
-      <div class="card"><div class="art cool"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">관리 도구를 만들고 있어요</h2><p class="card-body">곧 한눈에 관리할 수 있게 해 드릴게요.</p></div></div>
-      <h2 class="section-title">바로가기</h2>
-      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+      <header class="large-title"><h1 id="title-manage">관리</h1><button class="glass-btn" id="manage-back" type="button">계정</button></header>
+      <p class="lead">관리자만 볼 수 있어요.</p>
+      <div class="card"><div class="art cool"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">관리 기능을 만들고 있어요</h2><p class="card-body">기능은 나중에 하나씩 추가돼요.</p></div></div>
     </section>
-    <section class="screen" id="screen-untitled2" data-screen="untitled2" data-title="무제" aria-labelledby="title-untitled2">
-      <header class="large-title"><h1 id="title-untitled2">무제</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
-      <p class="lead">아직 정해지지 않았어요.</p>
-      <div class="card"><div class="art warm"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">이 탭에 무엇이 들어갈지 천천히 정해 가요.</p></div></div>
-      <h2 class="section-title">둘러보기</h2>
-      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
+    <section class="screen" id="screen-status" data-screen="status" data-title="상태" aria-labelledby="title-status">
+      <header class="large-title"><h1 id="title-status">상태</h1></header>
+      <p class="lead">지금 내 상태예요.</p>
+      <ul class="st-list" id="st-list"></ul>
+    </section>
+    <section class="screen" id="screen-business" data-screen="business" data-title="사업" aria-labelledby="title-business">
+      <header class="large-title"><h1 id="title-business">사업</h1></header>
+      <div class="card biz"><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 24.500V5.500a1 1 0 0 1 1-1h5.500a1 1 0 0 1 1 1V24.500M15.500 24.500V5.500a1 1 0 0 1 1-1H22a1 1 0 0 1 1 1V24.500M2.500 24.500h23M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18"/></svg><h2 class="card-title">사업을 시작해 보세요</h2><p class="card-body">사업을 아직 시작하지 않았다면 시작해 보세요. 일반 직장보다 리스크는 크지만 훨씬 많은 돈을 벌 수도 있어요.</p><button class="btn primary" id="biz-start" type="button">10 토큰으로 창업하기</button></div>
     </section>
     <section class="screen" id="screen-untitled3" data-screen="untitled3" data-title="무제" aria-labelledby="title-untitled3">
       <header class="large-title"><h1 id="title-untitled3">무제</h1><button class="me-btn to-account" type="button" aria-label="계정"><span class="avatar-default"></span></button></header>
@@ -236,6 +236,16 @@
 
   <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div><div class="ctx-stack" id="ctx-stack"><div class="ctx-preview" id="ctx-preview"></div><div class="ctx-menu big" id="ctx-menu2" role="menu"></div></div></div>
 
+  <div class="status-scrim" id="status-scrim"></div>
+  <section class="status-panel" id="status-panel" role="dialog" aria-label="상태">
+    <svg class="sp-chev" viewBox="0 0 24 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l7 6 7-6"/></svg>
+    <span class="sp-grab"></span>
+    <header class="sp-head"><div><h2>Status</h2><p>지금 내 상태예요</p></div><button class="sp-x" id="status-close" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <div class="sp-cards" id="sp-cards"></div>
+    <p class="sp-foot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg>상태는 실시간으로 업데이트돼요.</p>
+  </section>
+  <button class="status-bubble" id="status-bubble" type="button" aria-label="상태 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg></button>
+
   <div class="dock">
     <nav class="tabbar" aria-label="메인 메뉴">
       <span class="platter platter-main"></span>
@@ -256,8 +266,8 @@
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
-<script src="app/tabbar.js?v=6"></script>
+<script src="app/tabbar.js?v=7"></script>
 <script type="module" src="app/firebase.js?v=15"></script>
-<script src="app/app.js?v=29"></script>
+<script src="app/app.js?v=31"></script>
 </body>
 </html>
