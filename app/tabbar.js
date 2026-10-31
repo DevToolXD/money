@@ -705,14 +705,14 @@ void main() {
       const barH = nr.height;
       this.sizes = this.geo.map((g) => {
         const round = g.w >= g.h - 1; // 검색 버튼처럼 가로세로가 같은 칸
-        // 칸이 좁을수록(작은 폰) 알약이 길쭉해져서 막대 끝의 둥근 모서리를 파고들어요. 그때는 더 둥글게(타원에 가깝게) 해요
-        const slim = clamp((g.w / g.h - 0.65) / 0.25, 0, 1);
+        // 선택 알약은 칸 폭에 맞춘 동그라미예요 (칸이 좁은 폰에서도 타원이 되지 않게)
+        const r = Math.min(g.w, g.h) / 2;
         return {
-          pillHW: g.w / 2,
-          pillHH: g.h / 2,
+          pillHW: r,
+          pillHH: r,
           lensHW: round ? Math.min(g.w / 2 + 2, barH * 0.47) : Math.min(barH * 0.62, g.w * 0.8),
           lensHH: barH * 0.45,
-          pillExp: round ? 2 : lerp(2, 2.3, slim),
+          pillExp: 2,
           lensExp: round ? 2 : 2.1,
         };
       });
@@ -1002,9 +1002,9 @@ void main() {
       const nr = this.nav.getBoundingClientRect();
       const r = t.getBoundingClientRect();
       pill.hidden = false;
-      pill.style.width = `${r.width}px`;
-      pill.style.height = `${r.height}px`;
-      pill.style.transform = `translate(${r.left - nr.left}px, ${r.top - nr.top}px)`;
+      const d = Math.min(r.width, r.height);
+      pill.style.width = pill.style.height = `${d}px`;
+      pill.style.transform = `translate(${r.left - nr.left + (r.width - d) / 2}px, ${r.top - nr.top + (r.height - d) / 2}px)`;
     }
 
     /* ----- 매 프레임 ----- */
