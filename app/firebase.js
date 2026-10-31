@@ -1,7 +1,7 @@
 /* 파이어베이스 연결: 처음에는 익명으로 로그인하고, 아이디·비밀번호로 가입·로그인(익명 계정을 이어붙임)할 수 있어요.
    내 상태(프로필·배경화면·대화)는 Firestore의 users/{uid} 문서 하나에 저장해요.
    설정값이 비어 있거나 연결에 실패하면 window.cloud는 null이고, 앱은 이 기기(localStorage)에만 저장해요. */
-import { firebaseConfig } from "./firebase-config.js";
+import { firebaseConfig } from "./firebase-config.js?v=5";
 
 const BASE = "https://www.gstatic.com/firebasejs/11.0.2";
 
