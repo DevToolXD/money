@@ -790,6 +790,7 @@
     stage.addEventListener("focusout", onBlur);
     document.getElementById("biz-pick").addEventListener("click", open);
     document.getElementById("biz-lab").addEventListener("click", labClick);
+    document.getElementById("biz-lab").addEventListener("input", labInput);
     document.getElementById("hire-minus").innerHTML = svgI('<path d="M5 12h14"/>');
     document.getElementById("hire-plus").innerHTML = svgI('<path d="M12 5v14M5 12h14"/>');
     document.getElementById("hire-minus").addEventListener("click", () => stepHire(-1));
@@ -853,25 +854,39 @@
   };
   /* ---------- 연구실·발전소 (원자력 발전·컴퓨터·인공지능): 상품은 한 개예요. 숫자는 직원 일 탭에서 올라가요 ---------- */
   const LAB_TITLE = { nuclear: "원자력 발전", pc: "컴퓨터", ai: "인공지능" };
-  const GEN = [50, 100, 200];
-  let genAmt = 50;
+  const LAB_MAX = 1000; // 한 번에 만들 수 있는 전기 양 (상한)
+  let genAmt = 100;
+  let labNow = null; // 지금 그린 연구실 숫자 (남은 시간 계산에 써요. 발전 중에는 서버를 다시 읽지 않아요)
+  let labTick = 0;
   const fmtLab = (n) => Number(n || 0).toLocaleString("ko-KR");
+  const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`);
+  // 발전이 끝나기까지 남은 초 (시작 시각 + 걸리는 시간)
+  const genLeft = (L) => Math.max(0, Math.ceil((L.gen.started.toMillis() + L.gen.secs * 1000 - Date.now()) / 1000));
+  const genText = (L, left) => (left > 0 ? `${fmtLab(L.gen.amt)} 전기를 만들고 있어요 · 남은 시간 ${fmtSec(left)}` : `${fmtLab(L.gen.amt)} 전기를 다 만들었어요`);
+  const estText = (L) => (genAmt >= 1 && genAmt <= LAB_MAX ? `${fmtLab(genAmt)}을 만들려면 약 ${fmtSec(Math.ceil((genAmt * 100) / L.nperf))} 걸려요` : `1부터 ${fmtLab(LAB_MAX)} 사이로 적어 주세요`);
   const labHTML = (kind, L) => {
     if (kind === "nuclear") {
-      const need = Math.ceil((genAmt * 100) / L.nperf);
-      return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개: 전기</p>
+      const head = `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개: 전기</p>
         <p class="lab-big">${fmtLab(L.elec)}<small>전기 창고</small></p>
-        <p class="lab-sub">핵연료 ${fmtLab(L.nf)}개 · 성능 ${fmtLab(L.nperf)}</p>
-        <div class="gseg lab-amt" role="radiogroup" aria-label="발전량" style="--n:3;--i:${GEN.indexOf(genAmt)}">${GEN.map((a) => `<button type="button" role="radio" aria-checked="${a === genAmt}" data-amt="${a}">${a}</button>`).join("")}</div>
-        <p class="lab-sub">전기 ${genAmt}을 만들려면 핵연료 ${fmtLab(need)}개가 필요해요</p>
-        <button class="btn primary" type="button" data-lab="gen" ${L.nf < need ? "disabled" : ""}>발전하기</button>`;
+        <p class="lab-sub">핵연료 성능 ${fmtLab(L.nperf)} · 성능이 좋을수록 빨리 만들어요</p>`;
+      if (L.gen) {
+        const left = genLeft(L);
+        return `${head}
+          <p class="lab-sub" id="lab-left">${genText(L, left)}</p>
+          <button class="btn primary" type="button" data-lab="claim" ${left > 0 ? "disabled" : ""}>창고에 받기</button>`;
+      }
+      return `${head}
+        <label class="lab-field"><span>만들 전기</span><input id="lab-amt" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="4" value="${genAmt}" aria-label="만들 전기 양"></label>
+        <p class="lab-sub" id="lab-est">${estText(L)}</p>
+        <button class="btn primary" type="button" data-lab="gen">발전 시작하기</button>`;
     }
     if (kind === "pc") {
-      const released = L.cpuRel >= 0;
+      const rel = L.rel;
+      const same = Boolean(rel) && rel.cap === L.cap && rel.spd === L.spd && rel.pow === L.pow;
       return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개</p>
-        <p class="lab-big">${fmtLab(L.cpu)}<small>개발 중 성능</small></p>
-        <p class="lab-sub">${released ? `출시한 성능 ${fmtLab(L.cpuRel)}` : "아직 출시하지 않았어요"}</p>
-        <button class="btn primary" type="button" data-lab="rel" ${L.cpu === 0 || L.cpu === L.cpuRel ? "disabled" : ""}>${released ? "다시 출시하기" : "출시하기"}</button>`;
+        <div class="lab-stats"><span>처리 용량<b>${fmtLab(L.cap)}</b></span><span>처리 속도<b>${fmtLab(L.spd)}</b></span><span>전기값<b>${fmtLab(L.pow)}</b></span></div>
+        <p class="lab-sub">${rel ? `출시한 숫자 · 용량 ${fmtLab(rel.cap)} · 속도 ${fmtLab(rel.spd)} · 전기 ${fmtLab(rel.pow)}` : "아직 출시하지 않았어요"}</p>
+        <button class="btn primary" type="button" data-lab="rel" ${same || !(L.cap || L.spd || L.pow) ? "disabled" : ""}>${rel ? "다시 출시하기" : "출시하기"}</button>`;
     }
     const score = Math.floor(L.aiData / 10);
     return `<p class="lab-t">${LAB_TITLE[kind]} · 상품 1개</p>
@@ -879,40 +894,68 @@
       <p class="lab-sub">개발 점수 ${fmtLab(score)}${L.aiScore >= 0 ? ` · 출시 점수 ${fmtLab(L.aiScore)}` : " · 아직 출시 전이에요"}</p>
       <button class="btn primary" type="button" data-lab="rel" ${score < 1 || score === L.aiScore ? "disabled" : ""}>${L.aiScore >= 0 ? "다시 출시하기" : "출시하기"}</button>`;
   };
+  const stopTick = () => {
+    clearInterval(labTick);
+    labTick = 0;
+  };
+  // 발전 중에는 1초마다 남은 시간만 고쳐요. 끝나면 받기 버튼을 켜요
+  const startTick = () => {
+    stopTick();
+    labTick = setInterval(() => {
+      const box = document.getElementById("biz-lab");
+      const L = labNow;
+      if (!box || !L?.gen) return stopTick();
+      const left = genLeft(L);
+      const t = box.querySelector("#lab-left");
+      if (t) t.textContent = genText(L, left);
+      const btn = box.querySelector('[data-lab="claim"]');
+      if (btn && left <= 0) btn.disabled = false;
+      if (left <= 0) stopTick();
+    }, 1000);
+  };
   const paintLab = async () => {
     const co = ctx?.company();
     const box = document.getElementById("biz-lab");
     if (!co || co.kind === "food" || !box) return;
+    stopTick();
     try {
       const L = await ctx.cloud().labGet(co.id);
       if (ctx.company()?.id !== co.id) return; // 다른 회사로 바뀌었으면 그리지 않아요
+      labNow = L;
       box.innerHTML = labHTML(co.kind, L);
+      if (L.gen && genLeft(L) > 0) startTick();
     } catch (err) {
       box.innerHTML = '<p class="lab-sub">연구실 숫자를 불러오지 못했어요</p>';
     }
   };
+  // 만들 전기 양을 적을 때: 숫자만 남기고, 예상 시간을 바로 고쳐요
+  const labInput = (e) => {
+    const inp = e.target.closest("#lab-amt");
+    if (!inp || !labNow) return;
+    const digits = inp.value.replace(/\D/g, "").slice(0, 4);
+    if (inp.value !== digits) inp.value = digits;
+    genAmt = digits === "" ? 0 : Number(digits);
+    const est = document.getElementById("lab-est");
+    if (est) est.textContent = estText(labNow);
+  };
   const labClick = async (e) => {
     const co = ctx?.company();
     if (!co) return;
-    const amt = e.target.closest("[data-amt]");
-    if (amt) {
-      genAmt = Number(amt.dataset.amt);
-      return paintLab();
-    }
     const act = e.target.closest("[data-lab]");
     if (!act || act.disabled) return;
+    if (act.dataset.lab === "gen" && !(Number.isInteger(genAmt) && genAmt >= 1 && genAmt <= LAB_MAX)) {
+      return ctx.toast(`1부터 ${fmtLab(LAB_MAX)} 사이로 적어 주세요`);
+    }
     act.disabled = true;
     try {
       if (act.dataset.lab === "gen") {
-        const want = genAmt;
-        const ok = await ctx.cloud().labChange(co.id, (L) => {
-          const need = Math.ceil((want * 100) / L.nperf);
-          if (L.nf < need) return null;
-          return { ...L, nf: L.nf - need, elec: L.elec + want };
-        });
-        ctx.toast(ok ? `전기 ${want}을 만들었어요` : "핵연료가 부족해요");
+        const ok = await ctx.cloud().labGenStart(co.id, genAmt);
+        ctx.toast(ok ? `전기 ${fmtLab(genAmt)}을 만들기 시작했어요` : "이미 발전 중이에요");
+      } else if (act.dataset.lab === "claim") {
+        const got = await ctx.cloud().labGenClaim(co.id);
+        ctx.toast(got ? `전기 ${fmtLab(got)}을 창고에 받았어요` : "아직 발전 중이에요");
       } else if (co.kind === "pc") {
-        await ctx.cloud().labChange(co.id, (L) => ({ ...L, cpuRel: L.cpu }));
+        await ctx.cloud().labChange(co.id, (L) => ({ ...L, rel: { cap: L.cap, spd: L.spd, pow: L.pow } }));
         ctx.toast("컴퓨터를 출시했어요");
       } else {
         await ctx.cloud().labChange(co.id, (L) => ({ ...L, aiScore: Math.floor(L.aiData / 10) }));

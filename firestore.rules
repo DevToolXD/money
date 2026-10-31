@@ -130,32 +130,70 @@ service cloud.firestore {
           && !existsAfter(jobPath(request.auth.uid)))
       );
 
-      // 연구실·발전소 숫자: 핵연료 배합과 발전, 컴퓨터 부품 검사, AI 데이터 받기. 사장과 그 회사 직원만 해요.
-      //   성능·전기·데이터는 줄지 않아요. 출시 값(cpuRel, aiScore)은 사장만 바꿔요. AI 점수는 데이터의 10분의 1 이하예요
+      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요).
+      //   원자력 발전: 핵연료 성능(nperf)을 올려요. 발전을 시작하면 걸린 시간(secs)이 지난 뒤에 창고(elec)에 받아요.
+      //   컴퓨터: 처리 용량(cap)·처리 속도(spd)·전기값(pow)을 올리고, 출시하면 그때 숫자를 rel에 남겨요.
+      //   인공지능: 데이터(aiData)를 쌓고, 출시하면 점수(aiScore)를 남겨요. 숫자는 줄지 않아요. 출시 값은 사장만 바꿔요.
       match /lab/{ld} {
         function labOk(d) {
-          return d.keys().hasOnly(['nf', 'nperf', 'elec', 'cpu', 'cpuRel', 'aiData', 'aiScore'])
-            && d.nf is int && d.nf >= 0 && d.nf <= 1000000
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
-            && d.cpu is int && d.cpu >= 0 && d.cpu <= 1000000
-            && d.cpuRel is int && d.cpuRel >= -1 && d.cpuRel <= d.cpu
+            && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
+                && d.gen.amt is int && d.gen.amt >= 1 && d.gen.amt <= 1000
+                && d.gen.secs is int && d.gen.secs >= 1 && d.gen.started is timestamp))
+            && d.cap is int && d.cap >= 0 && d.cap <= 1000000
+            && d.spd is int && d.spd >= 0 && d.spd <= 1000000
+            && d.pow is int && d.pow >= 0 && d.pow <= 1000000
+            && (d.get('rel', null) == null || (d.rel.keys().hasOnly(['cap', 'spd', 'pow'])
+                && d.rel.cap is int && d.rel.cap >= 0 && d.rel.cap <= d.cap
+                && d.rel.spd is int && d.rel.spd >= 0 && d.rel.spd <= d.spd
+                && d.rel.pow is int && d.rel.pow >= 0 && d.rel.pow <= d.pow))
             && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
             && d.aiScore is int && d.aiScore >= -1 && (d.aiScore == -1 || d.aiScore * 10 <= d.aiData);
         }
         function labWho() {
           return signedIn() && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid || get(jobPath(request.auth.uid)).data.cid == cid);
         }
+        function labOwner() {
+          return get(companyPath(cid)).data.get('owner', cid) == request.auth.uid;
+        }
+        // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (전기 × 100 ÷ 성능, 올림). 시작 시각은 이 쓰기의 서버 시각이어야 해요
+        function genStarts(d) {
+          return d.get('gen', null) != null
+            && d.gen.secs == (d.gen.amt * 100 + d.nperf - 1) / d.nperf
+            && d.gen.started == request.time;
+        }
+        // 창고 받기: 발전 시간이 다 지나야 해요
+        function genDone(o) {
+          return o.get('gen', null) != null
+            && request.time >= o.gen.started + duration.value(o.gen.secs, 's');
+        }
         allow get: if signedIn();
         allow create: if labWho() && labOk(request.resource.data)
-          && (request.resource.data.cpuRel == -1 && request.resource.data.aiScore == -1 || get(companyPath(cid)).data.get('owner', cid) == request.auth.uid);
+          && request.resource.data.elec == 0
+          && (request.resource.data.get('gen', null) == null || genStarts(request.resource.data))
+          && (request.resource.data.get('rel', null) == null && request.resource.data.aiScore == -1 || labOwner());
         allow update: if labWho() && labOk(request.resource.data)
           && request.resource.data.nperf >= resource.data.nperf
-          && request.resource.data.elec >= resource.data.elec
-          && request.resource.data.cpu >= resource.data.cpu
+          && request.resource.data.cap >= resource.data.get('cap', 0)
+          && request.resource.data.spd >= resource.data.get('spd', 0)
+          && request.resource.data.pow >= resource.data.get('pow', 0)
           && request.resource.data.aiData >= resource.data.aiData
-          && (request.resource.data.cpuRel == resource.data.cpuRel && request.resource.data.aiScore == resource.data.aiScore
-              || get(companyPath(cid)).data.get('owner', cid) == request.auth.uid);
+          && (
+            // 발전 시작: 아직 발전 중이 아닐 때만, 창고는 그대로예요
+            (resource.data.get('gen', null) == null && genStarts(request.resource.data) && request.resource.data.elec == resource.data.elec)
+            // 창고 받기: 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요
+            || (genDone(resource.data) && request.resource.data.get('gen', null) == null && request.resource.data.elec == resource.data.elec + resource.data.gen.amt)
+            // 그 밖에는 발전 기록과 창고를 그대로 둬요
+            || (request.resource.data.get('gen', null) == resource.data.get('gen', null) && request.resource.data.elec == resource.data.elec)
+          )
+          && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
+              || (labOwner() && request.resource.data.get('rel', null) != null
+                  && request.resource.data.rel.cap == request.resource.data.cap
+                  && request.resource.data.rel.spd == request.resource.data.spd
+                  && request.resource.data.rel.pow == request.resource.data.pow))
+          && (request.resource.data.aiScore == resource.data.aiScore || labOwner());
         allow delete: if false;
       }
 

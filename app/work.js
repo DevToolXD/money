@@ -203,17 +203,17 @@
     if (kind === "nuclear") {
       return `<div class="card wk-work wk-nuc">
         <p class="wk-head">핵연료 배합</p>
-        <p class="wk-note">재료를 섞을 때마다 핵연료 성능이 랜덤으로 올라가요. 성능이 좋으면 같은 전기를 더 적은 핵연료로 만들어요.</p>
-        <div class="wk-nums"><span>핵연료 <b id="lab-nf">…</b>개</span><span>성능 <b id="lab-np">…</b></span></div>
+        <p class="wk-note">핵연료는 처음부터 있어요. 재료를 섞을 때마다 성능이 랜덤으로 올라가고, 성능이 좋을수록 발전이 빨라요.</p>
+        <div class="wk-nums"><span>핵연료 성능 <b id="lab-np">…</b></span></div>
         <button type="button" class="gg wk-mix" id="wk-mix">재료 배합하기</button>
         <p class="wk-count" id="wk-mixlog">아직 배합하지 않았어요</p>
       </div>`;
     }
     return `<div class="card wk-work wk-pc">
       <p class="wk-head">컴퓨터 부품 검사</p>
-      <p class="wk-note">열이 뜨거나 스파크가 튀는 곳을 누르면 성능이 랜덤으로 올라가요. 쌓일수록 개발 중인 컴퓨터가 좋아져요.</p>
+      <p class="wk-note">열이 뜨거나 스파크가 튀는 곳을 누르면 용량·속도·전기 가운데 하나가 랜덤으로 올라가요. 쌓일수록 개발 중인 컴퓨터가 좋아져요.</p>
       <div class="gg wk-board" id="wk-board" aria-label="부품 검사판"><svg class="wk-chip" viewBox="0 0 120 120" aria-hidden="true"><rect x="34" y="34" width="52" height="52" rx="6"/><path d="M48 34V22M60 34V22M72 34V22M48 86v12M60 86v12M72 86v12M34 48H22M34 60H22M34 72H22M86 48h12M86 60h12M86 72h12"/></svg></div>
-      <div class="wk-nums"><span>개발 중 성능 <b id="lab-cpu">…</b></span><span>스택 <b id="wk-stack">0</b></span></div>
+      <div class="wk-nums"><span>용량 <b id="lab-cap">…</b></span><span>속도 <b id="lab-spd">…</b></span><span>전기 <b id="lab-pow">…</b></span><span>검사 <b id="wk-stack">0</b>번</span></div>
     </div>`;
   };
   const quitHTML = (c) => `<button type="button" class="gg wk-quit" data-quit="${esc(c.id)}" data-name="${esc(c.name)}">${esc(c.name)}에서 그만두기</button>`;
@@ -303,10 +303,12 @@
       busy = false;
     }
   };
-  /* ---------- 연구실 숫자 (핵연료·부품·데이터): 누른 것은 모아서 2.5초에 한 번 서버에 보내요 ---------- */
+  /* ---------- 연구실 숫자 (핵연료 성능·컴퓨터 숫자·데이터): 누른 것은 모아서 2.5초에 한 번 서버에 보내요 ---------- */
+  const LAB_KEYS = ["nperf", "cap", "spd", "pow", "aiData"];
+  const zeroPend = () => Object.fromEntries(LAB_KEYS.map((k) => [k, 0]));
   let labCid = null;
   let labView = null; // 화면에 보이는 숫자 (서버 숫자 + 아직 안 보낸 것)
-  let labPend = { nperf: 0, nf: 0, cpu: 0, aiData: 0 };
+  let labPend = zeroPend();
   let labTimer = 0;
   let boardTimer = 0;
   let stack = 0;
@@ -316,20 +318,25 @@
       const el = root.querySelector("#" + id);
       if (el) el.textContent = fmtN(v);
     };
-    set("lab-nf", labView.nf);
     set("lab-np", labView.nperf);
-    set("lab-cpu", labView.cpu);
+    set("lab-cap", labView.cap);
+    set("lab-spd", labView.spd);
+    set("lab-pow", labView.pow);
     set("lab-data", labView.aiData);
   };
   const flushLab = async () => {
     clearTimeout(labTimer);
     labTimer = 0;
     const d = labPend;
-    if (!labCid || !(d.nperf || d.nf || d.cpu || d.aiData)) return;
+    if (!labCid || !LAB_KEYS.some((k) => d[k])) return;
     const cid = labCid;
-    labPend = { nperf: 0, nf: 0, cpu: 0, aiData: 0 };
+    labPend = zeroPend();
     try {
-      await ctx.cloud().labChange(cid, (L) => ({ ...L, nf: L.nf + d.nf, nperf: L.nperf + d.nperf, cpu: L.cpu + d.cpu, aiData: L.aiData + d.aiData }));
+      await ctx.cloud().labChange(cid, (L) => {
+        const next = { ...L };
+        for (const k of LAB_KEYS) next[k] = L[k] + d[k];
+        return next;
+      });
     } catch (err) {
       console.warn("연구실 숫자를 올리지 못했어요:", err?.code || err);
     }
@@ -352,14 +359,15 @@
       console.warn("연구실 숫자를 불러오지 못했어요:", err?.code || err);
     }
   };
-  // 핵연료 배합: 성능이 랜덤으로 올라가고 핵연료가 5개 생겨요
+  // 핵연료 배합: 핵연료는 처음부터 있고, 성능만 랜덤으로 올라가요
   const mix = () => {
     const r = 1 + Math.floor(Math.random() * 30);
-    queueLab({ nperf: r, nf: 5 });
+    queueLab({ nperf: r });
     const log = root.querySelector("#wk-mixlog");
-    if (log) log.textContent = `성능이 ${r} 올랐어요 · 핵연료 +5`;
+    if (log) log.textContent = `핵연료 성능이 ${r} 올랐어요`;
   };
-  // 부품 검사판: 열·스파크가 떴다가 사라져요. 누르면 성능이 랜덤으로 쌓여요
+  // 부품 검사판: 열·스파크가 떴다가 사라져요. 누르면 용량·속도·전기 가운데 하나가 랜덤으로 쌓여요
+  const STAT = [["cap", "용량"], ["spd", "속도"], ["pow", "전기"]];
   const stopGames = () => {
     clearInterval(boardTimer);
     boardTimer = 0;
@@ -383,17 +391,18 @@
   };
   const hitSpot = (spot) => {
     const v = Number(spot.dataset.v) || 1;
+    const [key, label] = STAT[Math.floor(Math.random() * STAT.length)];
     const board = root.querySelector("#wk-board");
     const at = { left: spot.style.left, top: spot.style.top };
     spot.remove();
     stack += 1;
-    queueLab({ cpu: v });
+    queueLab({ [key]: v });
     const s = root.querySelector("#wk-stack");
     if (s) s.textContent = String(stack);
     if (board) {
       const f = document.createElement("span");
       f.className = "wk-float";
-      f.textContent = `+${v}`;
+      f.textContent = `${label} +${v}`;
       f.style.left = at.left;
       f.style.top = at.top;
       board.appendChild(f);

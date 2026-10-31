@@ -83,10 +83,22 @@ const companyOf = (id, d) => ({
   products: Array.isArray(d.products) ? d.products : [],
   at: ms(d.at),
 });
-// 연구실 숫자 기본값 (핵연료 성능 100, 컴퓨터·AI는 0, 출시 전은 -1)
+// 연구실 숫자 기본값: 원자력(핵연료 성능 100, 창고 전기, 발전 기록), 컴퓨터(처리 용량·속도·전기값과 출시 값), 인공지능(데이터와 출시 점수)
 const labOf = (d) => {
   const n = (v, dflt) => (Number.isInteger(v) ? v : dflt);
-  return { nf: n(d?.nf, 0), nperf: n(d?.nperf, 100), elec: n(d?.elec, 0), cpu: n(d?.cpu, 0), cpuRel: n(d?.cpuRel, -1), aiData: n(d?.aiData, 0), aiScore: n(d?.aiScore, -1) };
+  const g = d?.gen;
+  const r = d?.rel;
+  return {
+    nperf: n(d?.nperf, 100),
+    elec: n(d?.elec, 0),
+    gen: g && Number.isInteger(g.amt) && Number.isInteger(g.secs) && g.started ? { amt: g.amt, secs: g.secs, started: g.started } : null,
+    cap: n(d?.cap, 0),
+    spd: n(d?.spd, 0),
+    pow: n(d?.pow, 0),
+    rel: r && Number.isInteger(r.cap) && Number.isInteger(r.spd) && Number.isInteger(r.pow) ? { cap: r.cap, spd: r.spd, pow: r.pow } : null,
+    aiData: n(d?.aiData, 0),
+    aiScore: n(d?.aiScore, -1),
+  };
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
 
@@ -178,6 +190,17 @@ window.cloudReady = (async () => {
     let listCursor = null;
     const rank = { sent: null, at: 0, me: null, top: null, topAt: 0 };
     let ensured = "";
+    // 연구실 숫자 한 묶음: 읽고, fn이 새 숫자를 주면 저장해요 (null을 주면 아무 일도 안 해요)
+    const labTx = (cid, fn) =>
+      runTransaction(db, async (tx) => {
+        const ref = doc(db, "companies", cid, "lab", "main");
+        const s = await tx.get(ref);
+        const next = fn(labOf(s.exists() ? s.data() : null));
+        if (!next) return null;
+        const clean = labOf(next);
+        tx.set(ref, clean);
+        return clean;
+      }).catch(rethrow);
     window.cloud = {
       get uid() {
         return auth.currentUser?.uid || "";
@@ -388,16 +411,20 @@ window.cloudReady = (async () => {
         const s = await getDoc(doc(db, "companies", cid, "lab", "main")).catch(rethrow);
         return labOf(s.exists() ? s.data() : null);
       },
-      labChange: (cid, fn) =>
-        runTransaction(db, async (tx) => {
-          const ref = doc(db, "companies", cid, "lab", "main");
-          const s = await tx.get(ref);
-          const next = fn(labOf(s.exists() ? s.data() : null));
-          if (!next) return null;
-          const clean = labOf(next);
-          tx.set(ref, clean);
-          return clean;
-        }).catch(rethrow),
+      labChange: labTx,
+      // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (전기 × 100 ÷ 성능, 올림). 이미 발전 중이면 아무 일도 안 해요
+      labGenStart: (cid, amt) =>
+        labTx(cid, (L) => (L.gen ? null : { ...L, gen: { amt, secs: Math.ceil((amt * 100) / L.nperf), started: serverTimestamp() } })).then((r) => r !== null),
+      // 창고 받기: 발전 시간이 지났으면 발전량을 창고에 넣고 받은 양을 돌려줘요 (아직이면 0)
+      labGenClaim: async (cid) => {
+        let got = 0;
+        const r = await labTx(cid, (L) => {
+          if (!L.gen || Date.now() < L.gen.started.toMillis() + L.gen.secs * 1000) return null;
+          got = L.gen.amt;
+          return { ...L, elec: L.elec + L.gen.amt, gen: null };
+        });
+        return r ? got : 0;
+      },
       /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
          이름 바꾸기, 판매 멈춤(paused), 판매 종료(active를 false로)만 바꿀 수 있어요 ----- */
       listProducts: async (cid = uidOf()) => {
