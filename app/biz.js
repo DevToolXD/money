@@ -592,6 +592,7 @@
     document.getElementById("biz-empty").hidden = products.length > 0;
   };
   async function refresh() {
+    paintHire();
     const cloud = ctx?.cloud();
     if (!cloud?.user || !ctx.company()) {
       products = [];
@@ -778,11 +779,66 @@
     stage.addEventListener("input", onInput);
     stage.addEventListener("focusout", onBlur);
     document.getElementById("biz-pick").addEventListener("click", open);
+    document.getElementById("hire-minus").innerHTML = svgI('<path d="M5 12h14"/>');
+    document.getElementById("hire-plus").innerHTML = svgI('<path d="M12 5v14M5 12h14"/>');
+    document.getElementById("hire-minus").addEventListener("click", () => stepHire(-1));
+    document.getElementById("hire-plus").addEventListener("click", () => stepHire(1));
+    document.getElementById("hire-go").addEventListener("click", postHire);
     document.getElementById("biz-list").addEventListener("click", (e) => {
       const b = e.target.closest("[data-more]");
       if (b) onMore(b.dataset.more);
     });
   };
 
-  window.Business = { init, refresh };
+  /* ---------- 직원 채용: 사람만 골라요 (인공지능 직원은 아직 막아 두었어요).
+     + − 로 올릴 인원을 정하고 모집 올리기를 누르면 채용 공고가 올라가요 (한 번에 10명, 모집 중은 20명까지) ---------- */
+  const HIRE_MAX = 10;
+  const OPEN_MAX = 20;
+  let hireN = 1;
+  let hiring = false;
+  const paintHire = () => {
+    const co = ctx?.company();
+    if (!co) return;
+    const open = co.open ?? 0;
+    const room = Math.max(0, Math.min(HIRE_MAX, OPEN_MAX - open));
+    hireN = Math.min(Math.max(hireN, 1), Math.max(room, 1));
+    document.getElementById("hire-stat").textContent = `모집 중 ${open}명 · 직원 ${co.staff ?? 0}명`;
+    document.getElementById("hire-num").textContent = String(hireN);
+    document.getElementById("hire-minus").disabled = hireN <= 1;
+    document.getElementById("hire-plus").disabled = hireN >= room;
+    document.getElementById("hire-go").disabled = room < 1 || hiring;
+    document.getElementById("hire-note").textContent =
+      room < 1 ? `모집 중이 ${OPEN_MAX}명이라 더 올릴 수 없어요` : `한 번에 ${HIRE_MAX}명까지 올릴 수 있어요. 지금은 ${room}명까지 가능해요`;
+  };
+  const stepHire = (d) => {
+    hireN += d;
+    paintHire();
+    const el = document.getElementById("hire-num");
+    el.classList.remove("pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+  };
+  const postHire = async () => {
+    const co = ctx?.company();
+    if (!co || hiring) return;
+    const n = hireN;
+    hiring = true;
+    const btn = document.getElementById("hire-go");
+    btn.classList.add("busy");
+    try {
+      await ctx.cloud().postOpenings(n);
+      ctx.patchCompany({ open: (co.open ?? 0) + n });
+      ctx.toast(`${n}명을 모집해요`);
+    } catch (err) {
+      ctx.toast(err?.code === "permission-denied" ? `모집하지 못했어요. 모집 중은 ${OPEN_MAX}명까지예요` : "모집하지 못했어요. 잠시 뒤 다시 해 주세요");
+    } finally {
+      hiring = false;
+      btn.classList.remove("busy");
+      paintHire();
+    }
+  };
+  // 회사 종류 그림 (일 탭에서도 같은 그림을 써요)
+  const kindSvg = (k) => svgI(ICON[k === "pc" ? "pc" : k === "ai" ? "ai" : "food"]);
+
+  window.Business = { init, refresh, kindSvg };
 })();

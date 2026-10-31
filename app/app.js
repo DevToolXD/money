@@ -1157,6 +1157,7 @@
     }
     renderBiz();
     if (company) window.Business.refresh();
+    if (screens.get("work").classList.contains("is-active")) window.Work.refresh(true);
   };
   // 창업
   // 사업 탭: 팔 상품 정하기 화면과 판매 목록 (app/biz.js)
@@ -1166,12 +1167,36 @@
     safeImg: (v, max) => safeImg(v, max),
     toast: (m) => toast(m),
     ask: (o) => ask(o),
+    patchCompany: (p) => {
+      company = { ...company, ...p };
+    },
+  });
+  // 일 탭: 회사 일을 하거나, 회사를 종류별로 보고 지원해요 (app/work.js)
+  window.Work.init({
+    cloud: () => window.cloud,
+    company: () => company,
+    mark: (name, logo, cls) => avatarHTML(name, logo, cls),
+    toast: (m) => toast(m),
+    ask: (o) => ask(o),
   });
   const foundName = document.getElementById("found-name");
   const foundErr = document.getElementById("found-err");
   const foundGo = document.getElementById("found-go");
   let foundLogo = "";
   let founding = false;
+  // 회사 종류: 식품 · 컴퓨터 · 인공지능 (고르면 가운데 흰 칸이 미끄러져 가요)
+  let foundKind = "food";
+  const paintFoundKind = () => {
+    const box = document.getElementById("found-kinds");
+    box.style.setProperty("--i", String(Math.max(0, ["food", "pc", "ai"].indexOf(foundKind))));
+    box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.kind === foundKind)));
+  };
+  document.getElementById("found-kinds").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-kind]");
+    if (!b) return;
+    foundKind = b.dataset.kind;
+    paintFoundKind();
+  });
   const paintFoundLogo = () => {
     const img = document.getElementById("found-logo-img");
     const ok = safeImg(foundLogo, 40000);
@@ -1182,6 +1207,8 @@
     if (!live) return window.cloud?.user ? toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요") : showLogin(true);
     if (!bank.ready || bank.bal < 10) return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
     foundName.value = "";
+    foundKind = "food";
+    paintFoundKind();
     foundLogo = "";
     foundErr.textContent = "";
     paintFoundLogo();
@@ -1212,12 +1239,13 @@
     foundGo.classList.add("busy");
     foundErr.textContent = "";
     try {
-      await walletOp(() => window.cloud.foundCompany(name, foundLogo));
-      company = { name, logo: foundLogo, products: [], at: Date.now() };
+      await walletOp(() => window.cloud.foundCompany(name, foundLogo, foundKind));
+      company = { name, logo: foundLogo, kind: foundKind, open: 0, staff: 0, products: [], at: Date.now() };
       logTx({ t: Date.now(), name: "창업", cat: "사업", icon: "store", amt: -10 });
       sheetOpen(false);
       renderBiz();
       window.Business.refresh();
+      window.Work.refresh(true);
       toast(`${name}을(를) 창업했어요`);
     } catch (err) {
       foundErr.textContent = err?.code === "permission-denied" ? "창업하지 못했어요. 이미 회사가 있거나 토큰이 부족해요" : "창업하지 못했어요. 잠시 뒤 다시 해 주세요";
@@ -1963,6 +1991,7 @@
     mon.classList.toggle("member", signedIn);
     screens.get("ranking").classList.toggle("guest", !signedIn);
     screens.get("business").classList.toggle("guest", !signedIn);
+    screens.get("work").classList.toggle("guest", !signedIn);
     document.getElementById("auth-card").hidden = signedIn;
     document.getElementById("auth-row").hidden = !signedIn;
     document.getElementById("profile-id").textContent = signedIn ? "@" + id : "";
@@ -2071,6 +2100,7 @@
     updateChrome(screens.get(name));
     if (name === "money") renderMoney();
     if (name === "ranking") loadRank(false);
+    if (name === "work") window.Work.refresh();
     backdrop?.setActive(name);
     tabbar.requestRender();
   });

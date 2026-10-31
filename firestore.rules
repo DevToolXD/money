@@ -62,6 +62,7 @@ service cloud.firestore {
     }
     function msgPath(cid, mid) { return /databases/$(database)/documents/chats/$(cid)/messages/$(mid); }
     function companyPath(uid) { return /databases/$(database)/documents/companies/$(uid); }
+    function jobPath(uid) { return /databases/$(database)/documents/jobs/$(uid); }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
 
     // ----- 랭킹: 내 지갑 잔액과 똑같은 값만 쓸 수 있어요 (이름·아이디도 내 프로필과 같아야 해요). 20초에 한 번만 갱신해요 -----
@@ -81,21 +82,48 @@ service cloud.firestore {
         && request.resource.data.name == get(/databases/$(database)/documents/profiles/$(uid)).data.name;
     }
 
-    // ----- 회사: 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만 만들 수 있어요. 팔 상품만 나중에 바꿔요 -----
+    // ----- 회사: 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만. 사장은 채용 공고(open)만 올려요.
+    //       직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 모집·직원 수가 함께 바뀔 때만 -----
     match /companies/{uid} {
       allow get: if signedIn();
-      allow list: if signedIn() && request.query.limit <= 20;
+      allow list: if signedIn() && request.query.limit <= 50;
       allow create: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['name', 'logo', 'products', 'at'])
+        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'products', 'open', 'staff', 'at'])
         && request.resource.data.name is string
         && request.resource.data.name.matches('^[^<>]{1,20}$')
         && photoOk(request.resource.data.logo)
+        && request.resource.data.kind in ['food', 'pc', 'ai']
         && request.resource.data.products == []
+        && request.resource.data.open == 0
+        && request.resource.data.staff == 0
         && request.resource.data.at == request.time
         && getAfter(walletPath(uid)).data.op.kind == 'found'
         && getAfter(walletPath(uid)).data.bal == get(walletPath(uid)).data.bal - 10;
-      // 회사 정보는 더 바꿀 수 없어요. 파는 상품은 아래 products 모음에서 따로 관리해요
-      allow update: if false;
+      allow update: if signedIn() && (
+        // 사장: 채용 공고만 올려요. 한 번에 1~10명씩, 모집 중은 최대 20명까지예요
+        (isMe(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
+          && request.resource.data.open is int
+          && request.resource.data.open > resource.data.get('open', 0)
+          && request.resource.data.open - resource.data.get('open', 0) <= 10
+          && request.resource.data.open <= 20)
+        ||
+        // 입사: 같은 묶음에서 내 일자리 기록이 생기고, 모집이 1명 줄고 직원이 1명 늘어요
+        (request.auth.uid != uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open', 'staff'])
+          && resource.data.get('open', 0) >= 1
+          && request.resource.data.open == resource.data.get('open', 0) - 1
+          && request.resource.data.staff == resource.data.get('staff', 0) + 1
+          && getAfter(jobPath(request.auth.uid)).data.cid == uid)
+        ||
+        // 퇴사: 같은 묶음에서 내 일자리 기록이 지워지고, 직원이 1명 줄어요
+        (request.auth.uid != uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['staff'])
+          && request.resource.data.staff == resource.data.get('staff', 0) - 1
+          && request.resource.data.staff >= 0
+          && get(jobPath(request.auth.uid)).data.cid == uid
+          && !existsAfter(jobPath(request.auth.uid)))
+      );
 
       // 팔 상품: 한 상품이 한 문서예요. 만들 때 종류·모양·색·원가·가격을 모두 검사해요 (원가·가격은 센트 정수예요: 50 = 0.5 토큰).
       // 나중에는 이름 바꾸기, 판매 멈춤·다시 시작(paused), 판매 종료(active를 false로)만 할 수 있어요. 판매를 끝낸 상품은 더 못 바꿔요
@@ -148,6 +176,23 @@ service cloud.firestore {
           );
         allow delete: if false;
       }
+    }
+
+    // ----- 일자리: 내가 다니는 회사 한 곳이에요. 만들거나 지우는 것은 회사 인원이 같은 묶음에서 바뀔 때만 -----
+    match /jobs/{uid} {
+      allow get: if isMe(uid);
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['cid', 'kind', 'at'])
+        && request.resource.data.cid is string
+        && request.resource.data.cid != uid
+        && request.resource.data.kind in ['food', 'pc', 'ai']
+        && request.resource.data.at == request.time
+        && !exists(companyPath(uid)) // 사장은 다른 회사에 다닐 수 없어요
+        && getAfter(companyPath(request.resource.data.cid)).data.get('kind', 'food') == request.resource.data.kind
+        && getAfter(companyPath(request.resource.data.cid)).data.get('staff', 0) == get(companyPath(request.resource.data.cid)).data.get('staff', 0) + 1;
+      allow delete: if isMe(uid)
+        && getAfter(companyPath(resource.data.cid)).data.get('staff', 0) == get(companyPath(resource.data.cid)).data.get('staff', 0) - 1;
+      allow update: if false;
     }
 
     // ----- 상태(배고픔·목마름·에너지): 값은 시간이 지나면 닳기만 해요. 쓰러졌을 때만 기록하고, 그때 다 10%로 돌아오며 1·2·3시간… 쉬어요 -----

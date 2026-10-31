@@ -69,6 +69,18 @@ const explain = (err) =>
   dbDown(err) ? "서버 데이터베이스(Firestore)가 꺼져 있어요. 관리자가 Firebase에서 켜야 해요" : MESSAGES[err?.code] || "처리하지 못했어요. 잠시 뒤 다시 해 주세요";
 const toEmail = (id) => `${id.trim().toLowerCase()}@money-sim.app`;
 const ms = (t) => (t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0);
+// 회사 문서를 화면에서 쓰는 모양으로 바꿔요. 예전 회사는 종류·모집·직원 값이 없어서 기본값(식품, 0명)으로 봐요
+const KINDS = ["food", "pc", "ai"];
+const companyOf = (id, d) => ({
+  id,
+  name: d.name || "",
+  logo: d.logo || "",
+  kind: KINDS.includes(d.kind) ? d.kind : "food",
+  open: Number.isInteger(d.open) ? d.open : 0,
+  staff: Number.isInteger(d.staff) ? d.staff : 0,
+  products: Array.isArray(d.products) ? d.products : [],
+  at: ms(d.at),
+});
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
 
 const PROFILE_TTL = 30 * 60 * 1000;
@@ -306,22 +318,56 @@ window.cloudReady = (async () => {
       /* ----- 회사 ----- */
       loadCompany: async () => {
         const s = await getDoc(doc(db, "companies", uidOf())).catch(rethrow);
+        return s.exists() ? companyOf(uidOf(), s.data()) : null;
+      },
+      getCompany: async (cid) => {
+        const s = await getDoc(doc(db, "companies", cid)).catch(rethrow);
+        return s.exists() ? companyOf(cid, s.data()) : null;
+      },
+      // 회사 목록: 최근에 만든 50곳을 가져와요. 이름을 쓰면 그 이름으로 시작하는 곳을 20곳까지 찾아요
+      listCompanies: async (q = "") => {
+        const term = String(q).trim().replace(/\s+/g, " ").slice(0, 20);
+        const ref = collection(db, "companies");
+        const snap = await (term
+          ? getDocs(query(ref, orderBy("name"), where("name", ">=", term), where("name", "<=", term + ""), limit(20)))
+          : getDocs(query(ref, orderBy("at", "desc"), limit(50)))).catch(rethrow);
+        return snap.docs.map((d) => companyOf(d.id, d.data({ serverTimestamps: "estimate" })));
+      },
+      // 채용 공고: 모집 인원을 n명 늘려요 (한 번에 10명, 모집 중은 20명까지는 서버가 지켜요)
+      postOpenings: (n) => updateDoc(doc(db, "companies", uidOf()), { open: increment(n) }).catch(rethrow),
+      // 내가 다니는 회사 기록 (없으면 null)
+      loadMyJob: async () => {
+        const s = await getDoc(doc(db, "jobs", uidOf())).catch(rethrow);
         if (!s.exists()) return null;
-        const d = s.data();
-        return { name: d.name, logo: d.logo || "", products: Array.isArray(d.products) ? d.products : [], at: ms(d.at) };
+        const d = s.data({ serverTimestamps: "estimate" });
+        return { cid: d.cid, kind: d.kind, at: ms(d.at) };
+      },
+      // 입사 지원: 일자리 기록을 만들고, 회사 모집은 1명 줄고 직원은 1명 늘어요 (한 묶음)
+      applyJob: async (cid, kind) => {
+        const b = writeBatch(db);
+        b.set(doc(db, "jobs", uidOf()), { cid, kind, at: serverTimestamp() });
+        b.update(doc(db, "companies", cid), { open: increment(-1), staff: increment(1) });
+        await b.commit().catch(rethrow);
+      },
+      // 퇴사: 일자리 기록을 지우고 직원은 1명 줄어요 (한 묶음)
+      quitJob: async (cid) => {
+        const b = writeBatch(db);
+        b.delete(doc(db, "jobs", uidOf()));
+        b.update(doc(db, "companies", cid), { staff: increment(-1) });
+        await b.commit().catch(rethrow);
       },
       // 창업: 회사 문서와 10 토큰이 빠지는 지갑 쓰기를 한 묶음으로 보내요
-      foundCompany: async (name, logo) => {
+      foundCompany: async (name, logo, kind = "food") => {
         const b = writeBatch(db);
-        b.set(doc(db, "companies", uidOf()), { name, logo, products: [], at: serverTimestamp() });
+        b.set(doc(db, "companies", uidOf()), { name, logo, kind, products: [], open: 0, staff: 0, at: serverTimestamp() });
         b.update(walletRef(), { bal: increment(-10), wt: serverTimestamp(), op: { kind: "found" } });
         await b.commit();
       },
 
       /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
          이름 바꾸기, 판매 멈춤(paused), 판매 종료(active를 false로)만 바꿀 수 있어요 ----- */
-      listProducts: async () => {
-        const snap = await getDocs(query(collection(db, "companies", uidOf(), "products"), where("active", "==", true), limit(50))).catch(rethrow);
+      listProducts: async (cid = uidOf()) => {
+        const snap = await getDocs(query(collection(db, "companies", cid, "products"), where("active", "==", true), limit(50))).catch(rethrow);
         return snap.docs.map((d) => {
           const v = d.data({ serverTimestamps: "estimate" });
           // 예전 상품은 토큰 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
