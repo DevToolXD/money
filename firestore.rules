@@ -27,7 +27,8 @@ service cloud.firestore {
         && request.resource.data.id == myId()
         && request.resource.data.id.matches('^[a-z0-9_]{3,20}$')
         && request.resource.data.name is string
-        && (request.resource.data.name.matches('^[가-힣]{2,6}$') || request.resource.data.name.matches('^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$'))
+        && (request.resource.data.name.matches('^[가-힣]{2,6}$') || request.resource.data.name.matches('^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$')
+            || request.resource.data.name == request.resource.data.id) // 이름이 없던 옛 계정은 아이디를 이름으로 써요
         && photoOk(request.resource.data.photo);
       allow update: if isMe(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])

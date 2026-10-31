@@ -79,6 +79,12 @@ await t("영문 이름은 허용돼요", async () => {
   const db = pw("uA", "alice");
   await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "John Smith", photo: "" }));
 });
+await t("이름이 없던 옛 계정은 아이디를 이름으로 쓸 수 있어요 (아이디와 다른 별명은 여전히 막혀요)", async () => {
+  const db = pw("uA", "alice");
+  await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "alice", photo: "" }));
+  const db2 = pw("uB", "bob");
+  await assertFails(setDoc(doc(db2, "profiles/uB"), { id: "bob", name: "alice9", photo: "" }));
+});
 await t("이름·아이디는 바꿀 수 없고 사진만 바꿀 수 있어요", async () => {
   await seed(seedBase);
   const db = pw("uA", "alice");

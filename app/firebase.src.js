@@ -7,6 +7,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "firebase/app";
 import {
   initializeAuth,
+  connectAuthEmulator,
   indexedDBLocalPersistence,
   browserLocalPersistence,
   onAuthStateChanged,
@@ -18,6 +19,7 @@ import {
 } from "firebase/auth";
 import {
   initializeFirestore,
+  connectFirestoreEmulator,
   memoryLocalCache,
   doc,
   getDoc,
@@ -67,6 +69,12 @@ window.cloudReady = (async () => {
     auth.languageCode = "ko";
     // 느린 망이나 프록시에서도 끊기지 않게 자동으로 긴 연결 방식을 골라요. 오프라인 저장은 쓰지 않아요(메모리만).
     const db = initializeFirestore(app, { localCache: memoryLocalCache(), experimentalAutoDetectLongPolling: true });
+
+    // 시험용 묶음에서만 켜져요 (실제 묶음에서는 __EMU__가 false라 이 줄이 통째로 사라져요)
+    if (__EMU__) {
+      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+      connectFirestoreEmulator(db, "127.0.0.1", 8081);
+    }
 
     // 로그인 상태가 정해질 때까지 한 번만 기다려요
     await new Promise((resolve) => {
@@ -133,6 +141,7 @@ window.cloudReady = (async () => {
     };
 
     let listCursor = null;
+    let ensured = "";
     window.cloud = {
       get uid() {
         return auth.currentUser?.uid || "";
@@ -162,7 +171,7 @@ window.cloudReady = (async () => {
       // 예전 버전으로 만든 계정에는 사람 정보가 없어서 한 번 채워요
       ensureAccount: async () => {
         const uid = uidOf();
-        if (localStorage.getItem("acct-ok") === uid) return;
+        if (ensured === uid) return; // 한 번 열 때마다 한 번만 확인해요
         const ref = doc(db, "profiles", uid);
         let exists = true;
         try {
@@ -170,8 +179,21 @@ window.cloudReady = (async () => {
         } catch (_) {
           exists = false;
         }
-        if (!exists) await setDoc(ref, { id: myId(), name: auth.currentUser.displayName || "", photo: "" });
-        localStorage.setItem("acct-ok", uid);
+        if (!exists) {
+          // 옛 방식으로 만든 계정은 프로필이 없어요. 실명이 있으면 쓰고, 없으면 아이디를 이름으로 써요
+          const okName = (n) => typeof n === "string" && (/^[가-힣]{2,6}$/.test(n) || /^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$/.test(n));
+          let name = auth.currentUser.displayName || "";
+          if (!okName(name)) {
+            try {
+              const s = await getDoc(doc(db, "users", uid));
+              name = String(s.data()?.profile?.name || "");
+            } catch (_) {
+              name = "";
+            }
+          }
+          await setDoc(ref, { id: myId(), name: okName(name) ? name : myId(), photo: "" });
+        }
+        ensured = uid;
       },
 
       /* ----- 내 설정 (프로필 글, 대화 배경) ----- */

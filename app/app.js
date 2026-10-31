@@ -1542,11 +1542,15 @@
       return;
     }
     try {
-      await fn(window.cloud);
+      // 서버가 답이 없어도 버튼이 영원히 돌지 않게 25초에서 끊어요
+      let giveUp;
+      const late = new Promise((_, rej) => { giveUp = setTimeout(() => rej(new Error("서버 응답이 너무 늦어요. 잠시 뒤 다시 해 주세요")), 25000); });
+      try { await Promise.race([fn(window.cloud), late]); } finally { clearTimeout(giveUp); }
       store.set("login-lock", "{}");
       // 새로고침 없이 바로 들어가요: 가입하면 이미 로그인된 상태라 화면만 로그인한 계정으로 바꿔요
       started = false;
-      await boot(window.cloud);
+      renderAuth(window.cloud);
+      boot(window.cloud); // 지갑·대화는 뒤에서 불러와요 (기다리지 않아요)
       showLogin(false);
       setBusy(false);
       pwEl.value = pw2El.value = "";
@@ -1759,7 +1763,7 @@
       store.set("profile-name", cloud.user.name);
       applyProfile();
     }
-    try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); }
+    try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); toast("계정 정보를 만들지 못했어요. 새로고침해 주세요"); }
     startWallet();
     chats.length = 0;
     renderChats();

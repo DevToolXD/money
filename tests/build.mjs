@@ -5,7 +5,8 @@ import path from "node:path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const result = await build({
   entryPoints: [path.join(here, "../app/firebase.src.js")],
-  outfile: path.join(here, "../app/firebase.js"),
+  outfile: process.env.EMU ? path.join(here, "out/firebase.emu.js") : path.join(here, "../app/firebase.js"),
+  define: { __EMU__: process.env.EMU ? "true" : "false" },
   bundle: true,
   minify: true,
   format: "esm",
