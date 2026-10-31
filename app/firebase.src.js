@@ -558,6 +558,25 @@ window.cloudReady = (async () => {
           return tokens;
         }).catch(rethrow),
       // 상점 진열대: 재고가 있는 음식을 여러 회사에서 모아요 (최대 50개). 파는 회사의 이름과 로고도 함께 읽어요
+      // 꺼내 먹기 (사장): 회사 창고에서 한 개를 꺼내 먹어요. 재고가 한 개 줄고, 먹은 사람의 상태가 같은 묶음에서 올라가요.
+      //   물은 목마름 +40, 음식(간식) 배고픔 +20, 식사 배고픔 +40, 에너지 식품 에너지 +40 (100을 넘지 않아요). v는 지금 상태 {h,t,e,at,deaths}
+      eatFromStock: async (cid, pid, group, v) => {
+        const gain = { water: ["t", 40], snack: ["h", 20], meal: ["h", 40], energy: ["e", 40] }[group];
+        const FULL = { h: 86400000, t: 64800000, e: 129600000 }; // 0%까지 닳는 데 걸리는 밀리초 (서버 규칙과 같아요)
+        if (!gain) throw Object.assign(new Error("먹을 수 없는 상품이에요"), { code: "bad" });
+        const now = Date.now();
+        const next = {};
+        for (const k of ["h", "t", "e"]) {
+          const left = v[k] - ((now - v.at) * 100) / FULL[k];
+          if (left <= 0) throw Object.assign(new Error("쓰러져 있어서 지금은 먹을 수 없어요"), { code: "fainted" });
+          next[k] = k === gain[0] ? Math.min(100, left + gain[1]) : left;
+        }
+        const b = writeBatch(db);
+        b.update(doc(db, "companies", cid, "products", pid), { stock: increment(-1) });
+        b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid } });
+        await b.commit().catch(rethrow);
+        return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid } };
+      },
       listShop: async () => {
         const snap = await getDocs(query(collectionGroup(db, "products"), where("stock", ">", 0), limit(50))).catch(rethrow);
         const items = snap.docs

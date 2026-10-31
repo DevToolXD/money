@@ -1416,3 +1416,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .card.shop-note .art.mint { height: 150px; }
 .shop-retry { margin-top: 16px; width: 100%; }
 @media (max-width: 340px) { .shop-grid { gap: 8px; } }
+
+/* 사업 탭: 창고 음식 꺼내 먹기 (사장만) */
+.biz-eat { flex: none; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--apple-blue-subtle); color: var(--apple-blue); font-size: 13px; font-weight: 700; }
+.biz-eat.busy { opacity: 0.6; pointer-events: none; }

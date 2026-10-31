@@ -486,6 +486,11 @@ service cloud.firestore {
         }
         allow update: if signedIn() && producing();
         allow update: if signedIn() && shopping();
+        // 꺼내 먹기 (사장만): 창고에서 한 개만 줄어요. 먹기 기록(vitals)은 같은 묶음에서 써야 하고, 그쪽에서 이 줄어듦을 확인해요
+        allow update: if signedIn() && resource.data.get('owner', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+          && request.resource.data.stock == resource.data.get('stock', 0) - 1
+          && request.resource.data.stock >= 0;
         allow delete: if false;
       }
     }
@@ -522,17 +527,59 @@ service cloud.firestore {
         && request.resource.data.at is int
         && request.resource.data.at >= request.time.toMillis() - 120000
         && request.resource.data.at <= request.time.toMillis() + 120000;
-      allow update: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths'])
-        && request.time.toMillis() >= resource.data.at
-        && request.resource.data.deaths == resource.data.deaths + 1
-        && request.resource.data.h == 10 && request.resource.data.t == 10 && request.resource.data.e == 10
-        && request.resource.data.at is int
-        && request.resource.data.at >= request.time.toMillis() + request.resource.data.deaths * 3600000 - 120000
-        && request.resource.data.at <= request.time.toMillis() + request.resource.data.deaths * 3600000 + 120000
-        && (resource.data.h - (request.time.toMillis() - resource.data.at) * 100.0 / 86400000.0 <= 2
-          || resource.data.t - (request.time.toMillis() - resource.data.at) * 100.0 / 64800000.0 <= 2
-          || resource.data.e - (request.time.toMillis() - resource.data.at) * 100.0 / 129600000.0 <= 2);
+      // 먹기: 사장이 회사 창고에서 한 개를 꺼내 먹어요. 같은 묶음에서 그 상품의 재고가 한 개 줄어야 해요 (먹은 상품은 eat에 적어요)
+      //   물은 목마름 +40, 음식(간식) 배고픔 +20, 식사 배고픔 +40, 에너지 식품 에너지 +40. 100을 넘지 않고, 닳은 만큼은 시간 계산 그대로예요
+      function eatPath() { return /databases/$(database)/documents/companies/$(request.resource.data.eat.cid)/products/$(request.resource.data.eat.pid); }
+      function dec(v, full) { return v - (request.time.toMillis() - resource.data.at) * 100.0 / full; }
+      function nearTo(v, x) { return v <= 100 && v <= x + 0.5 && (v >= x - 0.5 || (x > 100 && v >= 99.5)); }
+      function eatOk() {
+        return request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths', 'eat'])
+          && request.resource.data.deaths == resource.data.deaths
+          && request.resource.data.eat is map
+          && request.resource.data.eat.keys().hasOnly(['cid', 'pid'])
+          && request.resource.data.eat.cid is string
+          && request.resource.data.eat.pid is string
+          && request.time.toMillis() >= resource.data.at
+          && request.resource.data.at is int
+          && request.resource.data.at >= request.time.toMillis() - 120000
+          && request.resource.data.at <= request.time.toMillis() + 120000
+          && get(eatPath()).data.get('owner', '') == request.auth.uid
+          && get(eatPath()).data.get('stock', 0) >= 1
+          && getAfter(eatPath()).data.get('stock', 0) == get(eatPath()).data.get('stock', 0) - 1
+          && (
+            (get(eatPath()).data.group == 'water'
+              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000) + 40)
+              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000))
+              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
+            || (get(eatPath()).data.group == 'snack'
+              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + 20)
+              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000))
+              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
+            || (get(eatPath()).data.group == 'meal'
+              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + 40)
+              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000))
+              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
+            || (get(eatPath()).data.group == 'energy'
+              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000) + 40)
+              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000))
+              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000)))
+          );
+      }
+      allow update: if isMe(uid) && (
+        // 쓰러짐 기록 (그대로): 먹기 기록(eat)은 건드리지 않아요
+        (request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths', 'eat'])
+          && request.resource.data.get('eat', null) == resource.data.get('eat', null)
+          && request.time.toMillis() >= resource.data.at
+          && request.resource.data.deaths == resource.data.deaths + 1
+          && request.resource.data.h == 10 && request.resource.data.t == 10 && request.resource.data.e == 10
+          && request.resource.data.at is int
+          && request.resource.data.at >= request.time.toMillis() + request.resource.data.deaths * 3600000 - 120000
+          && request.resource.data.at <= request.time.toMillis() + request.resource.data.deaths * 3600000 + 120000
+          && (resource.data.h - (request.time.toMillis() - resource.data.at) * 100.0 / 86400000.0 <= 2
+            || resource.data.t - (request.time.toMillis() - resource.data.at) * 100.0 / 64800000.0 <= 2
+            || resource.data.e - (request.time.toMillis() - resource.data.at) * 100.0 / 129600000.0 <= 2))
+        || eatOk()
+      );
     }
 
     match /wallets/{uid} {

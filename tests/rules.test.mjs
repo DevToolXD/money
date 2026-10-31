@@ -1057,6 +1057,65 @@ await t("상점: 재고가 있는 음식 상품을 여러 회사에서 한꺼번
   await assertFails(getDocs(query(collectionGroup(anon(), "products"), limit(5))));
 });
 
+console.log("\n[먹기]");
+// 먹기: 사장이 회사 창고에서 한 개를 꺼내 먹어요. 같은 묶음에서 상품 재고가 한 개 줄고, 먹은 사람의 상태가 올라가요
+const dec1h = (v, full) => v - (3600e3 * 100) / full; // 한 시간 전에 기록한 값이 지금 닳은 만큼
+const readVit = async (uid) => { let d; await env.withSecurityRulesDisabled(async (c) => { d = (await getDoc(doc(c.firestore(), "vitals/" + uid))).data(); }); return d; };
+const vitSeed = (uid, over = {}) => seed((d) => setDoc(doc(d, "vitals/" + uid), { h: 60, t: 30, e: 60, at: Date.now() - 3600e3, deaths: 0, ...over }));
+// 먹기 묶음: 창고 한 개 줄이기와 상태 쓰기를 같은 묶음으로 보내요
+const eatBatch = (db, uid, o) => {
+  const b = writeBatch(db);
+  b.update(prodRef(db, o.pid, o.cid), { stock: increment(-1) });
+  b.update(doc(db, "vitals/" + uid), { h: o.h, t: o.t, e: o.e, at: o.at ?? Date.now(), eat: { cid: o.cid, pid: o.pid } });
+  return b.commit();
+};
+await t("먹기: 사장이 물을 꺼내 먹으면 목마름이 40 올라가고 재고가 한 개 줄어요 (나머지는 그대로)", async () => {
+  await coSeed();
+  await prodSeed("uA", "p1", { stock: 3, group: "water" });
+  await vitSeed("uA");
+  const alice = pw("uA", "alice");
+  const t2 = dec1h(30, 64800000) + 40;
+  await assertFails(updateDoc(doc(alice, "vitals/uA"), { h: dec1h(60, 86400000), t: t2, e: dec1h(60, 129600000), at: Date.now(), eat: { cid: "uA", pid: "p1" } })); // 창고를 줄이지 않으면 안 돼요
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000), e: dec1h(60, 129600000) })); // 목마름이 안 오르면 안 돼요
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000) - 10, t: t2, e: dec1h(60, 129600000) })); // 다른 상태를 마음대로 바꾸면 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: t2, e: dec1h(60, 129600000) }));
+  check("창고 2", (await readProd()).stock === 2);
+  const v = await readVit("uA");
+  check("목마름 약 64", Math.abs(v.t - t2) < 0.05);
+  check("배고픔은 닳은 값 그대로", Math.abs(v.h - dec1h(60, 86400000)) < 0.05);
+});
+await t("먹기: 직원과 회사 밖 사람은 꺼내 먹을 수 없고, 쉬는 중에도 못 먹어요", async () => {
+  await coSeed();
+  await seed(jobSeed);
+  await prodSeed("uA", "p1", { stock: 3, group: "water" });
+  await vitSeed("uB");
+  await vitSeed("uC");
+  const args = { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000) + 40, e: dec1h(60, 129600000) };
+  await assertFails(eatBatch(pw("uB", "bob"), "uB", args)); // 직원
+  await assertFails(eatBatch(pw("uC", "carol"), "uC", args)); // 회사 밖 사람
+  await vitSeed("uA", { at: Date.now() + 3600e3 }); // 쉬는 중 (다시 일어날 시각이 아직 안 됐어요)
+  await assertFails(eatBatch(pw("uA", "alice"), "uA", { ...args, at: Date.now() }));
+  check("창고 그대로 3", (await readProd()).stock === 3);
+});
+await t("먹기: 음식은 배고픔 20, 식사는 40, 에너지 식품은 에너지 40을 올리고, 100을 넘지 않아요", async () => {
+  await coSeed();
+  await seed((d) => setDoc(doc(d, "vitals/uA"), { h: 95, t: 50, e: 50, at: Date.now(), deaths: 0 }));
+  await prodSeed("uA", "p2", { stock: 2, group: "snack" });
+  await prodSeed("uA", "p3", { stock: 2, group: "meal" });
+  await prodSeed("uA", "p4", { stock: 2, group: "energy" });
+  await prodSeed("uA", "p5", { stock: 2, group: "snack" });
+  const alice = pw("uA", "alice");
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p2", h: 115, t: 50, e: 50 })); // 100을 넘을 수 없어요
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p5", h: 95, t: 50, e: 50 })); // 음식을 먹었는데 배고픔이 안 오르면 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p2", h: 100, t: 50, e: 50 })); // 95 + 20 → 100 에서 멈춰요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p4", h: 100, t: 50, e: 90 })); // 에너지 50 + 40
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p3", h: 100, t: 50, e: 90 })); // 식사: 배고픔은 이미 100
+  check("p2 1개 남음", (await readProd("p2")).stock === 1);
+  check("p4 1개 남음", (await readProd("p4")).stock === 1);
+  check("p3 1개 남음", (await readProd("p3")).stock === 1);
+  check("p5는 그대로 2개", (await readProd("p5")).stock === 2);
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

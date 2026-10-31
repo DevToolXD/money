@@ -1221,6 +1221,7 @@
     cloud: () => window.cloud,
     walletOp: (fn) => walletOp(fn), // 지갑 쓰기는 2.2초 간격으로 줄 세워요
     settle: () => claimNow(), // 금고에 넣기 전에 쌓인 이자를 먼저 받아요
+    vitals: { get: () => window.__vitals.get(), set: (v) => window.__vitals.set(v) }, // 창고에서 먹은 뒤 상태를 화면에 바로 반영해요
     company: () => company,
     safeImg: (v, max) => safeImg(v, max),
     toast: (m) => toast(m),
