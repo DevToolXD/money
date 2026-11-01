@@ -1535,3 +1535,14 @@ html[data-theme="dark"] .draw { background: #fff; }
 /* 스크롤하는 동안 상태 버튼을 숨겨요 (글자와 겹치지 않게) */
 .status-fab { transition: opacity 0.25s var(--ease), transform 0.25s var(--ease); }
 .status-fab.fab-away { opacity: 0; transform: scale(0.85); pointer-events: none; }
+
+/* 상점 칸: 알약은 그대로, 아래 내용만 밀면서 바뀌어요 */
+.shop-chips { margin: 4px var(--gutter) 14px; }
+.shop-pane { transition: opacity 0.17s ease, transform 0.2s var(--ease); }
+.shop-pane.pane-out { opacity: 0; transform: translateX(calc(var(--dir, 1) * -18px)); }
+.shop-pane.pane-in { animation: paneIn 0.3s var(--ease) both; }
+@keyframes paneIn { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 18px)); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .shop-pane.pane-in { animation: none; } .shop-pane { transition: none; } }
+
+/* 큰 제목이 있는 화면은 아이폰 상태바 바로 아래에서 시작해요 */
+.screen:has(.large-title) { padding-top: calc(var(--safe-top) + 8px); }

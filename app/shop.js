@@ -55,33 +55,32 @@
     `<div class="card shop-note">${pic}<div class="art-text"><p class="eyebrow">${esc(eyebrow)}</p><h2 class="card-title">${esc(title)}</h2><p class="card-body">${esc(body)}</p>${extra}</div></div>`;
 
   const paint = () => {
-    if (!root) return;
+    if (!pane) return;
     if (state === "loading") {
-      root.innerHTML = '<div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>';
+      pane.innerHTML = '<div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>';
       return;
     }
     if (state === "out") {
-      root.innerHTML = noteHTML("로그인이 필요해요", "로그인하면 살 수 있어요", "식품 회사가 만든 음식을 여기서 살 수 있어요. 산 돈은 파는 회사의 금고로 들어가요.");
+      pane.innerHTML = noteHTML("로그인이 필요해요", "로그인하면 살 수 있어요", "식품 회사가 만든 음식을 여기서 살 수 있어요. 산 돈은 파는 회사의 금고로 들어가요.");
       return;
     }
     if (state === "error") {
-      root.innerHTML = noteHTML("잠깐만요", "상점을 불러오지 못했어요", "인터넷을 확인하고 다시 해 주세요.", '<button type="button" class="btn shop-retry">다시 해 보기</button>');
+      pane.innerHTML = noteHTML("잠깐만요", "상점을 불러오지 못했어요", "인터넷을 확인하고 다시 해 주세요.", '<button type="button" class="btn shop-retry">다시 해 보기</button>');
       return;
     }
     if (cat !== "food") {
-      const head = catsHTML();
       if (!items.length) {
-        root.innerHTML = `${head}${noteHTML(cat === "pc" ? "지금 내놓은 물건이 없어요" : "지금 내놓은 자원이 없어요", "회사가 시장에 내놓으면 여기에 나와요", "지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.")}`;
+        pane.innerHTML = `${noteHTML(cat === "pc" ? "지금 내놓은 물건이 없어요" : "지금 내놓은 자원이 없어요", "회사가 시장에 내놓으면 여기에 나와요", "지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.")}`;
         return;
       }
-      root.innerHTML = `${head}<h2 class="section-title">회사가 내놓은 것</h2><p class="lab-sub shop-note-line">지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.</p><div class="shop-grid">${items.map(offerHTML).join("")}</div>`;
+      pane.innerHTML = `<h2 class="section-title">회사가 내놓은 것</h2><p class="lab-sub shop-note-line">지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.</p><div class="shop-grid">${items.map(offerHTML).join("")}</div>`;
       return;
     }
     if (!items.length) {
-      root.innerHTML = catsHTML() + noteHTML("아직 진열된 음식이 없어요", "음식이 만들어지면 여기에 나와요", "식품 회사의 사장님이나 직원이 음식을 만들면 상점에 진열돼요.", "", '<div class="art mint"></div>');
+      pane.innerHTML = noteHTML("아직 진열된 음식이 없어요", "음식이 만들어지면 여기에 나와요", "식품 회사의 사장님이나 직원이 음식을 만들면 상점에 진열돼요.", "", '<div class="art mint"></div>');
       return;
     }
-    root.innerHTML = `${catsHTML()}<h2 class="section-title">지금 살 수 있어요</h2><div class="shop-grid">${items.map(cardHTML).join("")}</div>`;
+    pane.innerHTML = `<h2 class="section-title">지금 살 수 있어요</h2><div class="shop-grid">${items.map(cardHTML).join("")}</div>`;
   };
   // 식품 / 물건 / 자원 칸 (인공지능은 상점에서 팔지 않아요)
   const CATS = [
@@ -90,10 +89,31 @@
     { k: "nuclear", t: "자원" },
   ];
   let cat = "food";
+  let chipsEl = null;
+  let pane = null;
   const catsHTML = () =>
     `<div class="gseg shop-cats" role="radiogroup" aria-label="상점 칸" style="--n:${CATS.length};--i:${CATS.findIndex((c) => c.k === cat)}">${CATS.map(
       (c) => `<button type="button" role="radio" aria-checked="${c.k === cat}" data-cat="${c.k}">${c.t}</button>`
     ).join("")}</div>`;
+  // 칸을 바꿀 때: 칸(알약)은 그대로 두고 아래 내용만 밀면서 바꿔요. 깜빡이지 않게 옛 내용을 먼저 살짝 치우고, 새 내용을 올려요
+  let swapping = 0;
+  const setCat = async (next) => {
+    const my = ++swapping;
+    const dir = CATS.findIndex((c) => c.k === next) > CATS.findIndex((c) => c.k === cat) ? 1 : -1;
+    cat = next;
+    chipsEl.style.setProperty("--i", CATS.findIndex((c) => c.k === cat));
+    chipsEl.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.cat === cat)));
+    pane.style.setProperty("--dir", dir);
+    pane.classList.add("pane-out");
+    await new Promise((r) => setTimeout(r, 170));
+    if (my !== swapping) return;
+    await load();
+    if (my !== swapping) return;
+    pane.classList.remove("pane-out");
+    pane.classList.remove("pane-in");
+    void pane.offsetWidth;
+    pane.classList.add("pane-in");
+  };
   const offerHTML = (o, i) => `<article class="card shop-card offer-card" style="--i:${i}">
       <div class="shop-body">
         <b class="shop-name">${cat === "pc" ? "컴퓨터" : "전기"}</b>
@@ -165,15 +185,14 @@
     ctx = c;
     root = document.getElementById("shop-root");
     if (!root) return;
+    root.innerHTML = '<div class="shop-chips"></div><div class="shop-pane"></div>';
+    chipsEl = root.querySelector(".shop-chips");
+    pane = root.querySelector(".shop-pane");
+    chipsEl.innerHTML = catsHTML();
     root.addEventListener("click", (e) => {
       if (e.target.closest(".shop-retry")) return load();
       const c = e.target.closest("[data-cat]");
-      if (c && c.dataset.cat !== cat) {
-        cat = c.dataset.cat;
-        state = "loading";
-        paint();
-        return load();
-      }
+      if (c && c.dataset.cat !== cat) return setCat(c.dataset.cat);
       const card = e.target.closest(".shop-card");
       if (!card) return;
       const p = items.find((x) => keyOf(x) === card.dataset.key);
