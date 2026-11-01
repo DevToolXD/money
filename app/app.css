@@ -1513,3 +1513,10 @@ html[data-theme="dark"] .draw { background: #fff; }
 .biz-blk { position: relative; transition: box-shadow 0.25s var(--ease); -webkit-touch-callout: none; }
 .biz-blk.is-lift { z-index: 30; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18); transition: none; }
 .biz-drop { height: 4px; margin: 0 22px; border-radius: 4px; background: #0a7cff; animation: fade 0.2s ease both; }
+
+/* 사업 탭: 회사를 바꿀 때 물러났다가 들어오는 움직임 */
+#biz-dash { transition: opacity 0.18s var(--ease), transform 0.18s var(--ease); }
+#biz-dash.swap-out { opacity: 0; transform: translateX(-16px); }
+#biz-dash.swap-in { animation: bizIn 0.38s var(--ease) both; }
+@keyframes bizIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #biz-dash.swap-in { animation: none; } #biz-dash { transition: none; } }

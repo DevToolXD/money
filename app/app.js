@@ -1161,13 +1161,28 @@
     bizSwitch.innerHTML = companies.map((c) => `<button type="button" class="gg wk-pill" aria-pressed="${c.id === company.id}" data-co="${esc(c.id)}">${esc(c.name)}</button>`).join("");
   };
   // 회사를 고르면 그 회사의 사업 화면을 그려요 (고른 회사는 기기에 기억해요)
-  const selectCompany = (id) => {
+  const commitCompany = (id) => {
     company = companies.find((c) => c.id === id) || companies[0] || null;
     pickedId = company ? company.id : "";
     store.set("biz-pick", pickedId);
     renderBiz();
     if (company) window.Business.refresh();
     if (screens.get("work").classList.contains("is-active")) window.Work.refresh(true);
+  };
+  // 회사를 바꿀 때: 지금 화면이 살짝 물러났다가 새 회사 화면이 오른쪽에서 들어와요
+  let swapTimer = 0;
+  const selectCompany = (id) => {
+    const next = companies.find((c) => c.id === id);
+    if (!company || !next || next.id === company.id || bizDash.hidden) return commitCompany(id);
+    clearTimeout(swapTimer);
+    bizDash.classList.remove("swap-in");
+    bizDash.classList.add("swap-out");
+    swapTimer = setTimeout(() => {
+      commitCompany(id);
+      bizDash.classList.remove("swap-out");
+      bizDash.classList.add("swap-in");
+      swapTimer = setTimeout(() => bizDash.classList.remove("swap-in"), 380);
+    }, 180);
   };
   const loadCompany = async (cloud) => {
     try {

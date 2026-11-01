@@ -608,7 +608,7 @@
   };
   // 창고 · 재고 (사장): 파는 상품마다 재고를 보여주고, 꺼낼 개수를 적어 꺼내요
   const paintDash = () => {
-    const card = document.getElementById("biz-dash");
+    const card = document.getElementById("biz-dash-card");
     const list = document.getElementById("dash-list");
     if (!card || !list) return;
     const co = ctx?.company();
