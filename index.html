@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=55">
+<link rel="stylesheet" href="app/app.css?v=56">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -26,6 +26,7 @@
   <button class="cloud-down" id="cloud-down" type="button" hidden><b>서버 데이터베이스가 꺼져 있어요</b><span>관리자가 Firebase 콘솔에서 Firestore 데이터베이스를 만들어야 메시지·돈·랭킹이 동작해요. 눌러서 닫기</span></button>
   <main class="screens">
     <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-label="메시지">
+      <div id="notice-root" class="notice-root" hidden></div>
       <div class="pinned" id="pinned"></div>
       <label class="searchfield"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="5"/><path d="M10.6 10.6L14 14"/></svg><input id="chat-search" type="search" placeholder="검색" aria-label="대화 검색"></label>
       <ul class="chat-list" id="chat-list"></ul><p class="empty" id="chat-empty" hidden>결과가 없어요</p>
@@ -66,7 +67,7 @@
     <section class="screen" id="screen-manage" data-screen="manage" data-title="관리" aria-labelledby="title-manage">
       <header class="large-title"><h1 id="title-manage">관리</h1><button class="glass-btn" id="manage-back" type="button">계정</button></header>
       <p class="lead">관리자만 볼 수 있어요.</p>
-      <div class="card"><div class="art cool"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">관리 기능을 만들고 있어요</h2><p class="card-body">기능은 나중에 하나씩 추가돼요.</p></div></div>
+      <div id="manage-root" class="manage-root" aria-live="polite"></div>
     </section>
     <section class="screen" id="screen-inventory" data-screen="inventory" data-title="인벤토리" aria-labelledby="title-inventory">
       <header class="large-title"><h1 id="title-inventory">인벤토리</h1></header>
@@ -320,12 +321,13 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=32"></script>
+<script type="module" src="app/firebase.js?v=33"></script>
 <script src="app/shapes.js?v=2"></script>
 <script src="app/biz.js?v=22"></script>
 <script src="app/work.js?v=10"></script>
 <script src="app/shop.js?v=1"></script>
 <script src="app/inv.js?v=1"></script>
-<script src="app/app.js?v=46"></script>
+<script src="app/manage.js?v=1"></script>
+<script src="app/app.js?v=47"></script>
 </body>
 </html>

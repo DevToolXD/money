@@ -33,6 +33,7 @@ service cloud.firestore {
       allow update: if isMe(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])
         && photoOk(request.resource.data.photo);
+      allow delete: if isOwner() && adminDelOk();
     }
 
     // ----- 내 설정 (나만 읽고 써요) -----
@@ -44,7 +45,9 @@ service cloud.firestore {
               request.resource.data.profile.keys().hasOnly(['name', 'bio'])
               && request.resource.data.profile.name is string && request.resource.data.profile.name.size() <= 30
               && request.resource.data.profile.bio is string && request.resource.data.profile.bio.size() <= 120))
-        && (!('walls' in request.resource.data) || (request.resource.data.walls is map && request.resource.data.walls.size() <= 200));
+        && (!('walls' in request.resource.data) || (request.resource.data.walls is map && request.resource.data.walls.size() <= 200))
+        && (!('profile' in request.resource.data) || !exists(/databases/$(database)/documents/profiles/$(uid)) || request.resource.data.profile.name == get(/databases/$(database)/documents/profiles/$(uid)).data.name);
+      allow delete: if isOwner() && adminDelOk();
     }
 
     // ----- 토큰 지갑 -----
@@ -64,6 +67,18 @@ service cloud.firestore {
     function companyPath(uid) { return /databases/$(database)/documents/companies/$(uid); }
     function jobPath(uid) { return /databases/$(database)/documents/jobs/$(uid); }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
+    // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
+    function isOwner() { return signedIn() && request.auth.token.email == 'owner@money-sim.app'; }
+    function adminPath() { return /databases/$(database)/documents/adminAuth/$(request.auth.uid); }
+    // 행동 확인: 인증토큰 3개가 같고, 시간이 남아 있고, 이 묶음에서 토큰을 없애요 (한 번만 쓸 수 있어요)
+    function adminOk(tk) {
+      return isOwner() && exists(adminPath()) && get(adminPath()).data.tk == tk
+        && request.time.toMillis() < get(adminPath()).data.exp && !existsAfter(adminPath());
+    }
+    // 지우기 확인: 토큰이 살아 있고 이 묶음에서 없애요
+    function adminDelOk() {
+      return isOwner() && exists(adminPath()) && request.time.toMillis() < get(adminPath()).data.exp && !existsAfter(adminPath());
+    }
 
     // ----- 랭킹: 내 지갑 잔액과 똑같은 값만 쓸 수 있어요 (이름·아이디도 내 프로필과 같아야 해요). 20초에 한 번만 갱신해요 -----
     match /ranks/{uid} {
@@ -561,6 +576,7 @@ service cloud.firestore {
 
     // ----- 상태(배고픔·목마름·에너지): 값은 시간이 지나면 닳기만 해요. 쓰러졌을 때만 기록하고, 그때 다 10%로 돌아오며 1·2·3시간… 쉬어요 -----
     match /vitals/{uid} {
+      allow delete: if isOwner() && adminDelOk();
       allow get: if isMe(uid);
       allow create: if isMe(uid)
         && request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths'])
@@ -722,6 +738,19 @@ service cloud.firestore {
             && request.resource.data.bal == resource.data.bal - 10)
 
         );
+
+      // 관리자 토큰 지급: 인증토큰이 맞을 때만, 대상 지갑에 지급한 만큼만 늘어요 (이자 시계와 등급은 그대로예요)
+      allow update: if isOwner()
+        && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
+        && request.resource.data.wt == request.time
+        && request.time >= resource.data.wt + duration.value(2, 's')
+        && request.resource.data.rate == resource.data.rate
+        && request.resource.data.t == resource.data.t
+        && request.resource.data.op.kind == 'grant'
+        && request.resource.data.op.amt is int && request.resource.data.op.amt >= 1 && request.resource.data.op.amt <= 1000000
+        && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt
+        && adminOk(request.resource.data.op.tk);
+      allow delete: if isOwner() && adminDelOk();
     }
 
     // ----- 인벤토리: 내가 가진 음식 (나만 읽고 써요). 상점에서 사거나 사장이 회사 창고에서 꺼내면 늘고, 먹으면 한 개 줄어요 -----
@@ -769,6 +798,40 @@ service cloud.firestore {
           || takePair(resource.data.n)
         );
       allow delete: if false;
+    }
+
+    // ----- 공지: 관리자만 써요. 인증토큰 3개가 맞아야 해요. 모두 읽어요 -----
+    match /notices/{id} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 20;
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['text', 'at', 'by', 'tk'])
+        && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 300
+        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid
+        && adminOk(request.resource.data.tk);
+      allow update, delete: if false;
+    }
+
+    // ----- 관리 기록 (관리자만 읽고 써요): 계정 데이터를 지운 기록을 남겨요 -----
+    match /adminLog/{id} {
+      allow get, list: if isOwner();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['tk', 'kind', 'target', 'at'])
+        && request.resource.data.at == request.time && request.resource.data.kind == 'delete'
+        && adminOk(request.resource.data.tk);
+      allow update, delete: if false;
+    }
+
+    // ----- 인증토큰: 관리자가 행동하기 전에 앱이 만들어요. 3개와 5분 (그 뒤에는 쓸 수 없어요) -----
+    match /adminAuth/{uid} {
+      allow get: if isOwner() && uid == request.auth.uid;
+      allow create, update: if isOwner() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['tk', 'exp'])
+        && request.resource.data.tk is list && request.resource.data.tk.size() == 3
+        && request.resource.data.tk[0] is string && request.resource.data.tk[0].size() == 12
+        && request.resource.data.tk[1] is string && request.resource.data.tk[1].size() == 12
+        && request.resource.data.tk[2] is string && request.resource.data.tk[2].size() == 12
+        && request.resource.data.exp > request.time.toMillis()
+        && request.resource.data.exp <= request.time.toMillis() + 300000;
+      allow delete: if isOwner() && uid == request.auth.uid;
     }
 
     // ----- 두 사람의 대화 -----

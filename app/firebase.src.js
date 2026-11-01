@@ -236,6 +236,24 @@ window.cloudReady = (async () => {
       if (Number.isInteger(p.content)) d.content = p.content;
       return d;
     };
+    // 아이디로 사람 번호 찾기 (프로필의 아이디는 소문자예요)
+    const findUid = async (id) => {
+      const s = await getDocs(query(collection(db, "profiles"), where("id", "==", String(id).trim().toLowerCase()), limit(1))).catch(rethrow);
+      if (!s.docs.length) throw Object.assign(new Error("그런 아이디가 없어요"), { code: "nouser" });
+      return s.docs[0].id;
+    };
+    // 인증토큰 3개: 앱이 만들어 서버에 올려요 (5분 뒤에는 쓸 수 없어요). 행동을 보낼 때 같은 3개를 함께 보내요
+    const adminIssue = async () => {
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      const one = () => {
+        const r = new Uint32Array(12);
+        crypto.getRandomValues(r);
+        return Array.from(r, (x) => chars[x % chars.length]).join("");
+      };
+      const tk = [one(), one(), one()];
+      await setDoc(doc(db, "adminAuth", uidOf()), { tk, exp: Date.now() + 290000 }).catch(rethrow);
+      return tk;
+    };
     window.cloud = {
       get uid() {
         return auth.currentUser?.uid || "";
@@ -672,6 +690,41 @@ window.cloudReady = (async () => {
         b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid } });
         await b.commit().catch(rethrow);
         return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid } };
+      },
+      /* ----- 관리 (오너만). 행동할 때마다 인증토큰 3개를 앱이 만들어 서버에 올리고(5분), 같은 3개를 행동과 함께 보내면 서버가 확인해요 ----- */
+      adminGrant: async (id, amt) => {
+        const uid = await findUid(id);
+        const tk = await adminIssue();
+        const b = writeBatch(db);
+        b.update(doc(db, "wallets", uid), { bal: increment(amt), wt: serverTimestamp(), op: { kind: "grant", amt, tk } });
+        b.delete(doc(db, "adminAuth", uidOf()));
+        await b.commit().catch(rethrow);
+        return uid;
+      },
+      adminNotice: async (text) => {
+        const tk = await adminIssue();
+        const b = writeBatch(db);
+        b.set(doc(collection(db, "notices")), { text: String(text).slice(0, 300), at: serverTimestamp(), by: uidOf(), tk });
+        b.delete(doc(db, "adminAuth", uidOf()));
+        await b.commit().catch(rethrow);
+      },
+      adminDelete: async (id) => {
+        const uid = await findUid(id);
+        const tk = await adminIssue();
+        const b = writeBatch(db);
+        b.set(doc(collection(db, "adminLog")), { tk, kind: "delete", target: uid, at: serverTimestamp() });
+        b.delete(doc(db, "profiles", uid));
+        b.delete(doc(db, "users", uid));
+        b.delete(doc(db, "wallets", uid));
+        b.delete(doc(db, "vitals", uid));
+        b.delete(doc(db, "adminAuth", uidOf()));
+        await b.commit().catch(rethrow);
+        return uid;
+      },
+      // 공지 목록: 최근 10개 (모두 읽어요)
+      listNotices: async () => {
+        const snap = await getDocs(query(collection(db, "notices"), orderBy("at", "desc"), limit(10))).catch(rethrow);
+        return snap.docs.map((d) => ({ id: d.id, text: d.data().text || "", at: ms(d.data({ serverTimestamps: "estimate" }).at) }));
       },
       listShop: async () => {
         const snap = await getDocs(query(collectionGroup(db, "products"), where("stock", ">", 0), limit(50))).catch(rethrow);

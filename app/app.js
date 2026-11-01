@@ -966,6 +966,7 @@
   /* ---------- 관리 화면 (owner 전용 버튼으로 열어요, 탭 바에는 없어요) ---------- */
   const goScreen = (name) => {
     showScreen(name);
+    if (name === "manage") window.Manage.refresh();
     topTitle.textContent = screens.get(name).dataset.title;
     updateChrome(screens.get(name));
     backdrop?.setActive(name);
@@ -1247,6 +1248,8 @@
     pkv: (p, mini, co) => window.Business.pkv(p, mini, co),
     vitals: { get: () => window.__vitals.get(), set: (v) => window.__vitals.set(v) },
   });
+  // 관리 (오너만) 와 공지: app/manage.js
+  window.Manage.init({ cloud: () => window.cloud, toast: (m) => toast(m) });
   // 상점 탭: 재고가 있는 음식을 골라 사요 (app/shop.js). 산 돈은 파는 회사 금고로 들어가요
   window.Shop.init({
     cloud: () => window.cloud,
@@ -2128,6 +2131,7 @@
   document.querySelectorAll(".js-edit-profile").forEach((b) =>
     b.addEventListener("click", () => {
       editName.value = nameEl.textContent;
+      editName.disabled = true; // 이름은 가입할 때 정한 것이라 바꿀 수 없어요
       editBio.value = store.get("profile-bio", "");
       sheetOpen(true);
     })
@@ -2135,7 +2139,6 @@
   document.getElementById("sheet-cancel").addEventListener("click", () => sheetOpen(false));
   dim.addEventListener("click", () => sheetOpen(false));
   document.getElementById("sheet-save").addEventListener("click", () => {
-    store.set("profile-name", editName.value.trim() || "내 계정");
     store.set("profile-bio", editBio.value.trim() || "소개를 추가해 보세요");
     applyProfile();
     saveSettings();
@@ -2177,6 +2180,7 @@
     if (name === "work") window.Work.refresh();
     if (name === "shop") window.Shop.refresh();
     if (name === "inventory") window.Inventory.refresh();
+    if (name === "messages") window.Manage.refreshNotice();
     if (name === "business") window.Business.refresh(); // 상품 재고와 금고를 새로 읽어요
     backdrop?.setActive(name);
     tabbar.requestRender();

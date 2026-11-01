@@ -1174,6 +1174,66 @@ await t("인벤토리: 마음대로 늘릴 수 없고, 남의 칸은 못 건드�
   check("인벤토리 0개", (await readItem("uA")).n === 0);
 });
 
+console.log("\n[관리]");
+// 관리자 (오너 계정): 인증토큰을 만들고, 3개가 같을 때만 행동이 돼요. 한 번 쓰면 없어지고, 5분이 지나면 못 써요
+const ownerDb = () => pw("uOwner", "owner");
+const TK = ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"];
+const issueTk = (db, tk = TK, expMs = 300000) => setDoc(doc(db, "adminAuth/uOwner"), { tk, exp: Date.now() + expMs });
+const readWallet = async (uid) => { let d; await env.withSecurityRulesDisabled(async (c) => { d = (await getDoc(doc(c.firestore(), "wallets/" + uid))).data(); }); return d.bal; };
+const grantB = (db, tk, n = 50, { consume = true } = {}) => {
+  const b = writeBatch(db);
+  b.update(doc(db, "wallets/uA"), { bal: increment(n), wt: serverTimestamp(), op: { kind: "grant", amt: n, tk } });
+  if (consume) b.delete(doc(db, "adminAuth/uOwner"));
+  return b.commit();
+};
+await t("관리: 오너만 인증토큰을 만들 수 있고, 3개와 5분 규칙을 지켜야 해요", async () => {
+  await seed(seedBase);
+  await assertFails(issueTk(pw("uB", "bob"))); // 오너가 아니면 못 만들어요
+  await assertFails(issueTk(ownerDb(), ["aaaaaaaaaaaa", "bbbbbbbbbbbb"])); // 3개여야 해요
+  await assertFails(issueTk(ownerDb(), TK, 3600e3)); // 5분을 넘는 기한은 안 돼요
+  await assertSucceeds(issueTk(ownerDb()));
+});
+await t("관리: 토큰 3개가 다 맞아야 지급되고, 한 번 쓰면 없어져요", async () => {
+  await seed(seedBase);
+  await issueTk(ownerDb());
+  await assertFails(grantB(ownerDb(), ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "dddddddddddd"], 50)); // 하나라도 다르면 안 돼요
+  await assertFails(grantB(ownerDb(), TK, 50, { consume: false })); // 토큰을 없애지 않으면 안 돼요
+  await assertSucceeds(grantB(ownerDb(), TK, 50));
+  const w = await readWallet("uA");
+  check("지급 후 잔액 +50", w === 1250050);
+  await assertFails(grantB(ownerDb(), TK, 50)); // 같은 토큰은 두 번 못 써요
+});
+await t("관리: 인증토큰은 5분이 지나면 쓸 수 없어요", async () => {
+  await seed(seedBase);
+  await issueTk(ownerDb(), TK, 2000);
+  await sleep(2600);
+  await assertFails(grantB(ownerDb(), TK, 50));
+});
+await t("관리: 공지는 오너만 쓰고, 토큰이 맞아야 써져요", async () => {
+  await seed(seedBase);
+  await issueTk(ownerDb());
+  const notice = (db, tk) => { const b = writeBatch(db); b.set(doc(db, "notices/n1"), { text: "점검 안내", at: serverTimestamp(), by: "uOwner", tk }); b.delete(doc(db, "adminAuth/uOwner")); return b.commit(); };
+  await assertFails(notice(pw("uA", "alice"), TK)); // 오너가 아니에요
+  await assertFails(notice(ownerDb(), ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "zzzzzzzzzzzz"])); // 토큰이 달라요
+  await assertSucceeds(notice(ownerDb(), TK));
+  await assertSucceeds(getDoc(doc(pw("uA", "alice"), "notices/n1")));
+});
+await t("관리: 계정 데이터 삭제는 오너가 토큰을 써서만 돼요 (기록이 남아요)", async () => {
+  await seed(seedBase);
+  await issueTk(ownerDb());
+  const del = (db) => { const b = writeBatch(db); b.set(doc(db, "adminLog/l1"), { tk: TK, kind: "delete", target: "uA", at: serverTimestamp() }); b.delete(doc(db, "profiles/uA")); b.delete(doc(db, "wallets/uA")); b.delete(doc(db, "adminAuth/uOwner")); return b.commit(); };
+  await assertFails(del(pw("uB", "bob")));
+  await assertSucceeds(del(ownerDb()));
+  let gone; await env.withSecurityRulesDisabled(async (c) => { gone = !(await getDoc(doc(c.firestore(), "profiles/uA"))).exists(); });
+  check("프로필이 지워졌어요", gone);
+});
+await t("설정: 이름은 가입할 때 정한 이름으로만 저장돼요 (바꿀 수 없어요)", async () => {
+  await seed(seedBase);
+  const alice = pw("uA", "alice");
+  await assertFails(setDoc(doc(alice, "users/uA"), { profile: { name: "다른 이름", bio: "" }, updatedAt: Date.now() }));
+  await assertSucceeds(setDoc(doc(alice, "users/uA"), { profile: { name: "김철수", bio: "소개" }, updatedAt: Date.now() }));
+});
+
 console.log("\n[상태]");
 await t("상태: 처음엔 100%로만 만들고, 안 쓰러졌으면 기록을 못 바꿔요", async () => {
   await seed(seedBase);

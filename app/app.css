@@ -1432,3 +1432,15 @@ html[data-theme="dark"] .draw { background: #fff; }
 .inv-eat:disabled { opacity: 0.4; }
 .inv-eat.busy { opacity: 0.6; pointer-events: none; }
 .inv-root .shop-grid { margin-top: 0; }
+
+/* 관리 (오너) 와 공지 */
+.manage-root .mg-card { display: grid; gap: 12px; padding: 18px; }
+.mg-text { min-height: 90px; resize: vertical; }
+.mg-danger { color: var(--status-red); }
+.mg-notice { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.mg-notice:last-child { border-bottom: 0; }
+.mg-notice span { font-size: 13px; color: var(--text-secondary); }
+.notice-root { margin: 0 var(--gutter) 12px; }
+.card.notice-card { margin: 0; padding: 16px 18px; }
+.card.notice-card .card-body { margin: 6px 0 0; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
+.notice-root[hidden] { display: none; }
