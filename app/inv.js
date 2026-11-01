@@ -5,7 +5,9 @@
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   // 음식 종류별로 올라가는 상태와 양 (서버 규칙과 같아요)
-  const EFFECT = { water: ["t", 40, "목마름"], snack: ["h", 20, "배고픔"], meal: ["h", 40, "배고픔"], energy: ["e", 40, "에너지"] };
+  // 올라가는 양은 회사 식품 성능으로 정해져요 (기본 20). 종류별로 어떤 상태가 오르는지만 여기서 정해요
+  const EFFECT = { water: ["t", "목마름"], snack: ["h", "배고픔"], meal: ["h", "배고픔"], energy: ["e", "에너지"] };
+  const gains = {}; // 회사별 올라가는 양 (성능이 바뀌면 다시 읽어요)
 
   let ctx = null;
   let root = null;
@@ -32,13 +34,14 @@
     </article>`;
   const detailHTML = (it) => {
     const e = EFFECT[it.group];
+    const g = gains[it.cid];
     return `<div class="card inv-detail">
       <div class="shop-art">${art(it)}</div>
       <div class="inv-info">
         <b class="shop-name">${esc(it.name)}</b>
         <span class="shop-co">${esc(it.coName || "")}</span>
         <span class="shop-stock">${it.n}개 가지고 있어요</span>
-        <span class="inv-effect">${e ? `${e[2]} +${e[1]}` : "먹을 수 없어요"}</span>
+        <span class="inv-effect">${e ? `${e[1]} +${g ?? "…"}` : "먹을 수 없어요"}</span>
         <button type="button" class="btn primary inv-eat" data-eat="1"${e ? "" : " disabled"}>먹기</button>
       </div>
     </div>`;
@@ -107,7 +110,8 @@
     try {
       const v = await ctx.cloud().eatFromInventory(it.cid, it.pid, it.group, vit);
       ctx.vitals.set(v);
-      ctx.toast(`${it.name} 한 개를 먹었어요 · ${e[2]} +${e[1]}`);
+      gains[it.cid] = v.gained;
+      ctx.toast(`${it.name} 한 개를 먹었어요 · ${e[1]} +${v.gained}`);
     } catch (err) {
       ctx.toast(msgOf(err));
     } finally {
@@ -133,6 +137,13 @@
       if (card) {
         selected = card.dataset.key === selected ? null : card.dataset.key;
         paint();
+        const it = items.find((x) => x.id === selected);
+        if (it && gains[it.cid] === undefined) {
+          ctx.cloud().foodGain(it.cid).then((v) => {
+            gains[it.cid] = v;
+            paint();
+          }).catch(() => {});
+        }
       }
     });
   };

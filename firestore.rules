@@ -594,14 +594,20 @@ service cloud.firestore {
         && request.resource.data.at >= request.time.toMillis() - 120000
         && request.resource.data.at <= request.time.toMillis() + 120000;
       // 먹기: 내 인벤토리에서 한 개를 먹어요. 같은 묶음에서 그 음식 칸(n)이 한 개 줄어야 해요 (먹은 음식은 eat에 적어요)
-      //   물은 목마름 +40, 음식(간식) 배고픔 +20, 식사 배고픔 +40, 에너지 식품 에너지 +40. 100을 넘지 않고, 닳은 만큼은 시간 계산 그대로예요
+      //   기본은 20이에요 (성능 100). 회사 식품 성능(fperf)이 높을수록 많이 올라가요: 올라가는 양 = 20 × 성능 ÷ 100.
+      //   물은 목마름, 간식·식사는 배고픔, 에너지 식품은 에너지가 올라가요. 100을 넘지 않고, 닳은 만큼은 시간 계산 그대로예요
       function itemPath() { return /databases/$(database)/documents/inventory/$(request.auth.uid)/items/$(request.resource.data.eat.cid + '_' + request.resource.data.eat.pid); }
       function dec(v, full) { return v - (request.time.toMillis() - resource.data.at) * 100.0 / full; }
       function nearTo(v, x) { return v <= 100 && v <= x + 0.5 && (v >= x - 0.5 || (x > 100 && v >= 99.5)); }
-      function gainsOf(g) {
-        return {'water': {'h': 0, 't': 40, 'e': 0}, 'snack': {'h': 20, 't': 0, 'e': 0}, 'meal': {'h': 40, 't': 0, 'e': 0}, 'energy': {'h': 0, 't': 0, 'e': 40}}[g];
+      // 회사 식품 성능 (없으면 100)
+      function perfOf(cid) {
+        return exists(/databases/$(database)/documents/companies/$(cid)/lab/main)
+          ? get(/databases/$(database)/documents/companies/$(cid)/lab/main).data.get('fperf', 100) : 100;
       }
       function eatOk() {
+        let grp = get(itemPath()).data.group;
+        let q = 20.0 * perfOf(request.resource.data.eat.cid) / 100;
+        let gain = {'water': {'h': 0, 't': q, 'e': 0}, 'snack': {'h': q, 't': 0, 'e': 0}, 'meal': {'h': q, 't': 0, 'e': 0}, 'energy': {'h': 0, 't': 0, 'e': q}}[grp];
         return request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths', 'eat'])
           && request.resource.data.deaths == resource.data.deaths
           && request.resource.data.eat is map
@@ -614,9 +620,9 @@ service cloud.firestore {
           && request.resource.data.at <= request.time.toMillis() + 120000
           && get(itemPath()).data.get('n', 0) >= 1
           && getAfter(itemPath()).data.get('n', 0) == get(itemPath()).data.get('n', 0) - 1
-          && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + gainsOf(get(itemPath()).data.group).h)
-          && nearTo(request.resource.data.t, dec(resource.data.t, 64800000) + gainsOf(get(itemPath()).data.group).t)
-          && nearTo(request.resource.data.e, dec(resource.data.e, 129600000) + gainsOf(get(itemPath()).data.group).e);
+          && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + gain.h)
+          && nearTo(request.resource.data.t, dec(resource.data.t, 64800000) + gain.t)
+          && nearTo(request.resource.data.e, dec(resource.data.e, 2592000000) + gain.e);
       }
       allow update: if isMe(uid) && (
         // 쓰러짐 기록 (그대로): 먹기 기록(eat)은 건드리지 않아요
@@ -629,8 +635,7 @@ service cloud.firestore {
           && request.resource.data.at >= request.time.toMillis() + request.resource.data.deaths * 3600000 - 120000
           && request.resource.data.at <= request.time.toMillis() + request.resource.data.deaths * 3600000 + 120000
           && (resource.data.h - (request.time.toMillis() - resource.data.at) * 100.0 / 86400000.0 <= 2
-            || resource.data.t - (request.time.toMillis() - resource.data.at) * 100.0 / 64800000.0 <= 2
-            || resource.data.e - (request.time.toMillis() - resource.data.at) * 100.0 / 129600000.0 <= 2))
+            || resource.data.t - (request.time.toMillis() - resource.data.at) * 100.0 / 64800000.0 <= 2))
         || eatOk()
       );
     }

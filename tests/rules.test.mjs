@@ -1056,31 +1056,39 @@ const eatBatch = (db, uid, o, invUid = uid) => {
   b.update(doc(db, "vitals/" + uid), { h: o.h, t: o.t, e: o.e, at: o.at ?? Date.now(), eat: { cid: o.cid, pid: o.pid } });
   return b.commit();
 };
-await t("먹기: 내 인벤토리에서 물을 먹으면 목마름이 40 올라가고 한 개가 줄어요 (나머지는 그대로)", async () => {
+await t("먹기: 내 인벤토리에서 물을 먹으면 목마름이 20 올라가고 한 개가 줄어요 (나머지는 그대로)", async () => {
   await itemSeed("uA", "uA", "p1", "water", 3);
   await vitSeed("uA");
   const alice = pw("uA", "alice");
-  const t2 = dec1h(30, 64800000) + 40;
-  await assertFails(updateDoc(doc(alice, "vitals/uA"), { h: dec1h(60, 86400000), t: t2, e: dec1h(60, 129600000), at: Date.now(), eat: { cid: "uA", pid: "p1" } })); // 칸을 한 개 줄이지 않으면 안 돼요
-  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000), e: dec1h(60, 129600000) })); // 목마름이 안 오르면 안 돼요
-  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000) - 10, t: t2, e: dec1h(60, 129600000) })); // 다른 상태를 마음대로 바꾸면 안 돼요
-  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: t2, e: dec1h(60, 129600000) }));
+  const t2 = dec1h(30, 64800000) + 20;
+  await assertFails(updateDoc(doc(alice, "vitals/uA"), { h: dec1h(60, 86400000), t: t2, e: dec1h(60, 2592000000), at: Date.now(), eat: { cid: "uA", pid: "p1" } })); // 칸을 한 개 줄이지 않으면 안 돼요
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000), e: dec1h(60, 2592000000) })); // 목마름이 안 오르면 안 돼요
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000) - 10, t: t2, e: dec1h(60, 2592000000) })); // 다른 상태를 마음대로 바꾸면 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: t2, e: dec1h(60, 2592000000) }));
   check("칸 2개 남음", (await readItem("uA")).n === 2);
   const v = await readVit("uA");
-  check("목마름 약 64", Math.abs(v.t - t2) < 0.05);
+  check("목마름 약 50", Math.abs(v.t - t2) < 0.05);
   check("배고픔은 닳은 값 그대로", Math.abs(v.h - dec1h(60, 86400000)) < 0.05);
+});
+await t("먹기: 회사 식품 성능이 200이면 올라가는 양이 40이에요", async () => {
+  await seed((d) => setDoc(doc(d, "companies/uA/lab/main"), labFields({ fperf: 200 })));
+  await itemSeed("uA", "uA", "p1", "water", 3);
+  await vitSeed("uA", { t: 30 });
+  const alice = pw("uA", "alice");
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000) + 20, e: dec1h(60, 2592000000) })); // 20만 오르면 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000) + 40, e: dec1h(60, 2592000000) }));
 });
 await t("먹기: 남의 인벤토리는 건드릴 수 없고, 쉬는 중에도 못 먹어요", async () => {
   await itemSeed("uA", "uA", "p1", "water", 3);
   await vitSeed("uB");
   await vitSeed("uA");
-  const args = { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000) + 40, e: dec1h(60, 129600000) };
+  const args = { cid: "uA", pid: "p1", h: dec1h(60, 86400000), t: dec1h(30, 64800000) + 40, e: dec1h(60, 2592000000) };
   await assertFails(eatBatch(pw("uB", "bob"), "uB", args, "uA")); // 밥이 앨리스의 칸을 줄일 수 없어요
   await vitSeed("uA", { at: Date.now() + 3600e3 }); // 쉬는 중 (다시 일어날 시각이 아직 안 됐어요)
   await assertFails(eatBatch(pw("uA", "alice"), "uA", { ...args, at: Date.now() }));
   check("칸 그대로 3개", (await readItem("uA")).n === 3);
 });
-await t("먹기: 음식은 배고픔 20, 식사는 40, 에너지 식품은 에너지 40을 올리고, 100을 넘지 않아요", async () => {
+await t("먹기: 기본 20을 올리고(성능 100), 100을 넘지 않아요", async () => {
   await seed((d) => setDoc(doc(d, "vitals/uA"), { h: 95, t: 50, e: 50, at: Date.now(), deaths: 0 }));
   await itemSeed("uA", "uA", "p2", "snack", 2);
   await itemSeed("uA", "uA", "p3", "meal", 2);
@@ -1090,8 +1098,8 @@ await t("먹기: 음식은 배고픔 20, 식사는 40, 에너지 식품은 에�
   await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p2", h: 115, t: 50, e: 50 })); // 100을 넘을 수 없어요
   await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p5", h: 95, t: 50, e: 50 })); // 음식을 먹었는데 배고픔이 안 오르면 안 돼요
   await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p2", h: 100, t: 50, e: 50 })); // 95 + 20 → 100에서 멈춰요
-  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p4", h: 100, t: 50, e: 90 })); // 에너지 50 + 40
-  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p3", h: 100, t: 50, e: 90 })); // 식사: 배고픔은 이미 100
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p4", h: 100, t: 50, e: 70 })); // 에너지 50 + 20
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p3", h: 100, t: 50, e: 70 })); // 식사: 배고픔은 이미 100
   check("p2 1개 남음", (await readItem("uA", "uA", "p2")).n === 1);
   check("p3 1개 남음", (await readItem("uA", "uA", "p3")).n === 1);
   check("p4 1개 남음", (await readItem("uA", "uA", "p4")).n === 1);

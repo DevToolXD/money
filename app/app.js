@@ -980,11 +980,11 @@
   nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && ["manage", "notices"].includes(app.dataset.screen)) goScreen("account"); });
 
   /* ---------- 상태: 어느 탭에서나 떠 있는 동그란 버튼. 누르면 돌면서 배고픔·목마름·에너지가 튀어나와요 ---------- */
-  // 시간당 줄어드는 양 (firestore.rules의 쓰러짐 검사와 같아야 해요): 배고픔 24시간, 목마름 18시간, 에너지 36시간에 100%가 다 닳아요
+  // 시간당 줄어드는 양 (firestore.rules의 쓰러짐 검사와 같아야 해요): 배고픔 24시간, 목마름 18시간, 에너지 30일에 100%가 다 닳아요. 에너지가 0이어도 쓰러지지 않아요
   const STATS = [
     { k: "h", label: "배고픔", rate: 100 / 24, d: '<path d="M7.500 4v5a2.500 2.500 0 0 0 5 0V4M10 4v16M17 20V4c-2.200 1.500-3 4-3 7h3"/>' },
     { k: "t", label: "목마름", rate: 100 / 18, d: '<path d="M12 3.500C9 8 6.500 10.800 6.500 14.500a5.500 5.500 0 0 0 11 0C17.500 10.800 15 8 12 3.500z"/>' },
-    { k: "e", label: "에너지", rate: 100 / 36, d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
+    { k: "e", label: "에너지", rate: 100 / (30 * 24), d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
   ];
   const fab = document.getElementById("status-fab");
   const stBubble = document.getElementById("status-bubble");
@@ -1096,8 +1096,9 @@
       }
     }
     const low = Math.min(v.h, v.t, v.e);
+    const dead = Math.min(v.h, v.t) <= 0; // 배고픔이나 목마름이 0이면 쓰러져요 (에너지는 안 봐요)
     vignette.className = `vignette${low <= 5 ? " v5" : low <= 10 ? " v10" : low <= 20 ? " v20" : ""}`;
-    if (low <= 0 && !dying) {
+    if (dead && !dying) {
       dying = true;
       try {
         vit = await window.cloud.die(vit.deaths + 1);

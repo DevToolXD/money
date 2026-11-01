@@ -710,22 +710,29 @@ window.cloudReady = (async () => {
       },
       // 먹기: 내 인벤토리에서 한 개를 먹어요. 칸이 한 개 줄고, 먹은 사람의 상태가 같은 묶음에서 올라가요.
       //   물은 목마름 +40, 음식(간식) 배고픔 +20, 식사 배고픔 +40, 에너지 식품 에너지 +40 (100을 넘지 않아요). v는 지금 상태 {h,t,e,at,deaths}
+      // 음식 한 개가 올리는 양: 기본 20 × 회사 식품 성능 ÷ 100 (성능 100이면 20)
+      foodGain: async (cid) => {
+        const L = await getDoc(doc(db, "companies", cid, "lab", "main")).catch(rethrow);
+        const perf = L.exists() && Number.isInteger(L.data().fperf) ? L.data().fperf : 100;
+        return (20 * perf) / 100;
+      },
       eatFromInventory: async (cid, pid, group, v) => {
-        const gain = { water: ["t", 40], snack: ["h", 20], meal: ["h", 40], energy: ["e", 40] }[group];
-        const FULL = { h: 86400000, t: 64800000, e: 129600000 }; // 0%까지 닳는 데 걸리는 밀리초 (서버 규칙과 같아요)
+        const q = await window.cloud.foodGain(cid);
+        const gain = { water: ["t", q], snack: ["h", q], meal: ["h", q], energy: ["e", q] }[group];
+        const FULL = { h: 86400000, t: 64800000, e: 2592000000 }; // 0%까지 닳는 데 걸리는 밀리초 (서버 규칙과 같아요). 에너지는 거의 안 닳아요
         if (!gain) throw Object.assign(new Error("먹을 수 없는 음식이에요"), { code: "bad" });
         const now = Date.now();
         const next = {};
         for (const k of ["h", "t", "e"]) {
           const left = v[k] - ((now - v.at) * 100) / FULL[k];
-          if (left <= 0) throw Object.assign(new Error("쓰러져 있어서 지금은 먹을 수 없어요"), { code: "fainted" });
+          if (k !== "e" && left <= 0) throw Object.assign(new Error("쓰러져 있어서 지금은 먹을 수 없어요"), { code: "fainted" });
           next[k] = k === gain[0] ? Math.min(100, left + gain[1]) : left;
         }
         const b = writeBatch(db);
         b.update(invRefOf(cid, pid), { n: increment(-1) });
         b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid } });
         await b.commit().catch(rethrow);
-        return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid } };
+        return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid }, gained: q, stat: gain[0] };
       },
       /* ----- 관리 (오너만). 행동할 때마다 인증토큰 3개를 앱이 만들어 서버에 올리고(5분), 같은 3개를 행동과 함께 보내면 서버가 확인해요 ----- */
       adminGrant: async (id, amt) => {
