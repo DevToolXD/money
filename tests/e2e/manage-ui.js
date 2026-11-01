@@ -1,0 +1,48 @@
+// 화면: 오너의 관리 탭에서 이름 앞부분을 치면 자동 검색이 뜨고, 누르면 칸이 채워지고, 토큰을 지급해요. 공지도 올려요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const emu = fs.readFileSync(path.join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+const open = async (b) => {
+  const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  page.on('dialog', (d) => d.accept());
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+  return { page, errs };
+};
+const wallet = async (uid) => { const d = await (await fetch(`${DB}/wallets/${uid}`, { headers: { authorization: 'Bearer owner' } })).json(); return d.fields ? Number(d.fields.bal.integerValue) : null; };
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
+  const O = await open(b), T = await open(b);
+  const sfx = Date.now().toString(36).slice(-4);
+  await O.page.evaluate(() => window.cloud.signUp('owner', 'abc123', '관리자'));
+  await O.page.reload(); await O.page.waitForTimeout(6000);
+  await T.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '김민준'), 'mj' + sfx);
+  await T.page.reload(); await T.page.waitForTimeout(6000);
+  const uT = await T.page.evaluate(() => window.cloud.uid);
+  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
+  await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
+  await O.page.fill('#mg-grant-id', '김민'); await O.page.waitForTimeout(1500);
+  ok('이름 앞부분으로 자동 검색이 떠요', await O.page.isVisible('#mg-grant-sug .mg-sug-row'));
+  await O.page.click('#mg-grant-sug .mg-sug-row'); await O.page.waitForTimeout(300);
+  ok('누르면 아이디가 칸에 들어가요', (await O.page.inputValue('#mg-grant-id')) === 'mj' + sfx && !(await O.page.isVisible('#mg-grant-sug .mg-sug-row')));
+  await O.page.fill('#mg-grant-amt', '7');
+  const before = (await wallet(uT)) ?? 0;
+  await O.page.click('#mg-grant'); await O.page.waitForTimeout(3000);
+  ok('지급하면 지갑이 7 늘어요', (await wallet(uT)) === before + 7);
+  ok('지급 뒤 칸이 비워져요', (await O.page.inputValue('#mg-grant-amt')) === '');
+  await O.page.fill('#mg-notice-title', '관리 화면 공지');
+  await O.page.fill('#mg-notice-text', '러스트 화면에서 올려요');
+  await O.page.fill('#mg-notice-opts', '네\n아니요');
+  await O.page.click('#mg-notice'); await O.page.waitForTimeout(3500);
+  const listed = (await O.page.textContent('#mg-notices')) || '';
+  ok('올린 공지가 목록에 투표 집계와 함께 나와요', listed.includes('관리 화면 공지') && listed.includes('네 0명'));
+  const errs = [...O.errs, ...T.errs];
+  ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();

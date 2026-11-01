@@ -32,3 +32,15 @@ pub fn inventory_init(ctx: JsValue) {
 pub fn inventory_refresh() {
     ui::inventory::refresh();
 }
+
+/// 관리 (오너만): #manage-root에 붙여요
+#[wasm_bindgen]
+pub fn manage_init(ctx: JsValue) {
+    ui::manage::init(ui::ctx::Ctx(ctx));
+}
+
+/// 관리 화면을 열 때 올린 공지를 다시 읽어요
+#[wasm_bindgen]
+pub fn manage_refresh() {
+    ui::manage::refresh();
+}

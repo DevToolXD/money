@@ -133,6 +133,50 @@ pub async fn vote_notice(id: &str, choice: u32) -> Result<(), CloudError> {
     call("voteNotice", &[JsValue::from_str(id), JsValue::from(choice)]).await.map(|_| ())
 }
 
+/// 오너: 투표 집계 (항목마다 몇 명)
+pub async fn notice_tally(n: &Notice) -> Result<Vec<u32>, CloudError> {
+    let o = js_sys::Object::new();
+    let _ = Reflect::set(&o, &JsValue::from_str("id"), &JsValue::from_str(&n.id));
+    let opts: Array = n.options.clone().unwrap_or_default().iter().map(|s| JsValue::from_str(s)).collect();
+    let _ = Reflect::set(&o, &JsValue::from_str("options"), &opts);
+    shape(call("noticeTally", &[o.into()]).await?)
+}
+
+/* ---------- 관리 (오너) ---------- */
+
+/// 자동 검색 결과 한 명
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ProfileHit {
+    pub uid: String,
+    pub id: String,
+    pub name: String,
+}
+
+/// 아이디나 이름 앞부분으로 찾아요 (최대 8명)
+pub async fn search_profiles(text: &str) -> Result<Vec<ProfileHit>, CloudError> {
+    shape(call("searchProfiles", &[JsValue::from_str(text)]).await?)
+}
+
+/// 토큰 지급 (아이디나 이름)
+pub async fn admin_grant(id: &str, amt: u32) -> Result<(), CloudError> {
+    call("adminGrant", &[JsValue::from_str(id), JsValue::from(amt)]).await.map(|_| ())
+}
+
+/// 공지 올리기 (투표 항목은 비우면 투표가 없어요)
+pub async fn admin_notice(title: &str, body: &str, options: &[String]) -> Result<(), CloudError> {
+    let o = js_sys::Object::new();
+    let _ = Reflect::set(&o, &JsValue::from_str("title"), &JsValue::from_str(title));
+    let _ = Reflect::set(&o, &JsValue::from_str("body"), &JsValue::from_str(body));
+    let opts: Array = options.iter().map(|s| JsValue::from_str(s)).collect();
+    let _ = Reflect::set(&o, &JsValue::from_str("options"), &opts);
+    call("adminNotice", &[o.into()]).await.map(|_| ())
+}
+
+/// 계정 데이터 지우기
+pub async fn admin_delete(id: &str) -> Result<(), CloudError> {
+    call("adminDelete", &[JsValue::from_str(id)]).await.map(|_| ())
+}
+
 /* ---------- 인벤토리 ---------- */
 
 /// 인벤토리 한 칸. `raw`는 다리에서 온 그대로의 값이에요 (상품 그림을 그리는 JS 함수에 넘겨요)
@@ -201,6 +245,19 @@ pub fn date_ko(ms: f64) -> String {
     }
     let d = js_sys::Date::new(&JsValue::from_f64(ms));
     format!("{}년 {}월 {}일", d.get_full_year(), d.get_month() + 1, d.get_date())
+}
+
+/// "11. 1. 오후 06:30" (월·일·시·분, 한국 표기)
+pub fn when_ko(ms: f64) -> String {
+    if ms <= 0.0 {
+        return String::new();
+    }
+    let d = js_sys::Date::new(&JsValue::from_f64(ms));
+    let o = js_sys::Object::new();
+    for (k, v) in [("month", "numeric"), ("day", "numeric"), ("hour", "2-digit"), ("minute", "2-digit")] {
+        let _ = Reflect::set(&o, &JsValue::from_str(k), &JsValue::from_str(v));
+    }
+    d.to_locale_string("ko-KR", &o).into()
 }
 
 /// 콘솔에 경고를 남겨요
