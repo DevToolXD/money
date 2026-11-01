@@ -36,6 +36,7 @@
       if (on) app.dataset.screen = key;
       el.inert = !on;
     }
+    window.__paintStatus?.();
   };
 
   const scrollToTop = (name) =>
@@ -246,6 +247,7 @@
   const applyWall = () => {
     const wall = wallMap[openChat.id] || "white";
     thread.dataset.wall = wall;
+    window.__paintStatus?.();
     document.querySelectorAll("[data-pick]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.pick === wall)));
   };
   let readMark = "";
@@ -290,6 +292,7 @@
     document.getElementById("thread-invite").hidden = !chat.group;
     document.querySelector('#attach [data-a="token"]').hidden = Boolean(chat.group); // 단톡방에서는 토큰을 주고받지 않아요
     app.classList.add("in-thread");
+    paintStatus();
     thread.classList.add("is-open");
     renderChats();
   };
@@ -318,6 +321,7 @@
     readMark = "";
     thread.classList.remove("is-open");
     app.classList.remove("in-thread");
+    paintStatus();
     input.blur();
     tabbar.requestRender();
   };
@@ -2063,12 +2067,20 @@
   let slideTimer = 0;
   const showSlide = (n) => slides.forEach((s, i) => s.classList.toggle("on", i === n));
   // 상태바 색: 로그인 화면이 열리면 사진 쪽의 어두운 색으로, 닫히면 원래 밝은 색으로 돌려요 (홈 화면 앱에서 빈 띠가 덜 튀게)
-  const setStatusColour = (dark) => {
+  // 상태바 색은 지금 보이는 맨 위 색을 따라가요: 로그인(어두움) > 대화(흰색·민트) > 화면(라벤더 회색)
+  let loginOn = false;
+  const paintStatus = () => {
     const meta = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]');
-    meta?.setAttribute("content", dark ? "#2a2a2e" : "#f2f2f7");
+    if (!meta) return;
+    let colour = "#f2f2f7";
+    if (loginOn) colour = "#2a2a2e";
+    else if (app.classList.contains("in-thread")) colour = document.getElementById("thread")?.dataset.wall === "mint" ? "#eaf6ee" : "#ffffff";
+    meta.setAttribute("content", colour);
   };
+  window.__paintStatus = paintStatus;
   const showLogin = (on) => {
-    setStatusColour(on);
+    loginOn = on;
+    paintStatus();
     clearInterval(slideTimer);
     if (on) {
       showSlide(slide);
