@@ -56,7 +56,7 @@ pub fn signed_in() -> bool {
 }
 
 /// `window.cloud.<name>(...args)`를 부르고, 약속(Promise)이면 끝날 때까지 기다려요
-async fn call(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
+pub async fn call(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
     let c = cloud().ok_or_else(|| CloudError::new("nocloud", "서버에 연결하지 못했어요"))?;
     let f: Function = Reflect::get(&c, &JsValue::from_str(name))
         .map_err(CloudError::from_js)?
@@ -73,7 +73,7 @@ async fn call(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
     }
 }
 
-fn shape<T: DeserializeOwned>(v: JsValue) -> Result<T, CloudError> {
+pub fn shape<T: DeserializeOwned>(v: JsValue) -> Result<T, CloudError> {
     serde_wasm_bindgen::from_value(v).map_err(|e| CloudError::new("shape", e.to_string()))
 }
 
@@ -133,7 +133,66 @@ pub async fn vote_notice(id: &str, choice: u32) -> Result<(), CloudError> {
     call("voteNotice", &[JsValue::from_str(id), JsValue::from(choice)]).await.map(|_| ())
 }
 
+/* ---------- 인벤토리 ---------- */
+
+/// 인벤토리 한 칸. `raw`는 다리에서 온 그대로의 값이에요 (상품 그림을 그리는 JS 함수에 넘겨요)
+#[derive(Debug, Clone)]
+pub struct InvItem {
+    pub id: String,
+    pub cid: String,
+    pub pid: String,
+    pub group: String,
+    pub name: String,
+    pub co_name: String,
+    pub n: i64,
+    pub raw: JsValue,
+}
+
+#[derive(Deserialize)]
+struct InvShape {
+    id: String,
+    #[serde(default)]
+    cid: String,
+    #[serde(default)]
+    pid: String,
+    #[serde(default)]
+    group: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default, rename = "coName")]
+    co_name: String,
+    #[serde(default)]
+    n: f64,
+}
+
+/// 내 인벤토리 (개수가 있는 칸만)
+pub async fn list_inventory() -> Result<Vec<InvItem>, CloudError> {
+    let v = call("listInventory", &[]).await?;
+    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
+    arr.iter()
+        .map(|raw| {
+            let s: InvShape = shape(raw.clone())?;
+            Ok(InvItem { id: s.id, cid: s.cid, pid: s.pid, group: s.group, name: s.name, co_name: s.co_name, n: s.n as i64, raw })
+        })
+        .collect()
+}
+
+/// 음식 한 개가 올리는 양 (회사 식품 성능으로 정해져요)
+pub async fn food_gain(cid: &str) -> Result<f64, CloudError> {
+    call("foodGain", &[JsValue::from_str(cid)]).await?.as_f64().ok_or_else(|| CloudError::new("shape", "숫자가 아니에요"))
+}
+
+/// 먹기: 칸이 한 개 줄고 상태가 올라가요. 돌아온 상태(`vit`)를 그대로 돌려줘요 (`gained`에 오른 양이 있어요)
+pub async fn eat_from_inventory(cid: &str, pid: &str, group: &str, vit: &JsValue) -> Result<JsValue, CloudError> {
+    call("eatFromInventory", &[JsValue::from_str(cid), JsValue::from_str(pid), JsValue::from_str(group), vit.clone()]).await
+}
+
 /* ---------- 도움 ---------- */
+
+/// 객체의 값 하나 (없으면 undefined)
+pub fn get(obj: &JsValue, key: &str) -> JsValue {
+    Reflect::get(obj, &JsValue::from_str(key)).unwrap_or(JsValue::UNDEFINED)
+}
 
 /// "2026년 11월 1일" (시각이 없으면 빈 글자)
 pub fn date_ko(ms: f64) -> String {

@@ -20,3 +20,15 @@ pub fn notices_refresh() {
 pub fn notices_check() {
     ui::notices::check();
 }
+
+/// 인벤토리: ctx(app.js가 주는 도움 묶음)를 받아 #inv-root에 붙여요
+#[wasm_bindgen]
+pub fn inventory_init(ctx: JsValue) {
+    ui::inventory::init(ui::ctx::Ctx(ctx));
+}
+
+/// 인벤토리를 서버에서 다시 읽어요
+#[wasm_bindgen]
+pub fn inventory_refresh() {
+    ui::inventory::refresh();
+}
