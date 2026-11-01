@@ -1,0 +1,76 @@
+// 진짜 번들 + 실제 화면: 인벤토리 탭에서 음식을 골라 먹기를 누르면 한 개가 줄고 상태가 올라가요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = [];
+const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+const errs = [];
+const open = async (b) => {
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => {
+    const resp = await r.fetch();
+    const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*");
+    r.fulfill({ response: resp, body: t });
+  });
+  await page.goto('http://127.0.0.1:8765/index.html');
+  await page.waitForTimeout(3500);
+  return page;
+};
+const patch = (path, fields, mask) => fetch(`${DB}/${path}?${mask.map((m) => 'updateMask.fieldPaths=' + m).join('&')}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer owner' }, body: JSON.stringify({ fields }) });
+const rawDoc = async (path) => (await (await fetch(`${DB}/${path}`, { headers: { authorization: 'Bearer owner' } })).json());
+const num = (f) => (f ? Number(f.doubleValue ?? f.integerValue) : NaN);
+const invN = async (uid, cid, pid) => { const d = await rawDoc(`inventory/${uid}/items/${cid}_${pid}`); return d.fields ? num(d.fields.n) : 0; };
+const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then((r) => (r === undefined ? 'ok' : r), (e) => 'ERR ' + (e.code || e.message)), [fn, args]);
+const wait = (p, ms) => p.waitForTimeout(ms);
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-web-security'] });
+  const pO = await open(b), pB = await open(b);
+  await pO.evaluate(() => window.cloud.signUp('uiinvc1', 'abc123', '사장님'));
+  await pO.reload(); await wait(pO, 6000);
+  const uO = await pO.evaluate(() => window.cloud.uid);
+  await pB.evaluate(() => window.cloud.signUp('uiinvb1', 'abc123', '손님님'));
+  await pB.reload(); await wait(pB, 6000);
+  const uB = await pB.evaluate(() => window.cloud.uid);
+  await patch(`wallets/${uO}`, { bal: { integerValue: '200' } }, ['bal']);
+  await patch(`wallets/${uB}`, { bal: { integerValue: '200' } }, ['bal']);
+  await wait(pO, 2300);
+  const cid = await call(pO, 'foundCompany', ['화면 공장', '', 'food']);
+  await wait(pO, 2300); // 지갑은 2초에 한 번만 써요
+  await call(pO, 'labCash', [cid, 150, 1]);
+  const pid = await call(pO, 'createProduct', [cid, { cat: 'food', group: 'water', item: 'water', name: '화면 생수', shape: 1, cap: 3, capColor: 5, color: -1, costCents: 50, priceCents: 80, paused: false, active: true }]);
+  await call(pO, 'labFoodMake', [cid, pid, 3]);
+  await wait(pO, 2300);
+  await call(pB, 'shopBuy', [cid, pid, 2, '화면 공장']);
+  await wait(pB, 1000);
+  const now = Date.now();
+  await patch(`vitals/${uB}`, { h: { integerValue: '60' }, t: { integerValue: '30' }, e: { integerValue: '60' }, at: { integerValue: String(now) } }, ['h', 't', 'e', 'at']);
+  await pB.reload(); await wait(pB, 5000);
+  ok('손님 인벤토리 2개 (서버)', (await invN(uB, cid, pid)) === 2);
+  // 인벤토리 탭: 두 번째 줄 탭을 열어요
+  await pB.evaluate(() => window.tabbar.flipPage()); await wait(pB, 600);
+  await pB.evaluate(() => document.querySelector('.tabbar .tab[data-tab="inventory"]').click());
+  await wait(pB, 1800);
+  const text = (await pB.textContent('#inv-root')) || '';
+  ok('인벤토리 화면: 화면 생수 2개가 보여요', text.includes('화면 생수') && text.includes('2개'));
+  await pB.click('.inv-card');
+  await wait(pB, 400);
+  ok('카드를 누르면 먹기 버튼이 보여요', (await pB.textContent('.inv-detail .inv-effect')).includes('목마름 +20') && (await pB.isVisible('.inv-eat')));
+  await pB.click('.inv-eat');
+  await wait(pB, 3000);
+  const toastText = (await pB.textContent('.toast').catch(() => '')) || '';
+  ok('먹은 뒤 알림: 목마름 +20', toastText.includes('먹었어요') && toastText.includes('목마름 +20'));
+  ok('서버: 인벤토리 1개로 줄었어요', (await invN(uB, cid, pid)) === 1);
+  const vit = await rawDoc(`vitals/${uB}`);
+  ok('화면과 서버: 목마름이 약 50으로 올랐어요', Math.abs(num(vit.fields.t) - 50) < 0.5);
+  console.log('  screen t =', await pB.evaluate(() => JSON.stringify(window.__vitals.get())));
+  ok('화면 목마름 표시가 올라갔어요', Number((await pB.evaluate(() => (window.__vitals.get() || {}).t))) > 40);
+  ok('화면 오류 없음', errs.length === 0);
+  if (errs.length) console.log('errors', errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close();
+  process.exit(res.every(Boolean) ? 0 : 1);
+})();

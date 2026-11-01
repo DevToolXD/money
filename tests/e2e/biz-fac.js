@@ -1,0 +1,36 @@
+// 화면: 사장은 일 탭에서 성능을 올리고, 공장은 사업 탭에서 돌려요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-web-security'] });
+  const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+  const id = 'bizf' + Date.now().toString(36).slice(-4);
+  await page.evaluate((u) => window.cloud.signUp(u, 'abc123', '공장장'), id);
+  await page.reload(); await page.waitForTimeout(6000);
+  const uid = await page.evaluate(() => window.cloud.uid);
+  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer owner' }, body: JSON.stringify({ fields: { bal: { integerValue: '1000' } } }) });
+  await page.waitForTimeout(2300);
+  const cid = await page.evaluate(() => window.cloud.foundCompany('사업 공장', '', 'food'));
+  await page.waitForTimeout(2300);
+  await page.evaluate((c) => window.cloud.labCash(c, 600, 1), cid); await page.waitForTimeout(2300);
+  await page.evaluate((c) => window.cloud.createProduct(c, { cat: 'food', group: 'water', item: 'water', name: '사업 생수', shape: 1, cap: 3, capColor: 5, color: -1, costCents: 100, priceCents: 300, paused: false, active: true }), cid);
+  await page.reload(); await page.waitForTimeout(5000);
+  await page.evaluate(() => document.querySelector('.tabbar .tab[data-tab="work"]').click()); await page.waitForTimeout(1500);
+  ok('일 탭: 성능 카드(배합 다듬기)가 보여요', await page.isVisible('#wk-tune'));
+  ok('일 탭: 공장 카드는 없어요', (await page.$('#fac-start')) === null || !(await page.isVisible('#screen-work #fac-start')));
+  await page.evaluate(() => window.tabbar.flipPage()); await page.waitForTimeout(600);
+  await page.evaluate(() => document.querySelector('.tabbar .tab[data-tab="business"]').click()); await page.waitForTimeout(2200);
+  ok('사업 탭: 공장 카드가 보여요', await page.isVisible('#biz-factory #fac-start'));
+  await page.click('#biz-factory #fac-start'); await page.waitForTimeout(2500);
+  ok('사업 탭에서 돌리면 진행 글이 나와요', (await page.textContent('#biz-factory #fac-left')).includes('남은'));
+  ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();

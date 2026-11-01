@@ -1,0 +1,38 @@
+// 화면: 회사가 두 개면 사업 탭에서 고르면 이름이 바뀌고, 바뀌는 동안 움직임 클래스가 붙어요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
+  const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+  const id = 'swc' + Date.now().toString(36).slice(-4);
+  await page.evaluate((u) => window.cloud.signUp(u, 'abc123', '두회사'), id);
+  await page.reload(); await page.waitForTimeout(6000);
+  const uid = await page.evaluate(() => window.cloud.uid);
+  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer owner' }, body: JSON.stringify({ fields: { bal: { integerValue: '1000' } } }) });
+  await page.waitForTimeout(2300);
+  await page.evaluate(() => window.cloud.foundCompany('첫 회사', '', 'food')); await page.waitForTimeout(2300);
+  await page.evaluate(() => window.cloud.foundCompany('둘째 회사', '', 'pc')); await page.waitForTimeout(2300);
+  console.log('mine', JSON.stringify(await page.evaluate(() => window.cloud.listMyCompanies().then((l) => l.map((c) => c.name), (e) => 'ERR ' + e.code))));
+  await page.reload(); await page.waitForTimeout(5000);
+  await page.evaluate(() => window.tabbar.flipPage()); await page.waitForTimeout(600);
+  await page.evaluate(() => document.querySelector('.tabbar .tab[data-tab="business"]').click()); await page.waitForTimeout(1800);
+  console.log('state', await page.evaluate(() => JSON.stringify({ hidden: document.getElementById('biz-switch').hidden, html: document.getElementById('biz-switch').innerHTML.length, dash: document.getElementById('biz-dash').hidden, screen: document.querySelector('.app').dataset.screen })));
+  const before = await page.textContent('#biz-name');
+  await page.click('#biz-switch [data-co]:not([aria-pressed="true"])');
+  await page.waitForTimeout(90);
+  const mid = await page.evaluate(() => document.getElementById('biz-dash').className);
+  await page.waitForTimeout(700);
+  const after = await page.textContent('#biz-name');
+  ok('회사를 고르면 이름이 바뀌어요', before.trim() !== after.trim());
+  ok('바뀌는 동안 움직임이 붙어요', mid.includes('swap-out') || mid.includes('swap-in'));
+  ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 2));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();

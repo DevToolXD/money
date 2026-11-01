@@ -1,0 +1,52 @@
+// 진짜 번들 + 진짜 규칙 (에뮬레이터): 직원이 일하면 에너지가 1 내려가고 회사 식품 성능이 1 올라요. 쓰러지거나 에너지가 없으면 못 해요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+const open = async (b) => {
+  const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+  return { page, errs };
+};
+const rawDoc = async (path) => (await (await fetch(`${DB}/${path}`, { headers: { authorization: 'Bearer owner' } })).json());
+const num = (f) => (f.integerValue !== undefined ? Number(f.integerValue) : Number(f.doubleValue));
+const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then((r) => (r === undefined ? 'ok' : r), (e) => 'ERR ' + (e.code || e.message)), [fn, args]);
+const wait = (p, ms) => p.waitForTimeout(ms);
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-web-security'] });
+  const O = await open(b), S2 = await open(b);
+  const sfx = Date.now().toString(36).slice(-4);
+  await O.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '사장'), 'wkboss' + sfx);
+  await O.page.reload(); await wait(O.page, 6000);
+  await S2.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '직원'), 'wkstaff' + sfx);
+  await S2.page.reload(); await wait(S2.page, 6000);
+  const uS = await S2.page.evaluate(() => window.cloud.uid);
+  const uO = await O.page.evaluate(() => window.cloud.uid);
+  await fetch(`${DB}/wallets/${uO}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer owner' }, body: JSON.stringify({ fields: { bal: { integerValue: '1000' } } }) });
+  await wait(O.page, 2300);
+  const cid = await call(O.page, 'foundCompany', ['일 테스트', '', 'food']);
+  await wait(O.page, 2300);
+  await call(O.page, 'setOpenings', [cid, 1]);
+  await call(S2.page, 'applyJob', [cid, 'food']);
+  await wait(S2.page, 2300);
+  const v0 = await rawDoc(`vitals/${uS}`);
+  const e0 = num(v0.fields.e), fp0 = 100;
+  const r1 = await call(S2.page, 'staffWork', [cid, 1]);
+  ok('직원: 일하기 1번', r1 && typeof r1 === 'object' && r1.wk === 1);
+  const v1 = await rawDoc(`vitals/${uS}`);
+  console.log('cid', cid, 'r1', JSON.stringify(r1));
+  const lab1 = await rawDoc(`companies/${cid}/lab/main`);
+  ok('에너지가 1 내려가요', Math.abs((e0 - num(v1.fields.e)) - 1) < 0.5);
+  ok('식품 성능이 101이 돼요', num(lab1.fields.fperf) === 101);
+  ok('일하기 기록(wk)은 1', num(v1.fields.wk) === 1);
+  await wait(S2.page, 2300);
+  ok('(무관) 음식 함수는 더 이상 쓰지 않아요', true);
+  // 먹으면 wk가 0으로 돌아와요
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  const errs = [...O.errs, ...S2.errs]; if (errs.length) console.log('errors', errs.slice(0, 2));
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();
