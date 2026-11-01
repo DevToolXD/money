@@ -1064,7 +1064,13 @@
   let dying = false;
   const vitNow = () => {
     const hrs = Math.max(0, (Date.now() - vit.at) / 3600000);
-    return Object.fromEntries(STATS.map((u) => [u.k, Math.min(100, vit[u.k] - hrs * u.rate)]));
+    // 에너지가 0이 되기까지 걸리는 시간 (1%당 7.2시간). 그 뒤에는 배고픔·목마름이 두 배로 닳아요 (firestore.rules 와 같아요)
+    const eff = hrs + Math.max(0, hrs - vit.e * 7.2);
+    return {
+      h: Math.max(0, Math.min(100, vit.h - eff * (100 / 24))),
+      t: Math.max(0, Math.min(100, vit.t - eff * (100 / 18))),
+      e: Math.max(0, Math.min(100, vit.e - hrs * (100 / (30 * 24)))),
+    };
   };
   const stopLock = () => { clearInterval(lockTimer); lockEl.hidden = true; };
   const showLock = () => {

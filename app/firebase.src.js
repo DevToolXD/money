@@ -589,10 +589,17 @@ window.cloudReady = (async () => {
         });
         return r ? got : -1;
       },
+      // 공장·일하기 전에 연구실 문서가 없으면 기본값으로 먼저 만들어요 (만들기와 돌리기는 따로 써야 규칙을 통과해요)
+      ensureLab: async (cid) => {
+        const lref = doc(db, "companies", cid, "lab", "main");
+        const s = await getDoc(lref).catch(rethrow);
+        if (!s.exists()) await setDoc(lref, labWrite(labOf(null))).catch(() => {});
+      },
       // 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요 (대수 plv만큼 60초에 그만큼).
       // 돌리기: 개수를 정해 시작해요. 재료값과 재고는 만든 만큼 "정산"할 때 같은 묶음에서 바뀌어요.
-      labStartFactory: (cid, pid, n) =>
-        runTransaction(db, async (tx) => {
+      labStartFactory: async (cid, pid, n) => {
+        await window.cloud.ensureLab(cid);
+        return runTransaction(db, async (tx) => {
           const fail = (code, msg) => Object.assign(new Error(msg), { code });
           const lref = doc(db, "companies", cid, "lab", "main");
           const pref = doc(db, "companies", cid, "products", pid);
@@ -606,7 +613,8 @@ window.cloudReady = (async () => {
           if (L.prod) throw fail("busy", "공장이 이미 돌고 있어요. 다 만들 때까지 기다려 주세요");
           tx.update(lref, { prod: { pid, left: n, at: serverTimestamp() } });
           return n;
-        }).catch(rethrow),
+        }).catch(rethrow);
+      },
       // 정산 (사장): 지금까지 만든 개수만큼 재료값이 금고에서 나가고 재고가 늘어요. 재료값이 모자라면 거기서 멈춰요.
       // 서버 시각을 쓰니 시계가 조금 빨라도 되도록 3초 덜 세요 (규칙은 최대치 이하만 받아요)
       labSettleFactory: (cid) =>
@@ -634,8 +642,9 @@ window.cloudReady = (async () => {
           return { units: u, left };
         }).catch(rethrow),
       // 공장 추가 (사장): 500토큰(금고에서)을 내고 한 대 더 생겨요. 돌고 있을 때는 못 해요
-      labBuyFactory: (cid) =>
-        runTransaction(db, async (tx) => {
+      labBuyFactory: async (cid) => {
+        await window.cloud.ensureLab(cid);
+        return runTransaction(db, async (tx) => {
           const fail = (code, msg) => Object.assign(new Error(msg), { code });
           const lref = doc(db, "companies", cid, "lab", "main");
           const ls = await tx.get(lref);
@@ -646,7 +655,8 @@ window.cloudReady = (async () => {
           if (L.cash < 50000) throw fail("poor", "회사 금고에 500 토큰이 부족해요. 먼저 금고에 넣어 주세요");
           tx.update(lref, { cash: L.cash - 50000, plv: L.plv + 1 });
           return L.plv + 1;
-        }).catch(rethrow),
+        }).catch(rethrow);
+      },
       labGenClaim: async (cid) => {
         let got = 0;
         const r = await labTx(cid, (L) => {
@@ -655,6 +665,34 @@ window.cloudReady = (async () => {
           return { ...L, elec: L.elec + L.gen.amt, gen: null };
         });
         return r ? got : 0;
+      },
+      // 일하기 (직원·사장): 일한 만큼 에너지가 내려가고 회사 식품 성능이 올라요. 같은 묶음에서 두 기록이 함께 바뀌어요.
+      // 배고픔이나 목마름이 0이면 쓰러져 있어서 못 해요. 에너지가 모자라면 못 해요
+      staffWork: async (cid, k = 1) => {
+        await window.cloud.ensureLab(cid);
+        return runTransaction(db, async (tx) => {
+          const fail = (code, msg) => Object.assign(new Error(msg), { code });
+          const vref = doc(db, "vitals", uidOf());
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const vs = await tx.get(vref);
+          const ls = await tx.get(lref);
+          if (!vs.exists()) throw fail("novit", "상태를 아직 만들지 않았어요");
+          if (!ls.exists()) throw fail("nolab", "회사를 아직 정하지 않았어요");
+          const v = vs.data();
+          const FULL = { h: 86400000, t: 64800000, e: 2592000000 };
+          const now = Date.now();
+          const T = now - v.at;
+          const eff = T + Math.max(0, T - (v.e * FULL.e) / 100); // 에너지가 0이 된 뒤에는 두 배로 닳아요
+          const h = v.h - (eff * 100) / FULL.h;
+          const t = v.t - (eff * 100) / FULL.t;
+          const e = v.e - (T * 100) / FULL.e;
+          if (h <= 0 || t <= 0) throw fail("fainted", "쓰러져 있어서 지금은 일할 수 없어요");
+          if (e < k) throw fail("tired", "에너지가 모자라요. 먹고 쉬어 주세요");
+          const next = { h, t, e: e - k, at: now, wk: k };
+          tx.update(vref, next);
+          tx.update(lref, { fperf: labOf(ls.data()).fperf + k });
+          return { ...v, ...next };
+        }).catch(rethrow);
       },
       // 테스트용: 다 만들 때까지 기다려요 (한 개에 60초)
       labFoodMake: async (cid, pid, n) => {
@@ -724,13 +762,13 @@ window.cloudReady = (async () => {
         const now = Date.now();
         const next = {};
         for (const k of ["h", "t", "e"]) {
-          const left = v[k] - ((now - v.at) * 100) / FULL[k];
+          const left = Math.max(0, v[k] - ((now - v.at) * 100) / FULL[k]); // 에너지는 0 아래로 내려가지 않아요
           if (k !== "e" && left <= 0) throw Object.assign(new Error("쓰러져 있어서 지금은 먹을 수 없어요"), { code: "fainted" });
           next[k] = k === gain[0] ? Math.min(100, left + gain[1]) : left;
         }
         const b = writeBatch(db);
         b.update(invRefOf(cid, pid), { n: increment(-1) });
-        b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid } });
+        b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid }, wk: 0 });
         await b.commit().catch(rethrow);
         return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid }, gained: q, stat: gain[0] };
       },
@@ -866,7 +904,7 @@ window.cloudReady = (async () => {
       },
       // 0%가 되면 기록해요: 다 10%로 돌아오고, 쓰러진 횟수만큼 시간 동안 쉬어요
       die: async (deaths) => {
-        const v = { h: 10, t: 10, e: 10, at: Date.now() + deaths * 3600000, deaths };
+        const v = { h: 10, t: 10, e: 10, at: Date.now() + deaths * 3600000, deaths, wk: 0 };
         await updateDoc(doc(db, "vitals", uidOf()), v).catch(rethrow);
         return v;
       },

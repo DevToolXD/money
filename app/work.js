@@ -785,7 +785,17 @@
         loadProducts(cid);
         wireFactory(cid);
       } else {
-        root.querySelector("#wk-tune")?.addEventListener("click", () => queueLab({ fperf: 1 }));
+        root.querySelector("#wk-tune")?.addEventListener("click", async () => {
+          try {
+            const v = await ctx.cloud().staffWork(cid, 1);
+            window.__vitals?.set(v);
+            ctx.toast("일을 했어요 · 식품 성능 +1 · 에너지 -1");
+          } catch (err) {
+            const m = { fainted: "쓰러져 있어서 지금은 일할 수 없어요", tired: "에너지가 모자라요. 먹고 쉬어 주세요" }[err?.code];
+            ctx.toast(m || err?.message || "잠시 뒤 다시 해 주세요");
+          }
+          await loadLabView(cid);
+        });
       }
       loadLabView(cid);
       return;

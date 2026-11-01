@@ -1304,6 +1304,51 @@ await t("공장 추가: 돌고 있을 때는 살 수 없어요", async () => {
   await assertFails(updateDoc(labRef(pw("uA", "alice")), { plv: 2, cash: 10000 }));
 });
 
+// 일하기: 에너지가 일한 만큼 내려가고, 회사 식품 성능은 같은 묶음에서만 올라가요. 에너지가 0이 되면 배고픔·목마름이 두 배로 닳아요
+await t("일하기: 에너지가 일한 만큼 내려가고, 성능은 같은 묶음에서만 올라가요", async () => {
+  await coSeed();
+  await labSeed({});
+  await seed(jobSeed);
+  await seed((d) => setDoc(doc(d, "vitals/uB"), { h: 60, t: 30, e: 60, at: Date.now() - 3600e3, deaths: 0 }));
+  const bob = pw("uB", "bob");
+  const hNow = 60 - (3600e3 * 100) / 86400e3, tNow = 30 - (3600e3 * 100) / 64800e3, eNow = 60 - (3600e3 * 100) / 2592e6;
+  const vitWork = (db, k, eDrop) => {
+    const b = writeBatch(db);
+    b.update(doc(db, "vitals/uB"), { h: hNow, t: tNow, e: eNow - eDrop, at: Date.now(), wk: k });
+    return b;
+  };
+  await assertFails(vitWork(bob, 1, 3).commit()); // 일한 만큼만 내려가요 (3을 내리면 안 돼요)
+  // 성능만 올리면 안 돼요 (같은 묶음의 일하기 기록이 없어요)
+  await assertFails(updateDoc(labRef(bob), { fperf: 101 }));
+  // 일하기 묶음: 기록과 성능이 같이 바뀌면 돼요
+  const b1 = vitWork(bob, 1, 1);
+  b1.update(labRef(bob), { fperf: 101 });
+  await assertSucceeds(b1.commit());
+  // 한 번 더 일하면서 성능을 두 번 올리면 안 돼요
+  await assertFails(updateDoc(labRef(bob), { fperf: 103 }));
+});
+await t("일하기: 에너지가 없으면 일할 수 없어요", async () => {
+  await coSeed();
+  await labSeed({});
+  await seed(jobSeed);
+  await seed((d) => setDoc(doc(d, "vitals/uB"), { h: 60, t: 30, e: 0, at: Date.now(), deaths: 0 }));
+  const bob = pw("uB", "bob");
+  const b = writeBatch(bob);
+  b.update(doc(bob, "vitals/uB"), { h: 60, t: 30, e: -1, at: Date.now(), wk: 1 });
+  b.update(labRef(bob), { fperf: 101 });
+  await assertFails(b.commit());
+});
+await t("닳기: 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배로 닳아요", async () => {
+  await itemSeed("uA", "uA", "p1", "water", 3);
+  await seed((d) => setDoc(doc(d, "vitals/uA"), { h: 90, t: 90, e: 0, at: Date.now() - 5 * 3600e3, deaths: 0 }));
+  const alice = pw("uA", "alice");
+  const eff = 10 * 3600e3; // 에너지가 0이어서 5시간을 두 배로 세요
+  const hTwice = 90 - (eff * 100) / 86400e3, tTwice = 90 - (eff * 100) / 64800e3;
+  const hOnce = 90 - (5 * 3600e3 * 100) / 86400e3;
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: hOnce, t: tTwice + 20, e: 0 })); // 한 번 세기는 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: hTwice, t: tTwice + 20, e: 0 }));
+});
+
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));
 await env.cleanup();
