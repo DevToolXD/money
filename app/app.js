@@ -201,7 +201,9 @@
     const last = !next || next[0] !== who || next[2] !== by;
     const card = raw && raw.type && raw.type !== "text" ? cardHTML(raw, who, i) : "";
     const b = card || `<div class="bubble${who === "me" ? " me" : ""}${last ? " last" : ""}${i === fresh ? " fresh" : ""}" data-i="${i}">${esc(String(text))}</div>`;
-    const line = who === "me" ? `<div class="line me">${b}</div>` : `<div class="line">${last ? avatarHTML(by || chat.name, chat.photo) : '<span style="width:38px"></span>'}${b}</div>`;
+    const prev = msgs[i - 1];
+    const nameTag = chat.group && who === "them" && (!prev || prev[0] !== who || prev[2] !== by) && by ? `<span class="sender">${esc(by)}</span>` : "";
+    const line = who === "me" ? `<div class="line me">${b}</div>` : `<div class="line">${last ? avatarHTML(by || chat.name, chat.photo) : '<span style="width:38px"></span>'}<div class="bcol">${nameTag}${b}</div></div>`;
     const key = raw?.id || String(i);
     const sig = `${key}|${last ? 1 : 0}|${raw?.done ? 1 : 0}|${raw?.votes ? JSON.stringify(raw.votes) : ""}|${i}`;
     return { key, sig, html: `<div class="mrow" data-k="${esc(key)}" data-sig="${esc(sig)}">${line}</div>` };
@@ -247,6 +249,7 @@
     document.querySelectorAll("[data-pick]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.pick === wall)));
   };
   let readMark = "";
+  const senderNames = new Map(); // 단톡방에서 보낸 사람의 이름 (한 번 읽으면 기억해요)
   const open = (id) => {
     openChat = chats.find((c) => c.id === id);
     if (!openChat) return;
@@ -267,11 +270,13 @@
     bubbles.innerHTML = "";
     renderThread(-2);
     // 최근 40개만 실시간으로 받아요. 더 옛날 것은 "이전 메시지 더 보기"로 불러요
-    unsubMsgs = window.cloud.watchMessages(chat.id, (list, hasMore) => {
+    unsubMsgs = window.cloud.watchMessages(chat.id, async (list, hasMore) => {
+      // 단톡방이면 보낸 사람 이름을 먼저 읽어요 (말풍선 위에 이름을 써요)
+      if (chat.group) for (const u of new Set(list.map((m) => m.from))) if (!senderNames.has(u)) senderNames.set(u, await window.cloud.nameOf(u));
       const prevLen = chat.msgs.length - chat.older.length;
       const all = [...chat.older, ...list];
       const grew = list.length > prevLen && prevLen > 0;
-      chat.msgs = all.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.name, m]);
+      chat.msgs = all.map((m) => [m.from === window.cloud.uid ? "me" : "them", preview(m), chat.group ? senderNames.get(m.from) || "" : chat.name, m]);
       if (!chat.olderLoaded) chat.more = hasMore;
       if (openChat === chat) {
         renderThread(grew || prevLen === 0 ? (prevLen === 0 ? -1 : all.length - 1) : -2);
@@ -282,6 +287,8 @@
         }
       }
     });
+    document.getElementById("thread-invite").hidden = !chat.group;
+    document.querySelector('#attach [data-a="token"]').hidden = Boolean(chat.group); // 단톡방에서는 토큰을 주고받지 않아요
     app.classList.add("in-thread");
     thread.classList.add("is-open");
     renderChats();
@@ -496,12 +503,28 @@
       listBusy = false;
     }
   };
+  // 단톡방: 여러 명 고르기 (만들기 또는 초대). multi가 있으면 목록을 누를 때 고르기만 해요
+  let multi = null;
+  const multiBtn = document.getElementById("new-multi");
+  const goBtn = document.getElementById("new-go");
+  const paintMulti = () => {
+    const n = multi ? multi.sel.size : 0;
+    goBtn.hidden = !multi;
+    goBtn.disabled = n < 1;
+    goBtn.textContent = multi?.mode === "invite" ? `초대하기 · ${n}명` : `단톡방 만들기 · ${n}명`;
+    multiBtn.textContent = multi?.mode === "make" ? "취소" : "단톡방";
+    document.getElementById("new-title").textContent = multi?.mode === "invite" ? "사람 초대" : multi ? "단톡방 만들기" : mode0();
+    newResults.querySelectorAll(".res-row").forEach((r) => r.classList.toggle("picked", Boolean(multi && multi.sel.has(people[Number(r.dataset.i)]?.uid))));
+  };
+  const mode0 = () => (pickMode === "gift" ? "받는 사람" : "새 메시지");
   const openPicker = (mode) => {
     if (!live) {
       if (window.cloud?.user) return toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요");
       return showLogin(true);
     }
     pickMode = mode;
+    multi = null;
+    multiBtn.hidden = mode !== "chat";
     document.getElementById("new-title").textContent = mode === "gift" ? "받는 사람" : "새 메시지";
     newQ.value = "";
     newResults.innerHTML = "";
@@ -555,10 +578,66 @@
     }
     return c;
   };
+  multiBtn.addEventListener("click", () => {
+    multi = multi ? null : { mode: "make", sel: new Set() };
+    paintMulti();
+  });
+  // 초대: 단톡방 안에서 사람을 골라 더해요 (이미 있는 사람은 고를 수 없어요)
+  const openInvite = (chat) => {
+    multi = { mode: "invite", sel: new Set(), chat };
+    pickMode = "invite";
+    multiBtn.hidden = true;
+    newQ.value = "";
+    newResults.innerHTML = "";
+    people = [];
+    newEmpty.hidden = false;
+    newEmpty.textContent = "불러오는 중이에요";
+    sheetOpen(true, newSheet);
+    loadPeople(true);
+    paintMulti();
+  };
+  document.getElementById("thread-invite").addEventListener("click", () => {
+    if (openChat?.group) openInvite(openChat);
+  });
+  goBtn.addEventListener("click", async () => {
+    if (!multi || multi.sel.size < 1) return;
+    const uids = [...multi.sel];
+    goBtn.disabled = true;
+    try {
+      if (multi.mode === "invite") {
+        const members = await window.cloud.inviteMembers(multi.chat.id, uids);
+        multi.chat.members = members;
+        toast(`${uids.length}명을 초대했어요`);
+        multi = null;
+        sheetOpen(false);
+        return;
+      }
+      const names = uids.map((u) => people.find((p) => p.uid === u)?.name || people.find((p) => p.uid === u)?.id || "");
+      const joined = names.join(", ");
+      const name = joined.length <= 20 ? joined : `${names[0]} 외 ${names.length - 1}명`.slice(0, 20);
+      const cid = await window.cloud.createGroup(name, uids);
+      chats.unshift({ id: cid, other: cid, group: true, members: [window.cloud.uid, ...uids], name, photo: "", live: true, last: "", lastFrom: "", time: "", lastAt: Date.now(), unread: false, msgs: [], older: [], more: false, olderLoaded: false });
+      multi = null;
+      sheetOpen(false);
+      renderChats();
+      open(cid);
+    } catch (err) {
+      toast("단톡방을 만들지 못했어요. 잠시 뒤 다시 해 주세요");
+    } finally {
+      paintMulti();
+    }
+  });
   newResults.addEventListener("click", async (e) => {
     const row = e.target.closest(".res-row");
     if (!row) return;
     const u = people[Number(row.dataset.i)];
+    if (multi) {
+      if (!u || (multi.mode === "invite" && (multi.chat.members || []).includes(u.uid))) return;
+      if (multi.sel.has(u.uid)) multi.sel.delete(u.uid);
+      else multi.sel.add(u.uid);
+      paintMulti();
+      return;
+    }
     try {
       const c = await ensureChat(u);
       sheetOpen(false);
@@ -2262,16 +2341,19 @@
       const next = docs
         .filter((d) => !prefs[d.id]?.hidden && d.last) // 아무도 글을 보내지 않은 빈 대화는 목록에 안 보여요
         .map((d) => {
-          const other = d.members.find((u) => u !== me) || "";
-          const p = cloud.peek(other);
-          if (!p) missing.push(other);
+          const group = d.group === true;
+          const other = group ? d.id : d.members.find((u) => u !== me) || "";
+          const p = group ? null : cloud.peek(other);
+          if (!group && !p) missing.push(other);
           const o = old.get(d.id);
           const f = {
             id: d.id,
             other,
+            group,
+            members: d.members,
             live: true,
-            name: p ? p.name || p.id : o?.name || "…",
-            photo: p ? p.photo || "" : o?.photo || "",
+            name: group ? d.name || "단톡방" : p ? p.name || p.id : o?.name || "…",
+            photo: group ? "" : p ? p.photo || "" : o?.photo || "",
             last: d.last,
             lastFrom: d.lastFrom,
             time: fmtTime(d.lastAt),

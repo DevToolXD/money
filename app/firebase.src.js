@@ -224,6 +224,9 @@ window.cloudReady = (async () => {
     const chatPart = (d) => ({
       id: d.id,
       members: d.members,
+      group: d.group === true,
+      name: d.group === true ? String(d.name || "단톡방") : "",
+      owner: typeof d.owner === "string" ? d.owner : "",
       last: d.last || "",
       lastFrom: d.lastFrom || "",
       lastAt: ms(d.lastAt),
@@ -235,6 +238,7 @@ window.cloudReady = (async () => {
     };
 
     let listCursor = null;
+    const nameCache = new Map();
     const rank = { sent: null, at: 0, me: null, top: null, topAt: 0 };
     let ensured = "";
     // 연구실 숫자 한 묶음: 읽고, fn이 새 숫자를 주면 저장해요 (null을 주면 아무 일도 안 해요)
@@ -974,6 +978,33 @@ window.cloudReady = (async () => {
           await getDoc(doc(db, "chats", cid));
         }
         return cid;
+      },
+      // 단톡방 만들기: 나와 고른 사람들. 이름은 글자 1~20자, 대화 아이디는 g_로 시작해요
+      createGroup: async (name, uids) => {
+        const uid = uidOf();
+        const members = [...new Set([uid, ...uids])].slice(0, 20);
+        if (members.length < 2) throw Object.assign(new Error("두 명 이상 골라 주세요"), { code: "bad" });
+        const cid = "g_" + doc(collection(db, "chats")).id;
+        await setDoc(doc(db, "chats", cid), { members, group: true, name: String(name).trim().slice(0, 20), owner: uid, last: "", lastFrom: "", lastAt: Timestamp.fromMillis(0), reads: {} }).catch(rethrow);
+        return cid;
+      },
+      // 초대: 단톡방 멤버는 사람을 더 넣을 수 있어요 (20명까지, 기존 멤버는 그대로)
+      inviteMembers: async (cid, uids) => {
+        const ref = doc(db, "chats", cid);
+        const s = await getDoc(ref).catch(rethrow);
+        const old = s.data()?.members || [];
+        const members = [...new Set([...old, ...uids])].slice(0, 20);
+        if (members.length === old.length) return members;
+        await updateDoc(ref, { members }).catch(rethrow);
+        return members;
+      },
+      // 이름 (한 번 읽으면 기기에 담아 둬요)
+      nameOf: async (uid) => {
+        if (nameCache.has(uid)) return nameCache.get(uid);
+        const s = await getDoc(doc(db, "profiles", uid)).catch(() => null);
+        const n = s && s.exists() ? String(s.data().name || s.data().id || "") : "";
+        nameCache.set(uid, n);
+        return n;
       },
       watchChats: (cb) =>
         onSnapshot(query(collection(db, "chats"), where("members", "array-contains", uidOf()), limit(50)), (snap) =>

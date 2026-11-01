@@ -1349,6 +1349,36 @@ await t("닳기: 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배
   await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: hTwice, t: tTwice + 20, e: 0 }));
 });
 
+// 단톡방: 여러 명이 만들고, 멤버가 초대하고, 대화 아이디로 글을 보내요. 단톡방에서는 주고받기·요청을 못 해요
+await t("단톡방: 여러 명과 이름으로 만들고, 멤버가 초대하고, 초대는 기존 멤버를 지우지 못해요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "profiles/uC"), { id: "carol", name: "캐럴", photo: "" }); await setDoc(doc(d, "users/uC"), { profile: { name: "캐럴", bio: "" } }).catch(() => {}); });
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  const gid = "g_" + "a".repeat(20);
+  const made = { members: ["uA", "uB"], group: true, name: "우리 방", owner: "uA", last: "", lastFrom: "", lastAt: EPOCH, reads: {} };
+  await assertFails(setDoc(doc(alice, "chats/g_short"), made)); // 아이디가 틀려요
+  await assertFails(setDoc(doc(alice, "chats/" + gid), { ...made, owner: "uB" })); // 주인은 내가 돼야 해요
+  await assertFails(setDoc(doc(alice, "chats/" + gid), { ...made, members: ["uB"] })); // 두 명 이상
+  await assertSucceeds(setDoc(doc(alice, "chats/" + gid), made));
+  await assertSucceeds(updateDoc(doc(alice, "chats/" + gid), { members: ["uA", "uB", "uC"] })); // 초대
+  await assertFails(updateDoc(doc(alice, "chats/" + gid), { members: ["uA", "uC"] })); // 기존 멤버를 빼면 안 돼요
+  await assertFails(updateDoc(doc(pw("uD", "dan"), "chats/" + gid), { members: ["uA", "uB", "uC", "uD"] })); // 멤버가 아니면 못 초대해요
+});
+await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청은 못 해요", async () => {
+  const gid = "g_" + "b".repeat(20);
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "chats/" + gid), { members: ["uA", "uB", "uC"], group: true, name: "방", owner: "uA", last: "", lastFrom: "", lastAt: EPOCH, reads: {} }); });
+  const alice = pw("uA", "alice");
+  // 글을 보낼 때는 대화 문서의 마지막 글도 같은 묶음에서 바꿔요
+  const msg = (o) => {
+    const b = writeBatch(alice);
+    b.set(doc(alice, `chats/${gid}/messages/${Math.random().toString(36).slice(2)}`), { from: "uA", at: serverTimestamp(), ...o });
+    b.update(doc(alice, `chats/${gid}`), { last: "글", lastAt: serverTimestamp(), lastFrom: "uA" });
+    return b.commit();
+  };
+  await assertSucceeds(msg({ type: "text", to: gid, text: "안녕" }));
+  await assertFails(msg({ type: "text", to: "uB", text: "개인으로" })); // 단톡방에서는 대화 아이디로만
+  await assertFails(msg({ type: "request", to: gid, amount: 5, done: false })); // 요청은 못 해요
+});
+
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));
 await env.cleanup();

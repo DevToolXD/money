@@ -1520,3 +1520,12 @@ html[data-theme="dark"] .draw { background: #fff; }
 #biz-dash.swap-in { animation: bizIn 0.38s var(--ease) both; }
 @keyframes bizIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { #biz-dash.swap-in { animation: none; } #biz-dash { transition: none; } }
+
+/* 단톡방: 보낸 사람 이름, 고른 사람, 아래 버튼 */
+.bcol { display: grid; gap: 3px; min-width: 0; }
+.sender { margin: 0 0 0 12px; font-size: 12px; color: var(--text-secondary); }
+.res-row.picked .avatar { box-shadow: 0 0 0 3px #0a7cff; }
+.res-row.picked { background: #e5f1ff; border-radius: 14px; }
+.sheet-foot { padding: 10px 20px calc(16px + env(safe-area-inset-bottom)); }
+.sheet-foot .btn { width: 100%; }
+.sheet-foot .btn:disabled { opacity: 0.45; }
