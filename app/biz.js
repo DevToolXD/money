@@ -1205,3 +1205,111 @@
   };
   window.Business = { init, refresh, kindSvg, lab, pkv: (p, mini = false, co) => pkvHTML(p, mini, co) };
 })();
+
+// 사업 탭: 블록(상품·연구실·직원 채용·공장·창고)을 450ms 꾹 누르면 들어 올려 위아래로 옮겨요. 순서는 이 기기에 저장해요
+(() => {
+  const dash = document.getElementById("biz-dash");
+  if (!dash) return;
+  const KEY = "pv-bizOrder";
+  const blocks = () => [...dash.querySelectorAll(":scope > .biz-blk")];
+  const applyOrder = () => {
+    let saved = [];
+    try {
+      saved = JSON.parse(localStorage.getItem(KEY) || "[]");
+    } catch (_) {
+      saved = [];
+    }
+    blocks()
+      .map((el, i) => ({ el, rank: saved.indexOf(el.dataset.blk) < 0 ? 100 : saved.indexOf(el.dataset.blk), i }))
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .forEach(({ el }) => dash.appendChild(el));
+  };
+  const save = () => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(blocks().map((b) => b.dataset.blk)));
+    } catch (_) {
+      /* 개인 브라우징이면 그냥 넘어가요 */
+    }
+  };
+  applyOrder();
+  let press = null;
+  let drag = null;
+  let marker = null;
+  dash.addEventListener("pointerdown", (e) => {
+    if (e.button > 0 || e.target.closest("button, input, textarea, select, a, [data-take]")) return;
+    const blk = e.target.closest(".biz-blk");
+    if (!blk || blk.parentElement !== dash) return;
+    press = { blk, x: e.clientX, y: e.clientY, t: setTimeout(() => lift(blk, e.clientY), 450) };
+  });
+  // 들어 올린 블록의 위치에 맞춰 끼울 자리(빨간 선)를 정해요
+  const placeMarker = () => {
+    if (!drag || !marker) return;
+    const r0 = drag.blk.getBoundingClientRect();
+    const cy = r0.top + r0.height / 2;
+    let before = null;
+    for (const o of blocks()) {
+      if (o === drag.blk) continue;
+      const r = o.getBoundingClientRect();
+      if (cy < r.top + r.height / 2) {
+        before = o;
+        break;
+      }
+    }
+    if (before) dash.insertBefore(marker, before);
+    else dash.appendChild(marker);
+  };
+  const lift = (blk, y) => {
+    if (press) clearTimeout(press.t);
+    drag = { blk, startY: y, dy: 0, lastY: y, iv: 0 };
+    blk.classList.add("is-lift");
+    marker = document.createElement("div");
+    marker.className = "biz-drop";
+    blk.after(marker);
+    // 화면 가장자리에 가면 천천히 내려가거나 올라가요 (손을 가만히 둬도)
+    drag.iv = setInterval(() => {
+      const vh = window.innerHeight;
+      if (drag.lastY > vh - 90) window.scrollBy(0, 12);
+      else if (drag.lastY < 90) window.scrollBy(0, -12);
+      else return;
+      drag.blk.style.transform = `translateY(${drag.lastY - drag.startY + window.scrollY - drag.scroll0}px) scale(1.02)`;
+      placeMarker();
+    }, 50);
+    drag.scroll0 = window.scrollY;
+  };
+  document.addEventListener(
+    "pointermove",
+    (e) => {
+      if (press && !drag) {
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+          clearTimeout(press.t);
+          press = null;
+        }
+        return;
+      }
+      if (!drag) return;
+      e.preventDefault();
+      drag.lastY = e.clientY;
+      drag.blk.style.transform = `translateY(${e.clientY - drag.startY + window.scrollY - drag.scroll0}px) scale(1.02)`;
+      placeMarker();
+    },
+    { passive: false }
+  );
+  const end = () => {
+    if (press) {
+      clearTimeout(press.t);
+      press = null;
+    }
+    if (!drag) return;
+    clearInterval(drag.iv);
+    const { blk } = drag;
+    blk.classList.remove("is-lift");
+    blk.style.transform = "";
+    if (marker && marker.parentNode) dash.insertBefore(blk, marker);
+    if (marker) marker.remove();
+    marker = null;
+    drag = null;
+    save();
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+})();
