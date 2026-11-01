@@ -2080,7 +2080,6 @@
     let colour = "#f2f2f7";
     if (loginOn) colour = LOGIN_COLOURS[slide] || "#2a2a2e";
     else if (app.classList.contains("in-thread")) colour = document.getElementById("thread")?.dataset.wall === "mint" ? "#eaf6ee" : "#ffffff";
-    else if (app.dataset.screen === "messages") colour = "#ffffff";
     meta.setAttribute("content", colour);
     // 상태바 뒤쪽 띠는 페이지 바탕색이 보여요. 그래서 바탕색도 같은 색으로 맞춰요 (theme-color를 따르지 않는 기기에서도 보이게)
     document.documentElement.style.backgroundColor = colour;

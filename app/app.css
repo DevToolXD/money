@@ -187,7 +187,9 @@ html[data-theme="dark"] .glass-btn:not(.primary) { background: rgba(60, 60, 67, 
 .empty { padding: 40px 20px; text-align: center; color: var(--text-tertiary); font-size: 17px; }
 
 /* ---------- 메시지: iOS 26 메시지 앱처럼 흰 바탕에 고정한 사람 동그라미와 납작한 목록 ---------- */
-.screen[data-screen="messages"] { background: var(--bg-canvas-elevated); padding-top: calc(var(--top-h) + 4px); }
+.screen[data-screen="messages"] { background: var(--bg-canvas); padding-top: calc(var(--top-h) + 4px); }
+/* 메시지는 내용이 적어도 다른 탭처럼 위아래로 움직여요 (핫바와 위쪽 막대는 그대로예요) */
+.screen[data-screen="messages"]::after { content: ""; display: block; height: 100%; }
 .nav-right { display: flex; gap: 10px; }
 .glass-btn.round { padding: 0; width: 48px; }
 .glass-btn[aria-pressed="true"] { background: var(--apple-blue); color: #fff; }
