@@ -1546,3 +1546,6 @@ html[data-theme="dark"] .draw { background: #fff; }
 
 /* 큰 제목이 있는 화면은 아이폰 상태바 바로 아래에서 시작해요 */
 .screen:has(.large-title) { padding-top: calc(var(--safe-top) + 8px); }
+
+/* 흰 카드 위의 유리 버튼은 테두리 빛이 있어야 보여요 */
+.notice-opt, .mg-sug-row { box-shadow: var(--gg-light-rim); }

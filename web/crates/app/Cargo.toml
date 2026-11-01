@@ -1,0 +1,12 @@
+[package]
+name = "money-app"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ui.workspace = true
+wasm-bindgen.workspace = true

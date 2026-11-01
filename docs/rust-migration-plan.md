@@ -2,6 +2,22 @@
 
 자본주의 시뮬레이터를 러스트로 옮기기 위한 첫 설계예요. 지금 코드를 실제로 세어 보고 정했어요.
 
+## 진행 상황
+
+| 단계 | 상태 |
+| --- | --- |
+| 1. 공지 | 끝났어요. `web/crates/ui/src/notices.rs`. 화면 시험 `notice`(21/21), `notice-ui`(6/6) 통과. WASM 164KB (gzip 73KB) |
+| 2. 인벤토리 | 다음 |
+
+### 지금 구조 (1단계에서 만든 것)
+
+- `web/` 작업 공간: `cloud`(window.cloud 감싸기), `ui`(화면), `app`(JS가 불러 가는 함수) 세 크레이트예요.
+- `sh web/build.sh`: WASM을 만들고 `wasm-bindgen`과 `wasm-opt`를 거쳐 `app/rs/`에 놓아요.
+- `app/rs/boot.js`: WASM을 받은 뒤 `window.Notices.__ready(...)`로 연결해요.
+- `app/notice.js`: 이름만 먼저 만들어 두는 얇은 파일이에요. WASM이 오기 전에 `app.js`가 부른 호출을 줄 세웠다가 넘겨줘요. 다음 화면도 같은 방식으로 옮겨요.
+- CSP에 `'wasm-unsafe-eval'`을 넣었어요.
+- `.github/workflows/pages.yml`: 푸시할 때마다 파이어베이스 묶음과 WASM을 빌드해요. Pages 설정이 "GitHub Actions"이면 그 결과로 사이트를 올리고, 아니면 브랜치에 올린 결과물이 그대로 쓰여요.
+
 ## 1. 결론부터
 
 - **화면은 러스트(Leptos)로 만들어 WASM으로 돌려요.** 사이트는 지금처럼 GitHub Pages에 올리는 정적 사이트로 남아요. 아이폰 홈 화면 추가, 도메인, 나중의 APK 계획은 그대로 가요.

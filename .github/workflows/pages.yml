@@ -1,0 +1,85 @@
+# 사이트 빌드: 파이어베이스 묶음(app/firebase.js)과 러스트 화면(app/rs/)을 만들어요.
+# - 항상: 러스트와 묶음이 빌드되는지 확인해요 (실패하면 빨간 표시).
+# - 저장소 Settings → Pages → Source가 "GitHub Actions"이면: 만든 결과로 사이트를 올려요.
+#   "Deploy from a branch"이면: 올리기는 건너뛰고, 브랜치에 들어 있는 결과물(app/firebase.js, app/rs/)이 그대로 쓰여요.
+name: Build site
+on:
+  push:
+    branches: [toss-style-site]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.mode.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 러스트 (wasm32)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: 러스트 빌드 캐시
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web
+
+      - name: wasm-bindgen 명령 (Cargo.toml과 같은 버전)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.130
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 시험 도구 설치 (esbuild, binaryen)
+        run: cd tests && npm ci
+
+      - name: 파이어베이스 묶음
+        run: cd tests && npm run build
+
+      - name: 러스트 화면
+        run: sh web/build.sh
+
+      - name: 사이트 파일 모으기
+        run: |
+          mkdir -p _site
+          cp -r index.html manifest.webmanifest CNAME app assets vendor _site/
+
+      - name: 올리는 방식 확인
+        id: mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          type=$(curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${{ github.repository }}/pages" | python3 -c "import sys,json; print(json.load(sys.stdin).get('build_type',''))" || true)
+          echo "Pages 방식: $type"
+          if [ "$type" = "workflow" ]; then echo "deploy=true" >> "$GITHUB_OUTPUT"; else echo "deploy=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: 사이트 묶음 올리기
+        if: steps.mode.outputs.deploy == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

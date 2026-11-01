@@ -1,0 +1,56 @@
+// 화면: 전체 화면 공지(투표), 설정의 공지 화면, 관리 탭 공지 작성 칸을 찍어요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = [];
+const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const S = require('path').join(__dirname, 'shots');
+const open = async (b) => {
+  const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+  await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+  return { page, errs };
+};
+const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then((r) => (r === undefined ? 'ok' : r), (e) => 'ERR ' + (e.code || e.message)), [fn, args]);
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--disable-web-security'] });
+  const sfx = Date.now().toString(36).slice(-5);
+  const O = await open(b), M = await open(b);
+  await O.page.evaluate(() => window.cloud.signUp('owner', 'abc123', '관리자'));
+  await O.page.reload(); await O.page.waitForTimeout(6000);
+  await M.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '보는사람'), 'uishow' + sfx);
+  await M.page.reload(); await M.page.waitForTimeout(6000);
+  await O.page.waitForTimeout(2300);
+  await call(O.page, 'adminNotice', [{ title: '서버 점검 안내 입니다 아주 긴 제목도 줄바꿈이 되는지 확인해요', body: '오늘 밤 12시부터 30분 동안 점검해요.\n이용에 불편을 드려 죄송해요.' }]);
+  await O.page.waitForTimeout(2300);
+  await call(O.page, 'adminNotice', [{ title: '저녁 메뉴', body: '무엇을 먹을까요?', options: ['짜장', '짬뽕', '볶음밥'] }]);
+  await M.page.reload(); await M.page.waitForTimeout(5000);
+  const shown = await M.page.evaluate(() => !!document.querySelector('.notice-full'));
+  ok('로그인하면 아직 안 본 공지가 전체 화면으로 떠요', shown);
+  await M.page.screenshot({ path: S + '/ui-notice-1-full.png' });
+  await M.page.click('.notice-ok'); await M.page.waitForTimeout(800); // 첫 번째(투표 없는) 공지 확인
+  ok('다음은 투표가 있는 공지예요', await M.page.evaluate(() => !!document.querySelector('.notice-poll')));
+  await M.page.screenshot({ path: S + '/ui-notice-1b-poll.png' });
+  await M.page.evaluate(() => document.querySelector('.notice-opt[data-i="2"]').click());
+  await M.page.waitForTimeout(300);
+  await M.page.screenshot({ path: S + '/ui-notice-2-picked.png' });
+  await M.page.click('.notice-ok'); await M.page.waitForTimeout(800);
+  ok('투표하고 닫으면 화면에 아무것도 안 남아요', !(await M.page.evaluate(() => !!document.querySelector('.notice-full'))));
+  await M.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await M.page.waitForTimeout(900);
+  await M.page.evaluate(() => document.getElementById('open-notices').click()); await M.page.waitForTimeout(1200);
+  await M.page.evaluate(() => document.querySelector('.notice-head').click()); await M.page.waitForTimeout(500);
+  const listed = await M.page.textContent('#notices-root');
+  ok('설정의 공지 화면에 두 공지가 있어요', listed.includes('서버 점검') && listed.includes('저녁 메뉴'));
+  await M.page.screenshot({ path: S + '/ui-notice-4-screen.png' });
+  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
+  await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
+  await O.page.screenshot({ path: S + '/ui-notice-5-manage.png', fullPage: true });
+  const grantAmt = await O.page.inputValue('#mg-grant-amt');
+  ok('토큰 칸은 미리 채워지지 않아요', grantAmt === '');
+  const errs = [...O.errs, ...M.errs];
+  ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();
