@@ -2062,7 +2062,13 @@
   let slide = 0;
   let slideTimer = 0;
   const showSlide = (n) => slides.forEach((s, i) => s.classList.toggle("on", i === n));
+  // 상태바 색: 로그인 화면이 열리면 사진 쪽의 어두운 색으로, 닫히면 원래 밝은 색으로 돌려요 (홈 화면 앱에서 빈 띠가 덜 튀게)
+  const setStatusColour = (dark) => {
+    const meta = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]');
+    meta?.setAttribute("content", dark ? "#2a2a2e" : "#f2f2f7");
+  };
   const showLogin = (on) => {
+    setStatusColour(on);
     clearInterval(slideTimer);
     if (on) {
       showSlide(slide);
