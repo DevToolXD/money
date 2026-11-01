@@ -636,6 +636,14 @@
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;
     paintDash();
+    // 식품 공장 (사장): 사업 탭에서 돌리고 모아요 (app/work.js 의 공장 카드)
+    const facEl = document.getElementById("biz-factory");
+    if (facEl) {
+      const co = ctx?.company();
+      const show = Boolean(mineCo() && co?.kind === "food");
+      facEl.hidden = !show;
+      if (show) window.Work?.factoryInto(facEl, co.id);
+    }
   };
   async function refresh() {
     paintHire();

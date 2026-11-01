@@ -202,18 +202,8 @@
   // 스포이드: 고무 주머니와 관. 관 안의 액체는 고른 재료 색이에요
   const DROPPER_SVG = `<svg viewBox="0 0 34 70" aria-hidden="true"><rect x="10" y="1" width="14" height="22" rx="7" fill="none" stroke="#000" stroke-width="1.8"/><path d="M13 23V52L17 66L21 52V23" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><rect class="lab-dropper-liq" x="14.5" y="28" width="5" height="22" rx="2" fill="#f2f2f7"/></svg>`;
 
-  /* ---------- 일: 사장이거나 직원일 때 ---------- */
-  const workHTML = (kind, owner = false) => {
-    if (kind === "food") {
-      if (!owner) {
-        return `<div class="card wk-work wk-food">
-          <p class="wk-head">식품 성능 올리기</p>
-          <p class="wk-note">배합을 다듬어 식품 성능을 올려요. 성능이 높을수록 사장님이 한 번에 더 많이 만들 수 있어요. 음식은 사장님이 만들어요.</p>
-          <div class="wk-nums"><span>식품 성능 <b id="lab-fp">…</b></span></div>
-          <button type="button" class="btn primary" id="wk-tune">배합 다듬기</button>
-        </div>`;
-      }
-      return `<div class="card wk-work wk-food">
+  // 식품 공장 카드 (사업 탭에서 보여줘요)
+  const factoryCardHTML = () => `<div class="card wk-work wk-food">
         <p class="wk-head">식품 공장</p>
         <p class="wk-note" id="wk-make">만들 상품을 불러오는 중이에요</p>
         <div class="wk-nums"><span>재고 <b id="wk-stock">…</b>개</span><span>공장 <b id="fac-count">…</b>대</span><span>개당 재료값 <b id="wk-unit">…</b> 토큰</span></div>
@@ -222,7 +212,20 @@
         <button class="btn primary" type="button" id="fac-start">돌리기</button>
         <p class="lab-sub" id="fac-left"></p>
         <button class="btn" type="button" id="fac-buy">공장 추가 · 500 토큰</button>
-      </div>`;
+      </div>`;;
+
+  /* ---------- 일: 사장이거나 직원일 때 ---------- */
+  const workHTML = (kind, owner = false) => {
+    if (kind === "food") {
+      {
+        return `<div class="card wk-work wk-food">
+          <p class="wk-head">식품 성능 올리기</p>
+          <p class="wk-note">배합을 다듬어 식품 성능을 올려요. 성능이 높을수록 사장님이 한 번에 더 많이 만들 수 있어요. 음식은 사장님이 만들어요.</p>
+          <div class="wk-nums"><span>식품 성능 <b id="lab-fp">…</b></span></div>
+          <button type="button" class="btn primary" id="wk-tune">배합 다듬기</button>
+        </div>`;
+      }
+
     }
     if (kind === "ai") {
       return `<div class="card wk-work wk-ai">
@@ -334,8 +337,8 @@
       foodPid = list.length && !list[0].paused ? list[0].id : null;
       foodProd = list[0] || null;
       paintFactory();
-      const note = root.querySelector("#wk-make");
-      if (!note || view !== "mine") return;
+      const note = facRoot?.querySelector("#wk-make");
+      if (!note) return;
       note.textContent = list.length ? `만들 상품: ${list[0].name} · 만든 음식은 상점에 진열돼요` : "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요";
     } catch (err) {
       const note = root.querySelector("#wk-make");
@@ -665,17 +668,19 @@
   const FAC_MS = 60000;
   let facTick = 0;
   let facSettleTimer = 0;
+  let facRoot = null; // 공장 카드가 있는 곳 (사업 탭)
+  const fq = (sel) => facRoot?.querySelector(sel) ?? null;
   let foodProd = null; // 만드는 상품 (재고와 원가를 보여줘요)
-  const facN = () => Math.floor(Number(String(root?.querySelector("#fac-n")?.value || "").replace(/\D/g, "")) || 0);
+  const facN = () => Math.floor(Number(String(fq("#fac-n")?.value || "").replace(/\D/g, "")) || 0);
   const facRun = () => {
     const P = labView?.prod;
     return P && P.at && Number.isInteger(P.left) ? P : null;
   };
   const facClock = (secs) => (secs >= 60 ? `${Math.floor(secs / 60)}분 ${secs % 60}초` : `${secs}초`);
   const paintFactory = () => {
-    if (!root?.querySelector("#fac-start")) return;
+    if (!fq("#fac-start")) return;
     const set = (id, t) => {
-      const el = root.querySelector("#" + id);
+      const el = fq("#" + id);
       if (el) el.textContent = t;
     };
     const plv = Math.max(1, labView?.plv ?? 1);
@@ -696,8 +701,8 @@
     } else {
       set("fac-left", "");
     }
-    root.querySelector("#fac-start").disabled = Boolean(P) || !foodProd || n < 1 || !labView;
-    const buy = root.querySelector("#fac-buy");
+    fq("#fac-start").disabled = Boolean(P) || !foodProd || n < 1 || !labView;
+    const buy = fq("#fac-buy");
     if (buy) buy.disabled = Boolean(P) || !labView || cash < 50000;
   };
   const facMsg = (err) => {
@@ -724,14 +729,26 @@
       console.warn("공장 정산을 하지 못했어요:", err?.code || err);
     }
   };
+  // 사업 탭: 식품 공장 카드를 그 자리에 그리고 연결해요 (회사가 바뀌면 다시 그려요)
+  const factoryInto = (el, cid) => {
+    if (!el) return;
+    if (el.dataset.cid === cid && el.firstElementChild) return;
+    facRoot = el;
+    el.dataset.cid = cid;
+    el.innerHTML = factoryCardHTML();
+    foodProd = null;
+    loadProducts(cid);
+    wireFactory(cid);
+    loadLabView(cid);
+  };
   const wireFactory = (cid) => {
-    const inp = root.querySelector("#fac-n");
+    const inp = fq("#fac-n");
     inp?.addEventListener("input", () => {
       const d = inp.value.replace(/\D/g, "").slice(0, 6);
       if (inp.value !== d) inp.value = d;
       paintFactory();
     });
-    root.querySelector("#fac-start")?.addEventListener("click", async () => {
+    fq("#fac-start")?.addEventListener("click", async () => {
       const n = facN();
       if (!foodPid) return ctx.toast("먼저 팔 상품을 정해 주세요");
       try {
@@ -743,7 +760,7 @@
       await loadLabView(cid);
       paintFactory();
     });
-    root.querySelector("#fac-buy")?.addEventListener("click", async () => {
+    fq("#fac-buy")?.addEventListener("click", async () => {
       try {
         const plv = await ctx.cloud().labBuyFactory(cid);
         ctx.toast(`공장이 ${plv}대가 됐어요`);
@@ -756,7 +773,7 @@
     clearInterval(facTick);
     clearInterval(facSettleTimer);
     facTick = setInterval(() => {
-      if (!root.querySelector("#fac-start")) {
+      if (!fq("#fac-start")) {
         clearInterval(facTick);
         clearInterval(facSettleTimer);
         return;
@@ -781,10 +798,8 @@
     labView = null;
     root.innerHTML = mineHTML(owner, primary, job, owner && employer ? employer : null);
     if (primary.kind === "food") {
-      if (owner) {
-        loadProducts(cid);
-        wireFactory(cid);
-      } else {
+      if (owner) loadProducts(cid); // 사업 탭의 공장이 쓸 상품을 미리 읽어요
+      {
         root.querySelector("#wk-tune")?.addEventListener("click", async () => {
           try {
             const v = await ctx.cloud().staffWork(cid, 1);
@@ -892,5 +907,6 @@
     root.addEventListener("input", onInput);
   };
 
-  window.Work = { init, refresh };
+  window.Work = {
+    factoryInto, init, refresh };
 })();
