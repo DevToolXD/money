@@ -101,7 +101,7 @@
     const my = ++swapping;
     const dir = CATS.findIndex((c) => c.k === next) > CATS.findIndex((c) => c.k === cat) ? 1 : -1;
     cat = next;
-    chipsEl.style.setProperty("--i", CATS.findIndex((c) => c.k === cat));
+    chipsEl.querySelector(".shop-cats")?.style.setProperty("--i", CATS.findIndex((c) => c.k === cat));
     chipsEl.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.cat === cat)));
     pane.style.setProperty("--dir", dir);
     pane.classList.add("pane-out");
