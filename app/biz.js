@@ -587,17 +587,17 @@
     const uid = ctx?.cloud()?.uid;
     return Boolean(co && uid && co.owner === uid);
   };
-  // 꺼내기 (사장): 창고에서 한 개를 꺼내 내 인벤토리에 넣어요. 먹는 것은 인벤토리에서 해요
+  // 꺼내기 (사장): 창고에서 정한 개수만큼 꺼내 내 인벤토리에 넣어요. 먹는 것은 인벤토리에서 해요
   let taking = false;
-  const takeOut = async (p, btn) => {
+  const takeOut = async (p, btn, n) => {
     const co = ctx?.company();
     if (!p || !co || taking) return;
-    if ((p.stock ?? 0) < 1) return ctx.toast("창고에 남은 음식이 없어요");
+    if (!(n >= 1) || n > (p.stock ?? 0)) return ctx.toast(n >= 1 ? "창고에 그만큼 없어요" : "꺼낼 개수를 적어 주세요");
     taking = true;
     btn.classList.add("busy");
     try {
-      await ctx.cloud().takeOut(co.id, p, co.name);
-      ctx.toast(`${p.name} 한 개를 인벤토리에 넣었어요`);
+      await ctx.cloud().takeOut(co.id, p, n, co.name);
+      ctx.toast(`${p.name} ${n}개를 인벤토리에 넣었어요`);
       await refresh();
     } catch (err) {
       ctx.toast(err?.code === "permission-denied" ? "지금은 꺼낼 수 없어요. 재고를 확인해 주세요" : err?.message || "꺼내지 못했어요. 잠시 뒤 다시 해 주세요");
@@ -606,6 +606,24 @@
       btn.classList.remove("busy");
     }
   };
+  // 창고 · 재고 (사장): 파는 상품마다 재고를 보여주고, 꺼낼 개수를 적어 꺼내요
+  const paintDash = () => {
+    const card = document.getElementById("biz-dash");
+    const list = document.getElementById("dash-list");
+    if (!card || !list) return;
+    const co = ctx?.company();
+    const show = mineCo() && products.length > 0;
+    card.hidden = !show;
+    document.getElementById("biz-dash-title").hidden = !show;
+    list.innerHTML = products.map((p, i) => `<li class="dash-item" style="--i:${i}"><span class="dash-thumb">${pkvHTML(p, true, co)}</span><span class="dash-main"><b>${esc(p.name)}</b><span class="dash-stock">재고 <strong>${p.stock ?? 0}</strong>개</span></span><span class="dash-take"><input class="dash-q" type="text" inputmode="numeric" value="1" maxlength="6" aria-label="꺼낼 개수" data-q="${esc(p.id)}"><button class="btn dash-go" type="button" data-take="${esc(p.id)}"${(p.stock ?? 0) < 1 ? " disabled" : ""}>꺼내기</button></span></li>`).join("");
+  };
+  document.getElementById("dash-list")?.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-take]");
+    if (!t) return;
+    const p = products.find((x) => x.id === t.dataset.take);
+    const inp = document.querySelector(`[data-q="${CSS.escape(t.dataset.take)}"]`);
+    takeOut(p, t, Number(String(inp?.value || "").replace(/\D/g, "")));
+  });
   const paint = () => {
     const list = document.getElementById("biz-list");
     if (!list) return;
@@ -613,10 +631,11 @@
     list.innerHTML = products
       .map(
         (p, i) =>
-          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개</span><span>원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span>${mine && (p.stock ?? 0) > 0 ? `<button class="biz-eat" type="button" data-eat="${esc(p.id)}">꺼내기</button>` : ""}<button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
+          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰</span><span>원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span><button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
       )
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;
+    paintDash();
   };
   async function refresh() {
     paintHire();
@@ -821,8 +840,6 @@
     document.getElementById("hire-plus").addEventListener("click", () => stepHire(1));
     document.getElementById("hire-go").addEventListener("click", postHire);
     document.getElementById("biz-list").addEventListener("click", (e) => {
-      const eb = e.target.closest("[data-eat]");
-      if (eb) return takeOut(products.find((x) => x.id === eb.dataset.eat), eb);
       const b = e.target.closest("[data-more]");
       if (b) onMore(b.dataset.more);
     });

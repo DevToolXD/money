@@ -216,15 +216,11 @@
       return `<div class="card wk-work wk-food">
         <p class="wk-head">식품 공장</p>
         <p class="wk-note" id="wk-make">만들 상품을 불러오는 중이에요</p>
-        <div class="wk-nums"><span>공장 등급 <b id="wk-plv">…</b></span><span>1초에 <b id="wk-rate">…</b>개</span><span>한 번에 최대 <b id="wk-max">…</b>개</span></div>
-        <label class="lab-field"><span>만들 개수</span><input id="fac-n" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="4" value="50" aria-label="만들 개수"></label>
+        <div class="wk-nums"><span>재고 <b id="wk-stock">…</b>개</span><span>개당 재료값 <b id="wk-unit">…</b> 토큰</span></div>
+        <label class="lab-field"><span>만들 개수</span><input id="fac-n" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="6" value="50" aria-label="만들 개수"></label>
         <p class="lab-sub" id="fac-est">…</p>
-        <button class="btn primary" type="button" id="fac-start">생산 시작하기</button>
-        <div id="fac-run" class="fac-run" hidden>
-          <p class="lab-sub" id="fac-left">…</p>
-          <button class="btn" type="button" id="fac-claim" disabled>재고에 넣기</button>
-        </div>
-        <button class="btn" type="button" id="fac-up">공장 올리기 · <span id="fac-cost">…</span> 토큰</button>
+        <button class="btn primary" type="button" id="fac-start">돌리기</button>
+        <p class="lab-sub" id="fac-left"></p>
       </div>`;
     }
     if (kind === "ai") {
@@ -336,6 +332,8 @@
       const list = await ctx.cloud().listProducts(cid);
       foodCid = cid;
       foodPid = list.length && !list[0].paused ? list[0].id : null;
+      foodProd = list[0] || null;
+      paintFactory();
       const note = root.querySelector("#wk-make");
       if (!note || view !== "mine") return;
       note.textContent = list.length ? `만들 상품: ${list[0].name} · 만든 음식은 상점에 진열돼요` : "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요";
@@ -663,73 +661,59 @@
     }
   };
 
-  /* ---------- 식품 공장 (사장): 몇 개 만들지 정해 생산하고, 시간이 지나면 받아 재고에 넣고, 토큰으로 등급을 올려요 ---------- */
+  /* ---------- 식품 공장 (사장): 개수를 정해 돌리면 재료값이 나가고 재고가 바로 늘어요. 한 번 돌리면 10초 쉬어요 ---------- */
   let facTick = 0;
+  let foodProd = null; // 만드는 상품 (재고와 원가를 보여줘요)
+  const facN = () => Math.floor(Number(String(root?.querySelector("#fac-n")?.value || "").replace(/\D/g, "")) || 0);
   const facLeft = () => {
     const P = labView?.prod;
     if (!P) return 0;
     const start = typeof P.started?.toMillis === "function" ? P.started.toMillis() : Number(P.started) || 0;
-    return Math.max(0, Math.ceil((start + P.secs * 1000 - Date.now()) / 1000));
-  };
-  const facEst = () => {
-    const n = Math.floor(Number(String(root.querySelector("#fac-n")?.value || "").replace(/\D/g, "")) || 0);
-    const secs = n >= 1 ? Math.ceil(n / (labView?.plv ?? 1)) : 0;
-    return { n, secs };
+    return Math.max(0, Math.ceil((start + 10000 - Date.now()) / 1000));
   };
   const paintFactory = () => {
-    if (!labView || !root?.querySelector("#fac-start")) return;
+    if (!root?.querySelector("#fac-start")) return;
     const set = (id, t) => {
       const el = root.querySelector("#" + id);
       if (el) el.textContent = t;
     };
-    const plv = labView.plv ?? 1;
-    set("wk-plv", plv);
-    set("wk-rate", plv);
-    set("wk-max", labView.fperf ?? 100);
-    set("fac-cost", plv * 10);
-    const { n, secs } = facEst();
-    set("fac-est", n >= 1 ? `${n}개 · 약 ${secs}초 · ${secs} 토큰` : "몇 개 만들지 정해 주세요");
-    const running = Boolean(labView.prod);
-    root.querySelector("#fac-start").disabled = running;
-    root.querySelector("#fac-run").hidden = !running;
-    if (running) {
-      const left = facLeft();
-      set("fac-left", left > 0 ? `${labView.prod.n}개 만드는 중 · ${left}초 남았어요` : `${labView.prod.n}개가 다 만들어졌어요`);
-      root.querySelector("#fac-claim").disabled = left > 0;
-    }
+    const unit = (foodProd?.costCents ?? 0) / 100;
+    set("wk-stock", foodProd ? foodProd.stock ?? 0 : "…");
+    set("wk-unit", unit.toLocaleString("ko-KR", { maximumFractionDigits: 2 }));
+    const n = facN();
+    const cost = n * unit;
+    set("fac-est", n >= 1 ? `${n}개 만들기 · 재료값 ${cost.toLocaleString("ko-KR", { maximumFractionDigits: 2 })} 토큰` : "몇 개 만들지 정해 주세요");
+    const left = facLeft();
+    root.querySelector("#fac-start").disabled = left > 0 || !foodProd || n < 1;
+    set("fac-left", left > 0 ? `공장이 쉬는 중이에요 · ${left}초 뒤에 다시 돌릴 수 있어요` : "");
   };
   const facMsg = (err) => {
-    const m = { busy: "이미 만들고 있어요", poor: "금고에 토큰이 부족해요", early: "아직 만들고 있어요", nolab: "공장을 아직 만들지 않았어요" }[err?.code];
+    const m = { busy: "공장이 쉬는 중이에요", poor: "재료값이 금고에 부족해요", nolab: "공장을 아직 만들지 않았어요", bad: "개수를 확인해 주세요" }[err?.code];
     return m || err?.message || "잠시 뒤 다시 해 주세요";
-  };
-  const facRun = async (cid, fn, okMsg) => {
-    try {
-      const got = await fn();
-      if (okMsg) ctx.toast(typeof okMsg === "function" ? okMsg(got) : okMsg);
-    } catch (err) {
-      ctx.toast(facMsg(err));
-    }
-    await loadLabView(cid);
   };
   const wireFactory = (cid) => {
     const inp = root.querySelector("#fac-n");
     inp?.addEventListener("input", () => {
-      const d = inp.value.replace(/\D/g, "").slice(0, 4);
+      const d = inp.value.replace(/\D/g, "").slice(0, 6);
       if (inp.value !== d) inp.value = d;
       paintFactory();
     });
-    root.querySelector("#fac-start")?.addEventListener("click", () => {
-      const { n } = facEst();
+    root.querySelector("#fac-start")?.addEventListener("click", async () => {
+      const n = facN();
       if (!foodPid) return ctx.toast("먼저 팔 상품을 정해 주세요");
-      facRun(cid, () => ctx.cloud().labStartFactory(cid, foodPid, n), `${n}개 만들기 시작했어요`);
+      try {
+        const cost = await ctx.cloud().labStartFactory(cid, foodPid, n);
+        ctx.toast(`${n}개를 만들었어요 · 재료값 ${Number(cost / 100).toLocaleString("ko-KR")} 토큰`);
+      } catch (err) {
+        ctx.toast(facMsg(err));
+      }
+      await loadLabView(cid);
+      await loadProducts(cid);
+      paintFactory();
     });
-    root.querySelector("#fac-claim")?.addEventListener("click", () =>
-      facRun(cid, () => ctx.cloud().labClaimFactory(cid), (got) => (got ? `${got}개를 재고에 넣었어요` : "아직 다 만들지 않았어요"))
-    );
-    root.querySelector("#fac-up")?.addEventListener("click", () => facRun(cid, () => ctx.cloud().labUpgradeFactory(cid), "공장을 올렸어요"));
     clearInterval(facTick);
     facTick = setInterval(() => {
-      if (!root.querySelector("#fac-run")) return clearInterval(facTick);
+      if (!root.querySelector("#fac-start")) return clearInterval(facTick);
       paintFactory();
     }, 1000);
   };

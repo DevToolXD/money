@@ -945,48 +945,34 @@ await t("학습: 결과는 시간이 지난 뒤에만 회사 사람 누구나 �
 });
 
 console.log("\n[음식]");
-const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, cat: "food", priceCents: 300, active: true, paused: false, at: EPOCH, ...over }));
+const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, cat: "food", priceCents: 300, costCents: 100, active: true, paused: false, at: EPOCH, ...over }));
 const prodRef = (db, pid = "p1", cid = "uA") => doc(db, "companies/" + cid + "/products/" + pid);
 const readProd = async (pid = "p1", cid = "uA") => { let data; await env.withSecurityRulesDisabled(async (c) => { data = (await getDoc(doc(c.firestore(), "companies/" + cid + "/products/" + pid))).data(); }); return data; };
-// 공장 생산: 사장이 개수를 정해 시작하고, 시간이 지나면 받아서 재고에 넣어요
-const startProd = (db, n, cash, secs = n) => updateDoc(labRef(db), { cash, prod: { pid: "p1", n, secs, started: serverTimestamp() } });
-const claimProd = (db, stockDelta, prodOff = true) => { const b = writeBatch(db); b.update(prodRef(db), { stock: increment(stockDelta) }); b.update(labRef(db), { prod: null }); return b.commit(); };
-await t("음식: 사장이 개수를 정해 생산을 시작하면 금고에서 1초당 1 토큰이 나가요 (직원은 못 해요)", async () => {
+// 공장 돌리기: 재료값을 금고에서 내고, 재고를 같은 묶음에서 바로 늘려요
+const runB = (db, n, cash, stockDelta = n, pid = "p1") => { const b = writeBatch(db); b.update(labRef(db), { cash, prod: { pid, n, started: serverTimestamp() } }); b.update(prodRef(db, pid), { stock: increment(stockDelta) }); return b.commit(); };
+await t("음식: 사장이 개수를 정해 돌리면 재료값(원가 × 개수)이 금고에서 나가고, 재고가 바로 늘어요", async () => {
   await coSeed();
   await labSeed({ cash: 10000 });
   await prodSeed("uA", "p1");
   await seed(jobSeed);
   const alice = pw("uA", "alice"), bob = pw("uB", "bob");
-  await assertFails(startProd(bob, 2, 9800)); // 직원은 시작 못 해요
-  await assertFails(startProd(alice, 150, 0)); // 식품 성능(100)보다 많이는 못 만들어요
-  await assertFails(startProd(alice, 2, 9900)); // 2초 = 200 센트가 나가야 해요
-  await assertSucceeds(startProd(alice, 2, 9800));
-  check("금고 9800", (await readLab("uA")).cash === 9800);
+  await assertFails(runB(bob, 3, 9700)); // 직원은 돌리지 못해요
+  await assertFails(runB(alice, 3, 9800)); // 재료값은 3 × 100 = 300 센트
+  await assertFails(runB(alice, 3, 9700, 2)); // 재고는 만든 만큼만 늘어요
+  await assertSucceeds(runB(alice, 3, 9700));
+  check("재고 3 (바로)", (await readProd()).stock === 3);
+  check("금고 9700", (await readLab("uA")).cash === 9700);
+  await assertFails(runB(alice, 1, 9699)); // 10초가 지나야 다시 돌려요
+  await assertFails(updateDoc(labRef(alice), { plv: 2 })); // 공장 업그레이드는 없어요
 });
-await t("음식: 시간이 지나야 받을 수 있고, 받을 때는 생산한 만큼만 재고가 늘어요", async () => {
+await t("음식: 판매를 끝낸 상품은 못 만들고, 멈춘 상품은 만들 수 있어요", async () => {
   await coSeed();
   await labSeed({ cash: 10000 });
-  await prodSeed("uA", "p1");
-  const alice = pw("uA", "alice");
-  await assertSucceeds(startProd(alice, 2, 9800));
-  await assertFails(claimProd(alice, 2)); // 아직 2초가 안 지났어요
-  await sleep(2200);
-  await assertFails(claimProd(alice, 3)); // 생산한 것(2)과 다르면 안 돼요
-  await assertSucceeds(claimProd(alice, 2));
-  check("재고 2", (await readProd()).stock === 2);
-  check("생산 기록 지워짐", (await readLab("uA")).prod === null);
-});
-await t("음식: 공장 등급은 금고에서 등급 × 10 토큰을 내고 올려요 (직원도 못 올려요)", async () => {
-  await coSeed();
-  await labSeed({ cash: 10000 });
-  await prodSeed("uA", "p1");
-  await seed(jobSeed);
-  await assertFails(updateDoc(labRef(pw("uB", "bob")), { cash: 9000, plv: 2 })); // 직원은 못 올려요
-  await assertFails(updateDoc(labRef(pw("uA", "alice")), { cash: 9500, plv: 2 })); // 1000 센트가 나가야 해요
-  await assertSucceeds(updateDoc(labRef(pw("uA", "alice")), { cash: 9000, plv: 2 }));
-  check("등급 2", (await readLab("uA")).plv === 2);
-  await assertFails(startProd(pw("uA", "alice"), 4, 8000, 2)); // 등급 2면 4개는 2초, 200 센트만 나가요
-  await assertSucceeds(startProd(pw("uA", "alice"), 4, 8800, 2)); // 9000 - 200 = 8800
+  await prodSeed("uA", "p1", { active: false });
+  await assertFails(runB(pw("uA", "alice"), 1, 9900));
+  await prodSeed("uA", "p1", { paused: true });
+  await assertSucceeds(runB(pw("uA", "alice"), 1, 9900));
+  check("재고 1", (await readProd()).stock === 1);
 });
 
 console.log("\n[상점]");

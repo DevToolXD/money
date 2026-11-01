@@ -1444,3 +1444,18 @@ html[data-theme="dark"] .draw { background: #fff; }
 .card.notice-card { margin: 0; padding: 16px 18px; }
 .card.notice-card .card-body { margin: 6px 0 0; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
 .notice-root[hidden] { display: none; }
+
+/* 글씨 모션: 애플이 새 기기에서 hello 를 손으로 쓰듯 보여주는 움직임. 빈 화면에서 empty 를 같은 방식으로 써요 */
+.card.inv-empty { margin: 0 var(--gutter) 16px; padding: 0; overflow: hidden; }
+.inv-empty-art { position: relative; height: 230px; display: grid; place-items: center;
+  background:
+    repeating-linear-gradient(88deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 7px, rgba(0,0,0,0.35) 7px 12px, transparent 12px 19px),
+    radial-gradient(120% 90% at 40% 30%, #4a4a4a 0%, #222 45%, #0b0b0b 100%); }
+.script-write { display: inline-block; font: 400 72px/1 "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive; letter-spacing: 0.02em;
+  color: #ffffff; text-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+  -webkit-mask: linear-gradient(90deg, #000 0 55%, transparent 72%) 100% 0 / 260% 100% no-repeat;
+          mask: linear-gradient(90deg, #000 0 55%, transparent 72%) 100% 0 / 260% 100% no-repeat;
+  animation: scriptWrite 2.6s cubic-bezier(0.45, 0, 0.2, 1) both; }
+@keyframes scriptWrite { from { -webkit-mask-position: 100% 0; mask-position: 100% 0; } to { -webkit-mask-position: 0 0; mask-position: 0 0; } }
+.inv-empty-glass { height: 96px; background: var(--gg); -webkit-backdrop-filter: blur(38px) saturate(180%); backdrop-filter: blur(38px) saturate(180%); box-shadow: var(--gg-rim); }
+@media (prefers-reduced-motion: reduce) { .script-write { animation: none; -webkit-mask-position: 0 0; mask-position: 0 0; } }

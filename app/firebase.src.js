@@ -566,8 +566,7 @@ window.cloudReady = (async () => {
         });
         return r ? got : -1;
       },
-      // 식품 공장 (사장만): 얼마나 만들지 정해 생산을 시작해요. 1초에 공장 등급만큼 만들고, 1초에 1 토큰이 금고에서 나가요.
-      //   한 번에 정할 수 있는 양은 식품 성능까지예요. 시작하면 기록(prod)이 남고, 시간이 지나면 받아서 재고에 넣어요
+      // 식품 공장 (사장만): 만들 개수만큼 재료값(원가 × 개수)이 금고에서 나가고, 재고가 바로 늘어요. 한 번 돌리면 10초 쉬어요 (개수와 관계없이)
       labStartFactory: (cid, pid, n) => {
         const fail = (code, msg) => Object.assign(new Error(msg), { code });
         return runTransaction(db, async (tx) => {
@@ -578,55 +577,37 @@ window.cloudReady = (async () => {
           if (!ls.exists()) throw fail("nolab", "공장을 아직 만들지 않았어요");
           const p = ps.exists() ? ps.data() : null;
           if (!p || p.active !== true) throw fail("unsellable", "지금은 만들 수 없는 상품이에요");
+          if (!(Number.isInteger(n) && n >= 1 && n <= 100000)) throw fail("bad", "개수를 확인해 주세요");
           const L = labOf(ls.data());
-          if (L.prod) throw fail("busy", "이미 만들고 있어요");
-          if (!(Number.isInteger(n) && n >= 1 && n <= L.fperf)) throw fail("max", `한 번에 ${L.fperf}개까지 만들 수 있어요`);
-          const secs = Math.ceil(n / L.plv);
-          if (L.cash < secs * 100) throw fail("poor", "금고에 토큰이 부족해요");
-          tx.update(lref, { cash: L.cash - secs * 100, prod: { pid, n, secs, started: serverTimestamp() } });
-          return secs;
-        }).catch(rethrow);
-      },
-      // 생산 받기 (사장): 시간이 지났으면 만든 만큼 재고에 넣고 기록을 지워요. 받은 개수를 돌려줘요 (아직이면 0)
-      labClaimFactory: (cid) => {
-        const fail = (code, msg) => Object.assign(new Error(msg), { code });
-        return runTransaction(db, async (tx) => {
-          const lref = doc(db, "companies", cid, "lab", "main");
-          const ls = await tx.get(lref);
-          const L = labOf(ls.exists() ? ls.data() : null);
-          if (!L.prod) return 0;
-          const pref = doc(db, "companies", cid, "products", L.prod.pid);
-          const ps = await tx.get(pref);
-          if (Date.now() < L.prod.started.toMillis() + L.prod.secs * 1000) throw fail("early", "아직 만들고 있어요");
-          const stock = ps.exists() && Number.isInteger(ps.data().stock) ? ps.data().stock : 0;
-          const n = L.prod.n;
+          if (L.prod && Date.now() < L.prod.started.toMillis() + 10000) throw fail("busy", "공장이 쉬는 중이에요. 잠시 뒤 다시 돌려 주세요");
+          const cost = n * (Number.isInteger(p.costCents) ? p.costCents : 0);
+          if (L.cash < cost) throw fail("poor", "재료값이 금고에 부족해요");
+          const stock = Number.isInteger(p.stock) ? p.stock : 0;
+          tx.update(lref, { cash: L.cash - cost, prod: { pid, n, started: serverTimestamp() } });
           tx.update(pref, { stock: stock + n });
-          tx.update(lref, { prod: null });
-          return n;
+          return cost;
         }).catch(rethrow);
       },
-      // 공장 올리기 (사장): 금고에서 등급 × 10 토큰을 내고 등급이 1 올라가요. 새 등급을 돌려줘요
-      labUpgradeFactory: (cid) => {
-        const fail = (code, msg) => Object.assign(new Error(msg), { code });
-        return runTransaction(db, async (tx) => {
-          const lref = doc(db, "companies", cid, "lab", "main");
-          const ls = await tx.get(lref);
-          if (!ls.exists()) throw fail("nolab", "공장을 아직 만들지 않았어요");
-          const L = labOf(ls.data());
-          const cost = L.plv * 1000;
-          if (L.cash < cost) throw fail("insufficient", `금고에 ${L.plv * 10} 토큰이 있어야 올릴 수 있어요`);
-          tx.update(lref, { cash: L.cash - cost, plv: L.plv + 1 });
-          return L.plv + 1;
-        }).catch(rethrow);
+      labGenClaim: async (cid) => {
+        let got = 0;
+        const r = await labTx(cid, (L) => {
+          if (!L.gen || Date.now() < L.gen.started.toMillis() + L.gen.secs * 1000) return null;
+          got = L.gen.amt;
+          return { ...L, elec: L.elec + L.gen.amt, gen: null };
+        });
+        return r ? got : 0;
       },
-      // 테스트용: 공장을 만들고 생산이 끝날 때까지 기다린 뒤 받아요 (실제 화면은 시작과 받기를 따로 해요)
+      // 테스트용: 공장이 쉬는 동안 기다렸다가 돌려요
       labFoodMake: async (cid, pid, n) => {
         const lref = doc(db, "companies", cid, "lab", "main");
         const ls = await getDoc(lref).catch(rethrow);
         if (!ls.exists()) await setDoc(lref, labWrite(labOf(null))).catch(() => {});
-        const secs = await window.cloud.labStartFactory(cid, pid, n);
-        await new Promise((r) => setTimeout(r, secs * 1000 + 300));
-        await window.cloud.labClaimFactory(cid);
+        const L = labOf((await getDoc(lref)).data());
+        if (L.prod) {
+          const left = L.prod.started.toMillis() + 10000 - Date.now();
+          if (left > 0) await new Promise((r) => setTimeout(r, left + 200));
+        }
+        await window.cloud.labStartFactory(cid, pid, n);
       },
       // 상점에서 사기: 음식 n개를 사요. 사는 사람 지갑에서 값(토큰, 센트는 올림)을 내고, 파는 회사 금고가 그만큼 늘고, 재고가 n개 줄고, 내 인벤토리에 n개가 들어가요 (한 묶음)
       shopBuy: (cid, pid, n, coName = "") =>
@@ -656,15 +637,14 @@ window.cloudReady = (async () => {
           else tx.set(iref, invData(p, cid, pid, n, coName));
           return tokens;
         }).catch(rethrow),
-      // 상점 진열대: 재고가 있는 음식을 여러 회사에서 모아요 (최대 50개). 파는 회사의 이름과 로고도 함께 읽어요
-      // 꺼내기 (사장): 회사 창고에서 한 개를 꺼내 내 인벤토리에 넣어요 (창고가 한 개 줄고 내 칸이 한 개 늘어요. 한 묶음)
-      takeOut: async (cid, p, coName = "") => {
+      // 꺼내기 (사장): 회사 창고에서 n개를 꺼내 내 인벤토리에 넣어요 (창고가 n개 줄고 내 칸이 n개 늘어요. 한 묶음)
+      takeOut: async (cid, p, n, coName = "") => {
         const iref = invRefOf(cid, p.id);
         const is = await getDoc(iref).catch(rethrow);
         const b = writeBatch(db);
-        b.update(doc(db, "companies", cid, "products", p.id), { stock: increment(-1) });
-        if (is.exists()) b.update(iref, { n: increment(1) });
-        else b.set(iref, invData(p, cid, p.id, 1, coName));
+        b.update(doc(db, "companies", cid, "products", p.id), { stock: increment(-n) });
+        if (is.exists()) b.update(iref, { n: increment(n) });
+        else b.set(iref, invData(p, cid, p.id, n, coName));
         await b.commit().catch(rethrow);
       },
       // 인벤토리: 내가 가진 음식 (한 칸에 한 종류, 개수가 있는 것만)
@@ -726,30 +706,19 @@ window.cloudReady = (async () => {
         const snap = await getDocs(query(collection(db, "notices"), orderBy("at", "desc"), limit(10))).catch(rethrow);
         return snap.docs.map((d) => ({ id: d.id, text: d.data().text || "", at: ms(d.data({ serverTimestamps: "estimate" }).at) }));
       },
+      // 상점 진열대: 회사마다 판매 중인 상품을 읽어 재고가 있는 것만 모아요 (최근 회사 50곳). 색인이 필요 없는 방식이에요
       listShop: async () => {
-        const snap = await getDocs(query(collectionGroup(db, "products"), where("stock", ">", 0), limit(50))).catch(rethrow);
-        const items = snap.docs
-          .map((d) => {
+        const companies = await window.cloud.listCompanies().catch(rethrow);
+        const out = [];
+        for (const co of companies) {
+          const snap = await getDocs(query(collection(db, "companies", co.id, "products"), where("active", "==", true), limit(50))).catch(rethrow);
+          for (const d of snap.docs) {
             const v = d.data({ serverTimestamps: "estimate" });
-            return { ...v, id: d.id, cid: d.ref.parent.parent.id, stock: v.stock, priceCents: v.priceCents, at: ms(v.at) };
-          })
-          .filter((p) => p.active === true && p.paused !== true && Number.isInteger(p.priceCents) && p.stock > 0);
-        const ids = [...new Set(items.map((p) => p.cid))];
-        const cos = new Map();
-        for (let i = 0; i < ids.length; i += 10) {
-          const s = await getDocs(query(collection(db, "companies"), where(documentId(), "in", ids.slice(i, i + 10)), limit(10))).catch(rethrow);
-          for (const c of s.docs) cos.set(c.id, companyOf(c.id, c.data({ serverTimestamps: "estimate" })));
+            if (v.paused === true || !Number.isInteger(v.priceCents) || !(Number.isInteger(v.stock) && v.stock > 0)) continue;
+            out.push({ ...v, id: d.id, cid: co.id, stock: v.stock, priceCents: v.priceCents, at: ms(v.at), co: { id: co.id, name: co.name || "회사", logo: co.logo || "", kind: co.kind || "food" } });
+          }
         }
-        return items.map((p) => ({ ...p, co: cos.get(p.cid) || { id: p.cid, name: "회사", logo: "", kind: "food" } }));
-      },
-      labGenClaim: async (cid) => {
-        let got = 0;
-        const r = await labTx(cid, (L) => {
-          if (!L.gen || Date.now() < L.gen.started.toMillis() + L.gen.secs * 1000) return null;
-          got = L.gen.amt;
-          return { ...L, elec: L.elec + L.gen.amt, gen: null };
-        });
-        return r ? got : 0;
+        return out;
       },
       /* ----- 팔 상품: 한 상품이 한 문서예요. 원가·가격은 센트 정수예요 (50 = 0.5 토큰).
          이름 바꾸기, 판매 멈춤(paused), 판매 종료(active를 false로)만 바꿀 수 있어요 ----- */

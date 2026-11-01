@@ -61,7 +61,7 @@
       return;
     }
     if (!items.length) {
-      root.innerHTML = noteHTML("아직 가진 음식이 없어요", "음식을 사거나 받으면 여기에 들어와요", "상점에서 사거나, 식품 회사 사장님이 창고에서 꺼내 주면 이곳에 들어와요.", "", '<div class="art mint"></div>');
+      root.innerHTML = `<div class="card inv-empty"><div class="inv-empty-art"><span class="script-write" role="img" aria-label="empty">empty</span></div><div class="inv-empty-glass" aria-hidden="true"></div></div>`;
       return;
     }
     const sel = items.find((x) => x.id === selected);
