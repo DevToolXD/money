@@ -1498,3 +1498,6 @@ html[data-theme="dark"] .draw { background: #fff; }
 
 /* 인벤토리가 비었을 때: 작은 회색 글씨만 */
 .inv-empty-text { margin: 0; padding: 40px 0; text-align: center; font-size: 14px; color: #8e8e93; }
+
+/* 로그인 전 화면(돈·일·랭킹·사업·계정)의 로그인 버튼: 글씨가 잘리지 않는 알약 모양 */
+#money-guest .btn, #work-guest .btn, #rank-guest .btn, #biz-guest .btn, #auth-card .btn { width: auto; min-width: 176px; height: 52px; padding: 0 28px; border-radius: 9999px; white-space: nowrap; font-size: 17px; font-weight: 700; }
