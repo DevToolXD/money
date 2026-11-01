@@ -1066,6 +1066,17 @@
     { k: "e", label: "에너지", rate: 100 / (30 * 24), d: '<path d="M13 3L6 13.500h5L10 21l7-10.500h-5z"/>' },
   ];
   const fab = document.getElementById("status-fab");
+  // 스크롤하는 동안에는 상태 버튼을 살짝 숨겨서 글자 위로 겹치지 않게 해요. 멈추면 다시 보여요
+  {
+    let idleT = 0;
+    const onScroll = () => {
+      fab.classList.add("fab-away");
+      clearTimeout(idleT);
+      idleT = setTimeout(() => fab.classList.remove("fab-away"), 450);
+    };
+    document.querySelectorAll(".screen").forEach((sc) => sc.addEventListener("scroll", onScroll, { passive: true }));
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
   const stBubble = document.getElementById("status-bubble");
   const fabTiles = document.getElementById("fab-tiles");
   fabTiles.innerHTML = STATS.map((u) => `<span class="fab-tile" role="img" aria-label="${u.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${u.d}</svg><b data-k="${u.k}">--%</b></span>`).join("");

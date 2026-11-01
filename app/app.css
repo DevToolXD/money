@@ -1529,3 +1529,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .sheet-foot { padding: 10px 20px calc(16px + env(safe-area-inset-bottom)); }
 .sheet-foot .btn { width: 100%; }
 .sheet-foot .btn:disabled { opacity: 0.45; }
+
+/* 스크롤하는 동안 상태 버튼을 숨겨요 (글자와 겹치지 않게) */
+.status-fab { transition: opacity 0.25s var(--ease), transform 0.25s var(--ease); }
+.status-fab.fab-away { opacity: 0; transform: scale(0.85); pointer-events: none; }
