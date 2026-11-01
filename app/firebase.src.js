@@ -792,6 +792,14 @@ window.cloudReady = (async () => {
       },
       /* ----- 관리 (오너만). 행동할 때마다 인증토큰 3개를 앱이 만들어 서버에 올리고(5분), 같은 3개를 행동과 함께 보내면 서버가 확인해요 ----- */
       searchProfiles,
+      // 상점의 물건(컴퓨터)·자원(전기) 칸: 회사들이 시장에 내놓은 단가와 재고 (사람이 바로 사는 건 아직 없어요)
+      listOffers: async (kind) => {
+        const cos = (await window.cloud.listCompanies("")).filter((c) => c.kind === kind).slice(0, 20);
+        const labs = await Promise.all(cos.map((c) => window.cloud.labGet(c.id).catch(() => null)));
+        return cos
+          .map((c, i) => ({ co: c, L: labs[i] }))
+          .filter(({ L }) => L && L.price > 0 && (kind === "nuclear" ? L.elec > 0 : Boolean(L.rel)));
+      },
       adminGrant: async (id, amt) => {
         const uid = await findUid(id);
         const tk = await adminIssue();

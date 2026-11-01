@@ -68,12 +68,39 @@
       root.innerHTML = noteHTML("잠깐만요", "상점을 불러오지 못했어요", "인터넷을 확인하고 다시 해 주세요.", '<button type="button" class="btn shop-retry">다시 해 보기</button>');
       return;
     }
-    if (!items.length) {
-      root.innerHTML = noteHTML("아직 진열된 음식이 없어요", "음식이 만들어지면 여기에 나와요", "식품 회사의 사장님이나 직원이 음식을 만들면 상점에 진열돼요.", "", '<div class="art mint"></div>');
+    if (cat !== "food") {
+      const head = catsHTML();
+      if (!items.length) {
+        root.innerHTML = `${head}${noteHTML(cat === "pc" ? "지금 내놓은 물건이 없어요" : "지금 내놓은 자원이 없어요", "회사가 시장에 내놓으면 여기에 나와요", "지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.")}`;
+        return;
+      }
+      root.innerHTML = `${head}<h2 class="section-title">회사가 내놓은 것</h2><p class="lab-sub shop-note-line">지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.</p><div class="shop-grid">${items.map(offerHTML).join("")}</div>`;
       return;
     }
-    root.innerHTML = `<h2 class="section-title">지금 살 수 있어요</h2><div class="shop-grid">${items.map(cardHTML).join("")}</div>`;
+    if (!items.length) {
+      root.innerHTML = catsHTML() + noteHTML("아직 진열된 음식이 없어요", "음식이 만들어지면 여기에 나와요", "식품 회사의 사장님이나 직원이 음식을 만들면 상점에 진열돼요.", "", '<div class="art mint"></div>');
+      return;
+    }
+    root.innerHTML = `${catsHTML()}<h2 class="section-title">지금 살 수 있어요</h2><div class="shop-grid">${items.map(cardHTML).join("")}</div>`;
   };
+  // 식품 / 물건 / 자원 칸 (인공지능은 상점에서 팔지 않아요)
+  const CATS = [
+    { k: "food", t: "식품" },
+    { k: "pc", t: "물건" },
+    { k: "nuclear", t: "자원" },
+  ];
+  let cat = "food";
+  const catsHTML = () =>
+    `<div class="gseg shop-cats" role="radiogroup" aria-label="상점 칸" style="--n:${CATS.length};--i:${CATS.findIndex((c) => c.k === cat)}">${CATS.map(
+      (c) => `<button type="button" role="radio" aria-checked="${c.k === cat}" data-cat="${c.k}">${c.t}</button>`
+    ).join("")}</div>`;
+  const offerHTML = (o, i) => `<article class="card shop-card offer-card" style="--i:${i}">
+      <div class="shop-body">
+        <b class="shop-name">${cat === "pc" ? "컴퓨터" : "전기"}</b>
+        <span class="shop-co">${esc(o.co.name || "회사")}</span>
+        <span class="shop-stock">1개 ${(o.L.price / 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 })} 토큰 · ${cat === "pc" ? "컴퓨터" : `전기 ${o.L.elec}`}</span>
+      </div>
+    </article>`;
 
   const load = async () => {
     const my = ++seq;
@@ -84,9 +111,11 @@
       return;
     }
     try {
-      const list = await ctx.cloud().listShop();
+      const list = cat === "food" ? await ctx.cloud().listShop() : await ctx.cloud().listOffers(cat);
       if (my !== seq) return;
-      items = list.sort((a, b) => a.co.name.localeCompare(b.co.name, "ko") || a.name.localeCompare(b.name, "ko"));
+      items = cat === "food"
+        ? list.sort((a, b) => a.co.name.localeCompare(b.co.name, "ko") || a.name.localeCompare(b.name, "ko"))
+        : list.sort((a, b) => (a.co.name || "").localeCompare(b.co.name || "", "ko"));
       state = "ok";
     } catch (err) {
       if (my !== seq) return;
@@ -138,6 +167,13 @@
     if (!root) return;
     root.addEventListener("click", (e) => {
       if (e.target.closest(".shop-retry")) return load();
+      const c = e.target.closest("[data-cat]");
+      if (c && c.dataset.cat !== cat) {
+        cat = c.dataset.cat;
+        state = "loading";
+        paint();
+        return load();
+      }
       const card = e.target.closest(".shop-card");
       if (!card) return;
       const p = items.find((x) => keyOf(x) === card.dataset.key);
