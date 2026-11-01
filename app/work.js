@@ -214,16 +214,17 @@
         </div>`;
       }
       return `<div class="card wk-work wk-food">
-        <p class="wk-head">식품 만드는 일</p>
+        <p class="wk-head">식품 공장</p>
         <p class="wk-note" id="wk-make">만들 상품을 불러오는 중이에요</p>
-        <div class="wk-nums"><span>식품 성능 <b id="lab-fp">…</b></span><span>한 번에 최대 <b id="wk-cap">…</b>개</span></div>
-        <div class="wk-line" role="group" aria-label="만드는 순서">
-          <button type="button" class="gg wk-step" data-step="0">재료 담기</button>
-          <button type="button" class="gg wk-step" data-step="1">섞기</button>
-          <button type="button" class="gg wk-step" data-step="2">포장하기</button>
+        <div class="wk-nums"><span>공장 등급 <b id="wk-plv">…</b></span><span>1초에 <b id="wk-rate">…</b>개</span><span>한 번에 최대 <b id="wk-max">…</b>개</span></div>
+        <label class="lab-field"><span>만들 개수</span><input id="fac-n" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="4" value="50" aria-label="만들 개수"></label>
+        <p class="lab-sub" id="fac-est">…</p>
+        <button class="btn primary" type="button" id="fac-start">생산 시작하기</button>
+        <div id="fac-run" class="fac-run" hidden>
+          <p class="lab-sub" id="fac-left">…</p>
+          <button class="btn" type="button" id="fac-claim" disabled>재고에 넣기</button>
         </div>
-        <div class="gg wk-bar"><i id="wk-fill"></i></div>
-        <p class="wk-count" id="wk-count">이번에 만든 음식 ${made}개</p>
+        <button class="btn" type="button" id="fac-up">공장 올리기 · <span id="fac-cost">…</span> 토큰</button>
       </div>`;
     }
     if (kind === "ai") {
@@ -440,6 +441,7 @@
       if (cid !== labCid) return;
       labView = { ...L };
       labFp = L.fperf;
+      paintFactory();
       paintLabNums();
     } catch (err) {
       console.warn("연구실 숫자를 불러오지 못했어요:", err?.code || err);
@@ -661,6 +663,77 @@
     }
   };
 
+  /* ---------- 식품 공장 (사장): 몇 개 만들지 정해 생산하고, 시간이 지나면 받아 재고에 넣고, 토큰으로 등급을 올려요 ---------- */
+  let facTick = 0;
+  const facLeft = () => {
+    const P = labView?.prod;
+    if (!P) return 0;
+    const start = typeof P.started?.toMillis === "function" ? P.started.toMillis() : Number(P.started) || 0;
+    return Math.max(0, Math.ceil((start + P.secs * 1000 - Date.now()) / 1000));
+  };
+  const facEst = () => {
+    const n = Math.floor(Number(String(root.querySelector("#fac-n")?.value || "").replace(/\D/g, "")) || 0);
+    const secs = n >= 1 ? Math.ceil(n / (labView?.plv ?? 1)) : 0;
+    return { n, secs };
+  };
+  const paintFactory = () => {
+    if (!labView || !root?.querySelector("#fac-start")) return;
+    const set = (id, t) => {
+      const el = root.querySelector("#" + id);
+      if (el) el.textContent = t;
+    };
+    const plv = labView.plv ?? 1;
+    set("wk-plv", plv);
+    set("wk-rate", plv);
+    set("wk-max", labView.fperf ?? 100);
+    set("fac-cost", plv * 10);
+    const { n, secs } = facEst();
+    set("fac-est", n >= 1 ? `${n}개 · 약 ${secs}초 · ${secs} 토큰` : "몇 개 만들지 정해 주세요");
+    const running = Boolean(labView.prod);
+    root.querySelector("#fac-start").disabled = running;
+    root.querySelector("#fac-run").hidden = !running;
+    if (running) {
+      const left = facLeft();
+      set("fac-left", left > 0 ? `${labView.prod.n}개 만드는 중 · ${left}초 남았어요` : `${labView.prod.n}개가 다 만들어졌어요`);
+      root.querySelector("#fac-claim").disabled = left > 0;
+    }
+  };
+  const facMsg = (err) => {
+    const m = { busy: "이미 만들고 있어요", poor: "금고에 토큰이 부족해요", early: "아직 만들고 있어요", nolab: "공장을 아직 만들지 않았어요" }[err?.code];
+    return m || err?.message || "잠시 뒤 다시 해 주세요";
+  };
+  const facRun = async (cid, fn, okMsg) => {
+    try {
+      const got = await fn();
+      if (okMsg) ctx.toast(typeof okMsg === "function" ? okMsg(got) : okMsg);
+    } catch (err) {
+      ctx.toast(facMsg(err));
+    }
+    await loadLabView(cid);
+  };
+  const wireFactory = (cid) => {
+    const inp = root.querySelector("#fac-n");
+    inp?.addEventListener("input", () => {
+      const d = inp.value.replace(/\D/g, "").slice(0, 4);
+      if (inp.value !== d) inp.value = d;
+      paintFactory();
+    });
+    root.querySelector("#fac-start")?.addEventListener("click", () => {
+      const { n } = facEst();
+      if (!foodPid) return ctx.toast("먼저 팔 상품을 정해 주세요");
+      facRun(cid, () => ctx.cloud().labStartFactory(cid, foodPid, n), `${n}개 만들기 시작했어요`);
+    });
+    root.querySelector("#fac-claim")?.addEventListener("click", () =>
+      facRun(cid, () => ctx.cloud().labClaimFactory(cid), (got) => (got ? `${got}개를 재고에 넣었어요` : "아직 다 만들지 않았어요"))
+    );
+    root.querySelector("#fac-up")?.addEventListener("click", () => facRun(cid, () => ctx.cloud().labUpgradeFactory(cid), "공장을 올렸어요"));
+    clearInterval(facTick);
+    facTick = setInterval(() => {
+      if (!root.querySelector("#fac-run")) return clearInterval(facTick);
+      paintFactory();
+    }, 1000);
+  };
+
   const paintMine = (co, job, employer) => {
     view = "mine";
     stopGames();
@@ -675,10 +748,13 @@
     labView = null;
     root.innerHTML = mineHTML(owner, primary, job, owner && employer ? employer : null);
     if (primary.kind === "food") {
-      paintSteps();
-      if (owner) loadProducts(cid);
+      if (owner) {
+        loadProducts(cid);
+        wireFactory(cid);
+      } else {
+        root.querySelector("#wk-tune")?.addEventListener("click", () => queueLab({ fperf: 1 }));
+      }
       loadLabView(cid);
-      root.querySelector("#wk-tune")?.addEventListener("click", () => queueLab({ fperf: 1 }));
       return;
     }
     loadLabView(cid);

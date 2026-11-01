@@ -948,39 +948,45 @@ console.log("\n[음식]");
 const prodSeed = (cid, pid, over = {}) => seed((d) => setDoc(doc(d, "companies/" + cid + "/products/" + pid), { owner: cid, cat: "food", priceCents: 300, active: true, paused: false, at: EPOCH, ...over }));
 const prodRef = (db, pid = "p1", cid = "uA") => doc(db, "companies/" + cid + "/products/" + pid);
 const readProd = async (pid = "p1", cid = "uA") => { let data; await env.withSecurityRulesDisabled(async (c) => { data = (await getDoc(doc(c.firestore(), "companies/" + cid + "/products/" + pid))).data(); }); return data; };
-// 음식 만들기: 재고를 n개 늘리고 만든 시각을 적어요
-const madeWrite = (db, n, extra = {}) => updateDoc(prodRef(db), { stock: increment(n), madeAt: serverTimestamp(), ...extra });
-await t("음식: 사장만 음식을 만들어요 (직원은 성능을 올려요). 한 번에 식품 성능÷10개까지", async () => {
+// 공장 생산: 사장이 개수를 정해 시작하고, 시간이 지나면 받아서 재고에 넣어요
+const startProd = (db, n, cash, secs = n) => updateDoc(labRef(db), { cash, prod: { pid: "p1", n, secs, started: serverTimestamp() } });
+const claimProd = (db, stockDelta, prodOff = true) => { const b = writeBatch(db); b.update(prodRef(db), { stock: increment(stockDelta) }); b.update(labRef(db), { prod: null }); return b.commit(); };
+await t("음식: 사장이 개수를 정해 생산을 시작하면 금고에서 1초당 1 토큰이 나가요 (직원은 못 해요)", async () => {
   await coSeed();
-  await labSeed({});
+  await labSeed({ cash: 10000 });
   await prodSeed("uA", "p1");
   await seed(jobSeed);
-  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
-  await assertFails(madeWrite(carol, 3)); // 회사 밖 사람은 못 만들어요
-  await assertFails(madeWrite(bob, 3)); // 직원은 음식을 만들지 않아요 (성능을 올려요)
-  await assertFails(madeWrite(alice, 11)); // 식품 성능 100이면 한 번에 10개까지
-  await assertFails(madeWrite(alice, 101)); // 한 번에 100개까지
-  await assertFails(updateDoc(prodRef(alice), { stock: increment(3) })); // 만든 시각을 함께 적어야 해요
-  await assertFails(madeWrite(alice, 3, { priceCents: 1 })); // 가격은 못 바꿔요
-  await assertFails(updateDoc(prodRef(alice), { stock: 3, madeAt: EPOCH })); // 지난 시각은 안 돼요
-  await assertSucceeds(madeWrite(alice, 3)); // 사장이 3개
-  check("재고 3", (await readProd()).stock === 3);
-  await assertFails(updateDoc(labRef(bob), { fperf: 50 })); // 식품 성능은 줄일 수 없어요
-  await assertSucceeds(updateDoc(labRef(bob), { fperf: 400 })); // 직원은 성능을 올려요
-  await assertSucceeds(updateDoc(labRef(alice), { fperf: 500 })); // 사장도 올려요
-  await sleep(2100);
-  await assertFails(madeWrite(bob, 1)); // 직원은 여전히 못 만들어요
-  await assertSucceeds(madeWrite(alice, 40)); // 성능 500이면 한 번에 50개까지
-  check("재고 43", (await readProd()).stock === 43);
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await assertFails(startProd(bob, 2, 9800)); // 직원은 시작 못 해요
+  await assertFails(startProd(alice, 150, 0)); // 식품 성능(100)보다 많이는 못 만들어요
+  await assertFails(startProd(alice, 2, 9900)); // 2초 = 200 센트가 나가야 해요
+  await assertSucceeds(startProd(alice, 2, 9800));
+  check("금고 9800", (await readLab("uA")).cash === 9800);
 });
-await t("음식: 판매를 끝낸 상품은 못 만들고, 멈춘 상품은 만들어 둘 수 있어요", async () => {
+await t("음식: 시간이 지나야 받을 수 있고, 받을 때는 생산한 만큼만 재고가 늘어요", async () => {
   await coSeed();
-  await labSeed({});
-  await prodSeed("uA", "p1", { active: false });
-  await assertFails(madeWrite(pw("uA", "alice"), 1));
-  await prodSeed("uA", "p1", { paused: true });
-  await assertSucceeds(madeWrite(pw("uA", "alice"), 1));
-  check("재고 1", (await readProd()).stock === 1);
+  await labSeed({ cash: 10000 });
+  await prodSeed("uA", "p1");
+  const alice = pw("uA", "alice");
+  await assertSucceeds(startProd(alice, 2, 9800));
+  await assertFails(claimProd(alice, 2)); // 아직 2초가 안 지났어요
+  await sleep(2200);
+  await assertFails(claimProd(alice, 3)); // 생산한 것(2)과 다르면 안 돼요
+  await assertSucceeds(claimProd(alice, 2));
+  check("재고 2", (await readProd()).stock === 2);
+  check("생산 기록 지워짐", (await readLab("uA")).prod === null);
+});
+await t("음식: 공장 등급은 금고에서 등급 × 10 토큰을 내고 올려요 (직원도 못 올려요)", async () => {
+  await coSeed();
+  await labSeed({ cash: 10000 });
+  await prodSeed("uA", "p1");
+  await seed(jobSeed);
+  await assertFails(updateDoc(labRef(pw("uB", "bob")), { cash: 9000, plv: 2 })); // 직원은 못 올려요
+  await assertFails(updateDoc(labRef(pw("uA", "alice")), { cash: 9500, plv: 2 })); // 1000 센트가 나가야 해요
+  await assertSucceeds(updateDoc(labRef(pw("uA", "alice")), { cash: 9000, plv: 2 }));
+  check("등급 2", (await readLab("uA")).plv === 2);
+  await assertFails(startProd(pw("uA", "alice"), 4, 8000, 2)); // 등급 2면 4개는 2초, 200 센트만 나가요
+  await assertSucceeds(startProd(pw("uA", "alice"), 4, 8800, 2)); // 9000 - 200 = 8800
 });
 
 console.log("\n[상점]");

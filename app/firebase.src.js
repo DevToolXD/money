@@ -110,8 +110,19 @@ const labOf = (d) => {
     trn: d?.trn && Number.isInteger(d.trn.d) && Number.isInteger(d.trn.secs) && Number.isInteger(d.trn.score) && d.trn.started
       ? { d: d.trn.d, secs: d.trn.secs, score: d.trn.score, started: d.trn.started } : null, // 학습 중인 기록
     food: d?.food ?? null, // 마지막 음식 판매 기록 (예전 기록이에요. 지금은 재고로 봐요)
-    fperf: n(d?.fperf, 100), // 식품 성능 (100부터, 직원이 올려요). 사장이 한 번에 만들 수 있는 양은 성능 ÷ 10 이에요
+    fperf: n(d?.fperf, 100), // 식품 성능 (100부터, 직원이 올려요). 공장이 한 번에 만들 수 있는 양의 위쪽 한계예요
+    plv: n(d?.plv, 1), // 공장 등급 (1부터, 토큰으로 올려요). 1초에 등급만큼 만들어요
+    prod: d?.prod ?? null, // 공장이 만들고 있는 것 {pid, n, secs, started}
   };
+};
+// 문서에 쓸 모양: 기본값인 칸(등급 1, 성능 100, 공장 비움, 판매 기록 없음)은 적지 않아요 (규칙이 한 번에 세는 칸 수를 줄여요)
+const labWrite = (L) => {
+  const o = { ...L };
+  if (o.plv === 1) delete o.plv;
+  if (o.fperf === 100) delete o.fperf;
+  if (o.prod === null) delete o.prod;
+  if (o.food === null) delete o.food;
+  return o;
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);
 
@@ -210,7 +221,7 @@ window.cloudReady = (async () => {
         const s = await tx.get(ref);
         const next = fn(labOf(s.exists() ? s.data() : null));
         if (!next) return null;
-        const clean = labOf(next);
+        const clean = labWrite(labOf(next));
         tx.set(ref, clean);
         return clean;
       }).catch(rethrow);
@@ -470,7 +481,7 @@ window.cloudReady = (async () => {
           if (dir < 0 && L.cash < tokens * 100) throw Object.assign(new Error("금고가 부족해요"), { code: "insufficient" });
           tx.update(wref, { bal: bal - dir * tokens, wt: serverTimestamp(), op: { kind: dir > 0 ? "deposit" : "withdraw", cid, amt: tokens } });
           const cash = L.cash + dir * tokens * 100;
-          tx.set(lref, { ...L, cash });
+          tx.set(lref, labWrite(labOf({ ...L, cash })));
           return cash;
         }).catch(rethrow),
       // 사기: 파는 회사의 단가와 재고를 읽고, 파는 쪽과 사는 쪽을 한 묶음으로 써요. kind: e 전기, p 컴퓨터, h 인공지능 사용 시간
@@ -507,8 +518,8 @@ window.cloudReady = (async () => {
             bNext.pcN = (same ? B.pcN : 0) + n; // 같은 모델이면 더하고, 다른 모델이면 새 모델로 바꿔요
           }
           if (kind === "h") bNext.aiH = B.aiH + n;
-          tx.set(sref, labOf(sNext));
-          tx.set(bref, labOf(bNext));
+          tx.set(sref, labWrite(labOf(sNext)));
+          tx.set(bref, labWrite(labOf(bNext)));
           return total;
         }).catch(rethrow),
       // 학습 시작 (사장만): 가진 컴퓨터로 데이터를 학습해요. 배치 수 = 올림(데이터 ÷ 처리 용량), 전기 = 배치 수 × 전기값,
@@ -537,13 +548,67 @@ window.cloudReady = (async () => {
         });
         return r ? got : -1;
       },
-      // 음식 만들기 (사장과 직원): 만든 음식 n개가 상품 재고에 더해져요. 재고는 상점에 진열돼요 (금고는 상점에서 팔릴 때 늘어요).
-      // 금고 기록이 아직 없으면 처음 한 번 만들어 둬요 (상점에서 팔면 금고에 넣어야 하니까요). 동시에 만들어도 한쪽만 들어가요
+      // 식품 공장 (사장만): 얼마나 만들지 정해 생산을 시작해요. 1초에 공장 등급만큼 만들고, 1초에 1 토큰이 금고에서 나가요.
+      //   한 번에 정할 수 있는 양은 식품 성능까지예요. 시작하면 기록(prod)이 남고, 시간이 지나면 받아서 재고에 넣어요
+      labStartFactory: (cid, pid, n) => {
+        const fail = (code, msg) => Object.assign(new Error(msg), { code });
+        return runTransaction(db, async (tx) => {
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const pref = doc(db, "companies", cid, "products", pid);
+          const ls = await tx.get(lref);
+          const ps = await tx.get(pref);
+          if (!ls.exists()) throw fail("nolab", "공장을 아직 만들지 않았어요");
+          const p = ps.exists() ? ps.data() : null;
+          if (!p || p.active !== true) throw fail("unsellable", "지금은 만들 수 없는 상품이에요");
+          const L = labOf(ls.data());
+          if (L.prod) throw fail("busy", "이미 만들고 있어요");
+          if (!(Number.isInteger(n) && n >= 1 && n <= L.fperf)) throw fail("max", `한 번에 ${L.fperf}개까지 만들 수 있어요`);
+          const secs = Math.ceil(n / L.plv);
+          if (L.cash < secs * 100) throw fail("poor", "금고에 토큰이 부족해요");
+          tx.update(lref, { cash: L.cash - secs * 100, prod: { pid, n, secs, started: serverTimestamp() } });
+          return secs;
+        }).catch(rethrow);
+      },
+      // 생산 받기 (사장): 시간이 지났으면 만든 만큼 재고에 넣고 기록을 지워요. 받은 개수를 돌려줘요 (아직이면 0)
+      labClaimFactory: (cid) => {
+        const fail = (code, msg) => Object.assign(new Error(msg), { code });
+        return runTransaction(db, async (tx) => {
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const ls = await tx.get(lref);
+          const L = labOf(ls.exists() ? ls.data() : null);
+          if (!L.prod) return 0;
+          const pref = doc(db, "companies", cid, "products", L.prod.pid);
+          const ps = await tx.get(pref);
+          if (Date.now() < L.prod.started.toMillis() + L.prod.secs * 1000) throw fail("early", "아직 만들고 있어요");
+          const stock = ps.exists() && Number.isInteger(ps.data().stock) ? ps.data().stock : 0;
+          const n = L.prod.n;
+          tx.update(pref, { stock: stock + n });
+          tx.update(lref, { prod: null });
+          return n;
+        }).catch(rethrow);
+      },
+      // 공장 올리기 (사장): 금고에서 등급 × 10 토큰을 내고 등급이 1 올라가요. 새 등급을 돌려줘요
+      labUpgradeFactory: (cid) => {
+        const fail = (code, msg) => Object.assign(new Error(msg), { code });
+        return runTransaction(db, async (tx) => {
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const ls = await tx.get(lref);
+          if (!ls.exists()) throw fail("nolab", "공장을 아직 만들지 않았어요");
+          const L = labOf(ls.data());
+          const cost = L.plv * 1000;
+          if (L.cash < cost) throw fail("insufficient", `금고에 ${L.plv * 10} 토큰이 있어야 올릴 수 있어요`);
+          tx.update(lref, { cash: L.cash - cost, plv: L.plv + 1 });
+          return L.plv + 1;
+        }).catch(rethrow);
+      },
+      // 테스트용: 공장을 만들고 생산이 끝날 때까지 기다린 뒤 받아요 (실제 화면은 시작과 받기를 따로 해요)
       labFoodMake: async (cid, pid, n) => {
         const lref = doc(db, "companies", cid, "lab", "main");
         const ls = await getDoc(lref).catch(rethrow);
-        if (!ls.exists()) await setDoc(lref, labOf(null)).catch(() => {});
-        await updateDoc(doc(db, "companies", cid, "products", pid), { stock: increment(n), madeAt: serverTimestamp() }).catch(rethrow);
+        if (!ls.exists()) await setDoc(lref, labWrite(labOf(null))).catch(() => {});
+        const secs = await window.cloud.labStartFactory(cid, pid, n);
+        await new Promise((r) => setTimeout(r, secs * 1000 + 300));
+        await window.cloud.labClaimFactory(cid);
       },
       // 상점에서 사기: 음식 n개를 사요. 사는 사람 지갑에서 값(토큰, 센트는 올림)을 내고, 파는 회사 금고가 그만큼 늘고, 재고가 n개 줄고, 내 인벤토리에 n개가 들어가요 (한 묶음)
       shopBuy: (cid, pid, n, coName = "") =>
