@@ -527,11 +527,14 @@ service cloud.firestore {
         && request.resource.data.at is int
         && request.resource.data.at >= request.time.toMillis() - 120000
         && request.resource.data.at <= request.time.toMillis() + 120000;
-      // 먹기: 사장이 회사 창고에서 한 개를 꺼내 먹어요. 같은 묶음에서 그 상품의 재고가 한 개 줄어야 해요 (먹은 상품은 eat에 적어요)
+      // 먹기: 내 인벤토리에서 한 개를 먹어요. 같은 묶음에서 그 음식 칸(n)이 한 개 줄어야 해요 (먹은 음식은 eat에 적어요)
       //   물은 목마름 +40, 음식(간식) 배고픔 +20, 식사 배고픔 +40, 에너지 식품 에너지 +40. 100을 넘지 않고, 닳은 만큼은 시간 계산 그대로예요
-      function eatPath() { return /databases/$(database)/documents/companies/$(request.resource.data.eat.cid)/products/$(request.resource.data.eat.pid); }
+      function itemPath() { return /databases/$(database)/documents/inventory/$(request.auth.uid)/items/$(request.resource.data.eat.cid + '_' + request.resource.data.eat.pid); }
       function dec(v, full) { return v - (request.time.toMillis() - resource.data.at) * 100.0 / full; }
       function nearTo(v, x) { return v <= 100 && v <= x + 0.5 && (v >= x - 0.5 || (x > 100 && v >= 99.5)); }
+      function gainsOf(g) {
+        return {'water': {'h': 0, 't': 40, 'e': 0}, 'snack': {'h': 20, 't': 0, 'e': 0}, 'meal': {'h': 40, 't': 0, 'e': 0}, 'energy': {'h': 0, 't': 0, 'e': 40}}[g];
+      }
       function eatOk() {
         return request.resource.data.keys().hasOnly(['h', 't', 'e', 'at', 'deaths', 'eat'])
           && request.resource.data.deaths == resource.data.deaths
@@ -543,27 +546,11 @@ service cloud.firestore {
           && request.resource.data.at is int
           && request.resource.data.at >= request.time.toMillis() - 120000
           && request.resource.data.at <= request.time.toMillis() + 120000
-          && get(eatPath()).data.get('owner', '') == request.auth.uid
-          && get(eatPath()).data.get('stock', 0) >= 1
-          && getAfter(eatPath()).data.get('stock', 0) == get(eatPath()).data.get('stock', 0) - 1
-          && (
-            (get(eatPath()).data.group == 'water'
-              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000) + 40)
-              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000))
-              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
-            || (get(eatPath()).data.group == 'snack'
-              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + 20)
-              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000))
-              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
-            || (get(eatPath()).data.group == 'meal'
-              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + 40)
-              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000))
-              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000)))
-            || (get(eatPath()).data.group == 'energy'
-              && nearTo(request.resource.data.e, dec(resource.data.e, 129600000) + 40)
-              && nearTo(request.resource.data.h, dec(resource.data.h, 86400000))
-              && nearTo(request.resource.data.t, dec(resource.data.t, 64800000)))
-          );
+          && get(itemPath()).data.get('n', 0) >= 1
+          && getAfter(itemPath()).data.get('n', 0) == get(itemPath()).data.get('n', 0) - 1
+          && nearTo(request.resource.data.h, dec(resource.data.h, 86400000) + gainsOf(get(itemPath()).data.group).h)
+          && nearTo(request.resource.data.t, dec(resource.data.t, 64800000) + gainsOf(get(itemPath()).data.group).t)
+          && nearTo(request.resource.data.e, dec(resource.data.e, 129600000) + gainsOf(get(itemPath()).data.group).e);
       }
       allow update: if isMe(uid) && (
         // 쓰러짐 기록 (그대로): 먹기 기록(eat)은 건드리지 않아요
@@ -692,6 +679,53 @@ service cloud.firestore {
                == get(/databases/$(database)/documents/companies/$(request.resource.data.op.cid)/products/$(request.resource.data.op.pid)).data.get('stock', 0) - request.resource.data.op.n
             && cashIn(request.resource.data.op.cid, request.resource.data.op.tokens))
         );
+    }
+
+    // ----- 인벤토리: 내가 가진 음식 (나만 읽고 써요). 상점에서 사거나 사장이 회사 창고에서 꺼내면 늘고, 먹으면 한 개 줄어요 -----
+    //   칸 이름은 회사 번호_상품 번호예요. 늘 때는 같은 묶음에서 사기 기록(지갑)이나 창고 줄어듦(상품)이 있어야 해요
+    match /inventory/{uid}/items/{id} {
+      // old: 지금 칸 수 (새로 만들 때는 0). 없는 문서를 읽으면 오류가 나서 먼저 있는지 확인해요
+      function shopPair(old) {
+        return exists(walletPath(request.auth.uid))
+          && getAfter(walletPath(request.auth.uid)).data.op.kind == 'shop'
+          && getAfter(walletPath(request.auth.uid)).data.wt == request.time
+          && getAfter(walletPath(request.auth.uid)).data.op.cid == request.resource.data.cid
+          && getAfter(walletPath(request.auth.uid)).data.op.pid == request.resource.data.pid
+          && request.resource.data.n - old == getAfter(walletPath(request.auth.uid)).data.op.n;
+      }
+      function takePair(old) {
+        return exists(/databases/$(database)/documents/companies/$(request.resource.data.cid)/products/$(request.resource.data.pid))
+          && get(/databases/$(database)/documents/companies/$(request.resource.data.cid)/products/$(request.resource.data.pid)).data.get('owner', '') == request.auth.uid
+          && getAfter(/databases/$(database)/documents/companies/$(request.resource.data.cid)/products/$(request.resource.data.pid)).data.get('stock', 0)
+             == get(/databases/$(database)/documents/companies/$(request.resource.data.cid)/products/$(request.resource.data.pid)).data.get('stock', 0) - 1
+          && request.resource.data.n - old == 1;
+      }
+      function fields() {
+        return request.resource.data.keys().hasOnly(['cid', 'pid', 'group', 'name', 'coName', 'item', 'shape', 'color', 'cap', 'capColor', 'content', 'n'])
+          && (!('coName' in request.resource.data) || (request.resource.data.coName is string && request.resource.data.coName.size() <= 20))
+          && id == request.resource.data.cid + '_' + request.resource.data.pid
+          && request.resource.data.cid is string && request.resource.data.pid is string
+          && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
+          && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 30
+          && request.resource.data.item is string && request.resource.data.shape is int && request.resource.data.color is int
+          && (!('cap' in request.resource.data) || request.resource.data.cap is int)
+          && (!('capColor' in request.resource.data) || request.resource.data.capColor is int)
+          && (!('content' in request.resource.data) || request.resource.data.content is int);
+      }
+      allow get: if isMe(uid);
+      allow list: if isMe(uid) && request.query.limit <= 100;
+      allow create: if isMe(uid) && fields() && request.resource.data.n is int && request.resource.data.n >= 1
+        && (shopPair(0) || takePair(0));
+      allow update: if isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['n'])
+        && request.resource.data.n is int && request.resource.data.n >= 0
+        && (
+          // 먹기: 한 개 줄어요 (먹기 기록은 먹기 묶음에서 확인해요)
+          request.resource.data.n == resource.data.n - 1
+          || shopPair(resource.data.n)
+          || takePair(resource.data.n)
+        );
+      allow delete: if false;
     }
 
     // ----- 두 사람의 대화 -----

@@ -587,27 +587,22 @@
     const uid = ctx?.cloud()?.uid;
     return Boolean(co && uid && co.owner === uid);
   };
-  // 꺼내 먹기 (사장): 창고에서 한 개를 꺼내 먹어요. 배고픔·목마름·에너지 가운데 하나가 올라가요
-  const EAT_GAIN = { water: ["t", 40, "목마름"], snack: ["h", 20, "배고픔"], meal: ["h", 40, "배고픔"], energy: ["e", 40, "에너지"] };
-  let eating = false;
-  const eatOut = async (p, btn) => {
+  // 꺼내기 (사장): 창고에서 한 개를 꺼내 내 인벤토리에 넣어요. 먹는 것은 인벤토리에서 해요
+  let taking = false;
+  const takeOut = async (p, btn) => {
     const co = ctx?.company();
-    if (!p || !co || eating) return;
-    const vit = ctx.vitals.get();
-    if (!vit) return ctx.toast("상태를 아직 불러오지 못했어요");
-    const g = EAT_GAIN[p.group];
-    if (!g) return ctx.toast("먹을 수 없는 상품이에요");
-    eating = true;
+    if (!p || !co || taking) return;
+    if ((p.stock ?? 0) < 1) return ctx.toast("창고에 남은 음식이 없어요");
+    taking = true;
     btn.classList.add("busy");
     try {
-      const v = await ctx.cloud().eatFromStock(co.id, p.id, p.group, vit);
-      ctx.vitals.set(v);
-      ctx.toast(`${p.name} 한 개를 먹었어요 · ${g[2]} +${g[1]}`);
+      await ctx.cloud().takeOut(co.id, p, co.name);
+      ctx.toast(`${p.name} 한 개를 인벤토리에 넣었어요`);
       await refresh();
     } catch (err) {
-      ctx.toast(err?.code === "permission-denied" ? "지금은 꺼내 먹을 수 없어요. 재고를 확인해 주세요" : err?.message || "먹지 못했어요. 잠시 뒤 다시 해 주세요");
+      ctx.toast(err?.code === "permission-denied" ? "지금은 꺼낼 수 없어요. 재고를 확인해 주세요" : err?.message || "꺼내지 못했어요. 잠시 뒤 다시 해 주세요");
     } finally {
-      eating = false;
+      taking = false;
       btn.classList.remove("busy");
     }
   };
@@ -618,7 +613,7 @@
     list.innerHTML = products
       .map(
         (p, i) =>
-          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span>${mine && (p.stock ?? 0) > 0 ? `<button class="biz-eat" type="button" data-eat="${esc(p.id)}">꺼내 먹기</button>` : ""}<button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
+          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span>${mine && (p.stock ?? 0) > 0 ? `<button class="biz-eat" type="button" data-eat="${esc(p.id)}">꺼내기</button>` : ""}<button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
       )
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;
@@ -827,7 +822,7 @@
     document.getElementById("hire-go").addEventListener("click", postHire);
     document.getElementById("biz-list").addEventListener("click", (e) => {
       const eb = e.target.closest("[data-eat]");
-      if (eb) return eatOut(products.find((x) => x.id === eb.dataset.eat), eb);
+      if (eb) return takeOut(products.find((x) => x.id === eb.dataset.eat), eb);
       const b = e.target.closest("[data-more]");
       if (b) onMore(b.dataset.more);
     });

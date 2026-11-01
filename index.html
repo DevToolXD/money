@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=53">
+<link rel="stylesheet" href="app/app.css?v=54">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -70,7 +70,7 @@
     </section>
     <section class="screen" id="screen-inventory" data-screen="inventory" data-title="인벤토리" aria-labelledby="title-inventory">
       <header class="large-title"><h1 id="title-inventory">인벤토리</h1></header>
-      <div class="card biz"><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500ZM11 5.700V4.500a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.200M7 14.500h14M10.500 18h7v3.500h-7Z"/></svg><h2 class="card-title">가방이 비어 있어요</h2><p class="card-body">얻은 물건이 생기면 여기에 모여요.</p></div>
+      <div id="inv-root" class="inv-root" aria-live="polite"><div class="card skeletons" style="--rows: 4" aria-hidden="true"></div></div>
     </section>
     <section class="screen" id="screen-business" data-screen="business" data-title="사업" aria-labelledby="title-business">
       <div id="biz-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
@@ -320,11 +320,12 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=29"></script>
+<script type="module" src="app/firebase.js?v=30"></script>
 <script src="app/shapes.js?v=2"></script>
 <script src="app/biz.js?v=21"></script>
 <script src="app/work.js?v=8"></script>
 <script src="app/shop.js?v=1"></script>
-<script src="app/app.js?v=45"></script>
+<script src="app/inv.js?v=1"></script>
+<script src="app/app.js?v=46"></script>
 </body>
 </html>

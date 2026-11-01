@@ -1420,3 +1420,15 @@ html[data-theme="dark"] .draw { background: #fff; }
 /* 사업 탭: 창고 음식 꺼내 먹기 (사장만) */
 .biz-eat { flex: none; height: 30px; padding: 0 12px; border-radius: 999px; background: var(--apple-blue-subtle); color: var(--apple-blue); font-size: 13px; font-weight: 700; }
 .biz-eat.busy { opacity: 0.6; pointer-events: none; }
+
+/* 인벤토리: 내 음식 칸과 먹기 */
+.inv-card { cursor: pointer; }
+.inv-card.is-on { box-shadow: inset 0 0 0 2px var(--apple-blue); }
+.card.inv-detail { display: grid; grid-template-columns: 128px 1fr; gap: 14px; align-items: center; margin: 0 var(--gutter) 16px; padding: 14px; }
+.card.inv-detail .shop-art { height: 150px; border-radius: 22px; }
+.inv-info { display: grid; gap: 3px; }
+.inv-effect { margin-top: 4px; font-size: 14px; line-height: 20px; font-weight: 700; color: var(--apple-blue); }
+.inv-eat { margin-top: 10px; height: 42px; font-size: 15px; }
+.inv-eat:disabled { opacity: 0.4; }
+.inv-eat.busy { opacity: 0.6; pointer-events: none; }
+.inv-root .shop-grid { margin-top: 0; }

@@ -1240,6 +1240,13 @@
     toast: (m) => toast(m),
     ask: (o) => ask(o),
   });
+  // 인벤토리: 산 음식과 꺼낸 음식을 골라 먹어요 (app/inv.js). 먹은 뒤 상태는 여기서 화면에 반영해요
+  window.Inventory.init({
+    cloud: () => window.cloud,
+    toast: (m) => toast(m),
+    pkv: (p, mini, co) => window.Business.pkv(p, mini, co),
+    vitals: { get: () => window.__vitals.get(), set: (v) => window.__vitals.set(v) },
+  });
   // 상점 탭: 재고가 있는 음식을 골라 사요 (app/shop.js). 산 돈은 파는 회사 금고로 들어가요
   window.Shop.init({
     cloud: () => window.cloud,
@@ -2169,6 +2176,7 @@
     if (name === "ranking") loadRank(false);
     if (name === "work") window.Work.refresh();
     if (name === "shop") window.Shop.refresh();
+    if (name === "inventory") window.Inventory.refresh();
     if (name === "business") window.Business.refresh(); // 상품 재고와 금고를 새로 읽어요
     backdrop?.setActive(name);
     tabbar.requestRender();

@@ -119,8 +119,8 @@
     const btn = card.querySelector(".shop-buy");
     btn.classList.add("busy");
     try {
-      const paid = await ctx.walletOp(() => ctx.cloud().shopBuy(p.cid, p.id, n));
-      ctx.toast(`${p.name} ${n}개를 샀어요`);
+      const paid = await ctx.walletOp(() => ctx.cloud().shopBuy(p.cid, p.id, n, p.co.name));
+      ctx.toast(`${p.name} ${n}개를 샀어요. 인벤토리에 넣었어요`);
       ctx.log?.({ t: Date.now(), name: `${p.name} ${n}개`, cat: "상점", icon: "store", amt: -paid });
       sel.delete(keyOf(p));
     } catch (err) {
