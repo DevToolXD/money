@@ -31,7 +31,8 @@
     root.innerHTML = `
       <h2 class="section-title">토큰 지급</h2>
       <div class="card mg-card">
-        <label class="lab-field"><span>아이디</span><input id="mg-grant-id" class="lab-input" type="text" autocomplete="off" autocapitalize="none" maxlength="20" placeholder="받을 사람 아이디"></label>
+        <label class="lab-field"><span>아이디 또는 이름</span><input id="mg-grant-id" class="lab-input" type="text" autocomplete="off" autocapitalize="none" maxlength="20" placeholder="받을 사람 아이디나 이름"></label>
+        <div class="mg-sug" id="mg-grant-sug" hidden></div>
         <label class="lab-field"><span>토큰</span><input id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"></label>
         <button type="button" class="btn primary" id="mg-grant">지급하기</button>
       </div>
@@ -47,7 +48,8 @@
       <h2 class="section-title">계정 데이터 지우기</h2>
       <div class="card mg-card">
         <p class="card-body">그 사람의 프로필, 지갑, 설정, 상태를 지워요. 로그인 계정 자체는 웹에서 지울 수 없어요.</p>
-        <label class="lab-field"><span>아이디</span><input id="mg-del-id" class="lab-input" type="text" autocomplete="off" autocapitalize="none" maxlength="20" placeholder="지울 사람 아이디"></label>
+        <label class="lab-field"><span>아이디 또는 이름</span><input id="mg-del-id" class="lab-input" type="text" autocomplete="off" autocapitalize="none" maxlength="20" placeholder="지울 사람 아이디나 이름"></label>
+        <div class="mg-sug" id="mg-del-sug" hidden></div>
         <button type="button" class="btn mg-danger" id="mg-del">지우기</button>
       </div>`;
   };
@@ -86,9 +88,37 @@
     ctx = c;
     root = document.getElementById("manage-root");
     if (root) {
+      // 자동 검색: 입력이 멈추면 아이디·이름 앞부분으로 찾아 목록을 보여줘요
+      const timers = {};
+      root.addEventListener("input", (e) => {
+        const inp = e.target.closest("#mg-grant-id, #mg-del-id");
+        if (!inp) return;
+        const box = document.getElementById(inp.id === "mg-grant-id" ? "mg-grant-sug" : "mg-del-sug");
+        clearTimeout(timers[inp.id]);
+        timers[inp.id] = setTimeout(async () => {
+          try {
+            const list = await ctx.cloud().searchProfiles(inp.value);
+            if (!list.length || !inp.value.trim()) {
+              box.hidden = true;
+              box.innerHTML = "";
+              return;
+            }
+            box.innerHTML = list.map((p) => `<button type="button" class="mg-sug-row" data-for="${inp.id}" data-id="${esc(p.id)}"><b>${esc(p.name)}</b><span>${esc(p.id)}</span></button>`).join("");
+            box.hidden = false;
+          } catch (err) {
+            console.warn("검색하지 못했어요:", err?.code || err);
+          }
+        }, 250);
+      });
       root.addEventListener("click", (e) => {
         const b = e.target.closest("button");
         if (!b) return;
+        if (b.classList.contains("mg-sug-row")) {
+          const inp = document.getElementById(b.dataset.for);
+          inp.value = b.dataset.id;
+          inp.closest(".card").querySelector(".mg-sug").hidden = true;
+          return;
+        }
         if (b.id === "mg-grant") {
           const id = document.getElementById("mg-grant-id").value.trim();
           const amt = Number(String(document.getElementById("mg-grant-amt").value).replace(/\D/g, ""));

@@ -260,10 +260,28 @@ window.cloudReady = (async () => {
       return d;
     };
     // 아이디로 사람 번호 찾기 (프로필의 아이디는 소문자예요)
+    // 아이디 또는 이름(똑같이)으로 찾아요
     const findUid = async (id) => {
-      const s = await getDocs(query(collection(db, "profiles"), where("id", "==", String(id).trim().toLowerCase()), limit(1))).catch(rethrow);
+      const text = String(id).trim();
+      let s = await getDocs(query(collection(db, "profiles"), where("id", "==", text.toLowerCase()), limit(1))).catch(rethrow);
+      if (!s.docs.length) s = await getDocs(query(collection(db, "profiles"), where("name", "==", text), limit(1))).catch(rethrow);
       if (!s.docs.length) throw Object.assign(new Error("그런 아이디가 없어요"), { code: "nouser" });
       return s.docs[0].id;
+    };
+    // 자동 검색: 아이디 앞부분 또는 이름 앞부분으로 최대 8명 (두 번 읽어요)
+    const searchProfiles = async (text) => {
+      const t = String(text).trim();
+      if (!t) return [];
+      const lo = t.toLowerCase();
+      const [byId, byName] = await Promise.all([
+        getDocs(query(collection(db, "profiles"), where("id", ">=", lo), where("id", "<", lo + "\uf8ff"), limit(8))).catch(rethrow),
+        getDocs(query(collection(db, "profiles"), where("name", ">=", t), where("name", "<", t + "\uf8ff"), limit(8))).catch(rethrow),
+      ]);
+      const seen = new Map();
+      for (const d of [...byId.docs, ...byName.docs]) {
+        if (!seen.has(d.id)) seen.set(d.id, { uid: d.id, id: d.data().id || "", name: d.data().name || d.data().id || "" });
+      }
+      return [...seen.values()].slice(0, 8);
     };
     // 인증토큰 3개: 앱이 만들어 서버에 올려요 (5분 뒤에는 쓸 수 없어요). 행동을 보낼 때 같은 3개를 함께 보내요
     const adminIssue = async () => {
@@ -773,6 +791,7 @@ window.cloudReady = (async () => {
         return { h: next.h, t: next.t, e: next.e, at: now, deaths: v.deaths, eat: { cid, pid }, gained: q, stat: gain[0] };
       },
       /* ----- 관리 (오너만). 행동할 때마다 인증토큰 3개를 앱이 만들어 서버에 올리고(5분), 같은 3개를 행동과 함께 보내면 서버가 확인해요 ----- */
+      searchProfiles,
       adminGrant: async (id, amt) => {
         const uid = await findUid(id);
         const tk = await adminIssue();

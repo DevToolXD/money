@@ -1501,3 +1501,10 @@ html[data-theme="dark"] .draw { background: #fff; }
 
 /* 로그인 전 화면(돈·일·랭킹·사업·계정)의 로그인 버튼: 글씨가 잘리지 않는 알약 모양 */
 #money-guest .btn, #work-guest .btn, #rank-guest .btn, #biz-guest .btn, #auth-card .btn { width: auto; min-width: 176px; height: 52px; padding: 0 28px; border-radius: 9999px; white-space: nowrap; font-size: 17px; font-weight: 700; }
+
+/* 관리: 아이디·이름 자동 검색 목록 */
+.mg-sug { display: grid; gap: 6px; margin-top: -4px; }
+.mg-sug[hidden] { display: none; }
+.mg-sug-row { appearance: none; border: 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 12px; background: #f2f2f7; color: inherit; font: inherit; text-align: left; }
+.mg-sug-row b { font-weight: 700; }
+.mg-sug-row span { font-size: 13px; color: var(--text-secondary); }
