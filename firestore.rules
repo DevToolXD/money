@@ -776,15 +776,47 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ----- 공지: 관리자만 써요. 인증토큰 3개가 맞아야 해요. 모두 읽어요 -----
+    // ----- 공지: 관리자만 써요 (인증토큰 3개가 맞아야 해요). 로그인한 사람은 모두 읽어요.
+    // 투표가 있으면 options(2~6개)가 있고, 사람마다 한 번만 골라요 -----
     match /notices/{id} {
       allow get: if signedIn();
-      allow list: if signedIn() && request.query.limit <= 20;
-      allow create: if isOwner() && request.resource.data.keys().hasOnly(['text', 'at', 'by', 'tk'])
-        && request.resource.data.text is string && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 300
-        && request.resource.data.at == request.time && request.resource.data.by == request.auth.uid
+      allow list: if isOwner();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['title', 'body', 'by', 'createdAt', 'options', 'tk'])
+        && request.resource.data.title is string && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 40
+        && request.resource.data.body is string && request.resource.data.body.size() >= 1 && request.resource.data.body.size() <= 2000
+        && (!request.resource.data.keys().hasAny(['options'])
+          || (request.resource.data.options is list && request.resource.data.options.size() >= 2 && request.resource.data.options.size() <= 6))
+        && request.resource.data.createdAt == request.time && request.resource.data.by == request.auth.uid
         && adminOk(request.resource.data.tk);
       allow update, delete: if false;
+
+      // 투표: 내 선택 한 번 (고치기 없음). 오너만 집계를 읽어요
+      match /votes/{vid} {
+        allow get: if isOwner() || (signedIn() && vid == request.auth.uid);
+        allow list: if isOwner();
+        allow create: if signedIn() && vid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['choice', 'at'])
+          && request.resource.data.choice is int && request.resource.data.choice >= 0
+          && request.resource.data.choice < get(/databases/$(database)/documents/notices/$(id)).data.options.size()
+          && request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // ----- 공지 목록: 오너가 올린 공지 id를 최신순으로 적어요 (인증토큰 확인은 같은 묶음에서) -----
+    match /meta/noticeIndex {
+      allow get: if signedIn();
+      allow write: if isOwner() && adminDelOk() && request.resource.data.keys().hasOnly(['ids'])
+        && request.resource.data.ids is list && request.resource.data.ids.size() <= 100;
+    }
+
+    // ----- 공지를 어디까지 봤는지 (나만 읽고 써요). 한 번 본 공지는 다시 띄우지 않아요 -----
+    match /noticeReads/{uid} {
+      allow get: if signedIn() && uid == request.auth.uid;
+      allow create, update: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['seen'])
+        && request.resource.data.seen is map && request.resource.data.seen.size() <= 2000;
+      allow delete: if false;
     }
 
     // ----- 관리 기록 (관리자만 읽고 써요): 계정 데이터를 지운 기록을 남겨요 -----

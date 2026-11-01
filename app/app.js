@@ -967,6 +967,7 @@
   const goScreen = (name) => {
     showScreen(name);
     if (name === "manage") window.Manage.refresh();
+    if (name === "notices") window.Notices.refresh();
     topTitle.textContent = screens.get(name).dataset.title;
     updateChrome(screens.get(name));
     backdrop?.setActive(name);
@@ -974,7 +975,9 @@
   };
   document.getElementById("open-manage").addEventListener("click", () => goScreen("manage"));
   document.getElementById("manage-back").addEventListener("click", () => goScreen("account"));
-  nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && app.dataset.screen === "manage") goScreen("account"); });
+  document.getElementById("open-notices").addEventListener("click", () => goScreen("notices"));
+  document.getElementById("notices-back").addEventListener("click", () => goScreen("account"));
+  nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "account" && ["manage", "notices"].includes(app.dataset.screen)) goScreen("account"); });
 
   /* ---------- 상태: 어느 탭에서나 떠 있는 동그란 버튼. 누르면 돌면서 배고픔·목마름·에너지가 튀어나와요 ---------- */
   // 시간당 줄어드는 양 (firestore.rules의 쓰러짐 검사와 같아야 해요): 배고픔 24시간, 목마름 18시간, 에너지 36시간에 100%가 다 닳아요
@@ -1250,6 +1253,8 @@
   });
   // 관리 (오너만) 와 공지: app/manage.js
   window.Manage.init({ cloud: () => window.cloud, toast: (m) => toast(m) });
+  // 공지: 설정의 공지 화면, 그리고 아직 안 본 공지를 전체 화면으로 한 번 (app/notice.js)
+  window.Notices.init({ cloud: () => window.cloud, toast: (m) => toast(m) });
   // 상점 탭: 재고가 있는 음식을 골라 사요 (app/shop.js). 산 돈은 파는 회사 금고로 들어가요
   window.Shop.init({
     cloud: () => window.cloud,
@@ -2180,7 +2185,6 @@
     if (name === "work") window.Work.refresh();
     if (name === "shop") window.Shop.refresh();
     if (name === "inventory") window.Inventory.refresh();
-    if (name === "messages") window.Manage.refreshNotice();
     if (name === "business") window.Business.refresh(); // 상품 재고와 금고를 새로 읽어요
     backdrop?.setActive(name);
     tabbar.requestRender();
@@ -2224,6 +2228,7 @@
     }
     try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); toast("계정 정보를 만들지 못했어요. 새로고침해 주세요"); }
     startWallet();
+    window.Notices.check();
     loadCompany(cloud);
     loadVitalsFor(cloud);
     chats.length = 0;

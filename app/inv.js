@@ -61,7 +61,7 @@
       return;
     }
     if (!items.length) {
-      root.innerHTML = `<div class="card inv-empty"><div class="inv-empty-art"><span class="script-write" role="img" aria-label="empty">empty</span></div><div class="inv-empty-glass" aria-hidden="true"></div></div>`;
+      root.innerHTML = '<p class="inv-empty-text">아무것도 없어요</p>';
       return;
     }
     const sel = items.find((x) => x.id === selected);

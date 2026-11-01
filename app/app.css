@@ -1440,10 +1440,43 @@ html[data-theme="dark"] .draw { background: #fff; }
 .mg-notice { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
 .mg-notice:last-child { border-bottom: 0; }
 .mg-notice span { font-size: 13px; color: var(--text-secondary); }
-.notice-root { margin: 0 var(--gutter) 12px; }
-.card.notice-card { margin: 0; padding: 16px 18px; }
-.card.notice-card .card-body { margin: 6px 0 0; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
-.notice-root[hidden] { display: none; }
+/* 공지 화면 (설정의 공지): 펼치는 카드 목록 */
+.notices-root { display: grid; gap: 12px; margin: 0 var(--gutter); }
+.notices-root .card { margin: 0; }
+.notice-list { display: grid; gap: 12px; }
+.notice-item { padding: 0; overflow: hidden; }
+.notice-head { appearance: none; border: 0; background: none; font: inherit; color: inherit; text-align: left; display: flex; align-items: center; gap: 10px; width: 100%; padding: 18px 20px; cursor: pointer; }
+.notice-head-text { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.notice-head-text b { font-size: 17px; line-height: 23px; font-weight: 700; overflow-wrap: anywhere; }
+.notice-head-text > span { font-size: 13px; color: var(--text-secondary); }
+.notice-pill { flex: none; height: 22px; padding: 0 9px; border-radius: 9999px; background: #e5f1ff; color: #0a7cff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; }
+.notice-chev { flex: none; width: 8px; height: 14px; color: #c7c7cc; transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+.notice-item.is-open .notice-chev { transform: rotate(90deg); }
+.notice-body { padding: 0 20px 18px; }
+.notice-body p { margin: 0; font-size: 16px; line-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notice-opts { margin: 12px 0 0; padding-left: 20px; font-size: 15px; line-height: 22px; }
+.notice-empty { padding: 24px 20px; text-align: center; }
+.notice-empty .card-body { margin: 0; }
+/* 한 번 보여주는 전체 화면 공지 */
+.notice-full { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; box-sizing: border-box; padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); background: #f2f2f7; animation: fade 240ms ease both; }
+.notice-full-card { width: 100%; max-width: 420px; max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 28px 24px; border-radius: 28px; background: #fff; display: grid; gap: 12px; justify-items: start; }
+.notice-full-title { margin: 4px 0 0; font-size: 26px; line-height: 32px; font-weight: 800; overflow-wrap: anywhere; }
+.notice-full-date { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.notice-full-text { margin: 8px 0 0; font-size: 17px; line-height: 26px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notice-poll { width: 100%; display: grid; gap: 8px; margin-top: 8px; }
+.notice-poll-title { font-size: 14px; font-weight: 700; color: var(--text-secondary); }
+.notice-opt { appearance: none; border: 0; min-height: 52px; padding: 12px 16px; border-radius: 16px; background: #f2f2f7; color: inherit; font: inherit; font-size: 16px; font-weight: 600; text-align: left; transition: background 180ms, color 180ms; }
+.notice-opt.is-on { background: #0a7cff; color: #fff; }
+.notice-full-foot { width: 100%; display: grid; gap: 10px; margin-top: 12px; }
+.notice-full-foot .btn { width: 100%; }
+.notice-ok:disabled { opacity: 0.4; }
+.notice-skip { appearance: none; border: 0; background: none; height: 40px; color: var(--text-secondary); font: inherit; font-size: 14px; }
+.notice-hint { margin: 0; text-align: center; font-size: 13px; color: var(--text-secondary); }
+/* 관리 탭의 공지 글쓰기: 가운데 정렬 */
+.mg-center, .mg-center::placeholder { text-align: center; }
+.manage-root .mg-compose .lab-field { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.manage-root .mg-compose .lab-input { width: 100%; box-sizing: border-box; }
+.mg-opts { min-height: 88px; }
 
 /* 글씨 모션: 애플이 새 기기에서 hello 를 손으로 쓰듯 보여주는 움직임. 빈 화면에서 empty 를 같은 방식으로 써요 */
 .card.inv-empty { margin: 0 var(--gutter) 16px; padding: 0; overflow: hidden; }
@@ -1459,3 +1492,9 @@ html[data-theme="dark"] .draw { background: #fff; }
 @keyframes scriptWrite { from { -webkit-mask-position: 100% 0; mask-position: 100% 0; } to { -webkit-mask-position: 0 0; mask-position: 0 0; } }
 .inv-empty-glass { height: 96px; background: var(--gg); -webkit-backdrop-filter: blur(38px) saturate(180%); backdrop-filter: blur(38px) saturate(180%); box-shadow: var(--gg-rim); }
 @media (prefers-reduced-motion: reduce) { .script-write { animation: none; -webkit-mask-position: 0 0; mask-position: 0 0; } }
+
+/* hidden 속성이 버튼의 표시 규칙에 져서 보이던 문제를 막아요 (관리 버튼 등) */
+.glass-btn[hidden], .nav-set [hidden] { display: none !important; }
+
+/* 인벤토리가 비었을 때: 작은 회색 글씨만 */
+.inv-empty-text { margin: 0; padding: 40px 0; text-align: center; font-size: 14px; color: #8e8e93; }

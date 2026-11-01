@@ -1198,11 +1198,29 @@ await t("관리: 인증토큰은 5분이 지나면 쓸 수 없어요", async () 
 await t("관리: 공지는 오너만 쓰고, 토큰이 맞아야 써져요", async () => {
   await seed(seedBase);
   await issueTk(ownerDb());
-  const notice = (db, tk) => { const b = writeBatch(db); b.set(doc(db, "notices/n1"), { text: "점검 안내", at: serverTimestamp(), by: "uOwner", tk }); b.delete(doc(db, "adminAuth/uOwner")); return b.commit(); };
+  const notice = (db, tk, extra = {}) => { const b = writeBatch(db); b.set(doc(db, "notices/n1"), { title: "점검", body: "점검 안내", by: "uOwner", createdAt: serverTimestamp(), tk, ...extra }); b.delete(doc(db, "adminAuth/uOwner")); return b.commit(); };
   await assertFails(notice(pw("uA", "alice"), TK)); // 오너가 아니에요
   await assertFails(notice(ownerDb(), ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "zzzzzzzzzzzz"])); // 토큰이 달라요
-  await assertSucceeds(notice(ownerDb(), TK));
+  await assertFails(notice(ownerDb(), TK, { options: ["하나"] })); // 투표 항목은 2개 이상
+  await assertSucceeds(notice(ownerDb(), TK, { options: ["예", "아니오"] }));
   await assertSucceeds(getDoc(doc(pw("uA", "alice"), "notices/n1")));
+});
+await t("공지: 투표는 한 번만, 고르는 번호는 항목 안에서만, 목록은 오너만 봐요", async () => {
+  await seed(seedBase);
+  await issueTk(ownerDb());
+  const od = ownerDb();
+  const b = writeBatch(od); b.set(doc(od, "notices/n2"), { title: "투표", body: "고르세요", by: "uOwner", createdAt: serverTimestamp(), tk: TK, options: ["가", "나"] }); b.set(doc(od, "meta/noticeIndex"), { ids: ["n2"] }); b.delete(doc(od, "adminAuth/uOwner")); await assertSucceeds(b.commit());
+  await assertSucceeds(getDoc(doc(pw("uA", "alice"), "meta/noticeIndex")));
+  await assertSucceeds(setDoc(doc(pw("uA", "alice"), "notices/n2/votes/uA"), { choice: 1, at: serverTimestamp() }));
+  await assertFails(setDoc(doc(pw("uA", "alice"), "notices/n2/votes/uA"), { choice: 2, at: serverTimestamp() })); // 항목은 2개뿐
+  await assertFails(setDoc(doc(pw("uB", "bob"), "notices/n2/votes/uA"), { choice: 0, at: serverTimestamp() })); // 남의 이름으로는 못 골라요
+  await assertFails(getDoc(doc(pw("uA", "alice"), "notices/n2/votes/uB"))); // 남의 선택은 못 봐요
+  await assertFails(getDocs(collection(pw("uA", "alice"), "notices")));  // 목록은 오너만
+  await assertSucceeds(getDocs(collection(ownerDb(), "notices")));
+  await assertSucceeds(setDoc(doc(pw("uA", "alice"), "noticeReads/uA"), { seen: { n2: true } }));
+  await assertFails(setDoc(doc(pw("uB", "bob"), "noticeReads/uA"), { seen: { n2: true } })); // 남의 읽음 기록은 못 써요
+  const da = pw("uA", "alice");
+  await assertFails(writeBatch(da).set(doc(da, "meta/noticeIndex"), { ids: ["x"] }).commit()); // 목록은 오너만
 });
 await t("관리: 계정 데이터 삭제는 오너가 토큰을 써서만 돼요 (기록이 남아요)", async () => {
   await seed(seedBase);

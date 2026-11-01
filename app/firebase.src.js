@@ -71,6 +71,28 @@ const explain = (err) =>
   dbDown(err) ? "서버 데이터베이스(Firestore)가 꺼져 있어요. 관리자가 Firebase에서 켜야 해요" : MESSAGES[err?.code] || "처리하지 못했어요. 잠시 뒤 다시 해 주세요";
 const toEmail = (id) => `${id.trim().toLowerCase()}@money-sim.app`;
 const ms = (t) => (t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0);
+// 공지를 본 기록은 기기에도 남겨요: 다 본 공지가 있으면 앱을 켤 때 서버를 읽지 않아요
+const seenKey = (uid) => "pv-noticeSeen-" + uid;
+const seenHere = (uid) => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(seenKey(uid)) ?? "[]"));
+  } catch (_) {
+    return new Set();
+  }
+};
+const rememberSeen = (uid, ids) => {
+  const all = seenHere(uid);
+  ids.forEach((id) => all.add(id));
+  try {
+    localStorage.setItem(seenKey(uid), JSON.stringify([...all].slice(-60)));
+  } catch (_) {
+    /* 개인 브라우징이면 그냥 넘어가요 */
+  }
+};
+const noticeOf = (s) => {
+  const d = s.data({ serverTimestamps: "estimate" });
+  return { id: s.id, title: d.title || "", body: d.body || "", by: d.by || "", options: Array.isArray(d.options) ? d.options : null, at: ms(d.createdAt) };
+};
 // 회사 문서를 화면에서 쓰는 모양으로 바꿔요. 예전 회사는 종류·모집·직원 값이 없어서 기본값(식품, 0명)으로 봐요
 const KINDS = ["food", "pc", "ai", "nuclear"];
 const companyOf = (id, d) => ({
@@ -681,13 +703,68 @@ window.cloudReady = (async () => {
         await b.commit().catch(rethrow);
         return uid;
       },
-      adminNotice: async (text) => {
+      // 공지 올리기: 제목·내용, 투표 항목(선택, 2~6개). 공지와 목록(meta/noticeIndex)을 한 묶음으로 써요
+      adminNotice: async ({ title, body, options } = {}) => {
+        const t = String(title ?? "").trim();
+        const text = String(body ?? "").trim();
+        const opts = (Array.isArray(options) ? options : []).map((o) => String(o).trim().slice(0, 40)).filter(Boolean).slice(0, 6);
+        if (!t || t.length > 40 || !text || text.length > 2000) throw Object.assign(new Error("제목과 내용을 확인해 주세요"), { code: "invalid" });
+        if (opts.length === 1) throw Object.assign(new Error("투표 항목은 2개 이상 적어 주세요"), { code: "invalid" });
+        const id = doc(collection(db, "notices")).id;
+        const idx = await getDoc(doc(db, "meta", "noticeIndex")).catch(rethrow);
+        const ids = [id, ...(idx.data()?.ids ?? [])].slice(0, 100);
         const tk = await adminIssue();
         const b = writeBatch(db);
-        b.set(doc(collection(db, "notices")), { text: String(text).slice(0, 300), at: serverTimestamp(), by: uidOf(), tk });
+        b.set(doc(db, "notices", id), { title: t, body: text, by: uidOf(), createdAt: serverTimestamp(), tk, ...(opts.length >= 2 ? { options: opts } : {}) });
+        b.set(doc(db, "meta", "noticeIndex"), { ids });
         b.delete(doc(db, "adminAuth", uidOf()));
         await b.commit().catch(rethrow);
+        return id;
       },
+      // 공지 목록 (최신이 앞). 앞의 40개만 읽어요
+      noticeIds: async () => {
+        const s = await getDoc(doc(db, "meta", "noticeIndex")).catch(rethrow);
+        return Array.isArray(s.data()?.ids) ? s.data().ids : [];
+      },
+      noticeList: async (ids) => {
+        const got = await Promise.all(ids.slice(0, 40).map((id) => getDoc(doc(db, "notices", id)).then((s) => (s.exists() ? noticeOf(s) : null)).catch(() => null)));
+        return got.filter(Boolean);
+      },
+      // 아직 안 본 공지 중 가장 오래된 것 하나 (없으면 null). 계정을 만들기 전에 올라온 공지와 내가 올린 공지는 본 것으로 표시해요
+      unseenNotice: async () => {
+        const uid = uidOf();
+        const ids = await window.cloud.noticeIds();
+        const here = seenHere(uid);
+        if (!ids.length || ids.every((id) => here.has(id))) return null;
+        const reads = await getDoc(doc(db, "noticeReads", uid)).catch(() => null);
+        const seen = reads?.data()?.seen ?? {};
+        rememberSeen(uid, Object.keys(seen).filter((k) => seen[k] === true));
+        const since = Date.parse(auth.currentUser?.metadata?.creationTime || "") || 0;
+        for (const id of [...ids].reverse()) {
+          if (seen[id] === true || here.has(id)) continue;
+          const s = await getDoc(doc(db, "notices", id)).catch(() => null);
+          if (!s || !s.exists()) continue;
+          const n = noticeOf(s);
+          if (n.by === uid || (n.at && n.at < since)) {
+            await window.cloud.markNoticeSeen(id).catch(() => {});
+            continue;
+          }
+          return n;
+        }
+        return null;
+      },
+      markNoticeSeen: async (id) => {
+        const uid = uidOf();
+        await setDoc(doc(db, "noticeReads", uid), { seen: { [id]: true } }, { merge: true }).catch(rethrow);
+        rememberSeen(uid, [id]);
+      },
+      // 투표: 한 번만 고를 수 있어요
+      voteNotice: async (id, choice) => {
+        await setDoc(doc(db, "notices", id, "votes", uidOf()), { choice: Number(choice), at: serverTimestamp() }).catch(rethrow);
+      },
+      // 오너: 항목마다 몇 명이 골랐는지 (개수만 읽어요)
+      noticeTally: async (n) =>
+        Promise.all(n.options.map(async (_, i) => (await getCountFromServer(query(collection(db, "notices", n.id, "votes"), where("choice", "==", i)))).data().count)),
       adminDelete: async (id) => {
         const uid = await findUid(id);
         const tk = await adminIssue();
@@ -700,11 +777,6 @@ window.cloudReady = (async () => {
         b.delete(doc(db, "adminAuth", uidOf()));
         await b.commit().catch(rethrow);
         return uid;
-      },
-      // 공지 목록: 최근 10개 (모두 읽어요)
-      listNotices: async () => {
-        const snap = await getDocs(query(collection(db, "notices"), orderBy("at", "desc"), limit(10))).catch(rethrow);
-        return snap.docs.map((d) => ({ id: d.id, text: d.data().text || "", at: ms(d.data({ serverTimestamps: "estimate" }).at) }));
       },
       // 상점 진열대: 회사마다 판매 중인 상품을 읽어 재고가 있는 것만 모아요 (최근 회사 50곳). 색인이 필요 없는 방식이에요
       listShop: async () => {

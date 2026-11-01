@@ -12,7 +12,7 @@
 <title>자본주의 시뮬레이터</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/tokens.css">
-<link rel="stylesheet" href="app/app.css?v=58">
+<link rel="stylesheet" href="app/app.css?v=59">
 </head>
 <body>
 <div class="app" data-screen="messages">
@@ -26,7 +26,6 @@
   <button class="cloud-down" id="cloud-down" type="button" hidden><b>서버 데이터베이스가 꺼져 있어요</b><span>관리자가 Firebase 콘솔에서 Firestore 데이터베이스를 만들어야 메시지·돈·랭킹이 동작해요. 눌러서 닫기</span></button>
   <main class="screens">
     <section class="screen is-active" id="screen-messages" data-screen="messages" data-title="메시지" aria-label="메시지">
-      <div id="notice-root" class="notice-root" hidden></div>
       <div class="pinned" id="pinned"></div>
       <label class="searchfield"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="5"/><path d="M10.6 10.6L14 14"/></svg><input id="chat-search" type="search" placeholder="검색" aria-label="대화 검색"></label>
       <ul class="chat-list" id="chat-list"></ul><p class="empty" id="chat-empty" hidden>결과가 없어요</p>
@@ -69,6 +68,11 @@
       <p class="lead">관리자만 볼 수 있어요.</p>
       <div id="manage-root" class="manage-root" aria-live="polite"></div>
     </section>
+    <section class="screen" id="screen-notices" data-screen="notices" data-title="공지" aria-labelledby="title-notices">
+      <header class="large-title"><h1 id="title-notices">공지</h1><button class="glass-btn" id="notices-back" type="button">계정</button></header>
+      <div id="notices-root" class="notices-root" aria-live="polite"></div>
+    </section>
+
     <section class="screen" id="screen-inventory" data-screen="inventory" data-title="인벤토리" aria-labelledby="title-inventory">
       <header class="large-title"><h1 id="title-inventory">인벤토리</h1></header>
       <div id="inv-root" class="inv-root" aria-live="polite"><div class="card skeletons" style="--rows: 4" aria-hidden="true"></div></div>
@@ -133,6 +137,7 @@
       </div>
       <h2 class="section-title">설정</h2>
       <div class="card"><ul class="rows">
+        <li><button class="row" id="open-notices" type="button"><span class="ico-sq" style="background:#ff9f0a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h4l8 4V6L7 10H3z"/><path d="M19 8.500a5 5 0 0 1 0 7"/></svg></span><span class="row-main"><b>공지</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></button></li>
         <li><div class="row"><span class="ico-sq" style="background:#ff453a"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.500 2h-15zM10 21h4"/></svg></span><span class="row-main"><b>알림</b></span><button class="toggle" id="toggle-notify" role="switch" aria-checked="true" aria-label="알림"></button></div></li>
         <li><div class="row"><span class="ico-sq" style="background:#0a84ff"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.500"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><span class="row-main"><b>개인정보 보호</b></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
         <li><div class="row"><span class="ico-sq" style="background:#30d158"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 7 0 0 1-12.500 5.800L4 19l1.200-3.400A8 7 0 1 1 20 12z"/></svg></span><span class="row-main"><b>대화</b><span>배경화면은 대화 위쪽 이름을 눌러 바꿔요</span></span><svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></div></li>
@@ -323,13 +328,14 @@
 <script src="app/icons.js"></script>
 <script src="app/backdrop.js"></script>
 <script src="app/tabbar.js?v=9"></script>
-<script type="module" src="app/firebase.js?v=33"></script>
+<script type="module" src="app/firebase.js?v=34"></script>
 <script src="app/shapes.js?v=2"></script>
 <script src="app/biz.js?v=22"></script>
 <script src="app/work.js?v=10"></script>
 <script src="app/shop.js?v=1"></script>
-<script src="app/inv.js?v=2"></script>
-<script src="app/manage.js?v=1"></script>
-<script src="app/app.js?v=47"></script>
+<script src="app/inv.js?v=3"></script>
+<script src="app/manage.js?v=2"></script>
+<script src="app/notice.js?v=1"></script>
+<script src="app/app.js?v=48"></script>
 </body>
 </html>
