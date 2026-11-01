@@ -613,7 +613,7 @@
     list.innerHTML = products
       .map(
         (p, i) =>
-          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개 · 원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span>${mine && (p.stock ?? 0) > 0 ? `<button class="biz-eat" type="button" data-eat="${esc(p.id)}">꺼내기</button>` : ""}<button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
+          `<li class="biz-item" data-id="${esc(p.id)}" style="--i:${i}"><span class="biz-thumb">${pkvHTML(p, true)}</span><span class="biz-main"><b>${esc(p.name)}</b><span>판매 ${tok(p.priceCents ?? 0)} 토큰 · 재고 ${p.stock ?? 0}개</span><span>원가 ${tok(p.costCents ?? 0)} 토큰</span>${p.paused ? '<em class="biz-tag">판매 멈춤</em>' : ""}</span>${mine && (p.stock ?? 0) > 0 ? `<button class="biz-eat" type="button" data-eat="${esc(p.id)}">꺼내기</button>` : ""}<button class="biz-more" type="button" data-more="${esc(p.id)}" aria-label="더보기">${svgI(ICON.dots)}</button></li>`
       )
       .join("");
     document.getElementById("biz-empty").hidden = products.length > 0;

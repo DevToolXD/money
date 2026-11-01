@@ -950,25 +950,32 @@ const prodRef = (db, pid = "p1", cid = "uA") => doc(db, "companies/" + cid + "/p
 const readProd = async (pid = "p1", cid = "uA") => { let data; await env.withSecurityRulesDisabled(async (c) => { data = (await getDoc(doc(c.firestore(), "companies/" + cid + "/products/" + pid))).data(); }); return data; };
 // 음식 만들기: 재고를 n개 늘리고 만든 시각을 적어요
 const madeWrite = (db, n, extra = {}) => updateDoc(prodRef(db), { stock: increment(n), madeAt: serverTimestamp(), ...extra });
-await t("음식: 사장과 직원이 음식을 만들면 재고가 늘어요 (회사 밖 사람과 잘못된 칸은 안 돼요)", async () => {
+await t("음식: 사장만 음식을 만들어요 (직원은 성능을 올려요). 한 번에 식품 성능÷10개까지", async () => {
   await coSeed();
+  await labSeed({});
   await prodSeed("uA", "p1");
   await seed(jobSeed);
   const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
   await assertFails(madeWrite(carol, 3)); // 회사 밖 사람은 못 만들어요
+  await assertFails(madeWrite(bob, 3)); // 직원은 음식을 만들지 않아요 (성능을 올려요)
+  await assertFails(madeWrite(alice, 11)); // 식품 성능 100이면 한 번에 10개까지
   await assertFails(madeWrite(alice, 101)); // 한 번에 100개까지
   await assertFails(updateDoc(prodRef(alice), { stock: increment(3) })); // 만든 시각을 함께 적어야 해요
   await assertFails(madeWrite(alice, 3, { priceCents: 1 })); // 가격은 못 바꿔요
   await assertFails(updateDoc(prodRef(alice), { stock: 3, madeAt: EPOCH })); // 지난 시각은 안 돼요
   await assertSucceeds(madeWrite(alice, 3)); // 사장이 3개
   check("재고 3", (await readProd()).stock === 3);
-  await assertFails(madeWrite(bob, 1)); // 2초 안에는 또 못 만들어요
+  await assertFails(updateDoc(labRef(bob), { fperf: 50 })); // 식품 성능은 줄일 수 없어요
+  await assertSucceeds(updateDoc(labRef(bob), { fperf: 400 })); // 직원은 성능을 올려요
+  await assertSucceeds(updateDoc(labRef(alice), { fperf: 500 })); // 사장도 올려요
   await sleep(2100);
-  await assertSucceeds(madeWrite(bob, 1)); // 직원도 만들어요
-  check("재고 4 (사장 3 + 직원 1)", (await readProd()).stock === 4);
+  await assertFails(madeWrite(bob, 1)); // 직원은 여전히 못 만들어요
+  await assertSucceeds(madeWrite(alice, 40)); // 성능 500이면 한 번에 50개까지
+  check("재고 43", (await readProd()).stock === 43);
 });
 await t("음식: 판매를 끝낸 상품은 못 만들고, 멈춘 상품은 만들어 둘 수 있어요", async () => {
   await coSeed();
+  await labSeed({});
   await prodSeed("uA", "p1", { active: false });
   await assertFails(madeWrite(pw("uA", "alice"), 1));
   await prodSeed("uA", "p1", { paused: true });

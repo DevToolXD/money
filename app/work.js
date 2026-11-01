@@ -203,11 +203,20 @@
   const DROPPER_SVG = `<svg viewBox="0 0 34 70" aria-hidden="true"><rect x="10" y="1" width="14" height="22" rx="7" fill="none" stroke="#000" stroke-width="1.8"/><path d="M13 23V52L17 66L21 52V23" fill="none" stroke="#000" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/><rect class="lab-dropper-liq" x="14.5" y="28" width="5" height="22" rx="2" fill="#f2f2f7"/></svg>`;
 
   /* ---------- 일: 사장이거나 직원일 때 ---------- */
-  const workHTML = (kind) => {
+  const workHTML = (kind, owner = false) => {
     if (kind === "food") {
+      if (!owner) {
+        return `<div class="card wk-work wk-food">
+          <p class="wk-head">식품 성능 올리기</p>
+          <p class="wk-note">배합을 다듬어 식품 성능을 올려요. 성능이 높을수록 사장님이 한 번에 더 많이 만들 수 있어요. 음식은 사장님이 만들어요.</p>
+          <div class="wk-nums"><span>식품 성능 <b id="lab-fp">…</b></span></div>
+          <button type="button" class="btn primary" id="wk-tune">배합 다듬기</button>
+        </div>`;
+      }
       return `<div class="card wk-work wk-food">
         <p class="wk-head">식품 만드는 일</p>
         <p class="wk-note" id="wk-make">만들 상품을 불러오는 중이에요</p>
+        <div class="wk-nums"><span>식품 성능 <b id="lab-fp">…</b></span><span>한 번에 최대 <b id="wk-cap">…</b>개</span></div>
         <div class="wk-line" role="group" aria-label="만드는 순서">
           <button type="button" class="gg wk-step" data-step="0">재료 담기</button>
           <button type="button" class="gg wk-step" data-step="1">섞기</button>
@@ -263,7 +272,7 @@
   const mineHTML = (owner, co, job, extra) => `
     <div class="card wk-hero">${ctx.mark(co.name, co.logo, "avatar contact wk-av big")}<div><p class="wk-role">${owner ? "사장" : "직원"} · ${KIND[co.kind]}</p><h2>${esc(co.name)}</h2><p class="wk-since">${owner ? `${dateOf(co.at)}에 창업했어요` : `${dateOf(job.at)}에 입사했어요`}</p></div></div>
     ${statsHTML(co)}
-    ${workHTML(co.kind)}
+    ${workHTML(co.kind, owner)}
     ${owner ? (extra ? quitHTML(extra) : "") : quitHTML(co)}`;
   const paintSteps = () => {
     root.querySelectorAll(".wk-step").forEach((b, i) => {
@@ -303,7 +312,7 @@
   const flushFood = async () => {
     clearTimeout(foodTimer);
     foodTimer = 0;
-    const n = Math.min(foodPending, 100);
+    const n = Math.min(foodPending, 100, Math.max(10, Math.floor(labFp / 10)));
     if (!n || !foodCid || !foodPid) return;
     const cid = foodCid;
     const pid = foodPid;
@@ -377,9 +386,10 @@
     }
   };
   /* ---------- 연구실 숫자 (핵연료 성능·컴퓨터 숫자·데이터): 누른 것은 모아서 2.5초에 한 번 서버에 보내요 ---------- */
-  const LAB_KEYS = ["nperf", "cap", "spd", "pow", "aiData"];
+  const LAB_KEYS = ["nperf", "cap", "spd", "pow", "aiData", "fperf"];
   const zeroPend = () => Object.fromEntries(LAB_KEYS.map((k) => [k, 0]));
   let labCid = null;
+  let labFp = 100; // 서버의 식품 성능 (사장이 한 번에 만들 양을 정해요)
   let labView = null; // 화면에 보이는 숫자 (서버 숫자 + 아직 안 보낸 것)
   let labPend = zeroPend();
   let labTimer = 0;
@@ -396,6 +406,8 @@
     set("lab-spd", labView.spd);
     set("lab-pow", labView.pow);
     set("lab-data", labView.aiData);
+    set("lab-fp", labView.fperf);
+    set("wk-cap", Math.max(10, Math.floor(labView.fperf / 10)));
   };
   const flushLab = async () => {
     clearTimeout(labTimer);
@@ -427,6 +439,7 @@
       const L = await ctx.cloud().labGet(cid);
       if (cid !== labCid) return;
       labView = { ...L };
+      labFp = L.fperf;
       paintLabNums();
     } catch (err) {
       console.warn("연구실 숫자를 불러오지 못했어요:", err?.code || err);
@@ -663,7 +676,9 @@
     root.innerHTML = mineHTML(owner, primary, job, owner && employer ? employer : null);
     if (primary.kind === "food") {
       paintSteps();
-      loadProducts(cid);
+      if (owner) loadProducts(cid);
+      loadLabView(cid);
+      root.querySelector("#wk-tune")?.addEventListener("click", () => queueLab({ fperf: 1 }));
       return;
     }
     loadLabView(cid);

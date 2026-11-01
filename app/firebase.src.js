@@ -109,7 +109,8 @@ const labOf = (d) => {
     aiDev: n(d?.aiDev, 0), // 개발 점수 (마지막 학습 결과)
     trn: d?.trn && Number.isInteger(d.trn.d) && Number.isInteger(d.trn.secs) && Number.isInteger(d.trn.score) && d.trn.started
       ? { d: d.trn.d, secs: d.trn.secs, score: d.trn.score, started: d.trn.started } : null, // 학습 중인 기록
-    food: d?.food ?? null, // 마지막 음식 판매 기록
+    food: d?.food ?? null, // 마지막 음식 판매 기록 (예전 기록이에요. 지금은 재고로 봐요)
+    fperf: n(d?.fperf, 100), // 식품 성능 (100부터, 직원이 올려요). 사장이 한 번에 만들 수 있는 양은 성능 ÷ 10 이에요
   };
 };
 const sorted = (a, b) => (a < b ? [a, b] : [b, a]);

@@ -138,7 +138,7 @@ service cloud.firestore {
       //     파는 쪽과 사는 쪽이 같은 묶음에서 함께 바뀔 때만 돼요 (기록 시각이 이 쓰기의 서버 시각이어야 해요). 단가(price)는 파는 회사 사장이 정해요.
       match /lab/{ld} {
         function labOk(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food', 'fperf'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
@@ -167,11 +167,12 @@ service cloud.firestore {
             && d.get('pcN', 0) is int && d.get('pcN', 0) >= 0 && d.get('pcN', 0) <= 1000000
             && (d.get('pcM', null) == null || (d.pcM.keys().hasOnly(['cap', 'spd', 'pow'])
                 && d.pcM.cap is int && d.pcM.spd is int && d.pcM.pow is int))
-            && d.get('aiH', 0) is int && d.get('aiH', 0) >= 0 && d.get('aiH', 0) <= 1000000000;
+            && d.get('aiH', 0) is int && d.get('aiH', 0) >= 0 && d.get('aiH', 0) <= 1000000000
+            && d.get('fperf', 100) is int && d.get('fperf', 100) >= 100 && d.get('fperf', 100) <= 1000000;
         }
         // 평소 쓰기(회사 사람)는 사고팔기 기록·학습 기록을 다시 검사하지 않아요. 그 칸은 사고파는 묶음과 학습 조건에서 따로 확인해요
         function labCore(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food'])
+          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food', 'fperf'])
             && d.nperf is int && d.nperf >= 100 && d.nperf <= 100000
             && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
             && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
@@ -188,7 +189,8 @@ service cloud.firestore {
             && d.aiScore is int && d.aiScore >= -1
             && d.get('aiDev', 0) is int && d.get('aiDev', 0) >= 0 && d.get('aiDev', 0) <= 1000000000
             && d.cash is int && d.cash >= 0 && d.cash <= 100000000000
-            && d.price is int && d.price >= 0 && d.price <= 100000000;
+            && d.price is int && d.price >= 0 && d.price <= 100000000
+            && d.get('fperf', 100) is int && d.get('fperf', 100) >= 100 && d.get('fperf', 100) <= 1000000;
         }
         function labWho() {
           return signedIn() && (labOwner() || (exists(jobPath(request.auth.uid)) && get(jobPath(request.auth.uid)).data.cid == cid));
@@ -364,6 +366,7 @@ service cloud.firestore {
             && request.resource.data.spd >= resource.data.get('spd', 0)
             && request.resource.data.pow >= resource.data.get('pow', 0)
             && request.resource.data.aiData >= resource.data.aiData
+            && request.resource.data.get('fperf', 100) >= resource.data.get('fperf', 100)
             && (
               // 금고만 넣고 빼는 쓰기 (발전·학습 기록은 그대로): 평소 쓰기는 여기서 바로 확인해요
               (request.resource.data.get('gen', null) == resource.data.get('gen', null)
@@ -458,14 +461,14 @@ service cloud.firestore {
               && request.resource.data.name != resource.data.name
               && request.resource.data.name.matches('^[^<>]{1,30}$'))
           );
-        // 음식 만들기 (사장과 그 회사 직원): 재고가 늘어요. 활성 상품만, 한 번에 100개까지, 2초에 한 번만 (서버는 실제로 만드는 과정을 볼 수 없어요)
+        // 음식 만들기 (사장만): 재고가 늘어요. 활성 상품만, 한 번에 식품 성능 ÷ 10 개까지(최대 100개), 2초에 한 번만 (서버는 실제로 만드는 과정을 볼 수 없어요)
         function producing() {
           return resource.data.get('active', false) == true
-            && (get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
-                || (exists(jobPath(request.auth.uid)) && get(jobPath(request.auth.uid)).data.cid == cid))
+            && get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'madeAt'])
             && request.resource.data.get('stock', 0) > resource.data.get('stock', 0)
             && request.resource.data.get('stock', 0) - resource.data.get('stock', 0) <= 100
+            && request.resource.data.get('stock', 0) - resource.data.get('stock', 0) <= get(/databases/$(database)/documents/companies/$(cid)/lab/main).data.get('fperf', 100) / 10
             && request.resource.data.get('stock', 0) <= 1000000
             && request.resource.data.madeAt == request.time
             && request.time >= resource.data.get('madeAt', timestamp.date(1970, 1, 1)) + duration.value(2, 's');

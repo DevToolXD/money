@@ -1135,7 +1135,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .biz-item.out { opacity: 0; transform: translateX(-14px) scale(0.97); }
 .biz-thumb { flex: none; display: block; width: 40px; height: 66px; }
 .biz-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.biz-main b { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.biz-main b { font-size: 17px; font-weight: 700; line-height: 22px; overflow-wrap: anywhere; }
 .biz-main span { font-size: 13px; color: var(--text-secondary); }
 /* 더보기(⋯): 이름 바꾸기, 판매 멈추기, 판매 종료하기 목록을 열어요 */
 .biz-more { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #000; background: rgba(120, 120, 128, 0.14); transition: transform 0.2s var(--ease); }
@@ -1272,7 +1272,7 @@ html[data-theme="dark"] .draw { background: #fff; }
 .wk-soon { justify-items: center; text-align: center; }
 .wk-soon-ic { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 30px; }
 .wk-soon-ic svg { width: 42px; height: 42px; }
-.wk-quit { display: flex; align-items: center; justify-content: center; width: 100%; height: 52px; padding: 0 20px; border-radius: 26px; font-size: 17px; font-weight: 700; text-align: center; color: #ff3b30; }
+.wk-quit { display: flex; align-items: center; justify-content: center; width: calc(100% - 2 * var(--gutter)); margin: 0 auto; height: 52px; padding: 0 20px; border-radius: 26px; font-size: 17px; font-weight: 700; text-align: center; color: #ff3b30; }
 
 /* 일: 로그인 전 */
 #work-guest { display: none; }
