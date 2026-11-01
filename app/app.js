@@ -2065,19 +2065,26 @@
   const slides = [...document.querySelectorAll("#slides i")];
   let slide = 0;
   let slideTimer = 0;
-  const showSlide = (n) => slides.forEach((s, i) => s.classList.toggle("on", i === n));
+  const showSlide = (n) => {
+    slides.forEach((s, i) => s.classList.toggle("on", i === n));
+    window.__paintStatus?.();
+  };
   // 상태바 색: 로그인 화면이 열리면 사진 쪽의 어두운 색으로, 닫히면 원래 밝은 색으로 돌려요 (홈 화면 앱에서 빈 띠가 덜 튀게)
   // 상태바 색은 지금 보이는 맨 위 색을 따라가요: 로그인(어두움) > 대화(흰색·민트) > 화면(라벤더 회색)
   let loginOn = false;
+  // 로그인 사진 다섯 장의 위쪽 평균 색 (사진이 바뀌면 상태바 색도 따라가요)
+  const LOGIN_COLOURS = ["#3e4250", "#2e3949", "#4e5047", "#997880", "#9b725c"];
   const paintStatus = () => {
     const meta = document.querySelector('meta[name="theme-color"][media="(prefers-color-scheme: light)"]');
     if (!meta) return;
     let colour = "#f2f2f7";
-    if (loginOn) colour = "#2a2a2e";
+    if (loginOn) colour = LOGIN_COLOURS[slide] || "#2a2a2e";
     else if (app.classList.contains("in-thread")) colour = document.getElementById("thread")?.dataset.wall === "mint" ? "#eaf6ee" : "#ffffff";
+    else if (app.dataset.screen === "messages") colour = "#ffffff";
     meta.setAttribute("content", colour);
   };
   window.__paintStatus = paintStatus;
+  setTimeout(() => paintStatus(), 0); // 처음 켰을 때도 맞춰요 (그때는 초기화가 다 끝난 뒤예요)
   const showLogin = (on) => {
     loginOn = on;
     paintStatus();
