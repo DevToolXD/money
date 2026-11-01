@@ -41,6 +41,7 @@ import {
   serverTimestamp,
   increment,
   Timestamp,
+  deleteField,
 } from "firebase/firestore";
 
 const MESSAGES = {
@@ -588,10 +589,11 @@ window.cloudReady = (async () => {
         });
         return r ? got : -1;
       },
-      // 식품 공장 (사장만): 만들 개수만큼 재료값(원가 × 개수)이 금고에서 나가고, 재고가 바로 늘어요. 한 번 돌리면 10초 쉬어요 (개수와 관계없이)
-      labStartFactory: (cid, pid, n) => {
-        const fail = (code, msg) => Object.assign(new Error(msg), { code });
-        return runTransaction(db, async (tx) => {
+      // 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요 (대수 plv만큼 60초에 그만큼).
+      // 돌리기: 개수를 정해 시작해요. 재료값과 재고는 만든 만큼 "정산"할 때 같은 묶음에서 바뀌어요.
+      labStartFactory: (cid, pid, n) =>
+        runTransaction(db, async (tx) => {
+          const fail = (code, msg) => Object.assign(new Error(msg), { code });
           const lref = doc(db, "companies", cid, "lab", "main");
           const pref = doc(db, "companies", cid, "products", pid);
           const ls = await tx.get(lref);
@@ -601,15 +603,50 @@ window.cloudReady = (async () => {
           if (!p || p.active !== true) throw fail("unsellable", "지금은 만들 수 없는 상품이에요");
           if (!(Number.isInteger(n) && n >= 1 && n <= 100000)) throw fail("bad", "개수를 확인해 주세요");
           const L = labOf(ls.data());
-          if (L.prod && Date.now() < L.prod.started.toMillis() + 10000) throw fail("busy", "공장이 쉬는 중이에요. 잠시 뒤 다시 돌려 주세요");
-          const cost = n * (Number.isInteger(p.costCents) ? p.costCents : 0);
-          if (L.cash < cost) throw fail("poor", "재료값이 금고에 부족해요");
+          if (L.prod) throw fail("busy", "공장이 이미 돌고 있어요. 다 만들 때까지 기다려 주세요");
+          tx.update(lref, { prod: { pid, left: n, at: serverTimestamp() } });
+          return n;
+        }).catch(rethrow),
+      // 정산 (사장): 지금까지 만든 개수만큼 재료값이 금고에서 나가고 재고가 늘어요. 재료값이 모자라면 거기서 멈춰요.
+      // 서버 시각을 쓰니 시계가 조금 빨라도 되도록 3초 덜 세요 (규칙은 최대치 이하만 받아요)
+      labSettleFactory: (cid) =>
+        runTransaction(db, async (tx) => {
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const ls = await tx.get(lref);
+          if (!ls.exists()) return { units: 0, left: 0 };
+          const L = labOf(ls.data());
+          if (!L.prod) return { units: 0, left: 0 };
+          const pref = doc(db, "companies", cid, "products", L.prod.pid);
+          const ps = await tx.get(pref);
+          const p = ps.exists() ? ps.data() : null;
+          if (!p) throw Object.assign(new Error("상품이 없어요"), { code: "unsellable" });
+          const each = Number.isInteger(p.costCents) ? p.costCents : 0;
+          const elapsed = Math.max(0, Date.now() - 3000 - L.prod.at.toMillis());
+          let u = Math.min(L.prod.left, Math.floor((elapsed * L.plv) / 60000));
+          if (each > 0) u = Math.min(u, Math.floor(L.cash / each));
+          if (u < 1) return { units: 0, left: L.prod.left };
+          const cash = L.cash - u * each;
           const stock = Number.isInteger(p.stock) ? p.stock : 0;
-          tx.update(lref, { cash: L.cash - cost, prod: { pid, n, started: serverTimestamp() } });
-          tx.update(pref, { stock: stock + n });
-          return cost;
-        }).catch(rethrow);
-      },
+          const left = L.prod.left - u;
+          if (left === 0) tx.update(lref, { cash, prod: deleteField() });
+          else tx.update(lref, { cash, prod: { pid: L.prod.pid, left, at: Timestamp.fromMillis(L.prod.at.toMillis() + Math.floor((u * 60000) / L.plv)) } });
+          tx.update(pref, { stock: stock + u });
+          return { units: u, left };
+        }).catch(rethrow),
+      // 공장 추가 (사장): 500토큰(금고에서)을 내고 한 대 더 생겨요. 돌고 있을 때는 못 해요
+      labBuyFactory: (cid) =>
+        runTransaction(db, async (tx) => {
+          const fail = (code, msg) => Object.assign(new Error(msg), { code });
+          const lref = doc(db, "companies", cid, "lab", "main");
+          const ls = await tx.get(lref);
+          if (!ls.exists()) throw fail("nolab", "공장을 아직 만들지 않았어요");
+          const L = labOf(ls.data());
+          if (L.prod) throw fail("busy", "공장이 돌고 있어요. 다 만든 뒤에 더 살 수 있어요");
+          if (L.plv >= 1000) throw fail("max", "공장을 더 살 수 없어요");
+          if (L.cash < 50000) throw fail("poor", "회사 금고에 500 토큰이 부족해요. 먼저 금고에 넣어 주세요");
+          tx.update(lref, { cash: L.cash - 50000, plv: L.plv + 1 });
+          return L.plv + 1;
+        }).catch(rethrow),
       labGenClaim: async (cid) => {
         let got = 0;
         const r = await labTx(cid, (L) => {
@@ -619,17 +656,14 @@ window.cloudReady = (async () => {
         });
         return r ? got : 0;
       },
-      // 테스트용: 공장이 쉬는 동안 기다렸다가 돌려요
+      // 테스트용: 다 만들 때까지 기다려요 (한 개에 60초)
       labFoodMake: async (cid, pid, n) => {
-        const lref = doc(db, "companies", cid, "lab", "main");
-        const ls = await getDoc(lref).catch(rethrow);
-        if (!ls.exists()) await setDoc(lref, labWrite(labOf(null))).catch(() => {});
-        const L = labOf((await getDoc(lref)).data());
-        if (L.prod) {
-          const left = L.prod.started.toMillis() + 10000 - Date.now();
-          if (left > 0) await new Promise((r) => setTimeout(r, left + 200));
-        }
         await window.cloud.labStartFactory(cid, pid, n);
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const r = await window.cloud.labSettleFactory(cid);
+          if (r.left === 0) return;
+        }
       },
       // 상점에서 사기: 음식 n개를 사요. 사는 사람 지갑에서 값(토큰, 센트는 올림)을 내고, 파는 회사 금고가 그만큼 늘고, 재고가 n개 줄고, 내 인벤토리에 n개가 들어가요 (한 묶음)
       shopBuy: (cid, pid, n, coName = "") =>

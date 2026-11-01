@@ -22,7 +22,7 @@
   --card-shadow-rest: none;
 
   --gutter: 24px;
-  --radius-card: 28px;
+  --radius-card: 10px;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
 }
 
