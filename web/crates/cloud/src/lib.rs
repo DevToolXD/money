@@ -56,6 +56,28 @@ pub fn signed_in() -> bool {
 }
 
 /// `window.cloud.<name>(...args)`를 부르고, 약속(Promise)이면 끝날 때까지 기다려요
+/// `window.cloud.<name>(...args)`를 부르고, 돌아온 값(약속이면 약속 그대로)을 줘요. JS 쪽 줄 세우기(walletOp)에 넘길 때 써요
+pub fn call_now(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
+    let c = cloud().ok_or_else(|| CloudError::new("nocloud", "서버에 연결하지 못했어요"))?;
+    let f: Function = Reflect::get(&c, &JsValue::from_str(name))
+        .map_err(CloudError::from_js)?
+        .dyn_into()
+        .map_err(|_| CloudError::new("nofn", format!("{name} 함수가 없어요")))?;
+    let list = Array::new();
+    for a in args {
+        list.push(a);
+    }
+    f.apply(&c, &list).map_err(CloudError::from_js)
+}
+
+/// JS 약속이면 기다리고, 아니면 그대로
+pub async fn settle(v: JsValue) -> Result<JsValue, CloudError> {
+    match v.dyn_into::<Promise>() {
+        Ok(p) => JsFuture::from(p).await.map_err(CloudError::from_js),
+        Err(v) => Ok(v),
+    }
+}
+
 pub async fn call(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
     let c = cloud().ok_or_else(|| CloudError::new("nocloud", "서버에 연결하지 못했어요"))?;
     let f: Function = Reflect::get(&c, &JsValue::from_str(name))
@@ -177,6 +199,68 @@ pub async fn admin_delete(id: &str) -> Result<(), CloudError> {
     call("adminDelete", &[JsValue::from_str(id)]).await.map(|_| ())
 }
 
+/* ---------- 상점 ---------- */
+
+/// 상점 진열 상품 한 개. `raw`(상품)와 `co_raw`(파는 회사)는 그림을 그리는 JS 함수에 넘겨요
+#[derive(Debug, Clone)]
+pub struct ShopItem {
+    pub id: String,
+    pub cid: String,
+    pub name: String,
+    pub co_name: String,
+    pub price_cents: f64,
+    pub stock: i64,
+    pub raw: JsValue,
+    pub co_raw: JsValue,
+}
+
+/// 재고가 있는 음식 (회사별로 모아요)
+pub async fn list_shop() -> Result<Vec<ShopItem>, CloudError> {
+    let v = call("listShop", &[]).await?;
+    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
+    Ok(arr
+        .iter()
+        .map(|raw| {
+            let co_raw = get(&raw, "co");
+            ShopItem {
+                id: get(&raw, "id").as_string().unwrap_or_default(),
+                cid: get(&raw, "cid").as_string().unwrap_or_default(),
+                name: get(&raw, "name").as_string().unwrap_or_default(),
+                co_name: get(&co_raw, "name").as_string().unwrap_or_default(),
+                price_cents: get(&raw, "priceCents").as_f64().unwrap_or(0.0),
+                stock: get(&raw, "stock").as_f64().unwrap_or(0.0) as i64,
+                raw,
+                co_raw,
+            }
+        })
+        .collect())
+}
+
+/// 상점의 물건(컴퓨터)·자원(전기) 칸: 회사가 내놓은 단가와 재고
+#[derive(Debug, Clone, PartialEq)]
+pub struct Offer {
+    pub co_name: String,
+    pub price: f64,
+    pub elec: f64,
+}
+
+/// kind: "pc"(물건) 또는 "nuclear"(자원)
+pub async fn list_offers(kind: &str) -> Result<Vec<Offer>, CloudError> {
+    let v = call("listOffers", &[JsValue::from_str(kind)]).await?;
+    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
+    Ok(arr
+        .iter()
+        .map(|o| {
+            let lab = get(&o, "L");
+            Offer {
+                co_name: get(&get(&o, "co"), "name").as_string().unwrap_or_default(),
+                price: get(&lab, "price").as_f64().unwrap_or(0.0),
+                elec: get(&lab, "elec").as_f64().unwrap_or(0.0),
+            }
+        })
+        .collect())
+}
+
 /* ---------- 인벤토리 ---------- */
 
 /// 인벤토리 한 칸. `raw`는 다리에서 온 그대로의 값이에요 (상품 그림을 그리는 JS 함수에 넘겨요)
@@ -258,6 +342,37 @@ pub fn when_ko(ms: f64) -> String {
         let _ = Reflect::set(&o, &JsValue::from_str(k), &JsValue::from_str(v));
     }
     d.to_locale_string("ko-KR", &o).into()
+}
+
+/// 숫자를 한국식으로 (천 단위 쉼표, 소수는 최대 max_frac자리, 끝의 0은 지워요). 예전 JS의 toLocaleString("ko-KR")과 같아요
+pub fn fmt_num(v: f64, max_frac: u32) -> String {
+    let p = 10f64.powi(max_frac as i32);
+    let r = (v * p).round() / p;
+    let neg = r < 0.0;
+    let r = r.abs();
+    let int = r.trunc() as u64;
+    let mut frac = format!("{:.*}", max_frac as usize, r - r.trunc());
+    frac = frac.trim_start_matches('0').trim_end_matches('0').trim_end_matches('.').to_string();
+    let digits = int.to_string();
+    let mut out = String::new();
+    for (i, ch) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    if !frac.is_empty() {
+        out.push_str(&frac);
+    }
+    if neg && (int > 0 || !frac.is_empty()) {
+        out.insert(0, '-');
+    }
+    out
+}
+
+/// 센트를 토큰 글자로 (80 → "0.8", 300 → "3")
+pub fn tok(cents: f64) -> String {
+    fmt_num(cents / 100.0, 2)
 }
 
 /// 콘솔에 경고를 남겨요

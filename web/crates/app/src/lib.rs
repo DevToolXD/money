@@ -44,3 +44,15 @@ pub fn manage_init(ctx: JsValue) {
 pub fn manage_refresh() {
     ui::manage::refresh();
 }
+
+/// 상점: #shop-root에 붙여요
+#[wasm_bindgen]
+pub fn shop_init(ctx: JsValue) {
+    ui::shop::init(ui::ctx::Ctx(ctx));
+}
+
+/// 상점 목록을 다시 읽어요
+#[wasm_bindgen]
+pub fn shop_refresh() {
+    ui::shop::refresh();
+}

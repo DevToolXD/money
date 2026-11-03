@@ -5,3 +5,4 @@ pub mod inventory;
 pub mod manage;
 pub mod notices;
 pub mod parts;
+pub mod shop;

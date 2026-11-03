@@ -40,3 +40,23 @@ impl Ctx {
         self.call("pkv", &[raw.clone(), JsValue::from_bool(mini), co.into()]).ok().and_then(|v| v.as_string()).unwrap_or_default()
     }
 }
+
+impl Ctx {
+    /// 상품 그림 (회사 값을 그대로 넘겨요: 로고가 가운데에 들어가요)
+    pub fn pkv_with(&self, raw: &JsValue, mini: bool, co: &JsValue) -> String {
+        self.call("pkv", &[raw.clone(), JsValue::from_bool(mini), co.clone()]).ok().and_then(|v| v.as_string()).unwrap_or_default()
+    }
+
+    /// 지갑 쓰기 줄 세우기: 서버 규칙이 2초에 한 번만 받아서, app.js가 순서대로 보내요.
+    /// job은 JS 약속을 돌려주는 함수예요 (예: cloud::call_now("shopBuy", ...))
+    pub async fn wallet_op(&self, job: impl FnOnce() -> JsValue + 'static) -> Result<JsValue, cloud::CloudError> {
+        let f = wasm_bindgen::closure::Closure::once_into_js(job);
+        let p = self.call("walletOp", &[f]).map_err(|e| cloud::CloudError { code: "walletop".into(), message: format!("{e:?}") })?;
+        cloud::settle(p).await
+    }
+
+    /// 돈 탭 기록에 한 줄 남겨요 (있을 때만)
+    pub fn log(&self, entry: &JsValue) {
+        let _ = self.call("log", &[entry.clone()]);
+    }
+}
