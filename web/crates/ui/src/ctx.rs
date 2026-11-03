@@ -60,3 +60,35 @@ impl Ctx {
         let _ = self.call("log", &[entry.clone()]);
     }
 }
+
+impl Ctx {
+    /// 지금 고른 내 회사 (undefined: 아직 읽는 중, null: 회사 없음)
+    pub fn company(&self) -> JsValue {
+        self.call("company", &[]).unwrap_or(JsValue::UNDEFINED)
+    }
+
+    /// 회사 마크 (아바타 HTML 글자)
+    pub fn mark(&self, name: &str, logo: &str, cls: &str) -> String {
+        self.call("mark", &[JsValue::from_str(name), JsValue::from_str(logo), JsValue::from_str(cls)]).ok().and_then(|v| v.as_string()).unwrap_or_default()
+    }
+
+    /// 확인 창 (예/아니요). 고르면 true
+    pub async fn ask(&self, title: &str, body: &str, ok: &str, cancel: &str) -> bool {
+        let o = js_sys::Object::new();
+        for (k, v) in [("title", title), ("body", body), ("ok", ok), ("cancel", cancel)] {
+            let _ = Reflect::set(&o, &JsValue::from_str(k), &JsValue::from_str(v));
+        }
+        match self.call("ask", &[o.into()]) {
+            Ok(p) => cloud::settle(p).await.map(|v| v.is_truthy()).unwrap_or(false),
+            Err(_) => false,
+        }
+    }
+}
+
+/// 화면 상태(배고픔·목마름·에너지)를 app.js에 알려요 (window.__vitals.set)
+pub fn set_vitals(v: &JsValue) {
+    let vit = Reflect::get(&js_sys::global(), &JsValue::from_str("__vitals")).unwrap_or(JsValue::UNDEFINED);
+    if let Ok(f) = Reflect::get(&vit, &JsValue::from_str("set")).and_then(|f| f.dyn_into::<Function>()) {
+        let _ = f.call1(&vit, v);
+    }
+}

@@ -2,6 +2,7 @@
 //! 예전 JS 모듈과 같은 이름(`window.Notices` 등)으로 연결돼서, 나머지 JS는 바꾸지 않아도 돼요.
 
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 /// 공지: 설정의 공지 화면에 목록을 붙여요. (ctx는 예전 JS와 같은 모양으로 받지만, 다리는 window.cloud를 바로 써요)
 #[wasm_bindgen]
@@ -55,4 +56,24 @@ pub fn shop_init(ctx: JsValue) {
 #[wasm_bindgen]
 pub fn shop_refresh() {
     ui::shop::refresh();
+}
+
+/// 일 탭: #work-root에 붙여요
+#[wasm_bindgen]
+pub fn work_init(ctx: JsValue) {
+    ui::work::init(ui::ctx::Ctx(ctx));
+}
+
+/// 일 탭을 다시 그려요 (force면 서버에서 다시 읽어요)
+#[wasm_bindgen]
+pub fn work_refresh(force: Option<bool>) {
+    ui::work::refresh(force.unwrap_or(false));
+}
+
+/// 사업 탭의 식품 공장 카드를 el 안에 그려요
+#[wasm_bindgen]
+pub fn work_factory_into(el: JsValue, cid: String) {
+    if let Ok(el) = el.dyn_into::<web_sys::HtmlElement>() {
+        ui::factory::factory_into(el, cid);
+    }
 }
