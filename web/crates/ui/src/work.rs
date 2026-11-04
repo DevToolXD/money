@@ -626,32 +626,141 @@ fn lab_text(s: Sig, k: usize) -> impl Fn() -> String {
 
 /* ---------- 식품: 일하기 (에너지 1 → 식품 성능 1) ---------- */
 
+// 식품 재료: 이름, 아이콘(윤곽선), 색
+const FOODS: [(&str, &str, &str); 4] = [
+    ("밀가루", r#"<path d="M7 8h10l-1 12H8z"/><path d="M8.5 8l1-3h5l1 3"/><path d="M10 13h4"/>"#, "#e9dcc3"),
+    ("설탕", r#"<path d="M6 9l6-4 6 4v9l-6 3-6-3z"/><path d="M6 9l6 3 6-3M12 12v9"/>"#, "#f5f5f5"),
+    ("소금", r#"<path d="M9 9h6v11H9z"/><path d="M9.5 9l1-4h3l1 4"/><path d="M11 6.5h.01M13 6.5h.01"/>"#, "#dfe7ef"),
+    ("물", r#"<path d="M12 4C9 8.5 7 11 7 14.5a5 5 0 0 0 10 0C17 11 15 8.5 12 4z"/>"#, "#9fd3ff"),
+];
+fn new_recipe() -> [u32; 4] {
+    // 재료 2~3가지를 1~3개씩
+    loop {
+        let r = [0, 0, 0, 0].map(|_: u32| if rand() < 0.65 { 1 + (rand() * 3.0).floor() as u32 } else { 0 });
+        let kinds = r.iter().filter(|x| **x > 0).count();
+        if (2..=3).contains(&kinds) {
+            return r;
+        }
+    }
+}
+
+/* ---------- 식품: 배합 작업 (레시피대로 재료를 넣고 꾹 눌러 섞어요 → 에너지 1 → 식품 성능 1) ---------- */
 #[component]
 fn FoodCard(s: Sig, cid: String) -> impl IntoView {
-    let work = move |_| {
-        let cid = cid.clone();
-        spawn_local(async move {
-            match cloud::staff_work(&cid, 1).await {
-                Ok(v) => {
-                    set_vitals(&v);
-                    ctx().toast("일을 했어요 · 식품 성능 +1 · 에너지 -1");
-                }
-                Err(e) => ctx().toast(match e.code.as_str() {
-                    "fainted" => "쓰러져 있어서 지금은 일할 수 없어요",
-                    "tired" => "에너지가 모자라요. 먹고 쉬어 주세요",
-                    _ if e.message.is_empty() => "잠시 뒤 다시 해 주세요",
-                    _ => &e.message,
-                }),
-            }
-            load_lab(s, cid);
-        });
+    let recipe = RwSignal::new(new_recipe());
+    let bowl = RwSignal::new([0u32; 4]);
+    let stir = RwSignal::new(0.0f64); // 섞은 정도 0~1
+    let holding = RwSignal::new(false);
+    let msg = RwSignal::new("레시피대로 재료를 그릇에 넣고, 섞기를 꾹 눌러 주세요".to_string());
+    let game = GAME.get();
+    let add = move |i: usize| {
+        if holding.get_untracked() {
+            return;
+        }
+        bowl.update(|b| b[i] = (b[i] + 1).min(9));
+        crate::dom::vibrate(6);
     };
+    let reset = move || {
+        bowl.set([0; 4]);
+        stir.set(0.0);
+    };
+    let finish = {
+        let cid = cid.clone();
+        move || {
+            let ok = bowl.get_untracked() == recipe.get_untracked();
+            if !ok {
+                msg.set("배합이 레시피와 달라요. 다시 넣어 주세요".into());
+                ctx().toast("배합이 레시피와 달라요");
+                reset();
+                return;
+            }
+            let cid = cid.clone();
+            spawn_local(async move {
+                match cloud::staff_work(&cid, 1).await {
+                    Ok(v) => {
+                        set_vitals(&v);
+                        msg.set("잘 섞였어요! 다음 레시피예요".into());
+                        ctx().toast("배합 완성 · 식품 성능 +1 · 에너지 -1");
+                        recipe.set(new_recipe());
+                    }
+                    Err(e) => {
+                        msg.set("지금은 일할 수 없어요".into());
+                        ctx().toast(match e.code.as_str() {
+                            "tired" => "에너지가 모자라요. 먹고 쉬어 주세요",
+                            _ if e.message.is_empty() => "잠시 뒤 다시 해 주세요",
+                            _ => &e.message,
+                        });
+                    }
+                }
+                reset();
+                load_lab(s, cid);
+            });
+        }
+    };
+    // 꾹 누르는 동안 1.4초에 걸쳐 섞여요. 손을 떼면 멈춰요
+    let finish = StoredValue::new_local(finish);
+    let press = move |_| {
+        if bowl.with_untracked(|b| b.iter().sum::<u32>() == 0) {
+            return ctx().toast("먼저 재료를 넣어 주세요");
+        }
+        holding.set(true);
+        let t0 = js_sys::Date::now() - stir.get_untracked() * 1400.0;
+        fn tick(holding: RwSignal<bool>, stir: RwSignal<f64>, t0: f64, game: u32, done: StoredValue<Box<dyn Fn()>, LocalStorage>) {
+            request_animation_frame(move || {
+                if GAME.get() != game || !holding.get_untracked() {
+                    return;
+                }
+                let p = ((js_sys::Date::now() - t0) / 1400.0).min(1.0);
+                stir.set(p);
+                if p >= 1.0 {
+                    holding.set(false);
+                    done.with_value(|f| f());
+                    return;
+                }
+                tick(holding, stir, t0, game, done);
+            });
+        }
+        let done: StoredValue<Box<dyn Fn()>, LocalStorage> = StoredValue::new_local(Box::new(move || finish.with_value(|f| f())));
+        tick(holding, stir, t0, game, done);
+    };
+    let release = move |_| holding.set(false);
     view! {
         <div class="card wk-work wk-food">
-            <p class="wk-head">"식품 성능 올리기"</p>
-            <p class="wk-note">"배합을 다듬어 식품 성능을 올려요. 성능이 높을수록 사장님이 한 번에 더 많이 만들 수 있어요. 음식은 사장님이 만들어요."</p>
+            <p class="wk-head">"식품 배합"</p>
+            <p class="wk-note">{move || msg.get()}</p>
             <div class="wk-nums"><span>"식품 성능 "<b id="lab-fp">{lab_text(s, 5)}</b></span></div>
-            <button type="button" class="btn primary" id="wk-tune" on:click=work>"배합 다듬기"</button>
+            <div class="fm-recipe" id="fm-recipe">
+                <span class="fm-rt">"레시피"</span>
+                {move || recipe.get().into_iter().enumerate().filter(|(_, n)| *n > 0).map(|(i, n)| {
+                    let got = bowl.with(|b| b[i]);
+                    view! { <span class="fm-chip" class:done=move || got == n data-need=n.to_string() data-i=i.to_string()>{format!("{} {}/{}", FOODS[i].0, got, n)}</span> }
+                }).collect_view()}
+            </div>
+            <div class="fm-bowl" style=move || format!("--stir:{}", stir.get())>
+                <div class="fm-mix" style=move || {
+                    let b = bowl.get();
+                    let total: u32 = b.iter().sum();
+                    format!("--fill:{}", (total as f64 / 9.0).min(1.0))
+                }></div>
+                <svg class="fm-spoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v11"/><ellipse cx="12" cy="17" rx="2.5" ry="3.5"/></svg>
+            </div>
+            <div class="fm-jars">
+                {FOODS.iter().enumerate().map(|(i, (name, d, col))| view! {
+                    <button type="button" class="gg fm-jar" data-food=i.to_string() style=format!("--c:{col}") on:click=move |_| add(i)>
+                        <span class="fm-ic" inner_html=svg_icon(d, 26)></span>
+                        <span>{*name}</span>
+                        <b class="fm-n">{move || { let n = bowl.with(|b| b[i]); if n > 0 { n.to_string() } else { String::new() } }}</b>
+                    </button>
+                }).collect_view()}
+            </div>
+            <div class="fm-row">
+                <button type="button" class="gg fm-reset" on:click=move |_| reset()>"비우기"</button>
+                <button type="button" class="btn primary fm-stir" id="wk-tune" class:on=move || holding.get()
+                    on:pointerdown=press on:pointerup=release on:pointerleave=release on:pointercancel=release on:contextmenu=|e| e.prevent_default()>
+                    <span class="fm-prog" style=move || format!("transform:scaleX({})", stir.get())></span>
+                    <span class="fm-label">{move || if holding.get() { "섞는 중…" } else { "꾹 눌러 섞기" }}</span>
+                </button>
+            </div>
         </div>
     }
 }

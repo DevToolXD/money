@@ -131,7 +131,23 @@ fn eat(sig: Sig, it: InvItem) {
     }
     sig.busy.set(true);
     spawn_local(async move {
-        match cloud::eat_from_inventory(&it.cid, &it.pid, &it.group, &vit).await {
+        // 먹는 연출과 서버 기록을 함께 해요 (물은 꿀꺽 마시고, 음식은 세 번 베어 물어요)
+        let stage = eat_show(&ctx().pkv(&it.raw, false, &it.co_name), it.group == "water");
+        let (r, _) = crate::pay::futures_join(cloud::eat_from_inventory(&it.cid, &it.pid, &it.group, &vit), crate::dom::sleep(if crate::dom::reduce_motion() { 150 } else { 1500 })).await;
+        if let Some(st) = &stage {
+            if let Ok(v) = &r {
+                let gained = cloud::get(v, "gained").as_f64().unwrap_or(0.0);
+                if let Some(t) = st.query_selector(".eat-gain").ok().flatten() {
+                    t.set_text_content(Some(&format!("{} +{}", label, fmt_gain(gained))));
+                }
+                let _ = st.class_list().add_1("done");
+                crate::dom::sleep(750).await;
+            }
+            let _ = st.class_list().add_1("bye");
+            crate::dom::sleep(250).await;
+            st.remove();
+        }
+        match r {
             Ok(v) => {
                 let _ = c.call("vitals.set", &[v.clone()]);
                 let gained = cloud::get(&v, "gained").as_f64().unwrap_or(0.0);
@@ -145,6 +161,30 @@ fn eat(sig: Sig, it: InvItem) {
         sig.busy.set(false);
         refresh(); // 개수를 서버에서 다시 읽어요
     });
+}
+
+/// 먹는 연출 판: 음식이 크게 떠오르고, 베어 문 자국이 생기며 부스러기가 튀어요 (마실 것은 기울며 줄어들어요)
+fn eat_show(art: &str, drink: bool) -> Option<web_sys::HtmlElement> {
+    let app = crate::dom::app_el()?;
+    let el: web_sys::HtmlElement = crate::dom::doc().create_element("div").ok()?.dyn_into().ok()?;
+    el.set_class_name(if drink { "eat drink" } else { "eat" });
+    let _ = el.set_attribute("aria-hidden", "true");
+    let crumbs: String = (0..9).map(|i| format!(r#"<i class="eat-crumb" style="--a:{}deg;--d:{}ms"></i>"#, i * 40 - 160, (i % 3) * 420 + 300)).collect();
+    el.set_inner_html(&format!(r#"<div class="eat-stage"><div class="eat-food">{art}</div>{crumbs}</div><p class="eat-gain"></p>"#));
+    let _ = app.append_child(&el);
+    let _ = el.offset_width();
+    let _ = el.class_list().add_1("go");
+    for (i, ms) in [380, 800, 1220].into_iter().enumerate() {
+        let e2 = el.clone();
+        spawn_local(async move {
+            crate::dom::sleep(ms).await;
+            if e2.is_connected() {
+                let _ = e2.class_list().add_1(&format!("b{}", i + 1));
+                crate::dom::vibrate(12);
+            }
+        });
+    }
+    Some(el)
 }
 
 #[component]

@@ -14,14 +14,15 @@ use crate::ctx::Ctx;
 use crate::parts::{note, note_retry, skeleton};
 
 const MAX_N: i64 = 100;
-const CATS: [(&str, &str); 3] = [("food", "식품"), ("pc", "물건"), ("nuclear", "자원")];
+const CATS: [(&str, &str); 3] = [("food", "식품"), ("acc", "장신구"), ("trade", "거래")];
 
 #[derive(Clone)]
 enum State {
     Out,
     Loading,
     Food(Vec<ShopItem>),
-    Offers(Vec<Offer>),
+    Offers(Vec<(bool, Offer)>), // (컴퓨터인지, 내놓은 것)
+    Soon,
     Failed,
 }
 
@@ -88,11 +89,17 @@ async fn load(sig: Sig) -> bool {
             l.sort_by(|a, b| a.co_name.cmp(&b.co_name).then(a.name.cmp(&b.name)));
             State::Food(l)
         })
+    } else if cat == "acc" {
+        Ok(State::Soon)
     } else {
-        cloud::list_offers(cat).await.map(|mut l| {
-            l.sort_by(|a, b| a.co_name.cmp(&b.co_name));
-            State::Offers(l)
-        })
+        // 거래: 회사들이 내놓은 컴퓨터와 전기를 한데 모아요
+        async {
+            let mut all: Vec<(bool, Offer)> = cloud::list_offers("pc").await?.into_iter().map(|o| (true, o)).collect();
+            all.extend(cloud::list_offers("nuclear").await?.into_iter().map(|o| (false, o)));
+            all.sort_by(|a, b| a.1.co_name.cmp(&b.1.co_name));
+            Ok(State::Offers(all))
+        }
+        .await
     };
     if SEQ.get() != my {
         return false;
@@ -149,12 +156,16 @@ fn buy(sig: Sig, p: ShopItem, n: i64) {
     sig.busy.set(true);
     spawn_local(async move {
         let (cid, id, co) = (p.cid.clone(), p.id.clone(), p.co_name.clone());
-        let got = c
-            .wallet_op(move || {
+        // 카드를 리더기에 긁는 연출과 결제를 함께 해요
+        let amount = format!("{} 토큰", fmt_num(cost_of(p.price_cents, n) as f64, 0));
+        let got = crate::pay::swipe(
+            &amount,
+            c.wallet_op(move || {
                 cloud::call_now("shopBuy", &[JsValue::from_str(&cid), JsValue::from_str(&id), JsValue::from(n as f64), JsValue::from_str(&co)])
                     .unwrap_or_else(|e| js_sys::Promise::reject(&JsValue::from_str(&e.message)).into())
-            })
-            .await;
+            }),
+        )
+        .await;
         match got {
             Ok(paid) => {
                 c.toast(&format!("{} {}개를 샀어요. 인벤토리에 넣었어요", p.name, n));
@@ -197,11 +208,11 @@ fn Shop(sig: Sig) -> impl IntoView {
                 State::Loading => skeleton(4),
                 State::Out => note("로그인이 필요해요", "로그인하면 살 수 있어요", "식품 회사가 만든 음식을 여기서 살 수 있어요. 산 돈은 파는 회사의 금고로 들어가요."),
                 State::Failed => note_retry("잠깐만요", "상점을 불러오지 못했어요", "인터넷을 확인하고 다시 해 주세요.", "shop-retry", refresh),
+                State::Soon => note("장신구", "곧 들어와요", "반지·목걸이 같은 장신구를 여기서 사고팔 수 있게 준비하고 있어요."),
                 State::Offers(list) => {
-                    let pc = sig.cat.get_untracked() == "pc";
                     if list.is_empty() {
                         note(
-                            if pc { "지금 내놓은 물건이 없어요" } else { "지금 내놓은 자원이 없어요" },
+                            "지금 거래할 물건이 없어요",
                             "회사가 시장에 내놓으면 여기에 나와요",
                             "지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요.",
                         )
@@ -210,7 +221,7 @@ fn Shop(sig: Sig) -> impl IntoView {
                             <h2 class="section-title">"회사가 내놓은 것"</h2>
                             <p class="lab-sub shop-note-line">"지금은 인공지능 회사가 사업 탭의 시장에서 사요. 사람이 직접 사는 기능은 아직 없어요."</p>
                             <div class="shop-grid">
-                                {list.into_iter().enumerate().map(|(i, o)| view! {
+                                {list.into_iter().enumerate().map(|(i, (pc, o))| view! {
                                     <article class="card shop-card offer-card" style=format!("--i:{i}")>
                                         <div class="shop-body">
                                             <b class="shop-name">{if pc { "컴퓨터" } else { "전기" }}</b>

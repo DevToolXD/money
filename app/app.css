@@ -1736,3 +1736,97 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 .sns-rh span { color: var(--sns-sub); }
 .sns-replybar { display: flex; align-items: center; gap: 10px; margin: 8px 12px calc(env(safe-area-inset-bottom, 0px) + 10px); padding: 10px 14px; border-radius: 999px; background: rgba(127, 127, 127, 0.12); color: var(--sns-sub); font-size: 15px; text-align: left; }
 .sns-sheet { z-index: 106; }
+/* 식품 배합 작업 (work.rs FoodCard) */
+.fm-recipe { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fm-rt { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-right: 2px; }
+.fm-chip { height: 28px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 999px; background: rgba(118, 118, 128, 0.12); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; transition: background-color 0.25s, color 0.25s; }
+.fm-chip.done { background: #34c759; color: #fff; }
+.fm-bowl { position: relative; justify-self: center; width: 150px; height: 92px; margin: 6px 0 2px; border: 2px solid #1c1c1e; border-top: 0; border-radius: 0 0 80px 80px / 0 0 70px 70px; overflow: hidden; }
+.fm-bowl::before { content: ""; position: absolute; left: -2px; right: -2px; top: 0; height: 2px; background: #1c1c1e; }
+.fm-mix { position: absolute; inset: auto 0 0 0; height: calc(var(--fill, 0) * 82%); background: radial-gradient(circle at 50% 30%, #f6ead2, #e4cfa6); transition: height 0.35s var(--spring); }
+.fm-mix::after { content: ""; position: absolute; inset: 8% 20%; border-radius: 50%; border: 2px dashed rgba(120, 90, 40, 0.35); transform: rotate(calc(var(--stir, 0) * 1080deg)); }
+.fm-spoon { position: absolute; left: 50%; top: -6px; width: 34px; height: 60px; margin-left: -17px; color: #8e8e93; transform-origin: 50% 90%; transform: rotate(calc(sin(var(--stir, 0) * 18.85rad) * 28deg)); }
+.fm-jars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.fm-jar { position: relative; display: grid; justify-items: center; gap: 4px; padding: 10px 0 8px; border-radius: 16px; font-size: 13px; font-weight: 600; }
+.fm-jar:active { transform: scale(0.94); }
+.fm-ic { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--c); color: #1c1c1e; }
+.fm-n { position: absolute; top: 4px; right: 8px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--apple-blue); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.fm-n:empty { display: none; }
+.fm-row { display: flex; gap: 8px; }
+.fm-reset { flex: none; height: 50px; padding: 0 18px; border-radius: 999px; font-weight: 600; }
+.fm-stir { position: relative; flex: 1; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+.fm-prog { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.28); transform-origin: left; transform: scaleX(0); }
+.fm-label { position: relative; }
+
+/* 결제 연출 (pay.rs): 카드가 빛나며 빙글 돌아 나타나고, 리더기에 쓰윽 긁혀요 */
+.pay { position: absolute; inset: 0; z-index: 130; display: grid; place-content: center; justify-items: center; gap: 22px; background: rgba(0, 0, 0, 0); transition: background-color 0.3s; }
+.pay.go { background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.pay.bye { opacity: 0; transition: opacity 0.25s; }
+.pay-stage { position: relative; width: 300px; height: 300px; }
+.pay-t { margin: 0; color: #fff; font-size: 16px; font-weight: 600; opacity: 0; }
+.pay.go .pay-t { animation: payFade 0.4s 0.3s forwards; }
+.pay-ring { position: absolute; left: 50%; top: 42%; width: 40px; height: 40px; margin: -20px; border-radius: 50%; border: 3px solid rgba(255, 120, 150, 0.9); box-shadow: 0 0 24px rgba(255, 90, 130, 0.9), inset 0 0 18px rgba(255, 255, 255, 0.8); opacity: 0; }
+.pay.go .pay-ring { animation: payRing 0.7s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+.pay-spark { position: absolute; left: 50%; top: 42%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: radial-gradient(#fff, #ff6f9c 60%, transparent 70%); opacity: 0; }
+.pay.go .pay-spark { animation: paySpark 0.8s var(--d) ease-out forwards; }
+.pay-card { position: absolute; left: 50%; top: 42%; width: 200px; height: 126px; margin: -63px 0 0 -100px; border-radius: 14px; padding: 14px 16px; color: #fff; background: radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.35), transparent 40%), linear-gradient(135deg, #e0284f, #b0103a 55%, #1c1c1e 56%, #2c2c2e); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; opacity: 0; transform: scale(0.2) rotateY(0deg); }
+.pay-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%); transform: translateX(-120%); }
+.pay.go .pay-card { animation: payCard 1.6s cubic-bezier(0.3, 0.9, 0.3, 1) forwards; }
+.pay.go .pay-card::after { animation: payShine 0.7s 0.45s ease-in-out; }
+.pay-chip { width: 30px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #f7d77b, #c9a13b); }
+.pay-brand { position: absolute; right: 14px; top: 14px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; }
+.pay-num { align-self: end; font-size: 14px; letter-spacing: 0.12em; font-variant-numeric: tabular-nums; }
+.pay-amt { font-size: 17px; font-weight: 800; }
+.pay-reader { position: absolute; left: 50%; bottom: 6px; width: 230px; height: 76px; margin-left: -115px; border-radius: 18px; background: linear-gradient(#3a3a3c, #1c1c1e); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 10px 24px rgba(0, 0, 0, 0.5); opacity: 0; transform: translateY(30px); }
+.pay.go .pay-reader { animation: payReader 0.45s 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.1) forwards; }
+.pay-slot { position: absolute; left: 14px; right: 14px; top: 14px; height: 6px; border-radius: 3px; background: #000; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8); }
+.pay-light { position: absolute; left: 18px; bottom: 16px; width: 10px; height: 10px; border-radius: 50%; background: #ff9f0a; box-shadow: 0 0 10px #ff9f0a; }
+.pay.ok .pay-light { background: #34c759; box-shadow: 0 0 14px #34c759; }
+.pay.no .pay-light { background: #ff3b30; box-shadow: 0 0 14px #ff3b30; }
+.pay-res { position: absolute; right: 18px; bottom: 10px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; opacity: 0; transform: scale(0.4); transition: opacity 0.25s, transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.pay-res svg { width: 18px; height: 18px; }
+.pay-res.ok { background: #34c759; }
+.pay-res.no { background: #ff3b30; }
+.pay.ok .pay-res.ok, .pay.no .pay-res.no { opacity: 1; transform: none; }
+@keyframes payFade { to { opacity: 1; } }
+@keyframes payRing { 0% { opacity: 0; transform: scale(0.3); } 40% { opacity: 1; } 100% { opacity: 0; transform: scale(5.5); } }
+@keyframes paySpark { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-120px) scale(0.3); } }
+/* 0~40%: 빛 속에서 빙글 돌며 커지고(변신) → 55%: 리더기 위로 내려가 옆으로 눕고 → 55~85%: 슬롯을 따라 쓰윽 긁어요 */
+@keyframes payCard {
+  0% { opacity: 0; transform: scale(0.2) rotateY(0deg) rotateZ(-30deg); }
+  28% { opacity: 1; transform: scale(1.08) rotateY(540deg) rotateZ(0deg); }
+  40% { transform: scale(1) rotateY(720deg); }
+  55% { transform: translate(-150px, 98px) scale(0.62) rotateY(720deg); }
+  85% { transform: translate(150px, 98px) scale(0.62) rotateY(720deg); }
+  100% { opacity: 0.0; transform: translate(190px, 98px) scale(0.5) rotateY(720deg); }
+}
+@keyframes payShine { to { transform: translateX(120%); } }
+@keyframes payReader { to { opacity: 1; transform: none; } }
+
+/* 먹기 연출 (inventory.rs): 크게 떠올라 세 번 베어 물어요. 마실 것은 기울며 줄어들어요 */
+.eat { position: absolute; inset: 0; z-index: 130; display: grid; place-content: center; justify-items: center; gap: 18px; background: rgba(0, 0, 0, 0); transition: background-color 0.3s; }
+.eat.go { background: rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.eat.bye { opacity: 0; transition: opacity 0.25s; }
+.eat-stage { position: relative; width: 220px; height: 220px; }
+.eat-food { position: absolute; inset: 20px; display: grid; place-items: center; transform: scale(0.4) translateY(80px); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 1.2, 0.4, 1), opacity 0.25s; --b1: 0px; --b2: 0px; --b3: 0px;
+  -webkit-mask: radial-gradient(circle at 88% 30%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 92% 62%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 70% 88%, transparent var(--b3), #000 calc(var(--b3) + 0.5px));
+  -webkit-mask-composite: source-in; mask: radial-gradient(circle at 88% 30%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 92% 62%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 70% 88%, transparent var(--b3), #000 calc(var(--b3) + 0.5px)); mask-composite: intersect; }
+.eat-food > * { width: 100%; height: 100%; }
+.eat.go .eat-food { transform: none; opacity: 1; }
+.eat.b1 .eat-food { --b1: 42px; animation: eatChomp 0.18s; }
+.eat.b2 .eat-food { --b2: 48px; animation: eatChomp 0.18s; }
+.eat.b3 .eat-food { --b3: 52px; animation: eatChomp 0.18s; }
+.eat.done .eat-food { transform: scale(0.5); opacity: 0; transition: transform 0.4s, opacity 0.4s; }
+.eat.drink .eat-food { -webkit-mask: linear-gradient(to top, #000 var(--lv, 100%), transparent var(--lv, 100%)); mask: linear-gradient(to top, #000 var(--lv, 100%), transparent var(--lv, 100%)); transition: transform 0.45s cubic-bezier(0.2, 1.2, 0.4, 1), opacity 0.25s; }
+.eat.drink.go .eat-food { transform: rotate(-28deg); }
+.eat.drink.b1 .eat-food { --lv: 72%; animation: none; }
+.eat.drink.b2 .eat-food { --lv: 44%; animation: none; }
+.eat.drink.b3 .eat-food { --lv: 14%; animation: none; }
+.eat-crumb { position: absolute; left: 82%; top: 50%; width: 7px; height: 7px; border-radius: 2px; background: #d9b77e; opacity: 0; }
+.eat.go .eat-crumb { animation: eatCrumb 0.6s var(--d) ease-out forwards; }
+.eat.drink .eat-crumb { display: none; }
+.eat-gain { margin: 0; min-height: 30px; color: #fff; font-size: 24px; font-weight: 800; opacity: 0; transform: translateY(10px); }
+.eat.done .eat-gain { opacity: 1; transform: none; transition: opacity 0.3s, transform 0.4s cubic-bezier(0.2, 1.3, 0.4, 1); }
+@keyframes eatChomp { 50% { transform: scale(0.94) rotate(-3deg); } }
+@keyframes eatCrumb { 0% { opacity: 1; transform: rotate(var(--a)) translate(0, 0); } 100% { opacity: 0; transform: rotate(var(--a)) translate(70px, 40px) rotate(180deg); } }
+@media (prefers-reduced-motion: reduce) { .pay-card, .pay-ring, .pay-spark, .eat-food, .eat-crumb { animation: none !important; } }

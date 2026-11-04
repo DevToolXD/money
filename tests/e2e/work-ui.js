@@ -46,11 +46,17 @@ const okAlert = async (p) => { await p.waitForSelector('#alert-ok', { state: 'vi
   await okAlert(S.page); await S.page.waitForTimeout(4000);
   ok('지원하면 알림이 떠요', (await text(S.page, '.toast')).includes('화면 식품에 입사했어요'));
   ok('입사하면 내 회사 화면(직원 · 식품)이 보여요', (await text(S.page, '#work-root .wk-role')).includes('직원'));
-  ok('배합 다듬기 버튼이 보여요', await S.page.isVisible('#wk-tune'));
+  ok('배합 작업: 섞기 버튼이 보여요', await S.page.isVisible('#wk-tune'));
   const fp0 = Number((await text(S.page, '#lab-fp')).replace(/\D/g, '')) || 0;
-  await S.page.click('#wk-tune'); await S.page.waitForTimeout(3500);
+  // 레시피대로 재료를 넣고 섞기를 꾹 눌러요
+  const need = await S.page.$$eval('#fm-recipe .fm-chip', (cs) => cs.map((c) => [c.dataset.i, Number(c.dataset.need)]));
+  for (const [i, n] of need) for (let k = 0; k < n; k++) await S.page.click(`.fm-jar[data-food="${i}"]`);
+  const st = await S.page.locator('#wk-tune').boundingBox();
+  await S.page.mouse.move(st.x + st.width / 2, st.y + st.height / 2); await S.page.mouse.down(); await S.page.waitForTimeout(1800); await S.page.mouse.up();
+  await S.page.waitForTimeout(3500);
+  await S.page.waitForTimeout(3000);
   const fp1 = Number((await text(S.page, '#lab-fp')).replace(/\D/g, '')) || 0;
-  ok(`배합 다듬기를 누르면 식품 성능이 올라요 (${fp0} → ${fp1})`, fp1 === fp0 + 1);
+  ok(`레시피대로 섞으면 식품 성능이 올라요 (${fp0} → ${fp1})`, fp1 === fp0 + 1);
   await S.page.click('.wk-quit');
   await okAlert(S.page); await S.page.waitForTimeout(600);
   await okAlert(S.page); await S.page.waitForTimeout(4000);
