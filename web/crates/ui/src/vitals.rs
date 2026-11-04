@@ -88,11 +88,7 @@ fn paint() {
         return;
     }
     let Some(vig) = by_id("vignette") else { return };
-    if js_sys::Date::now() < at_ms(&v) {
-        vig.set_class_name("vignette"); // 쉬는 중
-        return;
-    }
-    let vals = now_vals(&v);
+        let vals = now_vals(&v);
     for (i, (k, _, _)) in STATS.iter().enumerate() {
         let x = vals[i].round().max(0.0) as i64;
         let changed = SHOWN.with(|s| {
@@ -108,7 +104,8 @@ fn paint() {
         }
     }
     let low = vals[0].min(vals[1]).min(vals[2]);
-    let dead = vals[0].min(vals[1]) <= 0.0; // 배고픔이나 목마름이 0이면 쓰러져요 (에너지는 안 봐요)
+    // 배고픔·목마름이 0이 되어도 쓰러지지 않아요 (쓰러짐은 없앴어요)
+    let dead = false;
     vig.set_class_name(if low <= 5.0 {
         "vignette v5"
     } else if low <= 10.0 {
@@ -155,11 +152,8 @@ pub fn load() {
         match cloud::call("loadVitals", &[]).await {
             Ok(v) => {
                 VIT.with(|x| *x.borrow_mut() = v.clone());
-                if js_sys::Date::now() < at_ms(&v) {
-                    show_lock();
-                } else {
-                    start();
-                }
+                // 예전에 쓰러져 쉬던 중이어도 잠그지 않아요
+                start();
             }
             Err(e) => cloud::warn(&format!("상태를 불러오지 못했어요: {}", e.code)),
         }
