@@ -689,7 +689,7 @@ window.cloudReady = (async () => {
         return r ? got : 0;
       },
       // 일하기 (직원·사장): 일한 만큼 에너지가 내려가고 회사 식품 성능이 올라요. 같은 묶음에서 두 기록이 함께 바뀌어요.
-      // 배고픔이나 목마름이 0이면 쓰러져 있어서 못 해요. 에너지가 모자라면 못 해요
+      // 배고픔·목마름이 0이어도 일할 수 있어요 (쓰러짐은 없앴어요). 에너지가 모자라면 못 해요
       staffWork: async (cid, k = 1) => {
         await window.cloud.ensureLab(cid);
         return runTransaction(db, async (tx) => {
@@ -703,12 +703,11 @@ window.cloudReady = (async () => {
           const v = vs.data();
           const FULL = { h: 86400000, t: 64800000, e: 2592000000 };
           const now = Date.now();
-          const T = now - v.at;
+          const T = Math.max(0, now - v.at);
           const eff = T + Math.max(0, T - (v.e * FULL.e) / 100); // 에너지가 0이 된 뒤에는 두 배로 닳아요
-          const h = v.h - (eff * 100) / FULL.h;
-          const t = v.t - (eff * 100) / FULL.t;
+          const h = Math.max(0, v.h - (eff * 100) / FULL.h); // 0 아래로 내려가지 않아요 (쓰러짐은 없앴어요)
+          const t = Math.max(0, v.t - (eff * 100) / FULL.t);
           const e = v.e - (T * 100) / FULL.e;
-          if (h <= 0 || t <= 0) throw fail("fainted", "쓰러져 있어서 지금은 일할 수 없어요");
           if (e < k) throw fail("tired", "에너지가 모자라요. 먹고 쉬어 주세요");
           const next = { h, t, e: e - k, at: now, wk: k };
           tx.update(vref, next);
@@ -783,11 +782,11 @@ window.cloudReady = (async () => {
         if (!gain) throw Object.assign(new Error("먹을 수 없는 음식이에요"), { code: "bad" });
         const now = Date.now();
         const next = {};
-        for (const k of ["h", "t", "e"]) {
-          const left = Math.max(0, v[k] - ((now - v.at) * 100) / FULL[k]); // 에너지는 0 아래로 내려가지 않아요
-          if (k !== "e" && left <= 0) throw Object.assign(new Error("쓰러져 있어서 지금은 먹을 수 없어요"), { code: "fainted" });
-          next[k] = k === gain[0] ? Math.min(100, left + gain[1]) : left;
-        }
+        // 서버 규칙과 같은 계산: 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배로 닳고, 0 아래로 내려가지 않아요. 0이어도 먹을 수 있어요
+        const T = Math.max(0, now - v.at);
+        const eff = T + Math.max(0, T - (v.e * FULL.e) / 100);
+        const leftOf = { h: Math.max(0, v.h - (eff * 100) / FULL.h), t: Math.max(0, v.t - (eff * 100) / FULL.t), e: Math.max(0, v.e - (T * 100) / FULL.e) };
+        for (const k of ["h", "t", "e"]) next[k] = k === gain[0] ? Math.min(100, leftOf[k] + gain[1]) : leftOf[k];
         const b = writeBatch(db);
         b.update(invRefOf(cid, pid), { n: increment(-1) });
         b.update(doc(db, "vitals", uidOf()), { h: next.h, t: next.t, e: next.e, at: now, eat: { cid, pid }, wk: 0 });

@@ -415,6 +415,7 @@ void main() {
   float inMask = clamp(0.5 - d * uDpr, 0.0, 1.0);
   vec3 col;
   float cov;
+  vec3 covRGB = vec3(0.0);
   if (uGlass > 0.5) {
     vec4 plL = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
     vec2 gL;
@@ -437,6 +438,14 @@ void main() {
     col = c7;
     // 강조색 아이콘도 같은 렌즈를 지나요
     cov = max(cover(zp + inw * shL), 0.0) * smoothstep(-0.5, 2.0, -d);
+    // 프리즘: 아이콘 가장자리도 빨강·초록·파랑이 따로 휘어서 무지개 띠가 생겨요 (애플 렌즈처럼)
+    covRGB = vec3(cov);
+    if (pr > 0.01) {
+      float ap = smoothstep(-0.5, 2.0, -d);
+      vec2 base = zp + inw * shL;
+      vec2 off = (inw * shL * 0.35 + (q / max(hb, vec2(1.0))) * 4.5) * pr;
+      covRGB = vec3(cover(base + off), cover(base), cover(base - off)) * ap;
+    }
   } else {
     // 뒤 화면 사진이 없을 때: 예전처럼 반투명 알약
     vec4 fill = mix(uPill, uTint, pr);
@@ -450,7 +459,7 @@ void main() {
   vec3 tintC = uDark > 0.5 ? vec3(1.0) : vec3(0.0);
   col = mix(col, tintC, 0.1 * (1.0 - pr));
   col = mix(col, vec3(0.0), 0.03 * pr);
-  col = mix(col, uAccent, cov);
+  col = col * (1.0 - covRGB) + uAccent * covRGB;
   // 속 그림자 (8px, 위에서 아래로, 검정 15%) — 누를 때만
   vec2 gi;
   float di = seDist(q - vec2(0.0, 8.0 * pr), hb, uExp, gi);
