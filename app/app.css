@@ -604,7 +604,7 @@ img, svg { -webkit-user-drag: none; }
 .row.logout b { color: var(--status-red); font-size: 17px; }
 
 /* 실명 안내 알림창 (자본 디자인: 유리 카드) */
-.alert { position: absolute; inset: 0; z-index: 140; display: grid; place-items: center; padding: 28px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0s 0.25s; }
+.alert { position: absolute; inset: 0; z-index: 300; display: grid; place-items: center; padding: 28px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0s 0.25s; }
 .alert[hidden] { display: grid; }
 .alert.is-open { opacity: 1; visibility: visible; transition: opacity 0.25s; }
 .alert-card { width: 100%; max-width: 330px; padding: 26px 22px 18px; border-radius: 34px; background: rgba(250, 250, 252, 0.88); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.9), 0 24px 60px rgba(0, 0, 0, 0.3); color: #000; text-align: center; transform: scale(0.92); transition: transform 0.4s var(--ease); }
@@ -1830,3 +1830,9 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 @keyframes eatChomp { 50% { transform: scale(0.94) rotate(-3deg); } }
 @keyframes eatCrumb { 0% { opacity: 1; transform: rotate(var(--a)) translate(0, 0); } 100% { opacity: 0; transform: rotate(var(--a)) translate(70px, 40px) rotate(180deg); } }
 @media (prefers-reduced-motion: reduce) { .pay-card, .pay-ring, .pay-spark, .eat-food, .eat-crumb { animation: none !important; } }
+/* 컴퓨터·인공지능 상품 그림 (catalog.rs pkv_html): 둥근 판 위에 윤곽선 아이콘, 오른쪽 아래에 회사 마크 */
+.pkv-tech { position: relative; aspect-ratio: 1; display: grid; place-items: center; border-radius: 22%; background: linear-gradient(160deg, #eef3ff, #dfe7fb); color: #1c1c1e; }
+.pkv-tech.pkv-ai { background: linear-gradient(160deg, #f3ecff, #e4d9fb); }
+.pkv-tech > svg { width: 58%; height: 58%; }
+.pkv-tech .pkv-logo { position: absolute; right: 8%; bottom: 8%; left: auto; top: auto; width: 30%; height: 30%; transform: none; }
+.pkv-tech.pkv-sm .pkv-logo { width: 34%; height: 34%; }

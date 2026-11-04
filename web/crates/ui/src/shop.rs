@@ -21,7 +21,7 @@ enum State {
     Out,
     Loading,
     Food(Vec<ShopItem>),
-    Offers(Vec<(bool, Offer)>), // (컴퓨터인지, 내놓은 것)
+    Offers(Vec<ShopItem>, Vec<(bool, Offer)>), // 거래: 컴퓨터·인공지능 상품, 회사가 내놓은 전기·컴퓨터
     Soon,
     Failed,
 }
@@ -84,8 +84,10 @@ async fn load(sig: Sig) -> bool {
         return true;
     }
     let cat = sig.cat.get_untracked();
+    let cat_of = |p: &ShopItem| cloud::get(&p.raw, "cat").as_string().unwrap_or_else(|| "food".into());
     let next = if cat == "food" {
         cloud::list_shop().await.map(|mut l| {
+            l.retain(|p| cat_of(p) == "food");
             l.sort_by(|a, b| a.co_name.cmp(&b.co_name).then(a.name.cmp(&b.name)));
             State::Food(l)
         })
@@ -94,10 +96,13 @@ async fn load(sig: Sig) -> bool {
     } else {
         // 거래: 회사들이 내놓은 컴퓨터와 전기를 한데 모아요
         async {
+            let mut items = cloud::list_shop().await?;
+            items.retain(|p| matches!(cat_of(p).as_str(), "pc" | "ai"));
+            items.sort_by(|a, b| a.co_name.cmp(&b.co_name).then(a.name.cmp(&b.name)));
             let mut all: Vec<(bool, Offer)> = cloud::list_offers("pc").await?.into_iter().map(|o| (true, o)).collect();
             all.extend(cloud::list_offers("nuclear").await?.into_iter().map(|o| (false, o)));
             all.sort_by(|a, b| a.1.co_name.cmp(&b.1.co_name));
-            Ok(State::Offers(all))
+            Ok(State::Offers(items, all))
         }
         .await
     };
@@ -209,8 +214,14 @@ fn Shop(sig: Sig) -> impl IntoView {
                 State::Out => note("로그인이 필요해요", "로그인하면 살 수 있어요", "식품 회사가 만든 음식을 여기서 살 수 있어요. 산 돈은 파는 회사의 금고로 들어가요."),
                 State::Failed => note_retry("잠깐만요", "상점을 불러오지 못했어요", "인터넷을 확인하고 다시 해 주세요.", "shop-retry", refresh),
                 State::Soon => note("장신구", "곧 들어와요", "반지·목걸이 같은 장신구를 여기서 사고팔 수 있게 준비하고 있어요."),
-                State::Offers(list) => {
-                    if list.is_empty() {
+                State::Offers(items, list) => {
+                    let goods = (!items.is_empty()).then(|| view! {
+                        <h2 class="section-title">"컴퓨터·인공지능"</h2>
+                        <div class="shop-grid">
+                            {items.into_iter().enumerate().map(|(i, p)| view! { <Card sig p i/> }).collect_view()}
+                        </div>
+                    });
+                    let rest = if list.is_empty() {
                         note(
                             "지금 거래할 물건이 없어요",
                             "회사가 시장에 내놓으면 여기에 나와요",
@@ -233,7 +244,8 @@ fn Shop(sig: Sig) -> impl IntoView {
                             </div>
                         }
                         .into_any()
-                    }
+                    };
+                    view! { {goods} {rest} }.into_any()
                 }
                 State::Food(list) if list.is_empty() => view! {
                     <div class="card shop-note">

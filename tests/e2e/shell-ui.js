@@ -100,18 +100,18 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.waitForTimeout(900);
   ok('업종을 정하세요 화면', (await text(p, '.pk-title b')) === '업종을 정하세요' && (await p.$$('.pk-kinds .pk-orb')).length === 4);
   await p.click('.pk-kinds .pk-orb[data-orb="3"]');
+  ok('업종: 한 번 물어봐요', (await text(p, '.alert-card')).includes('정할까요'));
+  await p.click('#alert-ok'); await p.waitForTimeout(900);
+  ok('업종: 한 번 더 물어봐요', (await text(p, '.alert-card')).includes('정말 정할까요'));
+  await p.click('#alert-ok');
   ok('업종 정한 알림', await toastHas(p, '업종을 전기(으)로 정했어요'));
   await p.waitForTimeout(2500);
   ok('사업 화면: 회사 이름과 종류', (await text(p, '#biz-name')) === '셸 발전' && (await text(p, '#biz-since')).includes('원자력 발전 회사'));
   // 회사 프로필: 업종 바꾸기
   await p.click('#biz-logo'); await p.waitForTimeout(600);
-  ok('회사 프로필 시트', (await text(p, '#co-name')) === '셸 발전' && (await p.isDisabled('#co-save')));
-  await p.click('#co-kinds [data-kind="food"]');
-  ok('업종을 고르면 버튼이 켜져요', !(await p.isDisabled('#co-save')));
-  await p.click('#co-save');
-  ok('업종 바꾼 알림', await toastHas(p, '업종을 식품 회사로 바꿨어요'));
-  await p.waitForTimeout(800);
-  ok('사업 화면도 식품 회사', (await text(p, '#biz-since')).includes('식품 회사'));
+  ok('회사 프로필 시트', (await text(p, '#co-name')) === '셸 발전');
+  ok('회사 프로필에 업종 바꾸기는 없어요', !(await p.$('#co-save')) && !(await p.$('#co-kinds')));
+  await p.click('#company-sheet [data-close]'); await p.waitForTimeout(700);
 
   // 랭킹
   await tab(p, 'ranking'); await p.waitForTimeout(3000);

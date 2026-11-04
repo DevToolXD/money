@@ -440,6 +440,8 @@ console.log("\n[사업 상품]");
 const coSeed = (over = {}) => seed(async (d) => { await seedBase(d); await setDoc(doc(d, "companies/uA"), { name: "내 회사", logo: "", kind: "food", products: [], open: 0, staff: 0, at: EPOCH, ...over }); });
 const pid = () => "p" + Math.random().toString(36).slice(2, 10);
 const pdoc = (over = {}) => ({ owner: "uA", cat: "food", group: "water", item: "water", name: "생수 500ml", shape: 1, cap: 3, capColor: 5, color: -1, costCents: 500, priceCents: 1000, paused: false, active: true, at: serverTimestamp(), ...over });
+// 컴퓨터·인공지능 상품 (뚜껑 칸이 없어요)
+const tdoc = (cat, item) => ({ owner: "uA", cat, group: cat, item, name: "상품", shape: 0, color: -1, costCents: 500, priceCents: 1000, paused: false, active: true, at: serverTimestamp() });
 await t("상품은 회사가 있고 내 회사일 때만 만들 수 있어요", async () => {
   await seed(seedBase);
   await assertFails(setDoc(doc(pw("uC", "carol"), "companies/uC/products/" + pid()), pdoc({ owner: "uC" }))); // 회사가 없어요
@@ -662,7 +664,12 @@ await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·�
   await assertFails(updateDoc(doc(a, "companies/c2"), { kind: "bank" })); // 모르는 업종은 안 돼요
   await assertFails(updateDoc(doc(bob, "companies/c2"), { kind: "food" })); // 남의 회사 업종은 못 바꿔요
   await assertFails(updateDoc(doc(a, "companies/c2"), { name: "바뀐 이름" })); // 이름은 못 바꿔요
-  await assertSucceeds(setDoc(doc(a, "companies/c2/products/" + pid()), pdoc({ owner: "uA" }))); // 내 회사에 상품
+  await assertFails(setDoc(doc(a, "companies/c2/products/" + pid()), pdoc({ owner: "uA" }))); // 인공지능 회사는 식품을 못 팔아요
+  await assertSucceeds(setDoc(doc(a, "companies/c2/products/" + pid()), tdoc("ai", "chatbot"))); // 인공지능 회사는 인공지능 상품
+  await assertFails(setDoc(doc(a, "companies/c2/products/" + pid()), tdoc("pc", "laptop"))); // 다른 업종 상품은 안 돼요
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "food" }));
+  await assertSucceeds(setDoc(doc(a, "companies/c2/products/" + pid()), pdoc({ owner: "uA" }))); // 식품 회사가 되면 식품
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "ai" }));
   await assertFails(setDoc(doc(bob, "companies/c2/products/" + pid()), pdoc({ owner: "uB" }))); // 남의 회사에 상품은 못 만들어요
   await assertFails(joinBatch(a, "uA", { cid: "c2", kind: "ai" }).commit()); // 내 회사에는 지원할 수 없어요
   await assertSucceeds(joinBatch(bob, "uB", { cid: "c2", kind: "ai" }).commit()); // 남의 회사에는 지원할 수 있어요

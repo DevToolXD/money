@@ -146,7 +146,8 @@ pub(crate) async fn refresh_now() {
     let Some(list) = products() else { return };
     hire::paint();
     let co = company();
-    let food = co.as_ref().map(|c| co_str(c, "kind")).map(|k| k.is_empty() || k == "food").unwrap_or(true);
+    // 상품을 파는 업종: 식품·컴퓨터·인공지능 (원자력은 연구실에서 전기를 팔아요)
+    let food = co.as_ref().map(|c| co_str(c, "kind")).map(|k| matches!(k.as_str(), "" | "food" | "pc" | "ai")).unwrap_or(true);
     dom::set_hidden("biz-prod-title", !food);
     if let Some(card) = by_id("biz-list").and_then(|l| l.closest(".card").ok().flatten()).and_then(|c| c.dyn_into::<web_sys::HtmlElement>().ok()) {
         card.set_hidden(!food);
@@ -181,7 +182,7 @@ fn paint() {
     // 식품 공장 (사장): 사업 탭에서 돌리고 모아요 (factory.rs)
     if let Some(fac) = by_id("biz-factory") {
         let co = company();
-        let show = mine_co() && co.as_ref().map(|c| co_str(c, "kind") == "food").unwrap_or(false);
+        let show = mine_co() && co.as_ref().map(|c| matches!(co_str(c, "kind").as_str(), "" | "food" | "pc" | "ai")).unwrap_or(false);
         fac.set_hidden(!show);
         if let (true, Some(co)) = (show, co) {
             crate::factory::factory_into(fac, co_str(&co, "id"));

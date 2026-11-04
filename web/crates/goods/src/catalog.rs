@@ -253,6 +253,9 @@ fn js_round(v: f64) -> i64 {
 }
 /// 원가 줄 (센트 정수)과 합계
 pub fn cost_lines(p: &Pick) -> (Vec<(&'static str, i64)>, i64) {
+    if let Some(t) = tech_of(&p.item) {
+        return (vec![(if t.cat == "pc" { "부품값" } else { "학습값" }, t.cost)], t.cost);
+    }
     let leaf = leaf_of(&p.item);
     let sh = p.shape.unwrap_or(0) as usize;
     let k = (sh / 5).min(9);
@@ -288,6 +291,9 @@ fn size_of(ml: u32) -> String {
     }
 }
 pub fn name_of(p: &Pick) -> String {
+    if let Some(t) = tech_of(&p.item) {
+        return t.label.into();
+    }
     let leaf = leaf_of(&p.item);
     if p.item == "water" {
         return format!("생수 {}", size_of(shapes::BOTTLE_ML[(p.shape.unwrap_or(0) % 5) as usize]));
@@ -354,6 +360,15 @@ pub fn logo_style(r: &Body) -> String {
 }
 /// 상품 그림 전체. logo_inner 는 이미 안전하게 만든 HTML, has_img 는 사진 로고인지
 pub fn pkv_html(p: &Pick, mini: bool, logo_inner: &str, has_img: bool) -> String {
+    if let Some(t) = tech_of(&p.item) {
+        return format!(
+            r#"<div class="pkv pkv-tech pkv-{}{}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{}</svg><span class="pkv-logo{}">{logo_inner}</span></div>"#,
+            t.cat,
+            if mini { " pkv-sm" } else { "" },
+            t.icon,
+            if has_img { "" } else { " init" }
+        );
+    }
     let (svg, r) = pkv_parts(p);
     format!(
         r#"<div class="pkv{}">{svg}<span class="pkv-logo{}" style="{}">{logo_inner}</span></div>"#,
@@ -370,4 +385,26 @@ pub fn thumb_html(family: &str, kind: &str, s: usize) -> String {
         return format!(r##"<svg class="th" viewBox="0 0 120 200" aria-hidden="true"><path class="pk-body" d="M52 60H68V150H52Z" fill="#f1f1f4"/><path class="pk-body" d="{body}" fill="#ffffff"/>{det}</svg>"##);
     }
     format!(r##"<svg class="th" viewBox="0 0 120 200" aria-hidden="true">{}</svg>"##, paths(&shapes::body(family, kind, s), "#ffffff"))
+}
+
+/* ---------- 컴퓨터·인공지능 상품 (모양을 고르지 않고 종류만 골라요) ---------- */
+pub struct Tech {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub cat: &'static str,
+    pub hint: &'static str,
+    /// 원가 (센트)
+    pub cost: i64,
+    pub icon: &'static str,
+}
+pub static TECH: [Tech; 6] = [
+    Tech { key: "desktop", label: "데스크톱", cat: "pc", hint: "책상 위에 두는 컴퓨터", cost: 800, icon: r#"<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20.5h6M12 16.5v4"/>"# },
+    Tech { key: "laptop", label: "노트북", cat: "pc", hint: "들고 다니는 컴퓨터", cost: 1200, icon: r#"<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 18.5h19l-1.5-3.5h-16z"/>"# },
+    Tech { key: "phone", label: "휴대폰", cat: "pc", hint: "손안의 컴퓨터", cost: 600, icon: r#"<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>"# },
+    Tech { key: "chatbot", label: "대화형 인공지능", cat: "ai", hint: "글로 묻고 답해요", cost: 500, icon: r#"<path d="M4 6.5a2.5 2.5 0 0 1 2.5-2.5h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4 4v-4h0.5A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 10h.01M12 10h.01M15.5 10h.01"/>"# },
+    Tech { key: "vision", label: "이미지 인공지능", cat: "ai", hint: "사진을 보고 알아봐요", cost: 700, icon: r#"<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>"# },
+    Tech { key: "voice", label: "음성 인공지능", cat: "ai", hint: "말을 듣고 말해요", cost: 600, icon: r#"<path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/>"# },
+];
+pub fn tech_of(item: &str) -> Option<&'static Tech> {
+    TECH.iter().find(|t| t.key == item)
 }

@@ -495,14 +495,19 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'cap', 'capColor', 'content', 'costCents', 'priceCents', 'paused', 'active', 'at'])
           && request.resource.data.keys().hasAll(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'costCents', 'priceCents', 'paused', 'active', 'at'])
           && request.resource.data.owner == request.auth.uid
-          && request.resource.data.cat == 'food'
-          && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
-          && request.resource.data.item in ['water', 'jelly', 'chips', 'bread', 'lunchbox', 'meat', 'bar', 'drink', 'coffee']
+          // 상품 종류는 회사 업종과 같아야 해요 (식품 회사는 식품만, 컴퓨터 회사는 컴퓨터만, 인공지능 회사는 인공지능만)
+          && request.resource.data.cat == get(companyPath(cid)).data.get('kind', 'food')
           && (
-            (request.resource.data.group == 'water' && request.resource.data.item == 'water')
-            || (request.resource.data.group == 'snack' && request.resource.data.item in ['jelly', 'chips', 'bread'])
-            || (request.resource.data.group == 'meal' && request.resource.data.item in ['lunchbox', 'meat'])
-            || (request.resource.data.group == 'energy' && request.resource.data.item in ['bar', 'drink', 'coffee'])
+            (request.resource.data.cat == 'food'
+              && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
+              && (
+                (request.resource.data.group == 'water' && request.resource.data.item == 'water')
+                || (request.resource.data.group == 'snack' && request.resource.data.item in ['jelly', 'chips', 'bread'])
+                || (request.resource.data.group == 'meal' && request.resource.data.item in ['lunchbox', 'meat'])
+                || (request.resource.data.group == 'energy' && request.resource.data.item in ['bar', 'drink', 'coffee'])
+              ))
+            || (request.resource.data.cat == 'pc' && request.resource.data.group == 'pc' && request.resource.data.item in ['desktop', 'laptop', 'phone'])
+            || (request.resource.data.cat == 'ai' && request.resource.data.group == 'ai' && request.resource.data.item in ['chatbot', 'vision', 'voice'])
           )
           && request.resource.data.name is string
           && request.resource.data.name.matches('^[^<>]{1,30}$')
@@ -829,7 +834,7 @@ service cloud.firestore {
           && (!('coName' in request.resource.data) || (request.resource.data.coName is string && request.resource.data.coName.size() <= 20))
           && id == request.resource.data.cid + '_' + request.resource.data.pid
           && request.resource.data.cid is string && request.resource.data.pid is string
-          && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
+          && request.resource.data.group in ['water', 'snack', 'meal', 'energy', 'pc', 'ai']
           && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 30
           && request.resource.data.item is string && request.resource.data.shape is int && request.resource.data.color is int
           && (!('cap' in request.resource.data) || request.resource.data.cap is int)

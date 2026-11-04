@@ -22,6 +22,8 @@ enum Entry {
     Soon(&'static Node),
     Step(&'static str),
     Summary,
+    /// 컴퓨터·인공지능: 종류만 골라요
+    Tech(&'static str),
 }
 
 #[derive(Clone)]
@@ -122,6 +124,7 @@ fn title_of(e: Entry) -> &'static str {
         Entry::List(n) | Entry::Soon(n) => n.label,
         Entry::Step(k) => step_info(k, leaf_now()).title,
         Entry::Summary => "이름과 가격 정하기",
+        Entry::Tech(k) => if k == "pc" { "컴퓨터" } else { "인공지능" },
     }
 }
 fn crumb_of() -> String {
@@ -259,6 +262,24 @@ fn view_html(e: Entry) -> String {
         Entry::Soon(n) => format!(r#"<div class="pk-soon"><div class="pk-soon-orb">{}</div><p class="pk-soon-t">{}</p><p class="pk-soon-s">아직 준비 중이에요</p></div>"#, svg_i(icon(n.icon)), n.label),
         Entry::Step(k) => step_html(k),
         Entry::Summary => summary_html(),
+        Entry::Tech(k) => format!(
+            r#"<div class="pk-list">{}</div>"#,
+            catalog::TECH
+                .iter()
+                .filter(|t| t.cat == k)
+                .enumerate()
+                .map(|(i, t)| format!(
+                    r#"<button class="pk-row" type="button" data-tech="{}" style="--i:{i}"><span class="pk-ic" style="--c:{}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{}</svg></span><span class="pk-main"><b>{}</b><span>{} · 원가 {} 토큰</span></span><span class="pk-chev">{}</span></button>"#,
+                    t.key,
+                    ICON_COL[i % ICON_COL.len()],
+                    t.icon,
+                    t.label,
+                    t.hint,
+                    cloud::tok(t.cost as f64),
+                    svg_i(icon("chev"))
+                ))
+                .collect::<String>()
+        ),
     }
 }
 
@@ -429,6 +450,19 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
     if kind_mode {
         let (kind, label, _) = KINDS[i.min(KINDS.len() - 1)];
         spawn_local(async move {
+            // 업종은 한 번 정하면 바꿀 수 없어서 두 번 물어요
+            let sure = ctx().ask(&format!("업종을 {label}(으)로 정할까요?"), "이 회사는 이 업종의 상품만 만들고 팔 수 있어요", "정하기", "취소").await
+                && ctx().ask("정말 정할까요?", "한 번 정하면 바꿀 수 없어요", "네, 정할게요", "다시 고를게요").await;
+            if !sure {
+                st(|s| s.busy = false);
+                if let Some(e) = els() {
+                    e.stage.set_inner_html("");
+                    if let Some(v) = make_view(&view_html(Entry::Root)) {
+                        let _ = e.stage.append_child(&v);
+                    }
+                }
+                return;
+            }
             let cid = company().map(|c| co_str(&c, "id")).unwrap_or_default();
             let ok = cloud::call("setCompanyKind", &[JsValue::from_str(&cid), JsValue::from_str(kind)]).await.is_ok();
             st(|s| {
@@ -564,25 +598,26 @@ fn sell() {
     err.set_text_content(Some(""));
     let p = &ps.p;
     let leaf = leaf_of(&p.item);
+    let tech = catalog::tech_of(&p.item);
     let (_, total) = cost_lines(p);
     let num = |v: Option<u32>| v.map(|v| JsValue::from(v as f64)).unwrap_or(JsValue::NULL);
     let mut fields: Vec<(&str, JsValue)> = vec![
-        ("cat", "food".into()),
-        ("group", leaf.group.into()),
+        ("cat", tech.map(|t| t.cat).unwrap_or("food").into()),
+        ("group", tech.map(|t| t.cat).unwrap_or(leaf.group).into()),
         ("item", JsValue::from_str(&p.item)),
         ("name", JsValue::from_str(&name)),
-        ("shape", num(p.shape)),
+        ("shape", if tech.is_some() { JsValue::from(0) } else { num(p.shape) }),
         ("color", p.color.map(|c| JsValue::from(c as f64)).unwrap_or(JsValue::from(-1))),
         ("costCents", JsValue::from(total as f64)),
         ("priceCents", JsValue::from(ps.price.unwrap_or(1) as f64)),
         ("paused", false.into()),
         ("active", true.into()),
     ];
-    if leaf.family == "bottle" {
+    if tech.is_none() && leaf.family == "bottle" {
         fields.push(("cap", num(p.cap)));
         fields.push(("capColor", num(p.cap_color)));
     }
-    if !leaf.contents.is_empty() && p.content.is_some() {
+    if tech.is_none() && !leaf.contents.is_empty() && p.content.is_some() {
         fields.push(("content", num(p.content)));
     }
     let obj = dom::obj(&fields);
@@ -621,12 +656,21 @@ fn open_as(kind_mode: bool) {
     let Some(e) = els() else { return };
     // 업종이 정해진 회사는 그 업종 칸부터 열어요 (식품 회사면 식품 안의 것만)
     let kind = company().map(|c| co_str(&c, "kind")).unwrap_or_default();
+    // 자기 업종 상품만 골라요 (다른 업종 칸은 아예 안 보여요)
     let first = if kind_mode {
         Entry::Root
     } else {
-        match catalog::node(if kind.is_empty() { "food" } else { &kind }) {
-            Some(n) if !n.soon => Entry::List(n),
-            _ => Entry::Root,
+        match kind.as_str() {
+            "pc" => Entry::Tech("pc"),
+            "ai" => Entry::Tech("ai"),
+            "nuclear" => {
+                ctx().toast("원자력 발전 회사는 사업 탭의 연구실에서 전기를 팔아요");
+                return;
+            }
+            _ => match catalog::node("food") {
+                Some(n) => Entry::List(n),
+                None => return,
+            },
         }
     };
     st(|s| {
@@ -691,6 +735,11 @@ fn on_stage(ev: web_sys::Event) {
     }
     if let Some(orb) = dom::closest(&ev, ".pk-orb") {
         return pick_root(dom::data(&orb, "orb").parse().unwrap_or(0), orb);
+    }
+    if let Some(t) = dom::closest(&ev, "[data-tech]") {
+        let key = dom::data(&t, "tech");
+        st(|s| s.pick = Some(PickS { p: Pick { item: key, ..Pick::default() }, name: None, price: None }));
+        return push(Entry::Summary);
     }
     if let Some(n) = dom::closest(&ev, "[data-node]") {
         return choose_node(&dom::data(&n, "node"));
