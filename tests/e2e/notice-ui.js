@@ -47,6 +47,8 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
   await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
   await O.page.screenshot({ path: S + '/ui-notice-5-manage.png', fullPage: true });
+  await O.page.waitForSelector('#mg-people .mg-person', { timeout: 8000 });
+  await O.page.click('#mg-people .mg-person');
   const grantAmt = await O.page.inputValue('#mg-grant-amt');
   ok('토큰 칸은 미리 채워지지 않아요', grantAmt === '');
   const errs = [...O.errs, ...M.errs];

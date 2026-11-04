@@ -22,6 +22,10 @@ thread_local! {
     static INK: RefCell<String> = RefCell::new(COLORS[0].to_string());
     static DPR: Cell<f64> = const { Cell::new(1.0) };
     static DRAWING: Cell<bool> = const { Cell::new(false) };
+    /// 지금 그리는 손가락 (다른 손가락·손바닥은 무시해요)
+    static PID: Cell<i32> = const { Cell::new(-1) };
+    /// 다시 그리기는 한 화면에 한 번만 해요
+    static QUEUED: Cell<bool> = const { Cell::new(false) };
 }
 fn canvas() -> Option<web_sys::HtmlCanvasElement> {
     by_id("draw-canvas")?.dyn_into().ok()
@@ -79,10 +83,21 @@ fn close() {
     let _ = el.class_list().remove_1("is-open");
     leptos::prelude::set_timeout(move || el.set_hidden(true), std::time::Duration::from_millis(280));
 }
-fn point(c: &web_sys::HtmlCanvasElement, e: &web_sys::PointerEvent) -> (f64, f64) {
+fn point(c: &web_sys::HtmlCanvasElement, e: &wasm_bindgen::JsValue) -> (f64, f64) {
     let r = c.get_bounding_client_rect();
     let dpr = DPR.get();
-    ((e.client_x() as f64 - r.left()) * dpr, (e.client_y() as f64 - r.top()) * dpr)
+    // 소수점까지 읽어요 (정수로 자르면 선이 계단처럼 꺾여요)
+    let f = |k: &str| js_sys::Reflect::get(e, &k.into()).ok().and_then(|v| v.as_f64()).unwrap_or(0.0);
+    ((f("clientX") - r.left()) * dpr, (f("clientY") - r.top()) * dpr)
+}
+fn paint_soon() {
+    if QUEUED.replace(true) {
+        return;
+    }
+    leptos::prelude::request_animation_frame(|| {
+        QUEUED.set(false);
+        paint_all();
+    });
 }
 async fn ok() {
     let Some(c) = canvas() else { return };
@@ -139,9 +154,13 @@ pub fn init() {
         let c2 = c.clone();
         dom::on(&c, "pointerdown", move |e| {
             let Some(pe) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
+            if DRAWING.get() {
+                return; // 이미 한 손가락으로 그리는 중이에요
+            }
             dom::set_hidden("palette", true);
             let _ = c2.set_pointer_capture(pe.pointer_id());
-            let pt = point(&c2, pe);
+            PID.set(pe.pointer_id());
+            let pt = point(&c2, &e);
             STROKES.with(|s| s.borrow_mut().push(Stroke { color: INK.with(|i| i.borrow().clone()), w: 5.0, pts: vec![pt] }));
             REDO.with(|s| s.borrow_mut().clear());
             DRAWING.set(true);
@@ -153,16 +172,38 @@ pub fn init() {
                 return;
             }
             let Some(pe) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
-            let pt = point(&c3, pe);
+            if pe.pointer_id() != PID.get() {
+                return;
+            }
+            // 빠르게 움직일 때 브라우저가 묶어 보낸 점까지 모두 써요
+            let evs: Vec<wasm_bindgen::JsValue> = js_sys::Reflect::get(&e, &"getCoalescedEvents".into())
+                .ok()
+                .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
+                .and_then(|f| f.call0(&e).ok())
+                .and_then(|a| a.dyn_into::<js_sys::Array>().ok())
+                .map(|a| a.to_vec())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| vec![e.clone().into()]);
             STROKES.with(|s| {
                 if let Some(l) = s.borrow_mut().last_mut() {
-                    l.pts.push(pt);
+                    for ev in &evs {
+                        let pt = point(&c3, ev);
+                        if l.pts.last().is_none_or(|q| (q.0 - pt.0).hypot(q.1 - pt.1) > 0.8) {
+                            l.pts.push(pt);
+                        }
+                    }
                 }
             });
-            paint_all();
+            paint_soon();
         });
         for t in ["pointerup", "pointercancel"] {
-            dom::on(&c, t, |_| DRAWING.set(false));
+            dom::on(&c, t, |e| {
+                if e.dyn_ref::<web_sys::PointerEvent>().is_some_and(|pe| pe.pointer_id() == PID.get()) {
+                    DRAWING.set(false);
+                    PID.set(-1);
+                    paint_soon();
+                }
+            });
         }
     }
     if let Some(b) = by_id("draw-undo") {

@@ -245,12 +245,12 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
     let est = move || {
         let n = n_val();
         if n >= 1.0 {
-            let gap = FAC_MS / plv();
             format!(
-                "{}개 · 공장 {}대면 약 {} · 재료값 {} 토큰",
+                "{}개 · 공장 {}대면 60초마다 {}개씩, 약 {} · 재료값 {} 토큰",
                 n as i64,
                 plv() as i64,
-                clock((n * gap / 1000.0).ceil()),
+                plv() as i64,
+                clock((n / plv()).ceil() * FAC_MS / 1000.0),
                 fmt_num(n * unit(), 2)
             )
         } else {
@@ -261,14 +261,14 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
         s.tick.track();
         let Some(l) = s.lab.get() else { return String::new() };
         let Some((left, at)) = l.run else { return String::new() };
-        let gap = FAC_MS / plv();
         let ms = (js_sys::Date::now() - at).max(0.0);
-        let next = ((gap - ms % gap) / 1000.0).ceil();
+        let next = ((FAC_MS - ms % FAC_MS) / 1000.0).ceil();
+        let batch = plv().min(left);
         let cost = s.prod.with(|p| p.as_ref().and_then(|p| p.as_ref()).map(|p| p.cost_cents));
         if cost.is_some_and(|c| l.cash < c) {
             "재료값이 모자라 멈췄어요. 금고에 토큰을 넣어 주세요".into()
         } else {
-            format!("만드는 중 · 남은 {}개 · 다음 한 개까지 {}초", left as i64, next as i64)
+            format!("만드는 중 · 남은 {}개 · {}초 뒤에 {}개 나와요", left as i64, next as i64, batch as i64)
         }
     };
     let running = move || s.lab.with(|l| l.is_some_and(|l| l.run.is_some()));

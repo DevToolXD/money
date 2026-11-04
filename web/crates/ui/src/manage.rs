@@ -22,6 +22,7 @@ struct Row {
 thread_local! {
     static CTX: RefCell<Ctx> = RefCell::new(Ctx::default());
     static ROWS: Cell<Option<RwSignal<Vec<Row>, LocalStorage>>> = const { Cell::new(None) };
+    static PEOPLE: Cell<Option<RwSignal<Vec<Person>>>> = const { Cell::new(None) };
 }
 
 fn ctx() -> Ctx {
@@ -56,6 +57,11 @@ pub fn refresh() {
     let Some(rows) = ROWS.get() else { return };
     if !cloud::signed_in() {
         return;
+    }
+    // 사람 목록도 다시 읽어요 (찾기 칸이 비어 있을 때)
+    if let Some(people) = PEOPLE.get() {
+        let q = crate::dom::input_value("mg-search");
+        spawn_local(async move { people.set(load_people(q).await) });
     }
     spawn_local(async move {
         let got = async {
@@ -133,6 +139,7 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
     let busy = RwSignal::new(false);
     let sel = RwSignal::new(None::<Person>);
     let people = RwSignal::new(Vec::<Person>::new());
+    PEOPLE.set(Some(people));
     let seq = StoredValue::new(0u32);
     let find = move |text: String| {
         let my = seq.get_value() + 1;

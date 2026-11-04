@@ -2,7 +2,7 @@
 //! 대화방(말풍선·카드), 새 대화·단톡방·초대, 배경화면, 보내기 줄 세우기, 사진·그리기·투표·토큰 선물.
 //! 서버를 아끼는 구조는 그대로예요: 대화방은 최근 40개만 실시간으로 듣고, 더 옛날 것은 눌러서 불러요.
 
-mod attach;
+pub(crate) mod attach;
 mod draw;
 mod gift;
 mod menu;
@@ -213,7 +213,6 @@ pub fn start() {
     render();
     let cb = Closure::<dyn FnMut(JsValue)>::new(on_chats);
     let _ = cloud::call_now("watchChats", &[cb.into_js_value()]);
-    crate::call::listen(); // 걸려 오는 전화
 }
 fn peek(uid: &str) -> JsValue {
     cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::UNDEFINED)
@@ -437,9 +436,11 @@ pub fn init(c: Ctx) {
     }
     if let Some(f) = by_id("filter-unread") {
         let f2 = f.clone();
-        // 줄 세 개 버튼: 통화 녹음 저장소를 열어요
-        let _ = f2;
-        dom::on(&f, "click", |_| crate::call::open_store());
+        dom::on(&f, "click", move |_| {
+            ONLY_UNREAD.set(!ONLY_UNREAD.get());
+            let _ = f2.set_attribute("aria-pressed", &ONLY_UNREAD.get().to_string());
+            render();
+        });
     }
     menu::init();
     thread::init();

@@ -273,7 +273,8 @@ service cloud.firestore {
           return resource.data.get('prod', null) != null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'prod'])
             && u >= 1 && u <= old.left
-            && u * 60000 <= (request.time.toMillis() - old.at.toMillis()) * plv
+            // 공장 한 대는 60초에 1개: 공장이 늘면 60초마다 대수만큼 한꺼번에 나와요 (빨라지지 않아요)
+            && math.ceil(u / plv) * 60000 <= request.time.toMillis() - old.at.toMillis()
             && request.resource.data.cash == resource.data.get('cash', 0) - u * get(prodPath(old.pid)).data.get('costCents', 0)
             && request.resource.data.cash >= 0
             && getAfter(prodPath(old.pid)).data.stock == get(prodPath(old.pid)).data.get('stock', 0) + u
@@ -281,7 +282,7 @@ service cloud.firestore {
               || (request.resource.data.get('prod', null) != null
                 && request.resource.data.prod.pid == old.pid
                 && request.resource.data.prod.left >= 1
-                && request.resource.data.prod.at.toMillis() == old.at.toMillis() + (u * 60000) / plv));
+                && request.resource.data.prod.at.toMillis() == old.at.toMillis() + math.ceil(u / plv) * 60000));
         }
         function factoryBuy() {
           return resource.data.get('prod', null) == null
@@ -1071,6 +1072,40 @@ service cloud.firestore {
           && request.resource.data.by == request.auth.uid
           && request.resource.data.c is string && request.resource.data.c.size() < 2000;
       }
+    }
+  
+    // SNS (무제 탭): 글·사진 하나, 좋아요·리포스트는 내 표시만, 댓글 수는 댓글을 쓰는 같은 묶음에서만 1 늘어요
+    function postPath(id) { return /databases/$(database)/documents/posts/$(id); }
+    match /posts/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'at', 'likes', 'reposts', 'rc', 'parent', 'last'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.text is string && request.resource.data.text.size() <= 500
+        && (request.resource.data.text.size() >= 1 || request.resource.data.get('img', '') != '')
+        && (request.resource.data.get('img', '') == '' || img(request.resource.data.img, 300000))
+        && request.resource.data.at == request.time
+        && request.resource.data.likes == {} && request.resource.data.reposts == {}
+        && request.resource.data.rc == 0
+        && request.resource.data.parent is string
+        && (request.resource.data.parent == ''
+          || getAfter(postPath(request.resource.data.parent)).data.rc == get(postPath(request.resource.data.parent)).data.rc + 1);
+      allow update: if signedIn() && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+          && request.resource.data.likes.diff(resource.data.likes).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.likes.get(request.auth.uid, true) == true)
+        ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reposts'])
+          && request.resource.data.reposts.diff(resource.data.reposts).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.reposts.get(request.auth.uid, true) == true)
+        ||
+        // 댓글 수: 새 댓글(last)이 같은 묶음에서 생기고, 그 댓글의 부모가 이 글이에요
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rc', 'last'])
+          && request.resource.data.rc == resource.data.rc + 1
+          && !exists(postPath(request.resource.data.last))
+          && getAfter(postPath(request.resource.data.last)).data.parent == id)
+      );
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
   }
 }

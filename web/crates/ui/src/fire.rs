@@ -1220,7 +1220,8 @@ async fn lab_settle_factory(cid: String) -> R {
                 let plv = num(&get(&l, "plv"));
                 let pleft = num(&get(&prod, "left"));
                 let elapsed = (now() - 3000.0 - pat).max(0.0);
-                let mut u = pleft.min((elapsed * plv / 60000.0).floor());
+                // 60초가 한 번 지날 때마다 공장 대수만큼 한꺼번에 나와요 (공장이 늘어도 빨라지지 않아요)
+                let mut u = pleft.min((elapsed / 60000.0).floor() * plv);
                 if each > 0.0 {
                     u = u.min((num(&get(&l, "cash")) / each).floor());
                 }
@@ -1233,7 +1234,7 @@ async fn lab_settle_factory(cid: String) -> R {
                 if left == 0.0 {
                     m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", f("deleteField", &[])?)])])?;
                 } else {
-                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", o(&[("pid", s(&pid)), ("left", n(left)), ("at", from_millis(pat + (u * 60000.0 / plv).floor()))]))])])?;
+                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", o(&[("pid", s(&pid)), ("left", n(left)), ("at", from_millis(pat + (u / plv).ceil() * 60000.0))]))])])?;
                 }
                 m(&tx, "update", &[pref, o(&[("stock", n(stock + u))])])?;
                 Ok(o(&[("units", n(u)), ("left", n(left))]))
@@ -1925,6 +1926,74 @@ fn call_cands(id: String, cb: js_sys::Function) -> R {
     f("onSnapshot", &[c(&["calls", &id, "c"]), next, report_fn()])
 }
 
+/* ---------- SNS (무제 탭) ---------- */
+
+fn post_row(dd: &JsValue) -> JsValue {
+    let v = data_est(dd);
+    let count = |k: &str| {
+        let m_ = get(&v, k);
+        if m_.is_object() { js_sys::Object::keys(m_.unchecked_ref::<js_sys::Object>()).length() as f64 } else { 0.0 }
+    };
+    let me_ = st(&get(&current(), "uid"));
+    let mine = |k: &str| get(&get(&v, k), &me_) == JsValue::TRUE;
+    o(&[
+        ("id", get(dd, "id")),
+        ("by", get(&v, "by")),
+        ("text", get(&v, "text")),
+        ("img", nn(get(&v, "img"))),
+        ("at", n(ms(&get(&v, "at")))),
+        ("parent", get(&v, "parent")),
+        ("likes", n(count("likes"))),
+        ("reposts", n(count("reposts"))),
+        ("rc", { let r = get(&v, "rc"); if is_int(&r) { r } else { n(0.0) } }),
+        ("liked", mine("likes").into()),
+        ("reposted", mine("reposts").into()),
+    ])
+}
+/// 새 글 (parent가 있으면 그 글의 댓글이에요)
+async fn post_create(text: String, img_: String, parent: String) -> R {
+    let r = new_id(c(&["posts"]));
+    let id = get(&r, "id");
+    let data_ = o(&[("by", s(&uid_of()?)), ("text", s(&text)), ("at", ts()), ("likes", js_sys::Object::new().into()), ("reposts", js_sys::Object::new().into()), ("rc", n(0.0)), ("parent", s(&parent))]);
+    if !img_.is_empty() {
+        set(&data_, "img", &s(&img_));
+    }
+    let b = batch();
+    m(&b, "set", &[r, data_])?;
+    if !parent.is_empty() {
+        m(&b, "update", &[d(&["posts", &parent]), o(&[("rc", inc(1.0)), ("last", id.clone())])])?;
+    }
+    rethrow(commit(&b).await)?;
+    Ok(id)
+}
+/// 홈 피드: 최근 40개만 들어요 (댓글은 빼고 보여줘요)
+fn posts_watch(cb: js_sys::Function) -> R {
+    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
+        let list: js_sys::Array = docs(&snap).iter().map(post_row).filter(|p| st(&get(p, "parent")).is_empty()).collect();
+        let _ = cb.call1(&JsValue::NULL, &list);
+    })
+    .into_js_value();
+    f("onSnapshot", &[q(c(&["posts"]), vec![order("at", Some("desc")), lim(40.0)]), next, report_fn()])
+}
+/// 한 글의 댓글 (오래된 것부터)
+async fn post_replies(id: String) -> R {
+    let snap = rethrow(get_docs(q(c(&["posts"]), vec![w(s("parent"), "==", s(&id)), lim(100.0)])).await)?;
+    let mut list: Vec<JsValue> = docs(&snap).iter().map(post_row).collect();
+    list.sort_by(|a, b| num(&get(a, "at")).partial_cmp(&num(&get(b, "at"))).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(list.into_iter().collect::<js_sys::Array>().into())
+}
+async fn post_get(id: String) -> R {
+    let sn = rethrow(get_doc(d(&["posts", &id])).await)?;
+    Ok(if exists(&sn) { post_row(&sn) } else { JsValue::NULL })
+}
+/// 좋아요·리포스트 켜고 끄기 (내 표시만)
+async fn post_mark(id: String, field: &str, on: bool) -> R {
+    let k = format!("{field}.{}", uid_of()?);
+    let x = js_sys::Object::new();
+    set(&x, &k, &if on { JsValue::TRUE } else { f("deleteField", &[])? });
+    rethrow(update_doc(d(&["posts", &id]), x.into()).await)
+}
+
 /* ---------- window.cloud 만들기 ---------- */
 
 type Args = [JsValue; 5];
@@ -2096,6 +2165,14 @@ fn build() -> js_sys::Object {
     method_now(&api, "callWatch", |a| call_watch(sa(&a[0]), a[1].clone().dyn_into()?));
     method_now(&api, "callIncoming", |a| call_incoming(a[0].clone().dyn_into()?));
     method_now(&api, "callCands", |a| call_cands(sa(&a[0]), a[1].clone().dyn_into()?));
+    /* ----- SNS ----- */
+    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2])).await);
+    method_now(&api, "postsWatch", |a| posts_watch(a[0].clone().dyn_into()?));
+    am!(api, "postReplies", |a| post_replies(sa(&a[0])).await);
+    am!(api, "postGet", |a| post_get(sa(&a[0])).await);
+    am!(api, "postLike", |a| post_mark(sa(&a[0]), "likes", a[1].is_truthy()).await);
+    am!(api, "postRepost", |a| post_mark(sa(&a[0]), "reposts", a[1].is_truthy()).await);
+    am!(api, "postDelete", |a| rethrow(aw(f("deleteDoc", &[d(&["posts", &sa(&a[0])])])).await));
     am!(api, "markRead", |a| {
         let k = format!("reads.{}", uid_of()?);
         let x = js_sys::Object::new();

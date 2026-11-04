@@ -3,7 +3,6 @@
 pub mod backdrop;
 pub mod biz;
 pub mod bounce;
-pub mod call;
 pub mod icons;
 pub mod tabbar;
 pub mod chat;
@@ -20,5 +19,6 @@ pub mod notify;
 pub mod parts;
 pub mod shell;
 pub mod shop;
+pub mod sns;
 pub mod vitals;
 pub mod work;
