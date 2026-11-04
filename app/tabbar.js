@@ -269,6 +269,12 @@ vec3 page(vec2 cp, float k) {
 float kyHighlight(vec2 g) {
   return abs(dot(g, vec2(0.70710678, 0.70710678)));
 }
+// 막대 유리가 보여주는 색 (굴절 + 흐림 + 채도 + 표면)
+vec3 barGlass(vec2 p, vec4 pl) {
+  vec2 dg;
+  vec2 rp = kyLens(p, pl.xy, pl.zw, pl.w, 24.0, 24.0, 0.0, dg);
+  return mix(vibrant(page(rp, 1.0)), uCont.rgb, uCont.a);
+}
 float rimBand(float sd) {
   // 0.5px 선 + 0.25px 흐림
   return clamp(1.0 - abs(sd + 0.25) / 0.5, 0.0, 1.0);
@@ -305,11 +311,7 @@ void main() {
     float dP = useA ? dA : dB;
     float inP = clamp(0.5 - dP * uDpr, 0.0, 1.0);
     vec2 qp = p - pl.xy;
-    vec2 dg;
-    vec2 rp = kyLens(p, pl.xy, pl.zw, pl.w, 24.0, 24.0, 0.0, dg);
-    vec3 c = vibrant(page(rp, 0.85));
-    // 표면 색
-    c = mix(c, uCont.rgb, uCont.a);
+    vec3 c = barGlass(p, pl);
     // 누르는 동안: 전체가 살짝 밝아지고, 선택 알약 쪽에서 빛이 번져요 (Kyant InteractiveHighlight)
     float glowR = pl.w * 2.0 * 1.5;
     float glow = smoothstep(glowR, glowR * 0.5, distance(p, vec2(uLens.x, pl.y)));
@@ -342,19 +344,21 @@ void main() {
   vec3 col;
   float cov;
   if (uGlass > 0.5) {
+    vec4 plL = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
     vec2 dg;
-    vec2 rp = kyLensSE(p, uLens.xy, hb, uExp, 10.0 * pr, 14.0 * pr, dg);
-    // 색 번짐: 모서리 쪽일수록 많이 벌어져요
+    // 누르면 렌즈가 안쪽을 1.2배 확대해요
+    vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.2 * pr);
+    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 10.0 * pr, 14.0 * pr, dg);
     float disp = (q.x * q.y) / max(hb.x * hb.y, 1.0);
     vec2 dd = dg * disp;
     vec3 c7 = vec3(0.0);
-    c7.r += page(rp + dd, 0.0).r / 3.5;
-    vec3 o = page(rp + dd * (2.0 / 3.0), 0.0); c7.r += o.r / 3.5; c7.g += o.g / 7.0;
-    vec3 y = page(rp + dd * (1.0 / 3.0), 0.0); c7.r += y.r / 3.5; c7.g += y.g / 3.5;
-    vec3 gg = page(rp, 0.0); c7.g += gg.g / 3.5;
-    vec3 cy = page(rp - dd * (1.0 / 3.0), 0.0); c7.g += cy.g / 3.5; c7.b += cy.b / 3.0;
-    c7.b += page(rp - dd * (2.0 / 3.0), 0.0).b / 3.0;
-    vec3 pu = page(rp - dd, 0.0); c7.r += pu.r / 7.0; c7.b += pu.b / 3.0;
+    c7.r += barGlass(rp + dd, plL).r / 3.5;
+    vec3 o = barGlass(rp + dd * (2.0 / 3.0), plL); c7.r += o.r / 3.5; c7.g += o.g / 7.0;
+    vec3 y = barGlass(rp + dd * (1.0 / 3.0), plL); c7.r += y.r / 3.5; c7.g += y.g / 3.5;
+    vec3 gg = barGlass(rp, plL); c7.g += gg.g / 3.5;
+    vec3 cy = barGlass(rp - dd * (1.0 / 3.0), plL); c7.g += cy.g / 3.5; c7.b += cy.b / 3.0;
+    c7.b += barGlass(rp - dd * (2.0 / 3.0), plL).b / 3.0;
+    vec3 pu = barGlass(rp - dd, plL); c7.r += pu.r / 7.0; c7.b += pu.b / 3.0;
     col = c7;
     // 강조색 아이콘도 같은 렌즈를 지나요
     cov = cover(rp) * smoothstep(-0.5, 2.0, -d);
