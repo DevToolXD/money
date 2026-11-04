@@ -31,7 +31,7 @@ struct Preset {
 const LIFT: Preset = Preset { w: 16.1, z: 0.5 };
 const MOVE: Preset = Preset { w: 21.0, z: 1.0 };
 const TRAIL: Preset = Preset { w: 30.0, z: 1.0 };
-const STRETCH: Preset = Preset { w: 12.2, z: 0.29 };
+const STRETCH: Preset = Preset { w: 14.0, z: 0.55 };
 const PRESS: Preset = Preset { w: 26.0, z: 1.0 };
 const EXCITE: Preset = Preset { w: 13.0, z: 1.0 };
 const PAGE: Preset = Preset { w: 20.0, z: 1.0 }; // 핫바 넘기기: 튕기지 않고 부드럽게 미끄러져요
@@ -1026,8 +1026,8 @@ impl Bar {
         let lift = clamp(self.lift.x, 0.0, 1.0);
         let bulge = 1.0 + 0.03 * clamp(self.grab.x, 0.0, 1.0);
         let s = clamp(self.stretch.x, 0.0, 1.0);
-        let mut hw = lerp(pill_hw, lens_hw, lift) * bulge * (1.0 + 0.05 * s);
-        let mut hh = lerp(pill_hh, lens_hh, lift) * bulge * (1.0 - 0.03 * s);
+        let mut hw = lerp(pill_hw, lens_hw, lift) * bulge * (1.0 + 0.38 * s); // 움직이는 동안 옆으로 넓은 둥근 사각형이 됐다가 멈추면 동그랗게 돌아와요
+        let mut hh = lerp(pill_hh, lens_hh, lift) * bulge * (1.0 - 0.08 * s);
         hw = hw.min(pill_hw.max(self.reach(x) + 14.0 * lift));
         let mut cx = x;
         if self.current < 4 {
@@ -1038,7 +1038,7 @@ impl Bar {
             hw *= vis;
             hh *= vis;
         }
-        (cx, cy - 0.5 * lift, hw.max(0.5), hh.max(0.5), lerp(pill_exp, lens_exp, lift), lift)
+        (cx, cy - 0.5 * lift, hw.max(0.5), hh.max(0.5), lerp(pill_exp, lens_exp, lift) + 1.4 * s, lift)
     }
 
     fn render(&mut self) {

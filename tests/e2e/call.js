@@ -31,6 +31,8 @@ const until = async (p, fn, n = 40) => { for (let i = 0; i < n; i++) { if (await
   await A.reload(); await A.waitForTimeout(6000);
   await A.evaluate((c) => document.querySelector(`#chat-list [data-id="${c}"]`)?.click(), cid); await A.waitForTimeout(2000);
   ok('대화 위쪽에 전화 버튼', await A.isVisible('#thread-call'));
+  ok('1:1 대화에는 초대 버튼이 없어요', !(await A.isVisible('#thread-invite')));
+  await A.screenshot({ path: __dirname + '/shots/call-head.png', clip: { x: 0, y: 0, width: 390, height: 160 } });
   await A.click('#thread-call');
   ok('거는 쪽: 통화 화면', await until(A, () => { const e = document.getElementById('call'); return e && !e.hidden && e.textContent.includes('라마바'); }));
   ok('받는 쪽: 전화가 왔어요', await until(B, () => { const e = document.getElementById('call'); return e && !e.hidden && e.textContent.includes('전화가 왔어요'); }));
@@ -38,6 +40,11 @@ const until = async (p, fn, n = 40) => { for (let i = 0; i < n; i++) { if (await
   ok('받는 쪽: 통화 중 (시간)', await until(B, () => /\d\d:\d\d/.test(document.getElementById('call-time')?.textContent || '') && !!document.querySelector('#call [data-call="end"]')));
   ok('거는 쪽: 통화 중 (시간)', await until(A, () => /\d\d:\d\d/.test(document.getElementById('call-time')?.textContent || '')));
   ok('버튼 여섯 개 (스피커·녹음·소리 끔·더 보기·종료·키패드)', (await A.$$('#call .call-btn')).length === 6);
+  await A.screenshot({ path: __dirname + '/shots/call-talk.png' });
+  ok('키패드는 처음엔 숨어 있어요', await A.isHidden('#call-pad'));
+  await A.click('#call [data-call="pad"]'); await A.waitForTimeout(300);
+  await A.screenshot({ path: __dirname + '/shots/call-pad.png' });
+  await A.click('#call [data-call="pad"]'); await A.waitForTimeout(300);
   await A.click('#call [data-call="mute"]');
   ok('소리 끔이 켜져요', (await A.getAttribute('#call [data-call="mute"]', 'aria-pressed')) === 'true');
   await A.click('#call [data-call="end"]');

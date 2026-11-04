@@ -324,6 +324,7 @@ pub fn open(id: &str) {
     let unsub = cloud::call_now("watchMessages", &[JsValue::from_str(&c.id), cb.into_js_value()]).ok().and_then(|f| f.dyn_into::<Function>().ok());
     UNSUB.with(|u| *u.borrow_mut() = unsub);
     dom::set_hidden("thread-invite", !c.group);
+    dom::set_hidden("thread-call", c.group);
     if let Some(t) = dom::doc().query_selector("#attach [data-a=\"token\"]").ok().flatten().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
         t.set_hidden(c.group); // 단톡방에서는 토큰을 주고받지 않아요
     }
