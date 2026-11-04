@@ -8,6 +8,7 @@ pub mod chat;
 pub mod ctx;
 pub mod dom;
 pub mod factory;
+pub mod fire;
 pub mod glass;
 pub mod inventory;
 pub mod manage;

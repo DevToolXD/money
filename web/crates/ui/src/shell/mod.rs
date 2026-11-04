@@ -490,6 +490,7 @@ pub(crate) async fn cloud_ready() -> JsValue {
 /* ---------- 시작 ---------- */
 
 pub fn start() {
+    crate::fire::start();
     crate::glass::start();
     apply_theme();
     // 내용이 없는 자리 표시 줄
