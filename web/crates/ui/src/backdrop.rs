@@ -247,7 +247,21 @@ async fn shoot(name: &str) -> Result<Option<JsValue>, JsValue> {
             }
         }
     });
+    // 찍는 화면 밖의 것(다른 화면·탭 바·떠 있는 판)은 복사하지 않아요. 사진에는 이 화면만 나오니 모양은 같고, 복사가 훨씬 가벼워져요
+    let target = el.clone();
+    let ignore = Closure::<dyn FnMut(JsValue) -> bool>::new(move |n: JsValue| {
+        let Ok(n) = n.dyn_into::<web_sys::Element>() else { return false };
+        if n.is_same_node(Some(&target)) || n.contains(Some(&target)) {
+            return false;
+        }
+        if target.contains(Some(&n)) {
+            return n.tag_name() == "SCRIPT";
+        }
+        // 화면 바깥: 문서 머리(글꼴·스타일)는 남기고 나머지 몸통은 빼요
+        n.closest("head").ok().flatten().is_none()
+    });
     let opts = crate::dom::obj(&[
+        ("ignoreElements", ignore.as_ref().clone()),
         ("scale", scale.into()),
         ("backgroundColor", bg.into()),
         ("logging", false.into()),
@@ -262,6 +276,7 @@ async fn shoot(name: &str) -> Result<Option<JsValue>, JsValue> {
     let p: js_sys::Promise = h2c.call2(&JsValue::NULL, &el, &opts)?.dyn_into()?;
     let canvas: HtmlCanvasElement = wasm_bindgen_futures::JsFuture::from(p).await?.dyn_into()?;
     drop(onclone);
+    drop(ignore);
 
     // 흐린 버전: 작게 줄였다가 늘려서 보여요 (샘플링이 부드럽게 이어져서 뿌옇게 보여요)
     let blur: HtmlCanvasElement = doc.create_element("canvas")?.unchecked_into();
