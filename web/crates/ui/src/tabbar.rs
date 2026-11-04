@@ -34,7 +34,7 @@ const TRAIL: Preset = Preset { w: 30.0, z: 1.0 };
 const STRETCH: Preset = Preset { w: 12.2, z: 0.29 };
 const PRESS: Preset = Preset { w: 26.0, z: 1.0 };
 const EXCITE: Preset = Preset { w: 13.0, z: 1.0 };
-const PAGE: Preset = Preset { w: 36.0, z: 0.5 };
+const PAGE: Preset = Preset { w: 20.0, z: 1.0 }; // 핫바 넘기기: 튕기지 않고 부드럽게 미끄러져요
 
 // 핫바: 옆으로 넘기면 바 안의 내용만 다음 쪽으로 바뀌어요 (프로필 버튼은 그대로)
 const PAGES: [[(&str, &str); 4]; 2] = [
@@ -542,15 +542,14 @@ impl Bar {
             .geo
             .iter()
             .map(|g| {
-                let round = g.w >= g.h - 1.0;
                 let r = g.w.min(g.h) / 2.0;
                 Size {
                     pill_hw: r,
                     pill_hh: r,
-                    lens_hw: if round { (g.w / 2.0 + 4.0).min(bar_h * 0.55) } else { (g.w * 0.85).max(bar_h * 0.8) },
-                    lens_hh: bar_h * 0.54,
+                    lens_hw: bar_h * 0.56, // 렌즈는 옆으로 길지 않은 동그라미예요
+                    lens_hh: bar_h * 0.56,
                     pill_exp: 2.0,
-                    lens_exp: if round { 2.0 } else { 2.1 },
+                    lens_exp: 2.0,
                 }
             })
             .collect();
@@ -886,9 +885,7 @@ impl Bar {
         if self.reduced() {
             self.page_s.snap(self.page as f64);
         } else {
-            crate::dom::vibrate(24); // 뜨끙
-            let c = Closure::once_into_js(|| crate::dom::vibrate(12));
-            let _ = win().set_timeout_with_callback_and_timeout_and_arguments_0(c.unchecked_ref(), 110);
+            crate::dom::vibrate(8); // 짧고 가볍게 한 번
         }
         self.request_render();
     }
@@ -1029,8 +1026,8 @@ impl Bar {
         let lift = clamp(self.lift.x, 0.0, 1.0);
         let bulge = 1.0 + 0.03 * clamp(self.grab.x, 0.0, 1.0);
         let s = clamp(self.stretch.x, 0.0, 1.0);
-        let mut hw = lerp(pill_hw, lens_hw, lift) * bulge * (1.0 + 0.2 * s);
-        let mut hh = lerp(pill_hh, lens_hh, lift) * bulge * (1.0 - 0.12 * s);
+        let mut hw = lerp(pill_hw, lens_hw, lift) * bulge * (1.0 + 0.05 * s);
+        let mut hh = lerp(pill_hh, lens_hh, lift) * bulge * (1.0 - 0.03 * s);
         hw = hw.min(pill_hw.max(self.reach(x) + 14.0 * lift));
         let mut cx = x;
         if self.current < 4 {

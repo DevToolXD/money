@@ -248,6 +248,9 @@ void main() {
     float inP = clamp(0.5 - dP * uDpr, 0.0, 1.0);
     vec2 qp = p - pl.xy;
     vec3 c = barGlass(p, pl, 0.12);
+    // 아주 얇은 회색 윤곽선 (0.5px 남짓)
+    float ln = clamp(1.0 - abs(dP + 0.55) / 0.6, 0.0, 1.0);
+    c = mix(c, uDark > 0.5 ? vec3(0.34) : vec3(0.72), ln * 0.6);
     // 누르는 동안: 전체가 살짝 밝아지고, 선택 알약 쪽에서 빛이 번져요 (Kyant InteractiveHighlight)
     float glowR = pl.w * 2.0 * 1.5;
     float glow = smoothstep(glowR, glowR * 0.5, distance(p, vec2(uLens.x, pl.y)));
@@ -317,10 +320,9 @@ void main() {
     gl_FragColor = outside * (1.0 - inMask) + vec4(prem, al) * inMask;
     return;
   }
-  // 표면: 쉬는 동안 검정(다크는 흰색) 10%, 누르면 검정 3%
-  vec3 tintC = uDark > 0.5 ? vec3(1.0) : vec3(0.0);
-  col = mix(col, tintC, 0.1 * (1.0 - pr));
-  col = mix(col, vec3(0.0), 0.03 * pr);
+  // 표면: 선택된 알약은 한 톤 진한 회색 (다크는 더 까맣게). 움직이는 렌즈도 살짝 진해요
+  col = mix(col, vec3(0.0), (uDark > 0.5 ? 0.38 : 0.13) * (1.0 - pr));
+  col = mix(col, vec3(0.0), (uDark > 0.5 ? 0.22 : 0.1) * pr);
   col = col * (1.0 - covRGB) + uAccent * covRGB;
   // 속 그림자 (8px, 위에서 아래로, 검정 15%) — 누를 때만
   vec2 gi;
