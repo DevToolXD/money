@@ -347,8 +347,10 @@ void main() {
     vec4 plL = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
     vec2 dg;
     // 누르면 렌즈가 안쪽을 1.2배 확대해요
-    vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.2 * pr);
-    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 10.0 * pr, 14.0 * pr, dg);
+    vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.35 * pr);
+    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 18.0 * pr, 22.0 * pr, dg);
+    // 막대 밖으로 나간 렌즈도 막대 유리를 늘여서 보여줘요 (위아래 가장자리 띠가 렌즈 안에 비쳐요)
+    rp.y = clamp(rp.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
     float disp = (q.x * q.y) / max(hb.x * hb.y, 1.0);
     vec2 dd = dg * disp;
     vec3 c7 = vec3(0.0);
@@ -700,8 +702,9 @@ void main() {
         return {
           pillHW: r,
           pillHH: r,
-          lensHW: round ? Math.min(g.w / 2 + 2, barH * 0.47) : Math.min(barH * 0.62, g.w * 0.8),
-          lensHH: barH * 0.45,
+          // 끌 때 렌즈는 막대보다 크게 떠요 (Kyant 배너처럼 위아래로 삐져나와요)
+          lensHW: round ? Math.min(g.w / 2 + 6, barH * 0.6) : Math.max(g.w * 0.68, barH * 0.9),
+          lensHH: round ? barH * 0.6 : barH * 0.64,
           pillExp: 2,
           lensExp: round ? 2 : 2.1,
         };
@@ -1151,8 +1154,7 @@ void main() {
       let hw = lerp(pillHW, lensHW, lift) * bulge * (1 + 0.08 * s);
       let hh = lerp(pillHH, lensHH, lift) * bulge * (1 - 0.04 * s);
       // 렌즈는 막대 유리 안에 머물러요. 끝 탭에서는 좁아지고 가운데에서는 넓어지며, 알약보다 작아지지는 않아요.
-      hw = Math.min(hw, Math.max(pillHW, this.reach(x)));
-      hh = Math.min(hh, Math.max(pillHH, this.barA.hh - LENS_INSET));
+      hw = Math.min(hw, Math.max(pillHW, this.reach(x) + 14 * lift));
       // 선택된 탭이 다른 쪽 핫바에 있으면 알약도 내용과 함께 밀려나고 작아져요
       let cx = x;
       if (this.current < 4) {

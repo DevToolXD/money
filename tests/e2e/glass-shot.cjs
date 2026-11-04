@@ -18,7 +18,7 @@ const path = require('path');
   });
   await page.waitForTimeout(Number(process.env.WAIT || 18000)); console.log("shots", await page.evaluate(() => [...(window.backdrop?.shots || [])].map(([k, v]) => k + ":" + (v.canvas ? v.cssH : "none") + (v.dirty ? "*" : "")).join(" ")));
   const out = process.env.OUT;
-  const clip = { x: 0, y: 700, width: 390, height: 144 };
+  const clip = { x: 0, y: 680, width: 390, height: 164 };
   await page.screenshot({ path: path.join(out, 'bar-rest.png'), clip });
   const tab = await page.locator('.tabbar .tab[data-tab="money"]').boundingBox();
   await page.mouse.move(tab.x + tab.width / 2, tab.y + tab.height / 2); await page.mouse.down(); await page.waitForTimeout(700);
