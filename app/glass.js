@@ -178,9 +178,8 @@
     const key = `${w}x${h}x${r}`;
     if (st.key === key) return;
     st.key = key;
-    const rim = rimURL(w, h, r, big);
-    if (st.hl) st.hl.style.setProperty("--lg-rim", rim);
-    else el.style.setProperty("--lg-rim", rim);
+    // 테두리 선은 그리지 않아요 (가는 선이 보이지 않게 해 달라고 했어요). rimURL은 남겨 둬요
+    void rimURL;
     if (LENS) {
       const f = big ? lensFilter(w, h, r, 24, 48, true) : lensFilter(w, h, r, 12, 24, false);
       const blur = big ? 16 : 2;

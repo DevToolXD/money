@@ -1338,15 +1338,14 @@ await t("일하기: 에너지가 없으면 일할 수 없어요", async () => {
   b.update(labRef(bob), { fperf: 101 });
   await assertFails(b.commit());
 });
-await t("닳기: 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배로 닳아요", async () => {
+await t("닳기(베타): 에너지가 0이어도 두 배로 닳지 않고, 0 아래로 내려가지 않고, 0%여도 먹을 수 있어요", async () => {
   await itemSeed("uA", "uA", "p1", "water", 3);
-  await seed((d) => setDoc(doc(d, "vitals/uA"), { h: 90, t: 90, e: 0, at: Date.now() - 5 * 3600e3, deaths: 0 }));
+  await seed((d) => setDoc(doc(d, "vitals/uA"), { h: 2, t: 90, e: 0, at: Date.now() - 5 * 3600e3, deaths: 0 }));
   const alice = pw("uA", "alice");
-  const eff = 10 * 3600e3; // 에너지가 0이어서 5시간을 두 배로 세요
-  const hTwice = 90 - (eff * 100) / 86400e3, tTwice = 90 - (eff * 100) / 64800e3;
-  const hOnce = 90 - (5 * 3600e3 * 100) / 86400e3;
-  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: hOnce, t: tTwice + 20, e: 0 })); // 한 번 세기는 안 돼요
-  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: hTwice, t: tTwice + 20, e: 0 }));
+  const T = 5 * 3600e3;
+  const tOnce = 90 - (T * 100) / 64800e3, tTwice = 90 - (2 * T * 100) / 64800e3;
+  await assertFails(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: 0, t: tTwice + 20, e: 0 })); // 두 배 세기는 안 돼요
+  await assertSucceeds(eatBatch(alice, "uA", { cid: "uA", pid: "p1", h: 0, t: tOnce + 20, e: 0 })); // 배고픔은 0에서 멈추고, 먹을 수 있어요
 });
 
 // 단톡방: 여러 명이 만들고, 멤버가 초대하고, 대화 아이디로 글을 보내요. 단톡방에서는 주고받기·요청을 못 해요

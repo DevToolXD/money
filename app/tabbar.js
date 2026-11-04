@@ -326,19 +326,12 @@ vec3 tiRim(vec3 col, float depth, float sPrime, float B, vec2 n, float rim) {
   float seam = exp(-slope * 14.0);
   vec3 sheen = vec3(0.25);
   col += sheen * (fres * rim * 0.85) * win;
-  col += vec3(0.625) * rimLine * rim * 0.5 * win;
   col += sheen * seam * rim * 0.4;
-  float ang = atan(abs(n.x), abs(n.y));
-  float maskW = 1.0 - ang / 1.5708;
-  float maskB = ang / 1.5708;
-  float edgeLift = exp(-dpt / 1.0);
-  col += (1.0 - col) * edgeLift * maskW * 0.85;
-  col *= 1.0 - edgeLift * maskB * 0.40;
   return col;
 }
 
 // 막대 유리가 보여주는 색 (굴절 + 흐림 + 채도 + 표면)
-vec3 barGlass(vec2 p, vec4 pl) {
+vec3 barGlass(vec2 p, vec4 pl, float soft) {
   vec2 q = p - pl.xy;
   float sd = sdRound(q, pl.zw, pl.w);
   vec2 n = gradRound(q, pl.zw, max(pl.w - 0.5, 0.0));
@@ -346,9 +339,9 @@ vec3 barGlass(vec2 p, vec4 pl) {
   float sh = tiShift(max(-sd, 0.0), 11.0, 14.0, 2.6, 3.0, sp);
   vec2 inward = -n;
   float dsp = 0.01;
-  vec3 c = vec3(page(p + inward * sh * (1.0 - dsp), 0.12).r, page(p + inward * sh, 0.12).g, page(p + inward * sh * (1.0 + dsp), 0.12).b);
+  vec3 c = vec3(page(p + inward * sh * (1.0 - dsp), soft).r, page(p + inward * sh, soft).g, page(p + inward * sh * (1.0 + dsp), soft).b);
   c = glassTint(c, uDark > 0.5 ? -1.0 : 1.0);
-  return tiRim(c, -sd, sp, 11.0, n, 0.35);
+  return c; // 막대에는 가장자리 선(프레넬·접힘 선)을 그리지 않아요
 }
 float rimBand(float sd) {
   // 0.5px 선 + 0.25px 흐림
@@ -386,7 +379,7 @@ void main() {
     float dP = useA ? dA : dB;
     float inP = clamp(0.5 - dP * uDpr, 0.0, 1.0);
     vec2 qp = p - pl.xy;
-    vec3 c = barGlass(p, pl);
+    vec3 c = barGlass(p, pl, 0.12);
     // 누르는 동안: 전체가 살짝 밝아지고, 선택 알약 쪽에서 빛이 번져요 (Kyant InteractiveHighlight)
     float glowR = pl.w * 2.0 * 1.5;
     float glow = smoothstep(glowR, glowR * 0.5, distance(p, vec2(uLens.x, pl.y)));
@@ -433,8 +426,9 @@ void main() {
     rp.y = clamp(rp.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
     rR.y = clamp(rR.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
     rB.y = clamp(rB.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
-    vec3 c7 = vec3(barGlass(rR, plL).r, barGlass(rp, plL).g, barGlass(rB, plL).b);
-    c7 = tiRim(c7, -sdL, spL, B, gL, 0.6 * pr);
+    // 렌즈 안은 그대로 비치지 않고 살짝 뿌옇게 (흐림 0.55)
+    vec3 c7 = vec3(barGlass(rR, plL, 0.55).r, barGlass(rp, plL, 0.55).g, barGlass(rB, plL, 0.55).b);
+    c7 = tiRim(c7, -sdL, spL, B, gL, 0.25 * pr);
     col = c7;
     // 강조색 아이콘도 같은 렌즈를 지나요
     cov = max(cover(zp + inw * shL), 0.0) * smoothstep(-0.5, 2.0, -d);
@@ -1283,7 +1277,11 @@ void main() {
       gl.uniform2f(u.uClip, this.barA.cx - this.barA.hw, this.barA.cx + this.barA.hw);
 
       // 뒤 화면 사진 (지금 보이는 화면의 것). 없으면 CSS 유리 판이 대신해요
-      const entry = this.backdrop ? this.shots.get(this.backdrop.active) : null;
+      // 새 화면의 사진이 아직 없으면 마지막으로 쓰던 사진을 그대로 써요 (유리가 일반 판으로 깜빡 돌아가지 않게)
+      let entry = this.backdrop ? this.shots.get(this.backdrop.active) : null;
+      if (entry) this.lastEntry = entry;
+      else if (this.lastEntry && [...this.shots.values()].includes(this.lastEntry)) entry = this.lastEntry;
+      else if (this.shots.size) entry = this.lastEntry = this.shots.values().next().value;
       const glassOn = Boolean(entry && this.barA && this.barB);
       if (glassOn !== this.glassOn) {
         this.glassOn = glassOn;

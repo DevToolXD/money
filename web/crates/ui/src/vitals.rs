@@ -46,7 +46,7 @@ fn at_ms(v: &JsValue) -> f64 {
 /// 지금 상태 (배고픔, 목마름, 에너지). 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배로 닳아요 (firestore.rules 와 같아요)
 fn now_vals(v: &JsValue) -> [f64; 3] {
     let hrs = ((js_sys::Date::now() - at_ms(v)) / 3600000.0).max(0.0);
-    let eff = hrs + (hrs - n(v, "e") * 7.2).max(0.0);
+    let eff = hrs; // 베타: 에너지가 0이어도 두 배로 닳지 않아요
     [
         (n(v, "h") - eff * (100.0 / 24.0)).clamp(0.0, 100.0),
         (n(v, "t") - eff * (100.0 / 18.0)).clamp(0.0, 100.0),
@@ -106,15 +106,9 @@ fn paint() {
     let low = vals[0].min(vals[1]).min(vals[2]);
     // 배고픔·목마름이 0이 되어도 쓰러지지 않아요 (쓰러짐은 없앴어요)
     let dead = false;
-    vig.set_class_name(if low <= 5.0 {
-        "vignette v5"
-    } else if low <= 10.0 {
-        "vignette v10"
-    } else if low <= 20.0 {
-        "vignette v20"
-    } else {
-        "vignette"
-    });
+    // 베타 동안은 낮아져도 화면 가장자리가 붉어지지 않아요 (불이익 없음)
+    let _ = low;
+    vig.set_class_name("vignette");
     if dead && !DYING.get() {
         DYING.set(true);
         let deaths = n(&v, "deaths") + 1.0;

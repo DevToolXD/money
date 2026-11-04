@@ -38,6 +38,8 @@ struct FacLab {
 struct FacSig {
     cid: StoredValue<String>,
     prod: RwSignal<Option<Option<Prod>>>,
+    /// 회사가 파는 상품 전부 (공장에서 무엇을 만들지 골라요)
+    all: RwSignal<Vec<Prod>>,
     note: RwSignal<String>,
     lab: RwSignal<Option<FacLab>>,
     n: RwSignal<String>,
@@ -103,6 +105,7 @@ pub fn factory_into(el: web_sys::HtmlElement, cid: String) {
     let s = FacSig {
         cid: StoredValue::new(cid.clone()),
         prod: RwSignal::new(None),
+        all: RwSignal::new(Vec::new()),
         note: RwSignal::new("만들 상품을 불러오는 중이에요".into()),
         lab: RwSignal::new(None),
         n: RwSignal::new("50".into()),
@@ -153,17 +156,27 @@ async fn load_products(s: FacSig) {
             if !alive(s) {
                 return;
             }
-            let first = list.first().map(|p| Prod {
-                id: get(p, "id").as_string().unwrap_or_default(),
-                name: get(p, "name").as_string().unwrap_or_default(),
-                cost_cents: get(p, "costCents").as_f64().unwrap_or(0.0),
-                stock: get(p, "stock").as_f64().unwrap_or(0.0),
-                paused: get(p, "paused").is_truthy(),
-            });
+            let all: Vec<Prod> = list
+                .iter()
+                .map(|p| Prod {
+                    id: get(p, "id").as_string().unwrap_or_default(),
+                    name: get(p, "name").as_string().unwrap_or_default(),
+                    cost_cents: get(p, "costCents").as_f64().unwrap_or(0.0),
+                    stock: get(p, "stock").as_f64().unwrap_or(0.0),
+                    paused: get(p, "paused").is_truthy(),
+                })
+                .collect();
+            // 고른 상품을 그대로 두고, 없으면 멈추지 않은 첫 상품
+            let keep = s.prod.with_untracked(|p| p.as_ref().and_then(|p| p.as_ref()).map(|p| p.id.clone()));
+            let first = keep
+                .and_then(|id| all.iter().find(|p| p.id == id).cloned())
+                .or_else(|| all.iter().find(|p| !p.paused).cloned())
+                .or_else(|| all.first().cloned());
             s.note.set(match &first {
-                Some(p) => format!("만들 상품: {} · 만든 음식은 상점에 진열돼요", p.name),
+                Some(_) => "만들 상품을 고르세요 · 만든 음식은 상점에 진열돼요".into(),
                 None => "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요".into(),
             });
+            s.all.set(all);
             s.prod.set(Some(first));
         }
         Err(e) => {
@@ -301,6 +314,23 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
         <div class="card wk-work wk-food">
             <p class="wk-head">"식품 공장"</p>
             <p class="wk-note" id="wk-make">{move || s.note.get()}</p>
+            <div class="wk-sorts fac-pick" role="group" aria-label="만들 상품">
+                <For each=move || s.all.get() key=|p| (p.id.clone(), p.name.clone(), p.stock as i64) let:p>
+                    {
+                        let id = p.id.clone();
+                        let id2 = p.id.clone();
+                        let pp = p.clone();
+                        view! {
+                            <button type="button" class="gg wk-pill" data-pid=id.clone()
+                                aria-pressed=move || s.prod.with(|x| x.as_ref().and_then(|x| x.as_ref()).is_some_and(|x| x.id == id2)).to_string()
+                                disabled=move || { running() || pp.paused }
+                                on:click=move |_| s.prod.set(Some(Some(p.clone())))>
+                                {pp.name.clone()}
+                            </button>
+                        }
+                    }
+                </For>
+            </div>
             <div class="wk-nums">
                 <span>"재고 "<b id="wk-stock">{stock}</b>"개"</span>
                 <span>"공장 "<b id="fac-count">{move || if s.lab.with(|l| l.is_some()) { (plv() as i64).to_string() } else { "…".into() }}</b>"대"</span>

@@ -606,8 +606,8 @@ service cloud.firestore {
         // 예전에 쓰러져 쉬던 기록은 시각이 앞에 있을 수 있어서, 지난 시간은 0 아래로 내려가지 않아요
         let T0 = request.time.toMillis() - resource.data.at;
         let T = T0 > 0 ? T0 : 0;
-        let S = resource.data.e * 25920000.0;
-        return T + (T > S ? T - S : 0);
+        // 베타: 에너지가 0이 되어도 두 배로 닳지 않아요
+        return T;
       }
       function decE(v) { return v - (request.time.toMillis() > resource.data.at ? request.time.toMillis() - resource.data.at : 0) * 100.0 / 2592000000.0; }
       // 배고픔·목마름은 0 아래로 내려가지 않아요 (쓰러짐은 없앴어요)

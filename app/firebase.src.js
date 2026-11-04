@@ -704,7 +704,7 @@ window.cloudReady = (async () => {
           const FULL = { h: 86400000, t: 64800000, e: 2592000000 };
           const now = Date.now();
           const T = Math.max(0, now - v.at);
-          const eff = T + Math.max(0, T - (v.e * FULL.e) / 100); // 에너지가 0이 된 뒤에는 두 배로 닳아요
+          const eff = T; // 베타: 에너지가 0이어도 두 배로 닳지 않아요 (서버 규칙과 같아요)
           const h = Math.max(0, v.h - (eff * 100) / FULL.h); // 0 아래로 내려가지 않아요 (쓰러짐은 없앴어요)
           const t = Math.max(0, v.t - (eff * 100) / FULL.t);
           const e = v.e - (T * 100) / FULL.e;
@@ -784,7 +784,7 @@ window.cloudReady = (async () => {
         const next = {};
         // 서버 규칙과 같은 계산: 에너지가 0이 된 뒤에는 배고픔·목마름이 두 배로 닳고, 0 아래로 내려가지 않아요. 0이어도 먹을 수 있어요
         const T = Math.max(0, now - v.at);
-        const eff = T + Math.max(0, T - (v.e * FULL.e) / 100);
+        const eff = T; // 베타: 두 배로 닳지 않아요
         const leftOf = { h: Math.max(0, v.h - (eff * 100) / FULL.h), t: Math.max(0, v.t - (eff * 100) / FULL.t), e: Math.max(0, v.e - (T * 100) / FULL.e) };
         for (const k of ["h", "t", "e"]) next[k] = k === gain[0] ? Math.min(100, leftOf[k] + gain[1]) : leftOf[k];
         const b = writeBatch(db);
