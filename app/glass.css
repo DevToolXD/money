@@ -1,0 +1,25 @@
+/* 리퀴드 글라스 (app/glass.js): Kyant Liquid Glass를 옮긴 모양 */
+.lg { isolation: isolate; }
+.lg.lg-rel { position: relative; }
+/* 45도 빛 테두리와 누를 때 번지는 빛 (내용 아래, 유리 표면 위) */
+lg-hl {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  border-radius: inherit;
+  pointer-events: none;
+  --lg-p: 0;
+  background:
+    radial-gradient(circle var(--lg-r, 60px) at var(--lg-x, 50%) var(--lg-y, 50%), rgb(255 255 255 / calc(0.15 * var(--lg-p))), rgb(255 255 255 / calc(0.075 * var(--lg-p))) 50%, rgb(255 255 255 / 0) 100%),
+    linear-gradient(rgb(255 255 255 / calc(0.08 * var(--lg-p))), rgb(255 255 255 / calc(0.08 * var(--lg-p)))),
+    var(--lg-rim, none) center / 100% 100% no-repeat;
+}
+/* 입력칸은 안에 그릴 수 없어서 바탕 그림으로 테두리를 그려요 */
+.lg.lg-field { background-image: var(--lg-rim, none); background-size: 100% 100%; background-repeat: no-repeat; }
+/* 채도 1.5배 (vibrancy). 굴절을 못 쓰는 브라우저는 흐림을 남겨요 */
+.lg:not(.sheet):not(.ctx-menu):not(.alert-card):not(.attach) { -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%); }
+/* 누르면 줄어들던 움직임 대신 부풀어요 (glass.js가 scale·translate로 그려요) */
+.lg.lg-press:active { transform: none; }
+/* 떠 있는 유리 버튼은 Kyant 버튼처럼 맑게 (흰색 30%) */
+html:not([data-theme="dark"]) .glass-btn.lg:not(.primary):not([aria-pressed="true"]) { background: rgba(255, 255, 255, 0.3); }

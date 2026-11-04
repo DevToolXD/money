@@ -25,7 +25,8 @@ app/firebase.src.js     Firebase 사용 코드 원본 (app/firebase.js는 이걸
 app/guard.js            다른 사이트 안에 끼워 넣어 누르게 속이는 공격(클릭재킹) 막기
 firestore.rules         서버 보안 규칙 (지갑·선물·이자를 서버가 직접 검사해요)
 tests/                  규칙 시험, 화면 시험(tests/e2e), 묶음 빌드 (사이트 실행에는 필요 없어요)
-app/tabbar.js           탭 바: WebGL 그리기, 스프링 움직임, 터치 처리
+app/tabbar.js           탭 바: WebGL 그리기, 스프링 움직임, 터치 처리 (유리 계산은 Kyant Liquid Glass를 옮겼어요)
+app/glass.js, glass.css 나머지 리퀴드 글라스: 45도 빛 테두리, 채도, 누를 때 빛·부풀기, 크롬에서는 굴절 (vendor/kyant-backdrop)
 vendor/html2canvas/     화면을 캔버스로 찍는 라이브러리 (MIT)
 app/tokens.css          디자인 토큰 (Apple Store 앱 스타일)
 ```

@@ -222,28 +222,56 @@ vec3 prism(float h) {
   return mix(r, vec3(0.40, 0.78, 1.00), smoothstep(3.0, 4.0, k));
 }
 
-// ---- 뒤 화면 사진
-// 큰 덩어리 색(분홍 카드 같은)은 그대로 비치고, 글자처럼 가는 디테일은 대비를 줄여 회색으로 비쳐요.
-// 흐린 사진(lo)이 큰 덩어리, 선명한 사진과의 차이(hi - lo)가 디테일이에요.
-vec3 pageColor(vec2 cp, float soft) {
-  vec2 uv = (cp + uPageOff) / uPageSize;
-  vec3 hi = texture2D(uBack, uv).rgb;
-  vec3 lo = texture2D(uBlur, uv).rgb;
-  vec3 detail = (hi - lo) * (1.0 - soft);
-  float dl = dot(detail, vec3(0.299, 0.587, 0.114));
-  detail = mix(detail, vec3(dl), 0.55) * uGlassLook.x;
-  return mix(lo + detail, uGlassBase, uGlassLook.y);
-}
+// ====== Kyant Liquid Glass (github.com/Kyant0/AndroidLiquidGlass, Apache-2.0)의 계산을 그대로 옮겼어요.
+// lens: 가장자리에서 refractionHeight 안쪽까지, 원호 모양(circleMap)으로 안쪽 내용을 끌어와요. 색 번짐은 7가지 색을 따로 읽어요.
+// highlight: 45도에서 오는 빛. 가장자리 방향과 빛 방향이 나란할수록 밝아요 (0.5px 선, 흰색 50%).
+// vibrancy: 채도 1.5배. 막대 표면은 #FAFAFA 40% (다크 #121212 40%).
+uniform vec4 uCont;         // 막대 표면 색 (색 + 알파)
+uniform float uDark;        // 다크 테마면 1
 
-// 막대(알약·원) 유리 안의 한 점이 보여주는 색: 중심에서 확대하고 가장자리 쪽에서는 안쪽 내용을 끌어와 휘어 보여요
-vec3 barSample(vec2 pos, vec4 pl, float soft, float shiftScale, float zoomScale) {
-  vec2 q = pos - pl.xy;
-  float d = sdRound(q, pl.zw, pl.w);
-  vec2 e = -gradRound(q, pl.zw, pl.w);
-  float x = clamp(max(-d, 0.0) / uGlassOpt.x, 0.0, 1.0);
-  float shift = uGlassOpt.y * pow(1.0 - x, uGlassOpt.z) * shiftScale;
-  vec2 sp = pl.xy + q / (uGlassOpt.w * zoomScale) + e * shift;
-  return pageColor(sp, soft);
+float circleMap(float x) { return 1.0 - sqrt(max(1.0 - x * x, 0.0)); }
+
+// 둥근 사각형 렌즈: p를 굴절된 위치로 (css px). amt는 끌어오는 거리, h는 휘는 가장자리 폭
+vec2 kyLens(vec2 p, vec2 c, vec2 hb, float r, float h, float amt, float depth, out vec2 dg) {
+  vec2 q = p - c;
+  float sd = sdRound(q, hb, r);
+  dg = vec2(0.0);
+  if (h <= 0.0 || -sd >= h) return p;
+  sd = min(sd, 0.0);
+  float d = circleMap(1.0 - -sd / h) * -amt;
+  float gr = min(r * 1.5, min(hb.x, hb.y));
+  vec2 g = gradRound(q, hb, gr);
+  if (depth > 0.0) g = normalize(g + depth * normalize(q + vec2(0.0001)));
+  dg = d * g;
+  return p + dg;
+}
+// 초타원 렌즈(선택 알약)도 같은 계산이에요
+vec2 kyLensSE(vec2 p, vec2 c, vec2 hb, float n, float h, float amt, out vec2 dg) {
+  vec2 g;
+  float sd = seDist(p - c, hb, n, g);
+  dg = vec2(0.0);
+  if (h <= 0.0 || -sd >= h) return p;
+  sd = min(sd, 0.0);
+  float d = circleMap(1.0 - -sd / h) * -amt;
+  dg = d * g;
+  return p + dg;
+}
+vec3 vibrant(vec3 c) {
+  float l = dot(c, vec3(0.213, 0.715, 0.072));
+  return clamp(vec3(l) + (c - vec3(l)) * 1.5, 0.0, 1.0);
+}
+// 뒤 화면 사진 (k: 0 또렷, 1 흐림)
+vec3 page(vec2 cp, float k) {
+  vec2 uv = (cp + uPageOff) / uPageSize;
+  return mix(texture2D(uBack, uv).rgb, texture2D(uBlur, uv).rgb, k);
+}
+// 45도 빛 하이라이트의 세기 (가장자리 방향 g)
+float kyHighlight(vec2 g) {
+  return abs(dot(g, vec2(0.70710678, 0.70710678)));
+}
+float rimBand(float sd) {
+  // 0.5px 선 + 0.25px 흐림
+  return clamp(1.0 - abs(sd + 0.25) / 0.5, 0.0, 1.0);
 }
 
 void main() {
@@ -252,71 +280,56 @@ void main() {
   vec2 hb = uLens.zw;
   vec2 g;
   float d = seDist(q, hb, uExp, g);
+  float pr = uLift; // 눌린 정도 (Kyant pressProgress)
 
-  // ====== 1. 막대 유리 (뒤 화면 사진이 있을 때만)
+  // ====== 1. 막대 유리
   vec4 outside = vec4(0.0);
-  vec4 barA = vec4(uBarA.xy, uBarA.zw * (1.0 + 0.02 * uPress.x));   // 반지름은 반높이(.w)와 같아요
+  float scA = 1.0 + 16.0 / max(uBarA.z * 2.0, 1.0) * pr;   // 누르면 16px 만큼 커져요
+  vec4 barA = vec4(uBarA.xy, uBarA.zw * scA);
   vec4 barB = vec4(uBarB.xy, uBarB.zw * (1.0 + 0.02 * uPress.y));
   float dA = sdRound(p - barA.xy, barA.zw, barA.w);
   float dB = sdRound(p - barB.xy, barB.zw, barB.w);
-  float platIn = clamp(0.5 - min(dA, dB) * uDpr, 0.0, 1.0);   // 막대 안이면 1. 렌즈 그림자를 막대 안에만 드리우는 데 써요
-  float ex = uExcite;
-  if (uGlass > 0.5) {
+  float dMin = min(dA, dB);
+
+  // 그림자 (Kyant Shadow: 24px 번짐, 4px 아래, 검정 10%)
+  float dsA = sdRound(p - barA.xy - vec2(0.0, 4.0), barA.zw, barA.w);
+  float dsB = sdRound(p - barB.xy - vec2(0.0, 4.0), barB.zw, barB.w);
+  float sdS = max(min(dsA, dsB), 0.0);
+  float shadow = 0.1 * exp(-(sdS * sdS) / (2.0 * 10.0 * 10.0));
+  // 뒤 화면 사진이 없으면 막대는 CSS 판(.platter)이 그려요
+  if (uGlass > 0.5) outside = vec4(0.0, 0.0, 0.0, shadow * uGlassMix);
+
+  if (uGlass > 0.5 && dMin < 1.5) {
     bool useA = dA < dB;
     vec4 pl = useA ? barA : barB;
     float dP = useA ? dA : dB;
-
-    float dsA = sdRound(p - barA.xy - vec2(0.0, uPlatShadow.y), barA.zw, barA.w);
-    float dsB = sdRound(p - barB.xy - vec2(0.0, uPlatShadow.y), barB.zw, barB.w);
-    float shadow = uPlatShadow.x * exp(-max(min(dsA, dsB), 0.0) / uPlatShadow.z);
-    outside = vec4(0.0, 0.0, 0.0, shadow * uGlassMix);
-
-    if (dP < 1.5) {
-      float inP = clamp(0.5 - dP * uDpr, 0.0, 1.0) * uGlassMix;
-      vec2 qp = p - pl.xy;
-      vec2 ep = -gradRound(qp, pl.zw, pl.w);
-      float sP = max(-dP, 0.0);
-      float ch = uPlatRim.z;
-      // 들떠 있는 동안에는 빨강은 더 크게, 파랑은 더 작게 확대해서 막대 전체에 프리즘 색 번짐이 생겨요 (바깥쪽일수록 많이 벌어져요)
-      float zk = ex * 0.02;
-      vec3 c = vec3(
-        barSample(p, pl, uGlassLook.z, 1.0 + ch, 1.0 + zk).r,
-        barSample(p, pl, uGlassLook.z, 1.0, 1.0).g,
-        barSample(p, pl, uGlassLook.z, 1.0 - ch, 1.0 - zk).b
-      );
-      float fac = 0.5 + 0.5 * dot(-ep, uLight);
-      // 안쪽 가장자리를 따라 도는 하이라이트와, 가장자리에서 퍼지는 은은한 빛
-      float hu = (sP - 2.1) / 0.9;   // pow()는 음수 밑이 정의되지 않아서 직접 제곱해요
-      c += vec3(exp(-hu * hu) * (0.25 + 0.75 * fac) * uPlatRim.x);
-      c += vec3(exp(-sP / 4.5) * (0.2 + 0.8 * fac) * uPlatRim.y);
-      if (ex > 0.002) {
-        // 막대 가장자리를 따라 얇은 막 같은 무지개 선이 돌아요. 색은 렌즈 위치를 따라 흘러요
-        float angP = atan(ep.y, ep.x);
-        vec3 hue = prism(angP * 0.17 + (uLens.x - pl.x) * 0.0045 + 0.1);
-        float l1 = (sP - 2.4) / 1.2;
-        float l2 = (sP - 5.0) / 1.5;
-        float l3 = (sP - 9.0) / 3.5;
-        float film = exp(-l1 * l1) + 0.6 * exp(-l2 * l2) + 0.22 * exp(-l3 * l3);
-        c = mix(c, hue, clamp(film * uPlatRim.w * ex * (0.3 + 0.7 * fac), 0.0, 0.75));
-        // 렌즈 둘레로 빛이 갈라져 퍼지는 은은한 색 번짐
-        float dx = (p.x - uLens.x) / max(uLens.z * 2.4, 1.0);
-        c = mix(c, prism(dx * 0.4 + 0.15), 0.1 * ex * exp(-dx * dx));
-      }
-      // 바깥 가는 선
-      float line = (1.0 - smoothstep(0.0, 1.0, abs(dP + 0.55))) * uPlatLine.a;
-      c = mix(c, uPlatLine.rgb, line);
-      outside = outside * (1.0 - inP) + vec4(clamp(c, 0.0, 1.0), 1.0) * inP;
-    }
+    float inP = clamp(0.5 - dP * uDpr, 0.0, 1.0);
+    vec2 qp = p - pl.xy;
+    vec2 dg;
+    vec2 rp = kyLens(p, pl.xy, pl.zw, pl.w, 24.0, 24.0, 0.0, dg);
+    vec3 c = vibrant(page(rp, 0.85));
+    // 표면 색
+    c = mix(c, uCont.rgb, uCont.a);
+    // 누르는 동안: 전체가 살짝 밝아지고, 선택 알약 쪽에서 빛이 번져요 (Kyant InteractiveHighlight)
+    float glowR = pl.w * 2.0 * 1.5;
+    float glow = smoothstep(glowR, glowR * 0.5, distance(p, vec2(uLens.x, pl.y)));
+    c += vec3(0.08 * pr + 0.15 * pr * glow) * (useA ? 1.0 : 0.0);
+    // 45도 빛
+    vec2 gp = gradRound(qp, pl.zw, min(pl.w * 1.5, min(pl.z, pl.w)));
+    c += vec3(0.5 * kyHighlight(gp) * rimBand(dP));
+    float mixIn = inP * uGlassMix;
+    outside = outside * (1.0 - mixIn) + vec4(clamp(c, 0.0, 1.0), 1.0) * mixIn;
   }
 
   // ====== 2. 검은 글자·아이콘
   float aOut = cover(p);
   outside = outside * (1.0 - aOut) + vec4(uInk * aOut, aOut);
 
-  // 렌즈가 드리우는 그림자: 막대 유리 안에만 드리워요 (막대 밖으로 새지 않게)
+  // 선택 알약의 그림자 (누를 때만)
   vec2 gs;
-  float ds = seDist(q - vec2(0.0, uShadow.y), hb, uExp, gs);
-  float sh = uShadow.x * uLift * exp(-max(ds, 0.0) / uShadow.z) * platIn;
+  float ds = seDist(q - vec2(0.0, 4.0), hb, uExp, gs);
+  float dsx = max(ds, 0.0);
+  float sh = 0.1 * pr * exp(-(dsx * dsx) / (2.0 * 10.0 * 10.0));
   outside = outside * (1.0 - sh) + vec4(0.0, 0.0, 0.0, sh);
 
   if (d > 1.5) {
@@ -324,96 +337,49 @@ void main() {
     return;
   }
 
-  // ====== 3. 선택 알약 / 렌즈 안쪽
-  float s = max(-d, 0.0);                       // 가장자리에서 안쪽으로 몇 px 들어왔나
-  vec2 e = -g;                                  // 안쪽을 향하는 방향
-  vec2 t = vec2(-e.y, e.x);                     // 가장자리를 따라가는 방향
-  float bezel = uOptics.x;
-  float x = clamp(s / bezel, 0.0, 1.0);
-  float w = 1.0 - x;
-  float facing = 0.5 + 0.5 * dot(-e, uLight);   // 빛이 오는 쪽 가장자리일수록 1
-  // 맨 가장자리에서는 안쪽 내용을 길게 끌어와요(글자가 줄무늬로 늘어나요).
-  // 아이폰 사진에서는 위아래 가장자리가 가장 많이 번지고 양옆은 거의 안 밀려서, 가로 방향은 덜 밀어요.
-  float shift = uOptics.y * pow(w, uOptics.z) * (1.0 - uDisp.z * facing) * mix(1.0, uDisp.w, abs(e.x)) * uLift;
-
-  vec2 base = uLens.xy + q / uZoom;
-  float kr = 1.0 + uDisp.x;
-  float kb = 1.0 - uDisp.x;
-  vec2 posR = base + e * (shift * kr) - t * (shift * uDisp.y);
-  vec2 posG = base + e * shift;
-  vec2 posB = base + e * (shift * kb) + t * (shift * uDisp.y);
-  // 글자와 아이콘은 휘지 않고 확대만 해요. 가장자리로 끌어와 늘이면 글자 아랫부분이 렌즈 테두리 쪽으로 흘러내려 보여서,
-  // 휘는 것은 뒤 화면(유리)만 맡고 글자는 늘 또렷하게 렌즈 안에 머물러요. 맨 가장자리에서는 서서히 지워져요.
-  float cov = cover(base) * smoothstep(0.0, 0.3, x);
-
-  vec4 fill = mix(uPill, uTint, uLift);
-  float fa = fill.a;
-  vec3 prem;
-  float alpha;
-  if (uGlass > 0.5) {
-    // 렌즈는 막대 유리 위에 얹혀 있어서, 막대 유리가 보여주는 색을 다시 굴절해서 봐요
-    vec4 pl = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
-    float soft = mix(uGlassLook.w, uGlassLook.z * 0.5, uLift);
-    vec3 bg = vec3(
-      barSample(posR, pl, soft, 1.0, 1.0).r,
-      barSample(posG, pl, soft, 1.0, 1.0).g,
-      barSample(posB, pl, soft, 1.0, 1.0).b
-    );
-    prem = (bg * (1.0 - fa) + fill.rgb * fa) * (1.0 - cov) + uAccent * cov;
-    alpha = 1.0;
-  } else {
-    prem = fill.rgb * fa * (1.0 - cov) + uAccent * cov;
-    alpha = fa + (1.0 - fa) * cov;
-  }
-
-  // ---- 빛
-  float tilt = pow(w, uOptics.z * 0.5) * 1.5;
-  vec3 n = normalize(vec3(-e * tilt, 1.0));
-  vec3 lv = normalize(vec3(uLight * 0.85, 0.5));
-  vec3 hv = normalize(lv + vec3(0.0, 0.0, 1.0));
-  vec3 nr = normalize(vec3(-e * tilt * 1.12, 1.0));
-  vec3 nb = normalize(vec3(-e * tilt * 0.88, 1.0));
-  vec3 sp = vec3(
-    pow(max(dot(nr, hv), 0.0), 30.0),
-    pow(max(dot(n, hv), 0.0), 30.0),
-    pow(max(dot(nb, hv), 0.0), 30.0)
-  );
-  vec3 light = sp * uLook.x * (0.3 + 0.7 * facing);
-
-  // 안쪽 가장자리를 따라 도는 은은한 빛 (빛 쪽이 더 밝고 반대쪽에도 약하게)
-  float rim = exp(-s / 3.2) * (0.35 + 0.65 * facing) + exp(-s / 5.0) * 0.18 * (1.0 - facing);
-  light += vec3(rim * uLook.y);
-
-  // 얇은 막에서 보이는 것 같은 무지개 선 두 줄: 가장자리에서 2.5px, 5px 안쪽
-  float ang = atan(e.y, e.x);
-  vec3 film = prism(ang * 0.17 + 0.1);
-  float lu1 = (s - 2.6) / 1.1;
-  float lu2 = (s - 5.4) / 1.3;
-  float lines = exp(-lu1 * lu1) + 0.7 * exp(-lu2 * lu2);
-
-  // 속 밝기: 위쪽이 살짝 더 밝아요
-  light += vec3(uLook.w * (0.5 + 0.5 * dot(q / max(hb, vec2(1.0)), -uLight)));
-
-  light *= uLift;
-  float la = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
-  prem = prem * (1.0 - la) + light;
-  alpha = alpha + (1.0 - alpha) * la;
-
-  // 무지개 선은 더하지 않고 섞어서, 하얀 유리 위에서도 색이 보이게 해요
-  float fa2 = clamp(lines * uLook.z * (0.25 + 0.75 * facing), 0.0, 0.85) * uLift;
-  prem = prem * (1.0 - fa2) + film * fa2;
-  alpha = alpha + (1.0 - alpha) * fa2;
-
-  // 테두리 가는 선
-  float line = 1.0 - smoothstep(0.0, 1.0, abs(d + 0.55));
-  float la2 = line * uEdge.a * uLift * (0.45 + 0.55 * (1.0 - facing));
-  prem = prem * (1.0 - la2) + uEdge.rgb * la2;
-  alpha = alpha + (1.0 - alpha) * la2;
-
-  prem = min(prem, vec3(alpha));
-  vec4 inside = vec4(prem, alpha);
-
+  // ====== 3. 선택 알약: 쉬고 있을 때는 맑은 유리 + 검정 10%, 누르면 렌즈(10, 14)와 색 번짐
   float inMask = clamp(0.5 - d * uDpr, 0.0, 1.0);
+  vec3 col;
+  float cov;
+  if (uGlass > 0.5) {
+    vec2 dg;
+    vec2 rp = kyLensSE(p, uLens.xy, hb, uExp, 10.0 * pr, 14.0 * pr, dg);
+    // 색 번짐: 모서리 쪽일수록 많이 벌어져요
+    float disp = (q.x * q.y) / max(hb.x * hb.y, 1.0);
+    vec2 dd = dg * disp;
+    vec3 c7 = vec3(0.0);
+    c7.r += page(rp + dd, 0.0).r / 3.5;
+    vec3 o = page(rp + dd * (2.0 / 3.0), 0.0); c7.r += o.r / 3.5; c7.g += o.g / 7.0;
+    vec3 y = page(rp + dd * (1.0 / 3.0), 0.0); c7.r += y.r / 3.5; c7.g += y.g / 3.5;
+    vec3 gg = page(rp, 0.0); c7.g += gg.g / 3.5;
+    vec3 cy = page(rp - dd * (1.0 / 3.0), 0.0); c7.g += cy.g / 3.5; c7.b += cy.b / 3.0;
+    c7.b += page(rp - dd * (2.0 / 3.0), 0.0).b / 3.0;
+    vec3 pu = page(rp - dd, 0.0); c7.r += pu.r / 7.0; c7.b += pu.b / 3.0;
+    col = c7;
+    // 강조색 아이콘도 같은 렌즈를 지나요
+    cov = cover(rp) * smoothstep(-0.5, 2.0, -d);
+  } else {
+    // 뒤 화면 사진이 없을 때: 예전처럼 반투명 알약
+    vec4 fill = mix(uPill, uTint, pr);
+    cov = cover(p);
+    vec3 prem = fill.rgb * fill.a * (1.0 - cov) + uAccent * cov;
+    float al = fill.a + (1.0 - fill.a) * cov;
+    gl_FragColor = outside * (1.0 - inMask) + vec4(prem, al) * inMask;
+    return;
+  }
+  // 표면: 쉬는 동안 검정(다크는 흰색) 10%, 누르면 검정 3%
+  vec3 tintC = uDark > 0.5 ? vec3(1.0) : vec3(0.0);
+  col = mix(col, tintC, 0.1 * (1.0 - pr));
+  col = mix(col, vec3(0.0), 0.03 * pr);
+  col = mix(col, uAccent, cov);
+  // 속 그림자 (8px, 위에서 아래로, 검정 15%) — 누를 때만
+  vec2 gi;
+  float di = seDist(q - vec2(0.0, 8.0 * pr), hb, uExp, gi);
+  float inner = 0.15 * pr * smoothstep(-8.0 * pr - 0.001, 8.0 * pr + 0.001, di);
+  col = mix(col, vec3(0.0), inner);
+  // 45도 빛 (누를 때만)
+  col += vec3(0.5 * pr * kyHighlight(g) * rimBand(d));
+  vec4 inside = vec4(clamp(col, 0.0, 1.0), 1.0);
   gl_FragColor = outside * (1.0 - inMask) + inside * inMask;
 }
 `;
@@ -586,7 +552,7 @@ void main() {
         "uMask", "uMaskA", "uMaskB", "uSlide", "uSlideW", "uClip", "uBack", "uBlur", "uPx", "uDpr", "uSize", "uGlass", "uGlassMix", "uPageOff", "uPageSize", "uBarA", "uBarB", "uPress", "uExcite",
         "uGlassOpt", "uGlassLook", "uGlassBase", "uPlatLine", "uPlatRim", "uPlatShadow",
         "uLens", "uExp", "uLift", "uZoom", "uOptics", "uDisp", "uLook",
-        "uInk", "uAccent", "uPill", "uTint", "uEdge", "uLight", "uShadow",
+        "uInk", "uAccent", "uPill", "uTint", "uEdge", "uLight", "uShadow", "uCont", "uDark",
       ]) {
         this.u[name] = gl.getUniformLocation(prog, name);
       }
@@ -1286,6 +1252,9 @@ void main() {
       gl.uniform4f(u.uTint, th.tint[0], th.tint[1], th.tint[2], th.tint[3]);
       gl.uniform4f(u.uEdge, th.edge[0], th.edge[1], th.edge[2], th.edge[3]);
       gl.uniform2f(u.uLight, -0.55, -0.835);
+      const dark = document.documentElement.dataset.theme === "dark";
+      if (u.uCont) gl.uniform4f(u.uCont, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, 0.4);
+      if (u.uDark) gl.uniform1f(u.uDark, dark ? 1 : 0);
       gl.uniform3f(u.uShadow, th.shadow, 7, 9);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }

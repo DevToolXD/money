@@ -12,7 +12,7 @@
 - 굵은 큰 제목(36px, 800), 섹션 제목 26px 800, 파란 강조색(#0a7cff)
 - 위쪽 유리 알약 버튼(편집 등), 스크롤하면 접히며 나타나는 유리 상단 바
 - 가로로 넘기는 카드 줄, 알약 칩, 두 장씩 나란한 카드, 설정 목록(색 아이콘 + ›)
-- 리퀴드 글라스: 하단 탭 바, 유리 버튼, 로그인 입력 카드
+- 리퀴드 글라스: 하단 탭 바, 유리 버튼, 로그인 입력 카드. 모양은 Kyant Liquid Glass(Android)를 옮긴 것이에요: 굴절 lens(버튼 12·24, 큰 판 24·48), 45도 빛 0.5px 흰 선, 채도 1.5배, 누르면 빛 번짐·부풀기·끌기. 탭 바는 `app/tabbar.js`, 나머지는 `app/glass.js`(유리 목록 `SEL`)가 그려요. 새 유리를 만들면 `SEL`에 넣어요. 모양은 Kyant Liquid Glass(Android)를 옮긴 것이에요: 굴절 lens(버튼 12·24, 큰 판 24·48), 45도 빛 0.5px 흰 선, 채도 1.5배, 누르면 빛 번짐·부풀기·끌기. 탭 바는 `app/tabbar.js`, 나머지는 `app/glass.js`(유리 목록 `SEL`)가 그려요. 새 유리를 만들면 `SEL`에 넣어요
 - 토스 스타일은 쓰지 않아요. 문구는 해요체, 모든 곳에서 꾹 눌러도 글자가 선택되지 않게(입력칸 제외)
 
 ## 철칙
@@ -24,7 +24,7 @@
 
 - 지갑·선물·이자는 `firestore.rules`가 서버에서 검사해요. 규칙을 고치면 `cd tests && npm run rules`를 꼭 돌려요.
 - `app/firebase.js`는 `app/firebase.src.js`를 묶은 결과물이라 직접 고치지 않아요 (`npm run build`).
-- 화면과 앱 틀은 모두 러스트예요: `web/` (기록: `docs/rust-migration-plan.md`). `app.js`는 없어요. JS로 남은 것은 탭 바(`app/tabbar.js`), 뒤 화면 사진(`app/backdrop.js`), 아이콘(`app/icons.js`), 서버 연결(`app/firebase.js`)뿐이에요. `app/rs/`는 `sh web/build.sh`의 결과물이라 직접 고치지 않아요. 러스트를 고치면 빌드해서 `app/rs/`도 같이 올려요.
+- 화면과 앱 틀은 모두 러스트예요: `web/` (기록: `docs/rust-migration-plan.md`). `app.js`는 없어요. JS로 남은 것은 탭 바(`app/tabbar.js`), 뒤 화면 사진(`app/backdrop.js`), 아이콘(`app/icons.js`), 리퀴드 글라스(`app/glass.js`), 서버 연결(`app/firebase.js`)뿐이에요. `app/rs/`는 `sh web/build.sh`의 결과물이라 직접 고치지 않아요. 러스트를 고치면 빌드해서 `app/rs/`도 같이 올려요.
 - 상품 그림(`web/crates/goods`)을 고치면 `cd web && cargo run -p goods --example dump`로 확인하고, 예전 JS와 같아야 하는 동안은 `sh tests/goods/same.sh`를 돌려요.
 - `view!` 매크로 안의 속성 닫는 괄호에서 `>`, `>=`는 태그 끝으로 읽혀요. `disabled=move || { a >= b }`처럼 중괄호로 감싸요.
 - 화면 시험: `cd tests && npm run build && EMU=1 node build.mjs && sh e2e/run.sh` (화면 하나를 옮길 때마다 돌려요).
