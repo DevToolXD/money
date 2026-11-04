@@ -12,3 +12,4 @@ ui.workspace = true
 wasm-bindgen.workspace = true
 web-sys.workspace = true
 goods.workspace = true
+js-sys.workspace = true

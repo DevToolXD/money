@@ -107,3 +107,63 @@ pub fn business_pkv(p: JsValue, mini: Option<bool>, co: JsValue) -> String {
 pub fn business_kind_svg(k: String) -> String {
     goods::catalog::kind_svg(&k)
 }
+
+/// 돈 탭: 잔액, 이자 상품, 거래내역, 카드 순서 (지갑 숫자는 window.__bank 에 비춰 둬요)
+#[wasm_bindgen]
+pub fn money_init(ctx: JsValue) {
+    ui::money::init(ui::ctx::Ctx(ctx));
+}
+
+/// 서버 지갑을 듣기 시작해요 (로그인한 뒤)
+#[wasm_bindgen]
+pub fn money_start_wallet() {
+    ui::money::start_wallet();
+}
+
+/// 지갑 쓰기 줄 세우기: f(약속을 돌려주는 함수)를 2.2초 간격으로 불러요
+#[wasm_bindgen]
+pub fn money_wallet_op(f: js_sys::Function) -> js_sys::Promise {
+    ui::money::wallet_op(f)
+}
+
+/// 쌓인 이자를 정산해요
+#[wasm_bindgen]
+pub fn money_claim() -> js_sys::Promise {
+    ui::money::claim()
+}
+
+/// 거래 한 줄 남기기 ({t, name, cat, icon, amt})
+#[wasm_bindgen]
+pub fn money_log(e: JsValue) {
+    ui::money::log(&e);
+}
+
+/// 돈 탭 숫자를 다시 써요 (바뀐 것만)
+#[wasm_bindgen]
+pub fn money_render() {
+    ui::money::render();
+}
+
+/// 메시지 탭: 대화 목록, 대화방, 새 대화·단톡방, 사진·그리기·투표·토큰 선물
+#[wasm_bindgen]
+pub fn chat_init(ctx: JsValue) {
+    ui::chat::init(ui::ctx::Ctx(ctx));
+}
+
+/// 로그인한 뒤 대화 목록을 실시간으로 듣기 시작해요
+#[wasm_bindgen]
+pub fn chat_start() {
+    ui::chat::start();
+}
+
+/// 대화 목록을 다시 그려요
+#[wasm_bindgen]
+pub fn chat_render() {
+    ui::chat::render();
+}
+
+/// 다른 탭으로 가면 열린 대화를 닫아요
+#[wasm_bindgen]
+pub fn chat_leave(tab: String) {
+    ui::chat::leave(&tab);
+}

@@ -872,6 +872,7 @@ name = "money-app"
 version = "0.1.0"
 dependencies = [
  "goods",
+ "js-sys",
  "ui",
  "wasm-bindgen",
  "web-sys",

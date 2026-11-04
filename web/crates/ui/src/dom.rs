@@ -166,3 +166,78 @@ pub fn obj(pairs: &[(&str, JsValue)]) -> JsValue {
     }
     o.into()
 }
+
+/// 이 기기 저장소에서 읽기 (개인 브라우징 등으로 못 읽으면 기본값)
+pub fn store_get(k: &str, d: &str) -> String {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(k).ok().flatten())
+        .unwrap_or_else(|| d.to_string())
+}
+/// 이 기기 저장소에 쓰기 (못 써도 괜찮아요)
+pub fn store_set(k: &str, v: &str) {
+    if let Some(s) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+        let _ = s.set_item(k, v);
+    }
+}
+/// 잠깐 기다리기
+pub async fn sleep(ms: i32) {
+    let p = js_sys::Promise::new(&mut |res, _| {
+        if let Some(w) = web_sys::window() {
+            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(&res, ms.max(0));
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(p).await;
+}
+/// 화면(.screen[data-screen=name])이 지금 보이는지
+pub fn screen_active(name: &str) -> bool {
+    doc().query_selector(&format!(".screen[data-screen=\"{name}\"]")).ok().flatten().map(|e| e.class_list().contains("is-active")).unwrap_or(false)
+}
+pub fn has_class(id: &str, cls: &str) -> bool {
+    by_id(id).map(|e| e.class_list().contains(cls)).unwrap_or(false)
+}
+/// 문서가 숨어 있으면 (다른 앱, 화면 꺼짐) true
+pub fn doc_hidden() -> bool {
+    doc().hidden()
+}
+
+/// 안전한 이미지 주소만 화면에 넣어요 (남이 보낸 값이 스타일이나 속성을 깨고 나오지 못하게). 예전 JS의 safeImg와 같아요
+pub fn safe_img(s: &str, max: usize) -> &str {
+    let ok = s.len() <= max
+        && ["data:image/jpeg;base64,", "data:image/png;base64,"].iter().any(|p| s.starts_with(p))
+        && {
+            let body = &s[s.find(',').map(|i| i + 1).unwrap_or(0)..];
+            let t = body.trim_end_matches('=');
+            body.len() - t.len() <= 2 && !t.is_empty() && t.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'+' || c == b'/')
+        };
+    if ok {
+        s
+    } else {
+        ""
+    }
+}
+/// 이름 머리글자 (회사 동료들 → 회사, 세 글자 이상이면 끝 두 글자)
+pub fn initials(n: &str) -> String {
+    if n == "회사 동료들" {
+        return "회사".into();
+    }
+    let cs: Vec<char> = n.chars().collect();
+    if cs.len() >= 3 {
+        cs[cs.len() - 2..].iter().collect()
+    } else {
+        n.into()
+    }
+}
+/// 동그란 사진 (사진이 없으면 머리글자)
+pub fn avatar_html(name: &str, photo: &str, cls: &str) -> String {
+    let p = safe_img(photo, 40000);
+    if p.is_empty() {
+        format!(r#"<span class="{cls}">{}</span>"#, esc(&initials(name)))
+    } else {
+        format!(r#"<span class="{cls} photo" style="background-image:url({p})"></span>"#)
+    }
+}
+/// 글자 수(문자 기준)로 자르기
+pub fn cut(s: &str, n: usize) -> String {
+    s.chars().take(n).collect()
+}

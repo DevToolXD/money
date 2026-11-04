@@ -680,297 +680,15 @@
     queueSend(() => window.cloud.send(chat.id, chat.other, { type: "text", text }, text)).catch(() => toast("보내지 못했어요"));
   });
 
-  /* ---------- 돈 (화폐 단위는 토큰) ---------- */
-  const IC = {
-    store: '<path d="M4 9l1.500-5h13L20 9M4 9v11h16V9M4 9c0 1.800 1.500 2.800 2.700 2.800S9.300 10.800 9.300 9c0 1.800 1.200 2.800 2.700 2.800s2.700-1 2.700-2.800c0 1.800 1.300 2.800 2.700 2.800S20 10.800 20 9M10 20v-5h4v5"/>',
-    cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.500a2.500 2.500 0 0 1 0 5H16M8 3v3M12 3v3"/>',
-    bus: '<rect x="5" y="4" width="14" height="14" rx="3"/><path d="M5 12h14M8 18v2M16 18v2M8.500 15h.01M15.500 15h.01"/>',
-    card: '<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10h18M7 15h3"/>',
-    income: '<circle cx="12" cy="12" r="8.500"/><path d="M12 16V8M8.500 11.500L12 8l3.500 3.500"/>',
-    gift: '<rect x="4" y="9" width="16" height="11" rx="2"/><path d="M3 9h18v3H3zM12 9v11M12 9C10 9 8 8 8 6.500S10.500 4.500 12 9zM12 9c2 0 4-1 4-2.500S13.500 4.500 12 9z"/>',
-    book: '<path d="M5 4.500h10a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3zM8 17h10"/>',
-    ticket: '<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12"/>',
-    bag: '<path d="M5 8h14l-1 12H6zM9 8V6.500a3 3 0 0 1 6 0V8"/>',
-    percent: '<circle cx="12" cy="12" r="8.500"/><path d="M15.500 8.500l-7 7M9 9.500h.01M15 14.500h.01"/>',
-  };
-  const ico = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
-  const DAYS = 365 * 3;
-  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const today0 = startOfDay(new Date());
-  const daily = new Array(DAYS).fill(0); // 하루 동안 쓴 토큰. 마지막이 오늘 (진짜 기록만, 지어낸 예시 없음)
-  const addDaily = (e) => {
-    if (e.amt >= 0) return;
-    const i = DAYS - 1 - Math.round((today0 - startOfDay(new Date(e.t))) / 864e5);
-    if (i >= 0 && i < DAYS) daily[i] += -e.amt;
-  };
+  /* ---------- 돈 탭(잔액, 이자 상품, 거래내역, 그래프, 카드 순서)은 러스트(WASM)로 옮겼어요: web/crates/ui/src/money/ ---------- */
+  // 지갑 숫자는 러스트가 window.__bank 에 비춰 둬요. 다른 화면은 이것으로 잔액을 바로 읽어요
+  const wallet = () => window.__bank || { ready: false, rate: 0, bal: 0, t: 0 };
   const W = (n) => `${n.toLocaleString("ko-KR")} 토큰`;
-  const signed = (n) => `${n > 0 ? "+" : "-"}${Math.abs(n).toLocaleString("ko-KR")} 토큰`;
-  const hm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
-  const dayName = (t) => {
-    const d = startOfDay(new Date(t));
-    const diff = Math.round((today0 - d) / 864e5);
-    return diff === 0 ? "오늘" : diff === 1 ? "어제" : `${d.getMonth() + 1}월 ${d.getDate()}일`;
-  };
-  // 이 기기에서 일어난 이자·상품·선물 기록이에요 (보여주기용이고, 진짜 잔액은 서버 지갑이 지켜요)
-  let dyn = [];
-  try { dyn = JSON.parse(store.get("bank-tx", "[]")).filter((e) => e && typeof e.t === "number" && typeof e.amt === "number" && typeof e.name === "string" && IC[e.icon]).slice(0, 200); } catch (_) { /* 처음이에요 */ }
-  dyn.forEach(addDaily);
-  let txVer = 0;
-  // 새 기록은 늘 맨 앞에 들어가니 매번 정렬하지 않아도 돼요
-  const topTx = (n) => dyn.slice(0, n);
-  let monthSum = 0;
-  const calcMonth = () => { monthSum = daily.slice(DAYS - today0.getDate()).reduce((s, v) => s + v, 0); };
-  calcMonth();
-  const BUDGET = 300;
-  const CATC = { 식비: "#ffe6d2", 카페: "#f0e4d6", 교통: "#dbe8ff", 문화: "#ece1ff", 쇼핑: "#ffdbe6", 입금: "#ffe0e0", 송금: "#ffe0e0", 은행: "#d6f1e6" };
-  const num = (n) => Math.abs(n).toLocaleString("ko-KR");
-  const amtHTML = (n) => `<b class="t-amt"><i class="${n > 0 ? "pos" : "neg"}">${n > 0 ? "+" : "-"}${num(n)}</i> 토큰</b>`;
-  const txRow = (e) => `<li class="t-row tx"><span class="t-ico" style="--c:${CATC[e.cat] || "#eceff3"}">${ico(e.icon)}</span><span class="t-main"><b class="ts-name">${esc(e.name)}</b><span class="t-label">${esc(String(e.cat))}</span><span class="t-label">${dayName(e.t)} ${hm(e.t)}</span></span>${amtHTML(e.amt)}<svg class="tchev gr" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></li>`;
-  const groups = (list) => (list.length ? `<ul class="t-rows">${list.map(txRow).join("")}</ul>` : '<p class="t-note">아직 거래내역이 없어요</p>');
-  const chev2 = '<svg class="tchev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>';
-  const logTx = (e) => {
-    dyn.unshift(e);
-    addDaily(e);
-    calcMonth();
-    if (dyn.length > 200) dyn.length = 200;
-    txVer++;
-    store.set("bank-tx", JSON.stringify(dyn));
-  };
+  const walletOp = (fn) => window.Money.walletOp(fn); // 지갑 쓰기는 2.2초 간격으로 줄 세워요
+  const claimNow = () => window.Money.claim(); // 쌓인 이자를 서버에 정산해요
+  const logTx = (e) => window.Money.log(e);
+  const renderMoney = () => window.Money.render();
 
-  /* ---- 은행: 이자 상품과 복리. 잔액은 서버 지갑이 지켜요 (firestore.rules) ---- */
-  const YEAR_S = 365 * 24 * 3600;
-  const RATES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-  // 값: 연이율이 두 배가 되면 값은 약 3.5배. 5%는 20,000 토큰이고 50%는 처음 받은 토큰보다 조금 더 비싸요. 서버 규칙에도 같은 표가 있어요
-  const PRICE = (r) => Math.round(20 * Math.pow(r / 5, 1.8)); // 1 토큰 = 1 달러쯤으로 맞춘 값 (firestore.rules의 가격표와 같아야 해요)
-  const growth = (rate, secs) => Math.pow(1 + rate / 100, secs / YEAR_S) - 1; // 연 rate% 복리로 secs초 동안 늘어나는 비율
-  let bank = { ready: false, rate: 0, bal: 0, t: Date.now() };
-  // 아직 서버에 정산하지 않은 이자 (화면에서는 바로 더해 보여주고, 서버 정산은 10분에 한 번만 해서 쓰기를 아껴요)
-  const pending = () => (bank.rate > 0 && bank.ready ? Math.floor(bank.bal * growth(bank.rate, Math.min(Math.max(0, (Date.now() - bank.t) / 1000), 7 * 86400))) : 0);
-  const shownBal = () => bank.bal + pending();
-  const nextIn = () => {
-    const g = pending();
-    const need = (g + 1) / Math.max(1, bank.bal);
-    const secs = (YEAR_S * Math.log(1 + need)) / Math.log(1 + bank.rate / 100);
-    return Math.max(1, Math.ceil(secs - (Date.now() - bank.t) / 1000));
-  };
-  const everyText = (bal, rate) => {
-    const per = bal * growth(rate, 1);
-    return per >= 1 ? `1초마다 ${Math.floor(per).toLocaleString("ko-KR")} 토큰` : `약 ${Math.ceil(1 / Math.max(per, 1e-9)).toLocaleString("ko-KR")}초마다 1 토큰`;
-  };
-  // 지갑을 쓰는 일은 줄을 세워 2.2초 간격으로 해요 (서버 규칙이 2초보다 빠른 연속 쓰기를 막아요)
-  let walletChain = Promise.resolve();
-  let lastWalletWrite = 0;
-  const walletOp = (fn) => {
-    const run = walletChain.then(async () => {
-      const wait = 2200 - (Date.now() - lastWalletWrite);
-      if (wait > 0) await sleep(wait);
-      try {
-        return await fn();
-      } finally {
-        lastWalletWrite = Date.now();
-      }
-    });
-    walletChain = run.catch(() => {});
-    return run;
-  };
-  // 쌓인 이자를 서버에 정산해요. 같은 이자가 나오는 가장 짧은 시간만 쓰고 나머지 시간은 다음으로 넘겨서, 소수점 이자가 사라지지 않아요
-  let claiming = false;
-  const claimNow = async () => {
-    if (!window.cloud?.user || !bank.ready || bank.rate <= 0 || claiming) return;
-    const avail = Math.min(7 * 86400, Math.floor((Date.now() - bank.t) / 1000) - 15); // 15초는 폰과 서버 시계 차이를 위한 여유예요
-    if (avail < 1) return;
-    const all = Math.floor(bank.bal * growth(bank.rate, avail));
-    if (all < 1) return;
-    let lo = 1;
-    let hi = avail;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (Math.floor(bank.bal * growth(bank.rate, mid)) >= all) hi = mid;
-      else lo = mid + 1;
-    }
-    const gain = Math.floor(bank.bal * growth(bank.rate, lo));
-    const tNew = bank.t + lo * 1000;
-    claiming = true;
-    try {
-      await walletOp(() => window.cloud.claimInterest(gain, tNew));
-      logTx({ t: Date.now(), name: "이자", cat: "은행", icon: "percent", amt: gain });
-    } catch (err) {
-      console.warn("이자를 정산하지 못했어요:", err?.code || err);
-    } finally {
-      claiming = false;
-    }
-  };
-  setInterval(() => { if (!document.hidden) claimNow(); }, 10 * 60 * 1000);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) claimNow(); else tick(); });
-
-  const orderIds = ["bank", "hist"];
-  const savedOrder = store.get("money-order", "").split(",").filter((x) => orderIds.includes(x));
-  const order = [...savedOrder, ...orderIds.filter((x) => !savedOrder.includes(x))];
-  // 검은 카드 위의 점 무늬: 한 번만 캔버스에 그려요 (점 600개짜리 SVG를 화면에 두면 화면 사진을 찍을 때마다 무거워요)
-  const paintArt = (cv) => {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = cv.clientWidth || 350;
-    const h = cv.clientHeight || 217;
-    cv.width = Math.round(w * dpr);
-    cv.height = Math.round(h * dpr);
-    const c = cv.getContext("2d");
-    c.scale(dpr, dpr);
-    // 1291x801 짜리 도안을 카드 크기에 맞춰 그려요: 가운데에서 퍼져 나가는 원 안의 화살표
-    const k = w / 1291;
-    const cx = 645;
-    const cy = 855;
-    const R = 670;
-    const STEP = 53;
-    c.lineCap = "round";
-    c.lineJoin = "round";
-    for (let r = 40, ring = 0; r <= R; r += STEP, ring++) {
-      const n = Math.max(6, Math.round((Math.PI * r) / STEP));
-      for (let i = ring % 2 ? 0.5 : 0; i <= n; i++) {
-        const a = Math.PI * (1 - i / n);
-        const x = cx + Math.cos(a) * r * 1.02;
-        const y = cy - Math.sin(a) * r;
-        if (x < -30 || x > 1321 || y > 830 || y < 0) continue;
-        const d = (3 + 52 * Math.sin(Math.PI * Math.pow(r / R, 0.9))) * k;
-        if (d < 1.2) continue;
-        const tx = Math.min(1, Math.max(0, x / 1291));
-        const ty = Math.min(1, Math.max(0, (y - 180) / 620));
-        c.fillStyle = `hsl(${(182 - 178 * (0.7 * tx + 0.3 * ty)).toFixed(0)} 58% ${(74 - 4 * ty).toFixed(0)}%)`;
-        c.beginPath();
-        c.arc(x * k, y * k, d / 2, 0, 6.2832);
-        c.fill();
-        if (d < 9) continue;
-        const dx = Math.cos(a);
-        const dy = -Math.sin(a);
-        const L = d * 0.3;
-        const hd = d * 0.19;
-        const px = x * k;
-        const py = y * k;
-        c.strokeStyle = "#1b1b1d";
-        c.lineWidth = Math.max(1, d * 0.075);
-        c.beginPath();
-        c.moveTo(px - dx * L, py - dy * L);
-        c.lineTo(px + dx * L, py + dy * L);
-        for (const sg of [-1, 1]) {
-          const ca = Math.cos(sg * 0.75);
-          const sa = Math.sin(sg * 0.75);
-          c.moveTo(px + dx * L, py + dy * L);
-          c.lineTo(px + dx * L - (dx * ca - dy * sa) * hd, py + dy * L - (dx * sa + dy * ca) * hd);
-        }
-        c.stroke();
-      }
-    }
-  };
-  // 동전 쌓음 윤곽선 (앞 동전에 t)
-  const COIN = '<svg class="coin" viewBox="0 0 36 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6.500" rx="9" ry="3.200"/><path d="M3 6.500v5c0 1.800 4 3.200 9 3.200M3 11.500v5c0 1.800 4 3.200 9 3.200M3 16.500v5c0 1.800 4 3.200 9 3.200"/><circle cx="23.500" cy="19.500" r="10.500" fill="var(--bg-card)"/><path d="M23 13.500v8.500c0 1.200.7 1.900 1.900 1.900h.9M19.800 17h6.400"/></svg>';
-  const sv2 = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const mv = (id, title, body, extra = "") => `<div class="movable mv" data-id="${id}" role="button" tabindex="0"${extra}><h2 class="ac-h">${title}${chev2}</h2><div class="ac-box">${body}</div></div>`;
-  const CARDS = {
-    bank: () => mv("bank", "이자 상품", '<b class="t-big" id="bank-rate"></b><p class="t-note" id="bank-note" data-volatile></p>', ' id="open-bank"'),
-    hist: () => mv("hist", "최근 거래내역", '<div id="tx-top"></div>', ' id="open-history"'),
-  };
-  document.getElementById("money-root").innerHTML = `
-    <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">${sv2('<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>')}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">${sv2('<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>')}</button></div>
-    <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
-    <div class="ac-bal"><div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div></div>
-    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b></div>
-    <div id="movable">${order.map((id) => CARDS[id]()).join("")}</div>`;
-  const artEl = document.getElementById("ac-art");
-  paintArt(artEl);
-  new ResizeObserver(() => paintArt(artEl)).observe(artEl);
-
-  // 바뀐 것만 화면에 써요 (같은 글을 매초 다시 쓰면 화면 사진 갱신이 계속 일어나요)
-  const shown = {};
-  const put = (id, html, asHTML = false) => {
-    if (shown[id] === html) return;
-    shown[id] = html;
-    const el = document.getElementById(id);
-    if (el) el[asHTML ? "innerHTML" : "textContent"] = html;
-  };
-  let renderedTx = -1;
-  let renderedMonth = -1;
-  const renderMoney = () => {
-    put("bal-num", `${COIN}<span>${(bank.ready ? shownBal() : 0).toLocaleString("ko-KR")}</span><small>토큰</small>`, true); // 불러오기 전이나 못 불러오면 0
-    put("ac-note", !bank.ready ? (window.cloudDown ? "서버 데이터베이스가 꺼져 있어서 지갑을 못 불러왔어요" : "지갑을 불러오는 중이에요") : bank.rate > 0 ? `연 ${bank.rate}% 복리 이자 상품 가입 중 · ${everyText(shownBal(), bank.rate)}` : "이자 상품에 가입하면 토큰이 복리로 늘어나요");
-    put("card-month", `이번 달 ${monthSum.toLocaleString("ko-KR")} 토큰`);
-    if (bank.ready && bank.rate > 0) {
-      put("bank-rate", `연 ${bank.rate}% 복리`);
-      put("bank-note", `${everyText(shownBal(), bank.rate)} · 다음 이자까지 ${nextIn()}초`);
-    } else {
-      put("bank-rate", "가입한 상품이 없어요");
-      put("bank-note", `연 5% 상품 ${PRICE(5).toLocaleString("ko-KR")} 토큰부터 시작해요`);
-    }
-    if (renderedMonth !== monthSum) {
-      renderedMonth = monthSum;
-      const pct = Math.round((monthSum / BUDGET) * 100);
-      put("spend-body", `<b class="t-big">${W(monthSum)}</b><div class="t-meter"><span style="width:${Math.min(100, pct)}%"></span></div><p class="t-note">예산 ${BUDGET.toLocaleString("ko-KR")} 토큰 중 ${pct}%를 썼어요</p>`, true);
-    }
-    if (renderedTx !== txVer) {
-      renderedTx = txVer;
-      put("tx-top", groups(topTx(5)), true);
-    }
-  };
-  let renderedHist = -1;
-  const renderHistory = () => {
-    if (renderedHist === txVer) return;
-    renderedHist = txVer;
-    document.getElementById("history-list").innerHTML = groups(topTx(80));
-  };
-  renderMoney();
-
-  const histSheet = document.getElementById("history-sheet");
-  const chartSheet = document.getElementById("chart-sheet");
-  const bankSheet = document.getElementById("bank-sheet");
-  document.getElementById("ac-search").addEventListener("click", () => { renderHistory(); sheetOpen(true, histSheet); });
-  for (const id of ["ac-more"]) document.getElementById(id).addEventListener("click", () => { renderProducts(); sheetOpen(true, bankSheet); });
-  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => sheetOpen(false)));
-
-  let productSig = "";
-  const renderProducts = () => {
-    const sig = `${bank.rate}|${bank.bal}|${bank.ready}`;
-    if (sig === productSig) return;
-    productSig = sig;
-    document.getElementById("bank-bal").textContent = `내 토큰 ${W(bank.ready ? bank.bal : 0)}`;
-    document.getElementById("bank-list").innerHTML = RATES.map((r) => {
-      const price = PRICE(r);
-      const own = bank.rate === r;
-      const lower = r < bank.rate;
-      const afford = bank.ready && bank.bal >= price;
-      const off = own || lower || !afford;
-      const label = own ? "가입 중" : lower ? "보유 중" : afford ? "구입" : "토큰 부족";
-      return `<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">${ico("percent")}</span><span class="t-main"><b class="ts-name">연 ${r}% 복리</b><span class="t-label">${everyText(bank.bal, r)}</span></span><span class="prod-side"><b class="prod-price">${price.toLocaleString("ko-KR")} 토큰</b><button class="t-btn small ${off ? "grey" : ""}" data-buy="${r}" type="button" ${off ? "disabled" : ""}>${label}</button></span></li>`;
-    }).join("");
-  };
-  let buying = false;
-  document.getElementById("bank-list").addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-buy]");
-    if (!btn || btn.disabled || buying) return;
-    const r = Number(btn.dataset.buy);
-    if (!RATES.includes(r)) return;
-    const price = PRICE(r);
-    const ok = await ask({ title: `연 ${r}% 이자 상품`, body: `${price.toLocaleString("ko-KR")} 토큰을 내고 구입할까요? 구입하면 내 토큰이 복리로 계속 늘어나요.`, ok: "구입", cancel: "취소" });
-    if (!ok || bank.bal < price) return;
-    buying = true;
-    try {
-      await claimNow(); // 지금까지 쌓인 이자를 먼저 받아 두어요 (상품을 사면 이자 시계가 새로 시작해요)
-      await walletOp(() => window.cloud.buyProduct(r, price));
-      logTx({ t: Date.now(), name: "이자 상품 구입", cat: "은행", icon: "percent", amt: -price });
-      toast(`연 ${r}% 이자 상품에 가입했어요`);
-    } catch (err) {
-      toast("구입하지 못했어요. 잠시 뒤 다시 해 주세요");
-    } finally {
-      buying = false;
-    }
-  });
-  // 1초마다 화면에 보이는 숫자만 새로 계산해요. 보이지 않으면(다른 탭, 화면 꺼짐) 아무것도 하지 않아요
-  function tick() {
-    if (document.hidden || !bank.ready) return;
-    const moneyOn = screens.get("money").classList.contains("is-active");
-    const bankOpen = bankSheet.classList.contains("is-open");
-    if (moneyOn || bankOpen) renderMoney();
-    if (bankOpen) renderProducts();
-    if (histSheet.classList.contains("is-open")) renderHistory();
-  }
-  setInterval(tick, 1000);
   /* ---------- 랭킹: 토큰을 가장 많이 가진 순서 ---------- */
   const fmtTok = (n) => (n >= 1e8 ? `${(n / 1e8).toFixed(1).replace(/\.0$/, "")}억` : Number(n).toLocaleString("ko-KR"));
   const CROWN = '<svg class="rk-crown" viewBox="0 0 28 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l5.500 5L14 3l5.500 9L25 7l-2 11H5L3 7z"/><path d="M6 21h16"/></svg>';
@@ -994,8 +712,8 @@
       .join("");
     rkEmpty.hidden = list.length > 1;
     rkEmpty.textContent = "아직 순위에 오른 사람이 적어요";
-    rkMe.hidden = !bank.ready;
-    rkMe.innerHTML = `<span class="rk-mn">${myRank}</span>${avatarHTML(store.get("profile-name", "나"), store.get("profile-photo", ""), "avatar contact")}<b>나</b><span class="rk-mval">${fmtTok(bank.bal)} 토큰</span>`;
+    rkMe.hidden = !wallet().ready;
+    rkMe.innerHTML = `<span class="rk-mn">${myRank}</span>${avatarHTML(store.get("profile-name", "나"), store.get("profile-photo", ""), "avatar contact")}<b>나</b><span class="rk-mval">${fmtTok(wallet().bal)} 토큰</span>`;
   };
   const loadRank = async (force) => {
     const cloud = window.cloud;
@@ -1003,14 +721,14 @@
     if (!force && Date.now() - rankAt < 20000) return; // 탭을 오갈 때마다 서버를 읽지 않아요
     rankBusy = true;
     try {
-      if (bank.ready) await cloud.syncRank(bank.bal).catch(() => {}); // 내 잔액을 먼저 순위표에 올려요
+      if (wallet().ready) await cloud.syncRank(wallet().bal).catch(() => {}); // 내 잔액을 먼저 순위표에 올려요
       const list = (await cloud.loadRanks(force)).slice();
       await cloud.fetchProfiles(list.slice(0, 12).map((u) => u.uid)).catch(() => 0); // 위쪽 사람들 사진
       const at = list.findIndex((u) => u.uid === cloud.uid);
       let myRank = at >= 0 ? String(at + 1) : "50+";
       if (at < 0) {
         try {
-          const above = await cloud.countAbove(bank.bal);
+          const above = await cloud.countAbove(wallet().bal);
           if (above < 50) myRank = String(above + 1);
         } catch (_) { /* 순위를 못 세면 50+로 보여줘요 */ }
       }
@@ -1024,17 +742,6 @@
     }
   };
   nav.addEventListener("tabreselect", (e) => { if (e.detail.tab.dataset.tab === "ranking") loadRank(true); });
-  // 지갑이 바뀌면 잠시 뒤 내 순위표 값도 맞춰요 (서버가 20초에 한 번만 받아요)
-  let rankTimer = 0;
-  const pushRank = (delay) => {
-    clearTimeout(rankTimer);
-    rankTimer = setTimeout(async () => {
-      if (!window.cloud?.user || !bank.ready) return;
-      const r = await window.cloud.syncRank(bank.bal).catch(() => "err");
-      if (r === "soon") pushRank(22000);
-    }, delay);
-  };
-
   // 서버 데이터베이스가 꺼져 있으면(관리자 설정 문제) 화면 위에 이유를 알려줘요
   const showCloudDown = () => {
     const el = document.getElementById("cloud-down");
@@ -1352,6 +1059,12 @@
       company = next;
     },
   });
+  // 돈 탭 (web/crates/ui/src/money/)
+  window.Money.init({
+    toast: (m) => toast(m),
+    ask: (o) => ask(o),
+    sheetOpen: (on, el) => sheetOpen(on, el),
+  });
   // 일 탭: 회사 일을 하거나, 회사를 종류별로 보고 지원해요 (app/work.js)
   window.Work.init({
     cloud: () => window.cloud,
@@ -1403,14 +1116,14 @@
   };
   const openFounding = () => {
     if (!live) return window.cloud?.user ? toast("아직 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요") : showLogin(true);
-    if (!bank.ready || bank.bal < 10) return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
+    if (!wallet().ready || wallet().bal < 10) return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
     foundName.value = "";
     foundKind = "food";
     paintFoundKind();
     foundLogo = "";
     foundErr.textContent = "";
     paintFoundLogo();
-    document.getElementById("found-cost").textContent = `10 토큰이 들어요 · 내 토큰 ${W(bank.bal)}`;
+    document.getElementById("found-cost").textContent = `10 토큰이 들어요 · 내 토큰 ${W(wallet().bal)}`;
     sheetOpen(true, document.getElementById("found-sheet"));
   };
   document.getElementById("biz-start").addEventListener("click", openFounding);
@@ -1434,7 +1147,7 @@
     const name = foundName.value.trim().replace(/\s+/g, " ");
     if (!name) return (foundErr.textContent = "회사 이름을 적어 주세요");
     if (name.length > 20 || /[<>]/.test(name)) return (foundErr.textContent = "이름은 20자 이하로, < > 없이 적어 주세요");
-    if (bank.bal < 10) return (foundErr.textContent = "토큰이 부족해요");
+    if (wallet().bal < 10) return (foundErr.textContent = "토큰이 부족해요");
     founding = true;
     foundGo.classList.add("busy");
     foundErr.textContent = "";
@@ -1453,187 +1166,6 @@
     }
   });
 
-  // 서버 지갑을 듣기 시작해요 (로그인한 뒤)
-  const startWallet = () =>
-    window.cloud.watchWallet((w) => {
-      if (!w) return;
-      const firstBal = bank.ready ? bank.bal : null;
-      bank = { ready: true, rate: w.rate, bal: w.bal, t: w.t };
-      if (firstBal !== w.bal) pushRank(firstBal === null ? 6000 : 4000);
-      renderMoney();
-      if (bankSheet.classList.contains("is-open")) renderProducts();
-      if (!startWallet.first) { startWallet.first = true; setTimeout(claimNow, 3000); }
-    });
-
-  document.getElementById("movable").addEventListener("click", (e) => {
-    if (dragSwallow) return;
-    const c = e.target.closest(".movable");
-    if (!c) return;
-    if (c.dataset.id === "hist") { renderHistory(); sheetOpen(true, histSheet); }
-    else if (c.dataset.id === "bank") { renderProducts(); sheetOpen(true, bankSheet); }
-    else { sheetOpen(true, chartSheet); drawChart(range); }
-  });
-
-  /* ---- 꾹 눌러서 카드 순서 바꾸기 (내 토큰·내 카드 칸은 고정) ---- */
-  let dragSwallow = false;
-  {
-    const root = document.getElementById("movable");
-    const scr = screens.get("money");
-    let st = null;
-    const contentY = (y) => y - scr.getBoundingClientRect().top + scr.scrollTop;
-    const place = () => {
-      const { el } = st;
-      el.style.transform = `translateY(${contentY(st.y) - st.grab - el.offsetTop}px) scale(1.03)`;
-    };
-    const reorder = () => {
-      const { el } = st;
-      const sibs = [...root.children].filter((c) => c !== el);
-      const center = contentY(st.y) - st.grab + el.offsetHeight / 2;
-      let before = null;
-      for (const s of sibs) if (center < s.offsetTop + s.offsetHeight / 2) { before = s; break; }
-      if ((before || null) === el.nextElementSibling) return;
-      const tops = new Map(sibs.map((s) => [s, s.offsetTop]));
-      root.insertBefore(el, before);
-      for (const s of sibs) {
-        const d = tops.get(s) - s.offsetTop;
-        if (!d) continue;
-        s.style.transition = "none";
-        s.style.transform = `translateY(${d}px)`;
-        void s.offsetHeight;
-        s.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
-        s.style.transform = "";
-      }
-    };
-    const loop = () => {
-      if (!st || !st.active) return;
-      const r = scr.getBoundingClientRect();
-      const speed = st.y < r.top + 120 ? -10 : st.y > r.bottom - 170 ? 10 : 0;
-      if (speed) scr.scrollTop += speed;
-      place();
-      reorder();
-      st.raf = requestAnimationFrame(loop);
-    };
-    const end = () => {
-      if (!st) return;
-      clearTimeout(st.timer);
-      const s = st;
-      st = null;
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      if (!s.active) return;
-      cancelAnimationFrame(s.raf);
-      const el = s.el;
-      el.style.transition = "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s";
-      el.style.transform = "";
-      el.classList.remove("lifting");
-      setTimeout(() => { el.style.transition = ""; }, 380);
-      store.set("money-order", [...root.children].map((c) => c.dataset.id).join(","));
-      setTimeout(() => (dragSwallow = false), 120);
-    };
-    const move = (e) => {
-      if (!st) return;
-      st.y = e.clientY;
-      if (!st.active && Math.hypot(e.clientX - st.x0, e.clientY - st.y0) > 10) {
-        clearTimeout(st.timer);
-        st = null;
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", end);
-        window.removeEventListener("pointercancel", end);
-      }
-    };
-    root.addEventListener("pointerdown", (e) => {
-      const el = e.target.closest(".movable");
-      if (!el || st || (e.pointerType === "mouse" && e.button !== 0)) return;
-      st = { el, x0: e.clientX, y0: e.clientY, y: e.clientY, active: false };
-      st.timer = setTimeout(() => {
-        st.active = true;
-        dragSwallow = true;
-        navigator.vibrate?.(14);
-        st.grab = contentY(st.y) - el.offsetTop;
-        el.style.transition = "box-shadow 0.25s";
-        el.classList.add("lifting");
-        loop();
-      }, 450);
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", end);
-      window.addEventListener("pointercancel", end);
-    });
-    // 끌어올린 뒤에는 화면이 같이 스크롤되지 않게 막아요
-    document.addEventListener("touchmove", (e) => { if (st && st.active) e.preventDefault(); }, { passive: false });
-  }
-
-  /* 쓴 돈 꺾은선 그래프: 년 · 월 · 일 */
-  // 1년: 한 달씩 12개, 1개월: 하루씩 30개, 1일: 한 시간씩 24개
-  const series = (r) => {
-    const out = [];
-    if (r === "m") for (let i = 29; i >= 0; i--) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - i); out.push({ l: `${d.getMonth() + 1}/${d.getDate()}`, v: daily[DAYS - 1 - i] }); }
-    else if (r === "y") {
-      for (let k = 11; k >= 0; k--) {
-        const first = new Date(today0.getFullYear(), today0.getMonth() - k, 1);
-        const next = new Date(first.getFullYear(), first.getMonth() + 1, 1);
-        let v = 0;
-        for (let i = 0; i < DAYS; i++) { const d = new Date(today0.getFullYear(), today0.getMonth(), today0.getDate() - (DAYS - 1 - i)); if (d >= first && d < next) v += daily[i]; }
-        out.push({ l: `${first.getMonth() + 1}월`, v });
-      }
-    } else {
-      const end = Date.now();
-      const spend = allTx().filter((e) => e.amt < 0 && e.t > end - 24 * 3600e3);
-      for (let h = 23; h >= 0; h--) {
-        const hi = end - h * 3600e3;
-        const lo = hi - 3600e3;
-        out.push({ l: `${new Date(lo).getHours()}시`, v: spend.filter((e) => e.t > lo && e.t <= hi).reduce((s, e) => s - e.amt, 0) });
-      }
-    }
-    return out;
-  };
-  const chart = document.getElementById("chart");
-  const tip = document.getElementById("chart-tip");
-  const LABEL = { y: "1년 동안 쓴 토큰", m: "1개월 동안 쓴 토큰", d: "1일 동안 쓴 토큰" };
-  let range = "m"; // 처음에는 1개월
-  const drawChart = (r) => {
-    range = r;
-    document.querySelectorAll("#chart-seg button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.r === r)));
-    const pts = series(r);
-    const total = pts.reduce((s, p) => s + p.v, 0);
-    document.getElementById("chart-label").textContent = LABEL[r];
-    document.getElementById("chart-total").textContent = W(total);
-    const max = Math.max(...pts.map((p) => p.v), 1);
-    const X = (i) => 14 + (i * 312) / Math.max(pts.length - 1, 1);
-    const Y = (v) => 180 - (v / max) * 150;
-    const line = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(" ");
-    chart.innerHTML = `<defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3182f6" stop-opacity="0.28"/><stop offset="1" stop-color="#3182f6" stop-opacity="0"/></linearGradient></defs>
-      <path d="${line} L${X(pts.length - 1)} 190 L${X(0)} 190Z" fill="url(#cg)" class="c-area"/>
-      <path d="${line}" pathLength="1" class="c-line"/>
-      ${pts.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.500" class="c-dot" style="animation-delay:${0.5 + (i / pts.length) * 0.9}s"/>`).join("")}
-      <line class="c-guide" x1="0" x2="0" y1="20" y2="190"/>`;
-    const ax = document.getElementById("chart-axis");
-    const every = Math.ceil(pts.length / 6);
-    ax.innerHTML = pts.map((p, i) => ((i % every === 0 && pts.length - 1 - i >= Math.ceil(every / 2)) || i === pts.length - 1 ? `<span style="left:${(X(i) / 340) * 100}%">${p.l}</span>` : "")).join("");
-    tip.hidden = true;
-    chart._pts = { pts, X, Y };
-    chart.classList.remove("go");
-    void chart.getBoundingClientRect();
-    chart.classList.add("go");
-  };
-  const scrub = (e) => {
-    const c = chart._pts;
-    if (!c) return;
-    const r = chart.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * 340;
-    let best = 0;
-    c.pts.forEach((_, i) => { if (Math.abs(c.X(i) - x) < Math.abs(c.X(best) - x)) best = i; });
-    const g = chart.querySelector(".c-guide");
-    g.setAttribute("x1", c.X(best)); g.setAttribute("x2", c.X(best));
-    g.style.opacity = 1;
-    tip.hidden = false;
-    tip.textContent = `${c.pts[best].l} · ${W(c.pts[best].v)}`;
-    tip.style.left = `${clamp((c.X(best) / 340) * 100, 18, 82)}%`;
-  };
-  chart.addEventListener("pointerdown", scrub);
-  chart.addEventListener("pointermove", (e) => { if (e.buttons || e.pointerType === "touch") scrub(e); });
-  document.getElementById("chart-seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) drawChart(b.dataset.r); });
-  
   /* ---------- 대화 더하기: 사진, 그리기, 투표, 토큰 선물 ---------- */
   const toastEl = document.getElementById("toast");
   let toastTimer = 0;
@@ -1736,7 +1268,7 @@
           toast("받지 못했어요. 잠시 뒤 다시 해 주세요");
         }
       } else if (act.dataset.act === "pay") {
-        if (!bank.ready || bank.bal < amount) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+        if (!wallet().ready || wallet().bal < amount) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${wallet().bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
         const yes = await ask({ title: `토큰 ${amount.toLocaleString("ko-KR")}을 보낼까요?`, body: `${chat.name}님의 요청이에요.`, ok: "보내기", cancel: "취소" });
         if (!yes) return;
         try {
@@ -1792,7 +1324,7 @@
     const old = gNum.textContent;
     gNum.textContent = gift.amt.toLocaleString("ko-KR");
     gNum.parentElement.style.fontSize = gift.amt >= 1e7 ? "46px" : gift.amt >= 1e6 ? "58px" : gift.amt >= 1e5 ? "68px" : "80px";
-    document.getElementById("gift-bal").textContent = `내 토큰 ${W(bank.ready ? bank.bal : 0)}`;
+    document.getElementById("gift-bal").textContent = `내 토큰 ${W(wallet().ready ? wallet().bal : 0)}`;
     if (animate && shownAmt !== null && shownAmt !== gift.amt) rollAmt(gift.amt > shownAmt ? 1 : -1, old);
     shownAmt = gift.amt;
   };
@@ -1844,7 +1376,7 @@
   document.getElementById("g-send").addEventListener("click", async () => {
     if (giftBusy) return;
     if (gift.amt < 1) return toast("보낼 토큰을 정해 주세요");
-    if (!bank.ready || gift.amt > bank.bal) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${bank.bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
+    if (!wallet().ready || gift.amt > wallet().bal) return void (await ask({ title: "토큰이 부족해요", body: `내 토큰은 ${wallet().bal.toLocaleString("ko-KR")}이에요.`, ok: "확인" }));
     const { cid, to, name, amt } = gift;
     giftBusy = true;
     try {
@@ -2366,7 +1898,7 @@
       applyProfile();
     }
     try { await cloud.ensureAccount(); } catch (err) { console.warn("계정 정보를 채우지 못했어요:", err?.code || err); toast("계정 정보를 만들지 못했어요. 새로고침해 주세요"); }
-    startWallet();
+    window.Money.startWallet();
     window.Notices.check();
     loadCompany(cloud);
     loadVitalsFor(cloud);
