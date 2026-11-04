@@ -310,32 +310,24 @@ fn setup_tabbar(first: &str) {
     let p = |k: &str| params.as_ref().and_then(|x| x.get(k)).unwrap_or_default();
     let glass_off = p("glass") == "off";
     let gl_off = p("gl") == "off";
-    let map = js_sys::Map::new();
-    for el in screens() {
-        map.set(&JsValue::from_str(&dom::data(&el, "screen")), &el);
-    }
-    // 탭 바 뒤 화면을 사진으로 찍어 두는 곳과, 그 사진으로 막대 유리를 그리는 탭 바
+    let scr: Vec<(String, web_sys::HtmlElement)> = screens().into_iter().map(|el| (dom::data(&el, "screen"), el)).collect();
+    // 탭 바 뒤 화면을 사진으로 찍어 두는 곳과, 그 사진으로 막대 유리를 그리는 탭 바 (둘 다 러스트)
     let bd = if glass_off || gl_off {
         JsValue::NULL
     } else {
-        let ctor = global("Backdrop");
-        let opts = dom::obj(&[
-            ("root", app().into()),
-            ("screens", map.into()),
-            ("isBusy", f0(|| JsValue::from_bool(invoke(&tabbar(), "busy", &[]).is_truthy()))),
-            ("onUpdate", f2(|name, shot| {
-                let t = tabbar();
-                if !t.is_null() {
-                    invoke(&t, "setShot", &[name, shot]);
-                }
-                JsValue::UNDEFINED
-            })),
-        ]);
-        ctor.dyn_into::<Function>().ok().and_then(|c| Reflect::construct(&c, &js_sys::Array::of1(&opts)).ok()).unwrap_or(JsValue::NULL)
+        let busy: Function = f0(|| JsValue::from_bool(invoke(&tabbar(), "busy", &[]).is_truthy())).unchecked_into();
+        let upd: Function = f2(|name, shot| {
+            let t = tabbar();
+            if !t.is_null() {
+                invoke(&t, "setShot", &[name, shot]);
+            }
+            JsValue::UNDEFINED
+        })
+        .unchecked_into();
+        crate::backdrop::create(app(), scr, busy, upd)
     };
     BACKDROP.with(|b| *b.borrow_mut() = bd.clone());
-    let opts = dom::obj(&[("backdrop", bd.clone()), ("pageRoot", app().into()), ("gl", (!gl_off).into())]);
-    let tb = global("TabBar").dyn_into::<Function>().ok().and_then(|c| Reflect::construct(&c, &js_sys::Array::of2(&nav, &opts)).ok()).unwrap_or(JsValue::NULL);
+    let tb = crate::tabbar::create(nav.clone(), bd.clone(), app(), !gl_off);
     TABBAR.with(|t| *t.borrow_mut() = tb.clone());
     set_global("tabbar", &tb);
     set_global("backdrop", &bd);
@@ -498,6 +490,7 @@ pub(crate) async fn cloud_ready() -> JsValue {
 /* ---------- 시작 ---------- */
 
 pub fn start() {
+    crate::glass::start();
     apply_theme();
     // 내용이 없는 자리 표시 줄
     for bx in qsa(&dom::doc().document_element().expect("html"), ".skeletons") {

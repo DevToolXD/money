@@ -17,7 +17,7 @@ leptos = { version = "0.8", features = ["csr"] }
 wasm-bindgen = "=0.2.130"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "Node", "console", "CssStyleDeclaration", "DomTokenList", "HtmlInputElement", "HtmlButtonElement", "Event", "EventTarget", "PointerEvent", "KeyboardEvent", "MediaQueryList", "NodeList", "DomRect", "AddEventListenerOptions", "Navigator", "Storage", "HtmlCanvasElement", "CanvasRenderingContext2d", "ResizeObserver", "Clipboard", "HtmlTemplateElement", "DocumentFragment", "ScrollToOptions", "ScrollBehavior", "HtmlTextAreaElement", "HtmlImageElement", "File", "FileList", "Url", "Blob", "UrlSearchParams", "Location", "CssStyleDeclaration"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "Node", "console", "CssStyleDeclaration", "DomTokenList", "HtmlInputElement", "HtmlButtonElement", "Event", "EventTarget", "PointerEvent", "KeyboardEvent", "MediaQueryList", "NodeList", "DomRect", "AddEventListenerOptions", "Navigator", "Storage", "HtmlCanvasElement", "CanvasRenderingContext2d", "ResizeObserver", "Clipboard", "HtmlTemplateElement", "DocumentFragment", "ScrollToOptions", "ScrollBehavior", "HtmlTextAreaElement", "HtmlImageElement", "File", "FileList", "Url", "Blob", "UrlSearchParams", "Location", "WebGlRenderingContext", "WebGlProgram", "WebGlShader", "WebGlTexture", "WebGlUniformLocation", "WebGlBuffer", "WebGlContextAttributes", "WebGlPowerPreference", "Path2d", "CanvasWindingRule", "ImageData", "MutationObserver", "MutationObserverInit", "MutationRecord", "CustomEvent", "CustomEventInit", "ResizeObserverEntry", "SvgElement"] }
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 
