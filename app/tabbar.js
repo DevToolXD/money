@@ -25,10 +25,10 @@
   // 움직임은 모두 (진동수 rad/s, 감쇠비)로 정해요. 감쇠비 1(임계 감쇠)이라 되튀거나 흔들리지 않고, 값이 클수록 짧게 끝나요.
   // 90%까지 가는 데 걸리는 시간은 대략 3.9 / w 초예요.
   const SPRING = {
-    lift: { w: 26, z: 1.0 }, // 렌즈가 떠오르고 내려앉아요 (0.15초)
+    lift: { w: 16.1, z: 0.5 }, // 렌즈가 떠오르고 내려앉아요. clayharmon/webgl-liquid-glass의 방울 스프링(강성 260, 감쇠 16)이라 한 번 출렁여요
     move: { w: 21, z: 1.0 }, // 탭 사이를 옮겨 가요 (0.19초)
     trail: { w: 30, z: 1.0 }, // 손가락을 끌고 갈 때 바짝 따라와요
-    stretch: { w: 18, z: 1.0 }, // 빨리 움직일 때 살짝 길쭉해져요
+    stretch: { w: 12.2, z: 0.29 }, // 빨리 움직일 때 길쭉해졌다 출렁이며 돌아와요 (같은 곳의 기울기 스프링: 강성 150, 감쇠 7)
     press: { w: 26, z: 1.0 }, // 누르는 동안 막대가 살짝 부풀어요
     excite: { w: 13, z: 1.0 },
     page: { w: 36, z: 0.5 }, // 핫바가 넘어갈 때: 짧고 굵게 "뜨끙" 하고 한 번 튕겨요 // 렌즈가 떠 있는 동안 막대 전체에 프리즘이 켜졌다 꺼져요 (0.3초)
@@ -269,11 +269,86 @@ vec3 page(vec2 cp, float k) {
 float kyHighlight(vec2 g) {
   return abs(dot(g, vec2(0.70710678, 0.70710678)));
 }
+// ====== TiHxdvt/liquid-glass-webgl (MIT, Copyright 2026 HaodongWen)의 "접힘 변위장"을 옮겼어요.
+// 가장자리에서 안쪽으로 dist 만큼 끌어오는데, 감쇠가 가팔라서 고리 안에서 접히는 점이 생겨요:
+// 바깥쪽 반 고리는 뒤집힌 상으로 보이고(애플 렌즈 가장자리의 거꾸로 비친 띠), 안쪽은 부드럽게 평평해져요.
+float tanh1(float x) { float e = exp(2.0 * clamp(x, -10.0, 10.0)); return (e - 1.0) / (e + 1.0); }
+float tiShift(float depth, float B, float dist, float fold, float bendK, out float sPrime) {
+  B = max(B, 1.0);
+  float t = clamp(depth / B, 0.0, 1.0);
+  float eps = 0.004;
+  float w = max(1.0 - t, 0.0);
+  float wr = w * w / (w + eps);
+  float sRaw = depth + dist * pow(wr, fold);
+  float wrSlope = w * (w + 2.0 * eps) / ((w + eps) * (w + eps));
+  float sRawPrime = 1.0 - dist * fold * pow(max(wr, 1e-5), fold - 1.0) * wrSlope / B;
+  float t0 = clamp(1.0 - pow(clamp(B / max(dist * fold, 1e-3), 0.0, 1.0), 1.0 / max(fold - 1.0, 1e-3)), 0.0, 1.0);
+  float sMin = t0 * B + dist * pow(max(1.0 - t0, 0.0), fold);
+  float d0 = t0 * B;
+  float V = max(dist - sMin, 0.5);
+  float du0 = max(d0, 1e-3);
+  float ue = clamp((d0 - depth) / du0, 0.0, 1.0);
+  float ue2 = min(ue * ue, 0.999);
+  float sOuter = sMin + V * (1.0 - sqrt(1.0 - ue2));
+  float sOuterPrime = -V * ue / (du0 * sqrt(1.0 - ue2));
+  float k = max(clamp(bendK, 0.0, 10.0), 1.0);
+  float a = 1.0 / k;
+  float bend = max(B * (1.0 - t0) / max(fold - 1.0, 1e-3) * k, 0.5);
+  float x = sRaw - sMin;
+  float ug = x / bend;
+  float th = tanh1(ug);
+  float sInner = sMin + x * (a + (1.0 - a) * th);
+  float soften = a + (1.0 - a) * (th + ug * (1.0 - th * th));
+  float sInnerPrime = sRawPrime * soften;
+  float sMap = depth < d0 ? sOuter : sInner;
+  sPrime = depth < d0 ? sOuterPrime : sInnerPrime;
+  return sMap - depth;
+}
+vec3 chromaExpand(vec3 c, float hi, float lo) {
+  float lum = dot(c, vec3(0.299, 0.587, 0.114));
+  vec3 dev = c - vec3(lum);
+  return vec3(lum) + dev * mix(vec3(lo), vec3(hi), step(0.0, dev));
+}
+// 애플 유리 투과율 (TiHxdvt가 실제 화면에서 잰 표): 밝은 모드 +, 어두운 모드 −
+vec3 glassTint(vec3 c, float tint) {
+  vec3 t = tint >= 0.0
+    ? chromaExpand(c * 0.748 + vec3(38.0 / 255.0), 1.36, 2.09)
+    : chromaExpand(vec3(0.047) + pow(max(c, vec3(0.0)), vec3(0.8)) * 0.643, 1.8, 2.25);
+  return mix(c, clamp(t, 0.0, 1.0), clamp(abs(tint), 0.0, 1.0));
+}
+// 가장자리 빛: 프레넬 + 붙은 가는 선 + 접힘 선 + 위아래 흰 테/양옆 검은 테
+vec3 tiRim(vec3 col, float depth, float sPrime, float B, vec2 n, float rim) {
+  float dpt = max(depth, 0.0);
+  float slope = abs(sPrime);
+  float fres = 0.04 + 0.96 * pow(1.0 - 1.0 / sqrt(1.0 + slope * slope), 5.0);
+  float win = exp(-2.0 * dpt / 11.0);
+  float rimLine = exp(-dpt / 1.6);
+  float seam = exp(-slope * 14.0);
+  vec3 sheen = vec3(0.25);
+  col += sheen * (fres * rim * 0.85) * win;
+  col += vec3(0.625) * rimLine * rim * 0.5 * win;
+  col += sheen * seam * rim * 0.4;
+  float ang = atan(abs(n.x), abs(n.y));
+  float maskW = 1.0 - ang / 1.5708;
+  float maskB = ang / 1.5708;
+  float edgeLift = exp(-dpt / 1.0);
+  col += (1.0 - col) * edgeLift * maskW * 0.85;
+  col *= 1.0 - edgeLift * maskB * 0.40;
+  return col;
+}
+
 // 막대 유리가 보여주는 색 (굴절 + 흐림 + 채도 + 표면)
 vec3 barGlass(vec2 p, vec4 pl) {
-  vec2 dg;
-  vec2 rp = kyLens(p, pl.xy, pl.zw, pl.w, 24.0, 24.0, 0.0, dg);
-  return mix(vibrant(page(rp, 0.3)), uCont.rgb, uCont.a);
+  vec2 q = p - pl.xy;
+  float sd = sdRound(q, pl.zw, pl.w);
+  vec2 n = gradRound(q, pl.zw, max(pl.w - 0.5, 0.0));
+  float sp;
+  float sh = tiShift(max(-sd, 0.0), 11.0, 14.0, 2.6, 3.0, sp);
+  vec2 inward = -n;
+  float dsp = 0.01;
+  vec3 c = vec3(page(p + inward * sh * (1.0 - dsp), 0.12).r, page(p + inward * sh, 0.12).g, page(p + inward * sh * (1.0 + dsp), 0.12).b);
+  c = glassTint(c, uDark > 0.5 ? -1.0 : 1.0);
+  return tiRim(c, -sd, sp, 11.0, n, 0.35);
 }
 float rimBand(float sd) {
   // 0.5px 선 + 0.25px 흐림
@@ -316,9 +391,6 @@ void main() {
     float glowR = pl.w * 2.0 * 1.5;
     float glow = smoothstep(glowR, glowR * 0.5, distance(p, vec2(uLens.x, pl.y)));
     c += vec3(0.08 * pr + 0.15 * pr * glow) * (useA ? 1.0 : 0.0);
-    // 45도 빛
-    vec2 gp = gradRound(qp, pl.zw, min(pl.w * 1.5, min(pl.z, pl.w)));
-    c += vec3(0.5 * kyHighlight(gp) * rimBand(dP));
     float mixIn = inP * uGlassMix;
     outside = outside * (1.0 - mixIn) + vec4(clamp(c, 0.0, 1.0), 1.0) * mixIn;
   }
@@ -345,26 +417,26 @@ void main() {
   float cov;
   if (uGlass > 0.5) {
     vec4 plL = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
-    vec2 dg;
-    // 누르면 렌즈가 안쪽을 1.2배 확대해요
+    vec2 gL;
+    float sdL = seDist(q, hb, uExp, gL);
+    float spL;
+    float B = 12.0 * pr + 0.001;
+    float shL = tiShift(max(-sdL, 0.0), B, 22.0 * pr, 2.6, 3.0, spL) * step(0.001, pr);
+    vec2 inw = -gL;
+    // 렌즈는 살짝 확대해요 (1.1배)
     vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.1 * pr);
-    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 14.0 * pr, 18.0 * pr, dg);
-    // 막대 밖으로 나간 렌즈도 막대 유리를 늘여서 보여줘요 (위아래 가장자리 띠가 렌즈 안에 비쳐요)
+    float dsp = 0.045 * pr;
+    vec2 rp = zp + inw * shL;
+    vec2 rR = zp + inw * shL * (1.0 - dsp);
+    vec2 rB = zp + inw * shL * (1.0 + dsp);
     rp.y = clamp(rp.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
-    // 애플 영상: 렌즈 둘레 어디서나 밝은 가장자리에 무지개가 생겨요 (모서리만이 아니라)
-    float disp = 0.35 + 0.65 * abs((q.x * q.y) / max(hb.x * hb.y, 1.0));
-    vec2 dd = dg * disp * 1.6;
-    vec3 c7 = vec3(0.0);
-    c7.r += barGlass(rp + dd, plL).r / 3.5;
-    vec3 o = barGlass(rp + dd * (2.0 / 3.0), plL); c7.r += o.r / 3.5; c7.g += o.g / 7.0;
-    vec3 y = barGlass(rp + dd * (1.0 / 3.0), plL); c7.r += y.r / 3.5; c7.g += y.g / 3.5;
-    vec3 gg = barGlass(rp, plL); c7.g += gg.g / 3.5;
-    vec3 cy = barGlass(rp - dd * (1.0 / 3.0), plL); c7.g += cy.g / 3.5; c7.b += cy.b / 3.0;
-    c7.b += barGlass(rp - dd * (2.0 / 3.0), plL).b / 3.0;
-    vec3 pu = barGlass(rp - dd, plL); c7.r += pu.r / 7.0; c7.b += pu.b / 3.0;
+    rR.y = clamp(rR.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
+    rB.y = clamp(rB.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
+    vec3 c7 = vec3(barGlass(rR, plL).r, barGlass(rp, plL).g, barGlass(rB, plL).b);
+    c7 = tiRim(c7, -sdL, spL, B, gL, 0.6 * pr);
     col = c7;
     // 강조색 아이콘도 같은 렌즈를 지나요
-    cov = cover(rp) * smoothstep(-0.5, 2.0, -d);
+    cov = max(cover(zp + inw * shL), 0.0) * smoothstep(-0.5, 2.0, -d);
   } else {
     // 뒤 화면 사진이 없을 때: 예전처럼 반투명 알약
     vec4 fill = mix(uPill, uTint, pr);
@@ -385,7 +457,6 @@ void main() {
   float inner = 0.15 * pr * smoothstep(-8.0 * pr - 0.001, 8.0 * pr + 0.001, di);
   col = mix(col, vec3(0.0), inner);
   // 45도 빛 (누를 때만)
-  col += vec3(0.5 * pr * kyHighlight(g) * rimBand(d));
   vec4 inside = vec4(clamp(col, 0.0, 1.0), 1.0);
   gl_FragColor = outside * (1.0 - inMask) + inside * inMask;
 }
@@ -1153,8 +1224,8 @@ void main() {
       const lift = clamp(this.lift.x, 0, 1);
       const bulge = 1 + 0.03 * clamp(this.grab.x, 0, 1);
       const s = clamp(this.stretch.x, 0, 1);
-      let hw = lerp(pillHW, lensHW, lift) * bulge * (1 + 0.08 * s);
-      let hh = lerp(pillHH, lensHH, lift) * bulge * (1 - 0.04 * s);
+      let hw = lerp(pillHW, lensHW, lift) * bulge * (1 + 0.2 * s);
+      let hh = lerp(pillHH, lensHH, lift) * bulge * (1 - 0.12 * s);
       // 렌즈는 막대 유리 안에 머물러요. 끝 탭에서는 좁아지고 가운데에서는 넓어지며, 알약보다 작아지지는 않아요.
       hw = Math.min(hw, Math.max(pillHW, this.reach(x) + 14 * lift));
       // 선택된 탭이 다른 쪽 핫바에 있으면 알약도 내용과 함께 밀려나고 작아져요
