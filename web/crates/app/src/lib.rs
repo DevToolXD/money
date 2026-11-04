@@ -77,3 +77,33 @@ pub fn work_factory_into(el: JsValue, cid: String) {
         ui::factory::factory_into(el, cid);
     }
 }
+
+/// 사업 탭: 판매 목록, 창고, 직원 채용, 연구실, 팔 상품 정하기, 블록 옮기기
+#[wasm_bindgen]
+pub fn business_init(ctx: JsValue) {
+    ui::biz::init(ui::ctx::Ctx(ctx));
+}
+
+/// 판매 목록과 연구실을 다시 읽어요
+#[wasm_bindgen]
+pub fn business_refresh() {
+    ui::biz::refresh();
+}
+
+/// 연구실 숫자만 다시 읽어요
+#[wasm_bindgen]
+pub fn business_lab() {
+    ui::biz::lab_refresh();
+}
+
+/// 상품 그림 HTML (상점·인벤토리·판매 목록이 같이 써요)
+#[wasm_bindgen]
+pub fn business_pkv(p: JsValue, mini: Option<bool>, co: JsValue) -> String {
+    ui::biz::pkv(&p, mini.unwrap_or(false), &co)
+}
+
+/// 회사 종류 그림
+#[wasm_bindgen]
+pub fn business_kind_svg(k: String) -> String {
+    goods::catalog::kind_svg(&k)
+}

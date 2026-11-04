@@ -1,9 +1,11 @@
 // 러스트(WASM) 화면을 불러와서, 기다리던 JS 이름들(window.Notices 등)에 연결해요.
 // money.js와 money_bg.wasm은 web/build.sh가 만들어요.
-import init, * as rs from "./money.js?v=5";
+import init, * as rs from "./money.js?v=6";
 
 try {
-  await init({ module_or_path: new URL("./money_bg.wasm?v=5", import.meta.url) });
+  await init({ module_or_path: new URL("./money_bg.wasm?v=6", import.meta.url) });
+  // 사업 탭을 먼저: 상점·인벤토리가 상품 그림(pkv)을 같이 써요
+  window.Business.__ready({ init: rs.business_init, refresh: rs.business_refresh, lab: rs.business_lab, pkv: rs.business_pkv, kindSvg: rs.business_kind_svg });
   window.Notices.__ready({ init: rs.notices_init, refresh: rs.notices_refresh, check: rs.notices_check });
   window.Inventory.__ready({ init: rs.inventory_init, refresh: rs.inventory_refresh });
   window.Manage.__ready({ init: rs.manage_init, refresh: rs.manage_refresh });

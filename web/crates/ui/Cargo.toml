@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 cloud.workspace = true
+goods.workspace = true
 leptos.workspace = true
 wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true

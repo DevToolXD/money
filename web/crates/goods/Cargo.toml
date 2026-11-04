@@ -1,0 +1,8 @@
+[package]
+name = "goods"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+# 상품 목록·원가·그림. 브라우저 없이도 도는 순수 러스트예요 (cargo test 로 바로 시험해요)
+[dependencies]

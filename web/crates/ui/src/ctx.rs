@@ -32,19 +32,19 @@ impl Ctx {
         let _ = self.call("toast", &[JsValue::from_str(msg)]);
     }
 
-    /// 상품 그림 (JS의 Business.pkv가 만드는 SVG 글자). 실패하면 빈 글자
+    /// 상품 그림 (가운데 로고는 co_name 회사의 첫 글자)
     pub fn pkv(&self, raw: &JsValue, mini: bool, co_name: &str) -> String {
         let co = js_sys::Object::new();
         let _ = Reflect::set(&co, &JsValue::from_str("name"), &JsValue::from_str(co_name));
         let _ = Reflect::set(&co, &JsValue::from_str("logo"), &JsValue::from_str(""));
-        self.call("pkv", &[raw.clone(), JsValue::from_bool(mini), co.into()]).ok().and_then(|v| v.as_string()).unwrap_or_default()
+        crate::biz::pkv(raw, mini, &co.into())
     }
 }
 
 impl Ctx {
     /// 상품 그림 (회사 값을 그대로 넘겨요: 로고가 가운데에 들어가요)
     pub fn pkv_with(&self, raw: &JsValue, mini: bool, co: &JsValue) -> String {
-        self.call("pkv", &[raw.clone(), JsValue::from_bool(mini), co.clone()]).ok().and_then(|v| v.as_string()).unwrap_or_default()
+        crate::biz::pkv(raw, mini, co)
     }
 
     /// 지갑 쓰기 줄 세우기: 서버 규칙이 2초에 한 번만 받아서, app.js가 순서대로 보내요.
