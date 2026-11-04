@@ -1654,3 +1654,18 @@ html[data-theme="dark"] .gseg::before { background: rgba(255, 255, 255, 0.22); }
 /* 대화 오른쪽 위: 1:1은 전화, 단톡방은 초대 (둘 중 하나만 보여요) */
 .t-right { display: flex; justify-content: flex-end; align-items: flex-start; }
 .thread-head .t-glass[hidden] { display: none; }
+/* 관리: 사람 관리 (찾기 칸 + 사람 목록, 누르면 그 사람에게 할 일이 열려요) */
+.mg-find { display: flex; align-items: center; gap: 10px; height: 46px; margin: 0 0 8px; padding: 0 16px; border-radius: 12px; background: rgba(118, 118, 128, 0.12); }
+.mg-find svg { flex: none; width: 18px; height: 18px; color: var(--text-secondary); }
+.mg-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 17px; color: inherit; }
+.mg-people { list-style: none; margin: 0; padding: 0; }
+.mg-pcard { gap: 6px; }
+.mg-person { width: 100%; display: flex; align-items: center; gap: 14px; padding: 8px 4px; border-radius: 12px; text-align: left; background: none; transition: background-color 0.2s; }
+.mg-person.on { background: rgba(10, 124, 255, 0.08); }
+.mg-av { flex: none; width: 46px; height: 46px; font-size: 15px; }
+.mg-pm { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mg-pm b { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-pm span { font-size: 14px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mg-act { display: grid; gap: 10px; margin: 6px 4px 12px; animation: wkIn 0.4s var(--spring); }
+.mg-act-row { display: flex; gap: 8px; }
+.mg-act-row .btn { flex: 1; }

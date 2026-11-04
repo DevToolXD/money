@@ -397,10 +397,6 @@ function __wbg_get_imports() {
             const ret = arg0.composedPath();
             return ret;
         },
-        __wbg_confirm_386a15f7129fded4: function() { return handleError(function (arg0, arg1, arg2) {
-            const ret = arg0.confirm(getStringFromWasm0(arg1, arg2));
-            return ret;
-        }, arguments); },
         __wbg_construct_8670bb4c2b062969: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.construct(arg0, arg1);
             return ret;

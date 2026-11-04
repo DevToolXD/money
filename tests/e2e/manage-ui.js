@@ -26,10 +26,11 @@ const wallet = async (uid) => { const d = await (await fetch(`${DB}/wallets/${ui
   const uT = await T.page.evaluate(() => window.cloud.uid);
   await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
   await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
-  await O.page.fill('#mg-grant-id', '김민'); await O.page.waitForTimeout(1500);
-  ok('이름 앞부분으로 자동 검색이 떠요', await O.page.isVisible('#mg-grant-sug .mg-sug-row'));
-  await O.page.click('#mg-grant-sug .mg-sug-row'); await O.page.waitForTimeout(300);
-  ok('누르면 아이디가 칸에 들어가요', (await O.page.inputValue('#mg-grant-id')) === 'mj' + sfx && !(await O.page.isVisible('#mg-grant-sug .mg-sug-row')));
+  await O.page.fill('#mg-search', '김민'); await O.page.waitForTimeout(2000);
+  ok('이름 앞부분으로 사람 목록이 떠요', (await O.page.textContent('#mg-people')).includes('김민'));
+  await O.page.click('#mg-people .mg-person'); await O.page.waitForTimeout(400);
+  ok('누르면 그 사람에게 할 일이 열려요', await O.page.isVisible('#mg-grant-amt'));
+  await O.page.screenshot({ path: __dirname + '/shots/manage-people.png' });
   await O.page.fill('#mg-grant-amt', '7');
   const before = (await wallet(uT)) ?? 0;
   await O.page.click('#mg-grant'); await O.page.waitForTimeout(3000);

@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use cloud::{Notice, ProfileHit};
+use cloud::Notice;
 use leptos::html;
 use leptos::mount::mount_to;
 use leptos::prelude::*;
@@ -88,12 +88,53 @@ fn tally_text(r: &Row) -> String {
     }
 }
 
-/// 아이디·이름 입력칸 + 자동 검색 목록
+#[derive(Clone, PartialEq)]
+struct Person {
+    uid: String,
+    id: String,
+    name: String,
+    photo: String,
+    rank: Option<usize>,
+    bal: Option<f64>,
+}
+fn js_s(v: &wasm_bindgen::JsValue, k: &str) -> String {
+    cloud::get(v, k).as_string().unwrap_or_default()
+}
+/// 사람 목록 읽기: 처음에는 이름순 20명, 찾을 때는 이름·아이디 앞부분으로. 순위표에 있으면 순위와 토큰도 보여줘요
+async fn load_people(text: String) -> Vec<Person> {
+    let ranks = cloud::call("loadRanks", &[false.into()]).await.ok().map(|v| js_sys::Array::from(&v).to_vec()).unwrap_or_default();
+    let rank_of = |uid: &str| ranks.iter().position(|r| js_s(r, "uid") == uid).map(|i| (i + 1, cloud::get(&ranks[i], "bal").as_f64().unwrap_or(0.0)));
+    let raw: Vec<wasm_bindgen::JsValue> = if text.trim().is_empty() {
+        cloud::call("listUsers", &[true.into()]).await.ok().map(|v| js_sys::Array::from(&cloud::get(&v, "list")).to_vec()).unwrap_or_default()
+    } else {
+        let hits = cloud::call("searchProfiles", &[text.into()]).await.ok().map(|v| js_sys::Array::from(&v).to_vec()).unwrap_or_default();
+        // 사진은 사람 정보 캐시에서 읽어요 (없으면 한 번에 모아 읽어요)
+        let uids: js_sys::Array = hits.iter().map(|h| cloud::get(h, "uid")).collect();
+        let _ = cloud::call("fetchProfiles", &[uids.into()]).await;
+        hits.into_iter()
+            .map(|h| {
+                let p = cloud::call_now("peek", &[cloud::get(&h, "uid")]).unwrap_or(wasm_bindgen::JsValue::NULL);
+                let _ = js_sys::Reflect::set(&h, &"photo".into(), &cloud::get(&p, "photo"));
+                h
+            })
+            .collect()
+    };
+    raw.iter()
+        .map(|v| {
+            let uid = js_s(v, "uid");
+            let r = rank_of(&uid);
+            Person { id: js_s(v, "id"), name: { let n = js_s(v, "name"); if n.is_empty() { js_s(v, "id") } else { n } }, photo: js_s(v, "photo"), rank: r.map(|x| x.0), bal: r.map(|x| x.1), uid }
+        })
+        .collect()
+}
+
 #[component]
-fn PersonField(id: &'static str, sug_id: &'static str, placeholder: &'static str, input: NodeRef<html::Input>) -> impl IntoView {
-    let hits = RwSignal::new(Vec::<ProfileHit>::new());
+fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
+    let busy = RwSignal::new(false);
+    let sel = RwSignal::new(None::<Person>);
+    let people = RwSignal::new(Vec::<Person>::new());
     let seq = StoredValue::new(0u32);
-    let on_input = move |_| {
+    let find = move |text: String| {
         let my = seq.get_value() + 1;
         seq.set_value(my);
         set_timeout(
@@ -101,57 +142,21 @@ fn PersonField(id: &'static str, sug_id: &'static str, placeholder: &'static str
                 if seq.get_value() != my {
                     return;
                 }
-                let text = input.get_untracked().map(|i| i.value()).unwrap_or_default();
-                if text.trim().is_empty() {
-                    hits.set(Vec::new());
-                    return;
-                }
                 spawn_local(async move {
-                    match cloud::search_profiles(&text).await {
-                        Ok(list) if seq.get_value() == my => hits.set(list),
-                        Ok(_) => {}
-                        Err(e) => cloud::warn(&format!("검색하지 못했어요: {e}")),
+                    let list = load_people(text).await;
+                    if seq.get_value() == my {
+                        people.set(list);
                     }
                 });
             },
             Duration::from_millis(250),
         );
     };
-    view! {
-        <label class="lab-field">
-            <span>"아이디 또는 이름"</span>
-            <input node_ref=input id=id class="lab-input" type="text" autocomplete="off" autocapitalize="none" maxlength="20" placeholder=placeholder on:input=on_input/>
-        </label>
-        <div class="mg-sug" id=sug_id hidden=move || hits.with(|h| h.is_empty())>
-            <For each=move || hits.get() key=|p| p.uid.clone() let:p>
-                {
-                    let pid = p.id.clone();
-                    view! {
-                        <button type="button" class="mg-sug-row" data-for=id data-id=p.id.clone() on:click=move |_| {
-                            if let Some(i) = input.get_untracked() {
-                                i.set_value(&pid);
-                            }
-                            hits.set(Vec::new());
-                        }>
-                            <b>{p.name.clone()}</b>
-                            <span>{p.id.clone()}</span>
-                        </button>
-                    }
-                }
-            </For>
-        </div>
-    }
-}
-
-#[component]
-fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
-    let busy = RwSignal::new(false);
-    let grant_id = NodeRef::<html::Input>::new();
+    find(String::new());
     let grant_amt = NodeRef::<html::Input>::new();
     let n_title = NodeRef::<html::Input>::new();
     let n_text = NodeRef::<html::Textarea>::new();
     let n_opts = NodeRef::<html::Textarea>::new();
-    let del_id = NodeRef::<html::Input>::new();
 
     // 행동 하나: 누르는 동안 막고, 끝나면 알려주고 목록을 다시 읽어요
     let act = move |job: std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), cloud::CloudError>>>>, ok: String, clear: Box<dyn Fn()>| {
@@ -173,11 +178,11 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
     };
 
     let grant = move |_| {
-        let id = grant_id.get_untracked().map(|i| i.value()).unwrap_or_default().trim().to_string();
+        let id = sel.get_untracked().map(|p| p.id).unwrap_or_default();
         let digits: String = grant_amt.get_untracked().map(|i| i.value()).unwrap_or_default().chars().filter(|c| c.is_ascii_digit()).collect();
         let amt: u32 = digits.parse().unwrap_or(0);
         if id.is_empty() {
-            return ctx().toast("받을 사람 아이디를 적어 주세요");
+            return ctx().toast("목록에서 사람을 골라 주세요");
         }
         if !(1..=1_000_000).contains(&amt) {
             return ctx().toast("토큰은 1부터 100만까지 적어 주세요");
@@ -187,10 +192,8 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
             Box::pin(async move { cloud::admin_grant(&id2, amt).await }),
             format!("{id} 님에게 {amt} 토큰을 지급했어요"),
             Box::new(move || {
-                for r in [grant_id, grant_amt] {
-                    if let Some(i) = r.get_untracked() {
-                        i.set_value("");
-                    }
+                if let Some(i) = grant_amt.get_untracked() {
+                    i.set_value("");
                 }
             }),
         );
@@ -224,34 +227,61 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
         );
     };
     let delete = move |_| {
-        let id = del_id.get_untracked().map(|i| i.value()).unwrap_or_default().trim().to_string();
-        if id.is_empty() {
-            return ctx().toast("지울 사람 아이디를 적어 주세요");
-        }
-        let sure = web_sys::window()
-            .and_then(|w| w.confirm_with_message(&format!("{id} 님의 프로필, 지갑, 설정, 상태를 지울까요? 되돌릴 수 없어요.")).ok())
-            .unwrap_or(false);
-        if !sure {
-            return;
-        }
-        let id2 = id.clone();
-        act(
-            Box::pin(async move { cloud::admin_delete(&id2).await }),
-            format!("{id} 님의 데이터를 지웠어요"),
-            Box::new(move || {
-                if let Some(i) = del_id.get_untracked() {
-                    i.set_value("");
-                }
-            }),
-        );
+        let Some(p) = sel.get_untracked() else { return ctx().toast("목록에서 사람을 골라 주세요") };
+        spawn_local(async move {
+            if !ctx().ask(&format!("{} 님의 데이터를 지울까요?", p.name), "프로필, 지갑, 설정, 상태를 지워요. 되돌릴 수 없어요.", "지우기", "취소").await {
+                return;
+            }
+            let id2 = p.id.clone();
+            act(
+                Box::pin(async move { cloud::admin_delete(&id2).await }),
+                format!("{} 님의 데이터를 지웠어요", p.name),
+                Box::new(move || {
+                    sel.set(None);
+                    people.update(|l| l.retain(|x| x.uid != p.uid));
+                }),
+            );
+        });
     };
 
     view! {
-        <h2 class="section-title">"토큰 지급"</h2>
-        <div class="card mg-card">
-            <PersonField id="mg-grant-id" sug_id="mg-grant-sug" placeholder="받을 사람 아이디나 이름" input=grant_id/>
-            <label class="lab-field"><span>"토큰"</span><input node_ref=grant_amt id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"/></label>
-            <button type="button" class="btn primary" id="mg-grant" class:busy=move || busy.get() on:click=grant>"지급하기"</button>
+        <h2 class="section-title">"사람 관리"</h2>
+        <div class="card mg-card mg-pcard">
+        <label class="mg-find">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+            <input id="mg-search" type="search" autocomplete="off" autocapitalize="none" maxlength="20" placeholder="이름으로 찾기" on:input=move |e| find(event_target_value(&e))/>
+        </label>
+        <ul class="mg-people" id="mg-people">
+            {move || people.get().into_iter().map(|p| {
+                let on = sel.with(|s| s.as_ref().map(|x| x.uid == p.uid).unwrap_or(false));
+                let sub = match (p.rank, p.bal) {
+                    (Some(r), Some(b)) => format!("{r}위 · {} · {}", crate::money::w(b), p.id),
+                    _ => p.id.clone(),
+                };
+                let av = crate::dom::avatar_html(&p.name, &p.photo, "avatar contact mg-av");
+                let p2 = p.clone();
+                view! {
+                    <li>
+                        <button type="button" class="mg-person" class:on=on data-uid=p.uid.clone() on:click=move |_| {
+                            let same = sel.with_untracked(|s| s.as_ref().map(|x| x.uid == p2.uid).unwrap_or(false));
+                            sel.set(if same { None } else { Some(p2.clone()) });
+                        }>
+                            <span style="display:contents" inner_html=av></span>
+                            <span class="mg-pm"><b>{p.name.clone()}</b><span>{sub}</span></span>
+                        </button>
+                        {on.then(|| view! {
+                            <div class="mg-act">
+                                <label class="lab-field"><span>"줄 토큰"</span><input node_ref=grant_amt id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"/></label>
+                                <div class="mg-act-row">
+                                    <button type="button" class="btn primary" id="mg-grant" class:busy=move || busy.get() on:click=grant>"토큰 주기"</button>
+                                    <button type="button" class="btn mg-danger" id="mg-del" class:busy=move || busy.get() on:click=delete>"데이터 지우기"</button>
+                                </div>
+                            </div>
+                        })}
+                    </li>
+                }
+            }).collect_view()}
+        </ul>
         </div>
         <h2 class="section-title">"공지"</h2>
         <div class="card mg-card mg-compose">
@@ -283,12 +313,6 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
                         .into_any()
                 }
             }}
-        </div>
-        <h2 class="section-title">"계정 데이터 지우기"</h2>
-        <div class="card mg-card">
-            <p class="card-body">"그 사람의 프로필, 지갑, 설정, 상태를 지워요. 로그인 계정 자체는 웹에서 지울 수 없어요."</p>
-            <PersonField id="mg-del-id" sug_id="mg-del-sug" placeholder="지울 사람 아이디나 이름" input=del_id/>
-            <button type="button" class="btn mg-danger" id="mg-del" class:busy=move || busy.get() on:click=delete>"지우기"</button>
         </div>
     }
 }
