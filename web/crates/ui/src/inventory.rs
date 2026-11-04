@@ -26,6 +26,8 @@ struct Sig {
     state: RwSignal<State, LocalStorage>,
     selected: RwSignal<Option<String>>,
     gains: RwSignal<HashMap<String, f64>>,
+    /// 회사 번호 → 회사 (마크를 그리려고 한 번씩 읽어요)
+    cos: RwSignal<HashMap<String, wasm_bindgen::JsValue>, LocalStorage>,
     busy: RwSignal<bool>,
 }
 
@@ -64,6 +66,7 @@ pub fn init(c: Ctx) {
             state: RwSignal::new_local(State::Loading),
             selected: RwSignal::new(None),
             gains: RwSignal::new(HashMap::new()),
+            cos: RwSignal::new_local(HashMap::new()),
             busy: RwSignal::new(false),
         };
         SIG.set(Some(sig));
@@ -94,6 +97,24 @@ pub fn refresh() {
                         sig.selected.set(None);
                     }
                 }
+                // 회사 마크: 아직 모르는 회사만 읽어요
+                let need: Vec<String> = {
+                    let mut v: Vec<String> = list.iter().map(|i| i.cid.clone()).filter(|c| !sig.cos.with_untracked(|m| m.contains_key(c))).collect();
+                    v.sort();
+                    v.dedup();
+                    v
+                };
+                for cid in need {
+                    spawn_local(async move {
+                        if let Ok(co) = cloud::call("getCompany", &[wasm_bindgen::JsValue::from_str(&cid)]).await {
+                            if !co.is_null() {
+                                sig.cos.update(|m| {
+                                    m.insert(cid, co);
+                                });
+                            }
+                        }
+                    });
+                }
                 sig.state.set(State::Ready(list));
             }
             Err(e) => {
@@ -119,6 +140,14 @@ fn pick(sig: Sig, it: &InvItem) {
     }
 }
 
+/// 음식 그림 (회사 마크까지). 회사를 아직 못 읽었으면 이름 글자로 그려요
+fn art_of(sig: Sig, it: &InvItem) -> String {
+    match sig.cos.with(|m| m.get(&it.cid).cloned()) {
+        Some(co) => ctx().pkv_with(&it.raw, false, &co),
+        None => ctx().pkv(&it.raw, false, &it.co_name),
+    }
+}
+
 fn eat(sig: Sig, it: InvItem) {
     let c = ctx();
     let Some(label) = effect(&it.group) else { return c.toast("먹을 수 없는 음식이에요") };
@@ -132,7 +161,7 @@ fn eat(sig: Sig, it: InvItem) {
     sig.busy.set(true);
     spawn_local(async move {
         // 먹는 연출과 서버 기록을 함께 해요 (물은 꿀꺽 마시고, 음식은 세 번 베어 물어요)
-        let stage = eat_show(&ctx().pkv(&it.raw, false, &it.co_name), it.group == "water");
+        let stage = eat_show(&art_of(sig, &it), it.group == "water");
         let (r, _) = crate::pay::futures_join(cloud::eat_from_inventory(&it.cid, &it.pid, &it.group, &vit), crate::dom::sleep(if crate::dom::reduce_motion() { 150 } else { 1500 })).await;
         if let Some(st) = &stage {
             if let Ok(v) = &r {
@@ -214,7 +243,8 @@ fn Inventory(sig: Sig) -> impl IntoView {
 
 #[component]
 fn Card(sig: Sig, it: InvItem, i: usize) -> impl IntoView {
-    let art = ctx().pkv(&it.raw, false, &it.co_name);
+    let it_art = it.clone();
+    let art = move || art_of(sig, &it_art);
     let id = it.id.clone();
     let on = move || sig.selected.with(|s| s.as_deref() == Some(id.as_str()));
     let key = it.id.clone();
@@ -235,7 +265,8 @@ fn Card(sig: Sig, it: InvItem, i: usize) -> impl IntoView {
 
 #[component]
 fn Detail(sig: Sig, it: InvItem) -> impl IntoView {
-    let art = ctx().pkv(&it.raw, false, &it.co_name);
+    let it_art = it.clone();
+    let art = move || art_of(sig, &it_art);
     let label = effect(&it.group);
     let cid = it.cid.clone();
     let effect_text = move || match label {
