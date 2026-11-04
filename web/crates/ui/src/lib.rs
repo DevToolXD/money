@@ -2,6 +2,7 @@
 
 pub mod backdrop;
 pub mod biz;
+pub mod bounce;
 pub mod icons;
 pub mod tabbar;
 pub mod chat;

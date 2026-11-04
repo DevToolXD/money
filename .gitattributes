@@ -1,0 +1,5 @@
+# GitHub 언어 막대: 라이브러리와 자동으로 만들어지는 파일은 빼요 (우리가 쓴 코드만 세요)
+app/firebase.js linguist-generated
+app/rs/** linguist-generated
+vendor/** linguist-vendored
+tests/out/** linguist-generated

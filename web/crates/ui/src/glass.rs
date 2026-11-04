@@ -33,6 +33,15 @@ struct St {
     vx: f64,
     vy: f64,
     down: bool,
+    // 물방울 (상태 버튼): 움직이는 쪽은 둥글고 뒤쪽은 뾰족해져요
+    drop: bool,
+    tear: f64,
+    tear_v: f64,
+    tear_t: f64,
+    ang: f64,
+    lx: f64,
+    ly: f64,
+    lt: f64,
 }
 
 struct G {
@@ -237,6 +246,26 @@ impl G {
         if rm {
             return;
         }
+        if s.drop {
+            // 물방울: 끄는 동안 납작하게 늘어나지 않고, 앞은 둥글고 뒤(오는 쪽)는 뾰족해져요. 멈추면 다시 동그래져요
+            let t = s.tear.clamp(0.0, 1.0);
+            let base = 1.0 + (4.0 / h) * p;
+            let st = el.style();
+            let _ = st.set_property("scale", &if p > 0.001 { fixed(base, 4) } else { String::new() });
+            let _ = st.set_property("translate", "");
+            if t > 0.002 {
+                // 뾰족한 왼쪽 아래 모서리를 뒤(-x)로 돌리고, 움직이는 방향으로 살짝 길게 늘인 뒤, 움직이는 방향으로 돌려요
+                let a = s.ang.to_degrees();
+                let _ = st.set_property("border-radius", &format!("50% 50% 50% {}%", fixed(50.0 * (1.0 - 0.92 * t), 2)));
+                let _ = st.set_property("transform", &format!("rotate({}deg) scale({}, {}) rotate(45deg)", fixed(a, 2), fixed(1.0 + 0.22 * t, 4), fixed(1.0 - 0.07 * t, 4)));
+                let _ = st.set_property("--tear-neg", &format!("{}deg", fixed(-(a + 45.0), 2)));
+            } else {
+                let _ = st.remove_property("border-radius");
+                let _ = st.remove_property("transform");
+                let _ = st.remove_property("--tear-neg");
+            }
+            return;
+        }
         // 부풀기: 높이 기준 4px, 끄는 쪽으로 늘어나요. 따라오기: tanh로 부드럽게 멈춰요
         let md = w.min(h);
         let tx = md * (0.05 * s.ox / md).tanh();
@@ -273,11 +302,24 @@ impl G {
                     s.ox += s.vx * dt;
                     s.oy += s.vy * dt;
                 }
+                if s.drop {
+                    // 손가락이 잠깐 멈추면 다시 동그래져요. 살짝 출렁이며 돌아와요
+                    if js_sys::Date::now() - s.lt > 80.0 {
+                        s.tear_t = 0.0;
+                    }
+                    let kt: f64 = 260.0;
+                    let ct = 2.0 * 0.6 * kt.sqrt();
+                    let at = -kt * (s.tear - s.tear_t) - ct * s.tear_v;
+                    s.tear_v += at * dt;
+                    s.tear += s.tear_v * dt;
+                }
             }
             self.apply(i);
             let s = &mut self.els[i].1;
-            if !s.down && s.p.abs() < 0.001 && s.v.abs() < 0.01 && s.ox.hypot(s.oy) < 0.1 {
+            if !s.down && s.p.abs() < 0.001 && s.v.abs() < 0.01 && s.ox.hypot(s.oy) < 0.1 && s.tear.abs() < 0.002 && s.tear_v.abs() < 0.01 {
                 s.p = 0.0;
+                s.tear = 0.0;
+                s.tear_v = 0.0;
                 s.ox = 0.0;
                 s.oy = 0.0;
                 self.apply(i);
@@ -327,6 +369,9 @@ fn bind_press(el: &HtmlElement) {
             s.ox = 0.0;
             s.oy = 0.0;
             s.target = 1.0;
+            s.lx = cx;
+            s.ly = cy;
+            s.lt = js_sys::Date::now();
             if !g.active.contains(&i) {
                 g.active.push(i);
             }
@@ -347,6 +392,20 @@ fn bind_press(el: &HtmlElement) {
             s.y = cy - r.top();
             s.ox = cx - s.sx;
             s.oy = cy - s.sy;
+            if s.drop {
+                // 빠르기로 뾰족한 정도를 정해요 (0.9px/ms면 가장 뾰족해요)
+                let t = js_sys::Date::now();
+                let (dx, dy) = (cx - s.lx, cy - s.ly);
+                let dist = dx.hypot(dy);
+                if dist > 0.5 {
+                    let sp = dist / (t - s.lt).max(8.0);
+                    s.tear_t = (sp / 0.9).clamp(0.0, 1.0);
+                    s.ang = dy.atan2(dx);
+                    s.lx = cx;
+                    s.ly = cy;
+                    s.lt = t;
+                }
+            }
         });
     });
     for ev in ["pointerup", "pointercancel", "pointerleave"] {
@@ -373,7 +432,7 @@ fn attach(el: &HtmlElement) {
         return;
     }
     let field = matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA");
-    let mut st = St::default();
+    let mut st = St { drop: el.id() == "status-bubble", ..St::default() };
     let _ = el.class_list().add_1("lg");
     if !field {
         if win().get_computed_style(el).ok().flatten().and_then(|c| c.get_property_value("position").ok()).as_deref() == Some("static") {

@@ -364,6 +364,13 @@ pub(crate) async fn send_payload(c: &Chat, payload: JsValue) -> Result<JsValue, 
 pub fn init(c: Ctx) {
     CTX.with(|x| *x.borrow_mut() = c);
     render();
+    // 메시지 목록과 대화 창: 맨 아래보다 더 내리면 막히지 않고 부드럽게 돌아와요
+    if let Some(sc) = crate::shell::screen("messages") {
+        crate::bounce::attach(&sc);
+    }
+    if let Some(b) = by_id("bubbles") {
+        crate::bounce::attach(&b);
+    }
     if let Some(s) = by_id("chat-search") {
         dom::on(&s, "input", |_| render());
     }

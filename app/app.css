@@ -188,8 +188,6 @@ html[data-theme="dark"] .glass-btn:not(.primary) { background: rgba(60, 60, 67, 
 
 /* ---------- 메시지: iOS 26 메시지 앱처럼 흰 바탕에 고정한 사람 동그라미와 납작한 목록 ---------- */
 .screen[data-screen="messages"] { background: var(--bg-canvas); padding-top: calc(var(--top-h) + 4px); }
-/* 메시지는 내용이 적어도 다른 탭처럼 위아래로 움직여요 (핫바와 위쪽 막대는 그대로예요) */
-.screen[data-screen="messages"]::after { content: ""; display: block; height: 100%; }
 .nav-right { display: flex; gap: 10px; }
 .glass-btn.round { padding: 0; width: 48px; }
 .glass-btn[aria-pressed="true"] { background: var(--apple-blue); color: #fff; }
@@ -1573,3 +1571,10 @@ html[data-theme="dark"] .gseg::before { background: rgba(255, 255, 255, 0.22); }
 .biz-dash { padding: 12px; }
 .dash-go { background: var(--apple-blue); color: #fff; border: 0; }
 .dash-go:disabled { background: var(--gg-light); color: var(--text-secondary); }
+
+/* 끝에서 부드럽게 되돌아오기 (web/crates/ui/src/bounce.rs): 손을 떼면 제자리로 미끄러져 돌아와요 */
+.bounce.ob-back { transition: translate 0.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease, transform 0.4s var(--ease); }
+/* 상태 버튼 물방울 (glass.rs): 버튼이 돌아가도 안의 아이콘은 똑바로 있어요. 사파리에서 유리 버튼이 깜빡 사라지지 않게 따로 그려요 */
+.status-bubble > svg { rotate: var(--tear-neg, 0deg); }
+.status-fab { isolation: isolate; -webkit-transform: translateZ(0); }
+.status-fab.fab-away { -webkit-transform: translateZ(0) scale(0.85); }

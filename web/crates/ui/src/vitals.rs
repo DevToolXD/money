@@ -229,6 +229,10 @@ pub fn init() {
     let on_scroll = {
         let fab = fab.clone();
         move |_e: web_sys::Event| {
+            // 끌고 있거나 펼쳐 둔 동안에는 숨기지 않아요 (아이폰에서 끌 때 화면이 같이 튕기면 버튼이 사라져 보였어요)
+            if DRAG.with(|d| d.borrow().is_some()) || OPEN.get() {
+                return;
+            }
             let _ = fab.class_list().add_1("fab-away");
             win().clear_timeout_with_handle(idle.get());
             let f2 = fab.clone();
