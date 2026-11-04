@@ -42,7 +42,7 @@ fn paint(cv: &web_sys::HtmlCanvasElement) {
             let ty = ((y - 180.0) / 620.0).clamp(0.0, 1.0);
             c.set_fill_style_str(&format!("hsl({:.0} 58% {:.0}%)", 182.0 - 178.0 * (0.7 * tx + 0.3 * ty), 74.0 - 4.0 * ty));
             c.begin_path();
-            let _ = c.arc(x * k, y * k, d / 2.0, 0.0, 6.2832);
+            let _ = c.arc(x * k, y * k, d / 2.0, 0.0, std::f64::consts::TAU);
             c.fill();
             if d < 9.0 {
                 continue;

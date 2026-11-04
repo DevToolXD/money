@@ -10,6 +10,8 @@ mod people;
 mod poll;
 mod thread;
 
+pub use attach::{read_image, take_file};
+
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 

@@ -24,7 +24,9 @@
 
 - 지갑·선물·이자는 `firestore.rules`가 서버에서 검사해요. 규칙을 고치면 `cd tests && npm run rules`를 꼭 돌려요.
 - `app/firebase.js`는 `app/firebase.src.js`를 묶은 결과물이라 직접 고치지 않아요 (`npm run build`).
-- 러스트로 옮긴 화면은 `web/` 에 있어요 (계획: `docs/rust-migration-plan.md`). `app/rs/`는 `sh web/build.sh`의 결과물이라 직접 고치지 않아요. 러스트를 고치면 빌드해서 `app/rs/`도 같이 올려요.
+- 화면과 앱 틀은 모두 러스트예요: `web/` (기록: `docs/rust-migration-plan.md`). `app.js`는 없어요. JS로 남은 것은 탭 바(`app/tabbar.js`), 뒤 화면 사진(`app/backdrop.js`), 아이콘(`app/icons.js`), 서버 연결(`app/firebase.js`)뿐이에요. `app/rs/`는 `sh web/build.sh`의 결과물이라 직접 고치지 않아요. 러스트를 고치면 빌드해서 `app/rs/`도 같이 올려요.
+- 상품 그림(`web/crates/goods`)을 고치면 `cd web && cargo run -p goods --example dump`로 확인하고, 예전 JS와 같아야 하는 동안은 `sh tests/goods/same.sh`를 돌려요.
+- `view!` 매크로 안의 속성 닫는 괄호에서 `>`, `>=`는 태그 끝으로 읽혀요. `disabled=move || { a >= b }`처럼 중괄호로 감싸요.
 - 화면 시험: `cd tests && npm run build && EMU=1 node build.mjs && sh e2e/run.sh` (화면 하나를 옮길 때마다 돌려요).
 - 익명 로그인 금지. 사용자 글·사진은 반드시 `esc()`/`safeImg()`를 거쳐요. 인라인 스크립트는 CSP가 막아요.
 - 서버를 아끼는 구조(최근 40개만 듣기, 프로필 캐시, 이자 10분 정산)와 backdrop 사진 찍기 간격을 느슨하게 되돌리지 않아요.

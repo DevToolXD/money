@@ -10,6 +10,7 @@ pub mod manage;
 pub mod money;
 pub mod notices;
 pub mod parts;
+pub mod shell;
 pub mod shop;
 pub mod vitals;
 pub mod work;
