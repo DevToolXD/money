@@ -273,7 +273,7 @@ float kyHighlight(vec2 g) {
 vec3 barGlass(vec2 p, vec4 pl) {
   vec2 dg;
   vec2 rp = kyLens(p, pl.xy, pl.zw, pl.w, 24.0, 24.0, 0.0, dg);
-  return mix(vibrant(page(rp, 1.0)), uCont.rgb, uCont.a);
+  return mix(vibrant(page(rp, 0.3)), uCont.rgb, uCont.a);
 }
 float rimBand(float sd) {
   // 0.5px 선 + 0.25px 흐림
@@ -347,12 +347,13 @@ void main() {
     vec4 plL = abs(uLens.x - barA.x) < abs(uLens.x - barB.x) ? barA : barB;
     vec2 dg;
     // 누르면 렌즈가 안쪽을 1.2배 확대해요
-    vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.35 * pr);
-    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 18.0 * pr, 22.0 * pr, dg);
+    vec2 zp = uLens.xy + (p - uLens.xy) / (1.0 + 0.1 * pr);
+    vec2 rp = kyLensSE(zp, uLens.xy, hb, uExp, 14.0 * pr, 18.0 * pr, dg);
     // 막대 밖으로 나간 렌즈도 막대 유리를 늘여서 보여줘요 (위아래 가장자리 띠가 렌즈 안에 비쳐요)
     rp.y = clamp(rp.y, plL.y - plL.w + 0.5, plL.y + plL.w - 0.5);
-    float disp = (q.x * q.y) / max(hb.x * hb.y, 1.0);
-    vec2 dd = dg * disp;
+    // 애플 영상: 렌즈 둘레 어디서나 밝은 가장자리에 무지개가 생겨요 (모서리만이 아니라)
+    float disp = 0.35 + 0.65 * abs((q.x * q.y) / max(hb.x * hb.y, 1.0));
+    vec2 dd = dg * disp * 1.6;
     vec3 c7 = vec3(0.0);
     c7.r += barGlass(rp + dd, plL).r / 3.5;
     vec3 o = barGlass(rp + dd * (2.0 / 3.0), plL); c7.r += o.r / 3.5; c7.g += o.g / 7.0;
@@ -703,8 +704,9 @@ void main() {
           pillHW: r,
           pillHH: r,
           // 끌 때 렌즈는 막대보다 크게 떠요 (Kyant 배너처럼 위아래로 삐져나와요)
-          lensHW: round ? Math.min(g.w / 2 + 6, barH * 0.6) : Math.max(g.w * 0.68, barH * 0.9),
-          lensHH: round ? barH * 0.6 : barH * 0.64,
+          // 애플 영상: 끌 때 렌즈는 막대 높이만큼(살짝 넘게), 폭은 칸의 1.7배쯤
+          lensHW: round ? Math.min(g.w / 2 + 4, barH * 0.55) : Math.max(g.w * 0.85, barH * 0.8),
+          lensHH: barH * 0.54,
           pillExp: 2,
           lensExp: round ? 2 : 2.1,
         };
@@ -1259,7 +1261,7 @@ void main() {
       gl.uniform4f(u.uEdge, th.edge[0], th.edge[1], th.edge[2], th.edge[3]);
       gl.uniform2f(u.uLight, -0.55, -0.835);
       const dark = document.documentElement.dataset.theme === "dark";
-      if (u.uCont) gl.uniform4f(u.uCont, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, 0.4);
+      if (u.uCont) gl.uniform4f(u.uCont, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, dark ? 0.071 : 0.98, dark ? 0.55 : 0.25);
       if (u.uDark) gl.uniform1f(u.uDark, dark ? 1 : 0);
       gl.uniform3f(u.uShadow, th.shadow, 7, 9);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
