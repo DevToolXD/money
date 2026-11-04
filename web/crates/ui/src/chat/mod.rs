@@ -8,7 +8,7 @@ mod gift;
 mod menu;
 mod people;
 mod poll;
-mod thread;
+pub(crate) mod thread;
 
 pub use attach::{read_image, take_file};
 
@@ -59,6 +59,7 @@ pub(crate) struct Chat {
 }
 
 thread_local! {
+    static NOTIFY_READY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CTX: RefCell<Ctx> = RefCell::new(Ctx::default());
     static CHATS: RefCell<Vec<Chat>> = const { RefCell::new(Vec::new()) };
     /// 지금 열려 있는 대화 (목록에서 빠져도 여기에 남아요)
@@ -207,10 +208,12 @@ pub fn render() {
 /// 로그인한 뒤 부르면 대화 목록을 실시간으로 들어요
 pub fn start() {
     LIVE.set(true);
+    NOTIFY_READY.set(false);
     with_chats(|c| c.clear());
     render();
     let cb = Closure::<dyn FnMut(JsValue)>::new(on_chats);
     let _ = cloud::call_now("watchChats", &[cb.into_js_value()]);
+    crate::call::listen(); // 걸려 오는 전화
 }
 fn peek(uid: &str) -> JsValue {
     cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::UNDEFINED)
@@ -294,6 +297,24 @@ fn on_chats(docs: JsValue) {
             set_open(Some(n.clone()));
         }
     }
+    // 새 메시지가 오면 위쪽에 알림을 띄워요 (처음 불러올 때와 열어 둔 대화, 알림 끈 대화는 빼요)
+    if NOTIFY_READY.get() {
+        if let Some(c) = next.iter().find(|c| {
+            !c.last_from.is_empty() && c.last_from != me && open.as_deref() != Some(&c.id) && !c.muted && old.get(&c.id).is_none_or(|o| c.last_at > o.last_at)
+        }) {
+            if c.group || c.name != "…" {
+                crate::notify::show(&c.id, &c.name, &c.photo, &c.last);
+            } else {
+                // 처음 온 사람이라 이름을 아직 몰라요: 이름을 읽고 띄워요
+                let (id, other, photo, last) = (c.id.clone(), c.other.clone(), c.photo.clone(), c.last.clone());
+                wasm_bindgen_futures::spawn_local(async move {
+                    let name = cloud::call("nameOf", &[JsValue::from_str(&other)]).await.ok().and_then(|v| v.as_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| "새 메시지".into());
+                    crate::notify::show(&id, &name, &photo, &last);
+                });
+            }
+        }
+    }
+    NOTIFY_READY.set(true);
     with_chats(|cs| *cs = next);
     render();
     // 사람 정보가 없는 대화는 한 번에 모아서 읽어 와요 (30분 동안 기억해서 다시 읽지 않아요)
@@ -379,8 +400,17 @@ pub fn init(c: Ctx) {
         dom::on(&list, "click", move |e| {
             if let Some(del) = dom::closest(&e, "[data-del]") {
                 let id = dom::data(&del, "del");
-                with_chats(|cs| cs.retain(|c| c.id != id));
-                render();
+                // 지우기 전에 두 번 물어요
+                wasm_bindgen_futures::spawn_local(async move {
+                    if !crate::shell::ask("대화를 삭제할까요?", "목록에서 이 대화가 사라져요", "삭제", "취소").await {
+                        return;
+                    }
+                    if !crate::shell::ask("정말 삭제할까요?", "한 번 더 확인해요. 되돌릴 수 없어요", "삭제", "취소").await {
+                        return;
+                    }
+                    with_chats(|cs| cs.retain(|c| c.id != id));
+                    render();
+                });
                 return;
             }
             if let Some(row) = dom::closest(&e, ".chat-row") {
@@ -407,11 +437,9 @@ pub fn init(c: Ctx) {
     }
     if let Some(f) = by_id("filter-unread") {
         let f2 = f.clone();
-        dom::on(&f, "click", move |_| {
-            ONLY_UNREAD.set(!ONLY_UNREAD.get());
-            let _ = f2.set_attribute("aria-pressed", &ONLY_UNREAD.get().to_string());
-            render();
-        });
+        // 줄 세 개 버튼: 통화 녹음 저장소를 열어요
+        let _ = f2;
+        dom::on(&f, "click", |_| crate::call::open_store());
     }
     menu::init();
     thread::init();

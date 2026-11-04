@@ -1,5 +1,5 @@
 //! 일 탭: 사장이거나 직원이면 회사 일을 해요. 아니면 회사를 종류별로 보고, 이름으로 찾고, 골라서 지원해요.
-//! 식품은 성능 올리기(일하기), 인공지능은 가짜 검색, 원자력은 핵연료 배합, 컴퓨터는 부품 검사예요.
+//! 식품은 성능 올리기(일하기), 인공지능은 데이터 다운받기, 원자력은 핵연료 배합, 컴퓨터는 부품 검사예요.
 //! 예전 `app/work.js`와 같은 id·class를 써요. 식품 공장 카드는 `factory.rs`예요 (사업 탭에 붙어요).
 
 use std::cell::{Cell, RefCell};
@@ -21,7 +21,6 @@ const STIR_MS: f64 = 1600.0; // 꾹 누르고 있어야 하는 시간
 const REAGENTS: [(&str, [u8; 3]); 3] = [("분말", [196, 58, 58]), ("안정제", [244, 196, 60]), ("촉매", [52, 110, 214])];
 /// 연구실 숫자 이름 (서버 칸 이름과 같아요)
 const LAB_KEYS: [&str; 6] = ["nperf", "cap", "spd", "pow", "aiData", "fperf"];
-const HITS: [&str; 4] = ["데이터 묶음 1", "데이터 묶음 2", "데이터 묶음 3", "데이터 묶음 4"];
 const SEARCH_D: &str = r#"<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>"#;
 const CHECK_D: &str = r#"<path d="M5 12.5l4.5 4.5L19 7.5"/>"#;
 
@@ -75,7 +74,7 @@ enum View {
     Loading,
     Failed(&'static str),
     Market,
-    Mine { owner: bool, co: Company, job_at: f64, extra: Option<Company> },
+    Mine { owner: bool, co: Company, job_at: f64, extra: Option<Company>, choices: Vec<(String, String)> },
 }
 
 /// 화면에 보이는 연구실 숫자 (서버 숫자 + 아직 안 보낸 것)
@@ -100,6 +99,9 @@ thread_local! {
     static MY_JOB: Cell<bool> = const { Cell::new(false) };
     static LOADED_AT: Cell<f64> = const { Cell::new(0.0) };
     static PAINTED_CO: RefCell<JsValue> = RefCell::new(JsValue::UNDEFINED);
+    /// 일할 회사 (회사가 여럿이면 일 탭 위쪽에서 골라요)
+    static WORK_PICK: RefCell<String> = const { RefCell::new(String::new()) };
+    static LAST_MINE: RefCell<Option<(Vec<Company>, f64, Option<Company>)>> = const { RefCell::new(None) };
     static LOAD_SEQ: Cell<u32> = const { Cell::new(0) };
     static MARKET_SEQ: Cell<u32> = const { Cell::new(0) };
     static SEARCH_SEQ: Cell<u32> = const { Cell::new(0) };
@@ -198,8 +200,14 @@ pub fn refresh(force: bool) {
                 }
                 LOADED_AT.set(js_sys::Date::now());
                 PAINTED_CO.with(|p| *p.borrow_mut() = co.clone());
-                let mine = if co.is_null() { None } else { Some(Company::from_js(&co)) };
-                if mine.is_some() || employer.is_some() {
+                let mut mine: Vec<Company> = crate::shell::company::all().iter().map(Company::from_js).collect();
+                if mine.is_empty() && !co.is_null() {
+                    mine.push(Company::from_js(&co));
+                }
+                if WORK_PICK.with(|w| w.borrow().is_empty()) && !co.is_null() {
+                    WORK_PICK.with(|w| *w.borrow_mut() = Company::from_js(&co).id);
+                }
+                if !mine.is_empty() || employer.is_some() {
                     let job_at = job.as_ref().map(|j| cloud::ts_ms(&cloud::get(j, "at"))).unwrap_or(0.0);
                     paint_mine(s, mine, job_at, employer);
                 } else {
@@ -211,18 +219,25 @@ pub fn refresh(force: bool) {
     });
 }
 
-fn paint_mine(s: Sig, co: Option<Company>, job_at: f64, employer: Option<Company>) {
+fn paint_mine(s: Sig, mine: Vec<Company>, job_at: f64, employer: Option<Company>) {
     GAME.set(GAME.get() + 1);
     flush_lab(); // 이전 회사의 숫자를 먼저 보내요
-    let owner = co.is_some();
-    let (primary, extra) = match co {
-        Some(c) => (c, employer),
-        None => (employer.expect("다니는 회사"), None),
-    };
+    LAST_MINE.with(|l| *l.borrow_mut() = Some((mine.clone(), job_at, employer.clone())));
+    // 고를 수 있는 회사: 내 회사들 + 다니는 회사
+    let mut all: Vec<(Company, bool)> = mine.iter().cloned().map(|c| (c, true)).collect();
+    if let Some(e) = &employer {
+        if !all.iter().any(|(c, _)| c.id == e.id) {
+            all.push((e.clone(), false));
+        }
+    }
+    let pick = WORK_PICK.with(|w| w.borrow().clone());
+    let (primary, owner) = all.iter().find(|(c, _)| c.id == pick).cloned().unwrap_or_else(|| all[0].clone());
+    let extra = if owner { employer.filter(|e| e.id != primary.id) } else { None };
+    let choices: Vec<(String, String)> = all.iter().map(|(c, _)| (c.id.clone(), c.name.clone())).collect();
     LAB_CID.with(|l| *l.borrow_mut() = Some(primary.id.clone()));
     s.lab.set(None);
     let cid = primary.id.clone();
-    s.view.set(View::Mine { owner, co: primary, job_at, extra });
+    s.view.set(View::Mine { owner, co: primary, job_at, extra, choices });
     load_lab(s, cid);
 }
 
@@ -437,7 +452,7 @@ fn Work(s: Sig) -> impl IntoView {
         }
         .into_any(),
         View::Market => view! { <Market s/> }.into_any(),
-        View::Mine { owner, co, job_at, extra } => view! { <Mine s owner co job_at extra/> }.into_any(),
+        View::Mine { owner, co, job_at, extra, choices } => view! { <Mine s owner co job_at extra choices/> }.into_any(),
     }
 }
 
@@ -536,7 +551,23 @@ fn Market(s: Sig) -> impl IntoView {
 }
 
 #[component]
-fn Mine(s: Sig, owner: bool, co: Company, job_at: f64, extra: Option<Company>) -> impl IntoView {
+fn Mine(s: Sig, owner: bool, co: Company, job_at: f64, extra: Option<Company>, choices: Vec<(String, String)>) -> impl IntoView {
+    // 회사가 여럿이면 위쪽 알약에서 일할 회사를 골라요
+    let cur = co.id.clone();
+    let picker = (choices.len() > 1).then(|| {
+        view! {
+            <div class="wk-cos" role="group" aria-label="일할 회사">
+                {choices.into_iter().map(|(id, name)| {
+                    let on = id == cur;
+                    let id2 = id.clone();
+                    view! { <button type="button" class="gg wk-co" aria-pressed=on.to_string() on:click=move |_| {
+                        WORK_PICK.with(|w| *w.borrow_mut() = id2.clone());
+                        if let Some((m, at, e)) = LAST_MINE.with(|l| l.borrow().clone()) { paint_mine(s, m, at, e); }
+                    }>{name}</button> }
+                }).collect_view()}
+            </div>
+        }
+    });
     let mark = ctx().mark(&co.name, &co.logo, "avatar contact wk-av big");
     let since = if owner { format!("{}에 창업했어요", date_of(co.at)) } else { format!("{}에 입사했어요", date_of(job_at)) };
     let quit_co = if owner { extra } else { Some(co.clone()) };
@@ -547,6 +578,7 @@ fn Mine(s: Sig, owner: bool, co: Company, job_at: f64, extra: Option<Company>) -
         _ => view! { <FoodCard s cid=co.id.clone()/> }.into_any(),
     };
     view! {
+        {picker}
         <div class="card wk-hero">
             <span style="display:contents" inner_html=mark></span>
             <div>
@@ -624,7 +656,7 @@ fn FoodCard(s: Sig, cid: String) -> impl IntoView {
     }
 }
 
-/* ---------- 인공지능: 가짜 검색 (받기를 누르면 막대가 차고 랜덤한 양이 쌓여요) ---------- */
+/* ---------- 인공지능: 데이터 다운받기 (검색하면 결과가 3~10개 나오고, 하나씩 받으면 랜덤한 양이 쌓여요) ---------- */
 
 #[derive(Clone, Copy, PartialEq)]
 enum Hit {
@@ -635,17 +667,30 @@ enum Hit {
 
 #[component]
 fn AiCard(s: Sig) -> impl IntoView {
-    let hits: [RwSignal<Hit>; 4] = std::array::from_fn(|_| RwSignal::new(Hit::Idle));
+    let results: RwSignal<Vec<(String, String, String)>> = RwSignal::new(Vec::new()); // 제목, 사이트, 한 줄 설명
+    let hits: RwSignal<Vec<RwSignal<Hit>>> = RwSignal::new(Vec::new());
+    let busy = RwSignal::new(false); // 한 번에 하나만 받아요
     let got = RwSignal::new(0u32);
+    let term = RwSignal::new(String::new());
     let game = GAME.get();
-    let fetch = move |i: usize| {
-        if hits[i].get_untracked() != Hit::Idle {
+    let search = move || {
+        let q = term.get_untracked().trim().to_string();
+        if q.is_empty() || busy.get_untracked() {
             return;
         }
-        hits[i].set(Hit::Busy(0.0));
+        let list = fake_results(&q);
+        hits.set(list.iter().map(|_| RwSignal::new(Hit::Idle)).collect());
+        results.set(list);
+    };
+    let fetch = move |h: RwSignal<Hit>| {
+        if h.get_untracked() != Hit::Idle || busy.get_untracked() {
+            return;
+        }
+        busy.set(true);
+        h.set(Hit::Busy(0.0));
         let dur = if reduce_motion() { 0.0 } else { 1600.0 };
         let t0 = js_sys::Date::now();
-        fn tick(h: RwSignal<Hit>, got: RwSignal<u32>, t0: f64, dur: f64, game: u32) {
+        fn tick(h: RwSignal<Hit>, got: RwSignal<u32>, busy: RwSignal<bool>, t0: f64, dur: f64, game: u32) {
             request_animation_frame(move || {
                 if GAME.get() != game {
                     return;
@@ -653,37 +698,38 @@ fn AiCard(s: Sig) -> impl IntoView {
                 let p = if dur > 0.0 { ((js_sys::Date::now() - t0) / dur).min(1.0) } else { 1.0 };
                 if p < 1.0 {
                     h.set(Hit::Busy(p));
-                    return tick(h, got, t0, dur, game);
+                    return tick(h, got, busy, t0, dur, game);
                 }
                 let mb = 20 + (rand() * 381.0).floor() as u32;
                 h.set(Hit::Done(mb));
+                busy.set(false);
                 got.update(|g| *g += 1);
                 queue_lab(4, mb as f64);
                 count_pop(&format!("이번에 받은 데이터 {}개", got.get_untracked()));
             });
         }
-        tick(hits[i], got, t0, dur, game);
+        tick(h, got, busy, t0, dur, game);
     };
     view! {
         <div class="card wk-work wk-ai">
-            <p class="wk-head">"가짜 검색 연습"</p>
-            <p class="wk-note">"아무 데이터나 받아 보세요. 받는 양은 랜덤이고, 많이 쌓일수록 인공지능이 좋아져요. 실제로 저장되는 파일은 없어요."</p>
+            <p class="wk-big">"데이터 다운받기"</p>
+            <p class="wk-note">"아무거나 다운로드 받으세요"</p>
             <div class="wk-nums"><span>"쌓인 데이터 "<b id="lab-data">{lab_text(s, 4)}</b>" MB"</span></div>
-            <label class="gg wk-fake">
+            <form class="gg wk-fake" on:submit=move |e| { e.prevent_default(); search(); }>
                 <span style="display:contents" inner_html=svg_icon(SEARCH_D, 18)></span>
-                <input type="text" disabled placeholder="검색어를 입력해 보세요" aria-label="가짜 검색"/>
-            </label>
+                <input type="search" enterkeyhint="search" maxlength="30" placeholder="검색어를 입력해 보세요" aria-label="검색"
+                    prop:value=move || term.get() on:input=move |e| term.set(event_target_value(&e))/>
+            </form>
             <ul class="wk-hits">
-                {HITS.iter().enumerate().map(|(i, t)| {
-                    let h = hits[i];
+                {move || results.get().into_iter().zip(hits.get()).enumerate().map(|(i, ((t, site, line), h))| {
                     view! {
                         <li class="wk-hit" style=format!("--i:{i}")>
-                            <span class="wk-hit-t"><b>{*t}</b><span>"받으면 양이 보여요"</span></span>
-                            <button type="button" class="gg wk-get" data-i=i.to_string()
+                            <span class="wk-hit-t"><em>{site}</em><b>{t}</b><span>{line}</span></span>
+                            <button type="button" class="gg wk-get"
                                 class:busy=move || matches!(h.get(), Hit::Busy(_))
                                 class:done=move || matches!(h.get(), Hit::Done(_))
-                                disabled=move || matches!(h.get(), Hit::Done(_))
-                                on:click=move |_| fetch(i)
+                                disabled=move || { matches!(h.get(), Hit::Done(_)) || (busy.get() && !matches!(h.get(), Hit::Busy(_))) }
+                                on:click=move |_| fetch(h)
                                 inner_html=move || match h.get() {
                                     Hit::Idle => "받기".to_string(),
                                     Hit::Busy(p) => format!(r#"<span class="wk-meter"><i style="transform:scaleX({p})"></i></span><em>{}%</em>"#, (p * 100.0).round()),
@@ -697,6 +743,37 @@ fn AiCard(s: Sig) -> impl IntoView {
             <p class="wk-count" id="wk-count">"이번에 받은 데이터 0개"</p>
         </div>
     }
+}
+
+/// 검색어로 그럴듯한 검색 결과를 3~10개 만들어요 (서버 없이 기기에서 만들어요)
+fn fake_results(q: &str) -> Vec<(String, String, String)> {
+    let pick = |list: &[&'static str]| list[(rand() * list.len() as f64).floor() as usize % list.len()];
+    // "안녕" → "안녕하세요"처럼 말을 조금 늘려 보기도 해요
+    let forms = [q.to_string(), format!("{q}하세요"), format!("{q} 모음"), format!("요즘 {q}"), format!("{q}의 세계")];
+    const TITLES: [&str; 18] = [
+        "{}의 효능 총정리", "{} 제대로 하는 법", "{}에 대해 몰랐던 5가지", "{} 뜻과 유래", "요즘 {}가 뜨는 이유", "{} 후기 모음",
+        "처음 하는 사람을 위한 {} 안내", "{} 자주 묻는 질문", "전문가가 말하는 {}", "{} 사진과 영상", "{} 논문 요약", "{} 하루 10분이면 충분해요",
+        "{}의 역사", "{} 장단점 비교", "{} 이렇게 하면 망해요", "{} 순위 정리", "{} 실제 사례 모음", "{} 지금 알아야 할 것",
+    ];
+    const SITES: [&str; 10] = ["wiki.money-sim", "news.daily", "blog.tokens", "qna.forum", "edu.learn", "cafe.talk", "tech.review", "data.lab", "life.tips", "paper.archive"];
+    const LINES: [&str; 8] = [
+        "많은 사람들이 궁금해하는 내용을 쉽게 정리했어요", "직접 해 보고 알게 된 것을 적었어요", "숫자와 자료로 살펴봤어요", "처음부터 차근차근 설명해요",
+        "실수하기 쉬운 부분을 모았어요", "최근 소식까지 담았어요", "짧게 핵심만 담았어요", "여러 의견을 비교해 봤어요",
+    ];
+    let n = 3 + (rand() * 8.0).floor() as usize; // 3~10개
+    let mut used: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    while out.len() < n && used.len() < 60 {
+        let form = &forms[(rand() * forms.len() as f64).floor() as usize % forms.len()];
+        let t = pick(&TITLES).replacen("{}", form, 1);
+        if used.contains(&t) {
+            used.push(String::new());
+            continue;
+        }
+        used.push(t.clone());
+        out.push((t, pick(&SITES).to_string(), pick(&LINES).to_string()));
+    }
+    out
 }
 
 /* ---------- 원자력: 핵연료 배합 (스포이드로 한 방울씩, 꾹 눌러 섞기) ---------- */

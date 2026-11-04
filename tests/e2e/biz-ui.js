@@ -44,11 +44,11 @@ const toastHas = async (p, t) => { for (let i = 0; i < 20; i++) { if ((await tex
   // 팔 상품 정하기
   ok('처음에는 파는 상품이 없어요', await p.isVisible('#biz-empty'));
   await p.click('#biz-pick'); await p.waitForTimeout(900);
-  ok('정하기 화면이 열리고 제목이 보여요', (await p.isVisible('.pk')) && (await text(p, '.pk-title b')) === '팔 상품 정하기');
+  // 식품 회사는 식품 안의 것부터 바로 열려요 (다른 업종은 보이지 않아요)
+  ok('정하기 화면이 식품부터 열려요', (await p.isVisible('.pk')) && (await text(p, '.pk-title b')) === '식품');
   await shot(p, '1-root');
-  ok('동그라미 세 개 (식품·컴퓨터·인공지능)', (await p.$$('.pk-orb')).length === 3);
-  await p.click('.pk-orb[data-orb="0"]'); await p.waitForTimeout(1000);
-  ok('식품을 누르면 물·음식·에너지 식품', (await text(p, '.pk-stage')).includes('에너지 식품') && (await text(p, '.pk-title b')) === '식품');
+  ok('식품 회사: 업종 동그라미는 없어요', (await p.$$('.pk-orb')).length === 0);
+  ok('물·음식·에너지 식품', (await text(p, '.pk-stage')).includes('에너지 식품'));
   await p.click('.pk-view:last-child [data-node="water"]'); await p.waitForTimeout(900);
   ok('물: 페트병 모양 칸, 그림 50개', (await text(p, '.pk-title b')) === '페트병 모양' && (await p.$$('.pk-view:last-child .pk-tile')).length === 50);
   ok('고르기 전에는 확인을 못 눌러요', await p.isDisabled('.pk-ok'));

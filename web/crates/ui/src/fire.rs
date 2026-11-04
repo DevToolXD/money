@@ -1876,6 +1876,55 @@ async fn pay_request(cid: String, to: JsValue, req: String, amount: JsValue) -> 
     Ok(JsValue::UNDEFINED)
 }
 
+/* ---------- 통화 (연결 정보만 주고받아요) ---------- */
+
+async fn call_start(to: String, chat: String, offer: JsValue) -> R {
+    let r = new_id(c(&["calls"]));
+    rethrow(set_doc(r.clone(), o(&[("from", s(&uid_of()?)), ("to", s(&to)), ("chat", s(&chat)), ("offer", offer), ("state", s("ringing")), ("at", ts())])).await)?;
+    Ok(get(&r, "id"))
+}
+fn call_watch(id: String, cb: js_sys::Function) -> R {
+    let next = Closure::<dyn FnMut(JsValue)>::new(move |sn: JsValue| {
+        let v = if exists(&sn) { data_est(&sn) } else { JsValue::NULL };
+        let _ = cb.call1(&JsValue::NULL, &v);
+    })
+    .into_js_value();
+    f("onSnapshot", &[d(&["calls", &id]), next, report_fn()])
+}
+// 나에게 걸려 오는 전화 (울리는 것만)
+fn call_incoming(cb: js_sys::Function) -> R {
+    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
+        let list: js_sys::Array = docs(&snap)
+            .iter()
+            .map(|dd| {
+                let v = data_est(dd);
+                ext(&v, &[("id", get(dd, "id")), ("at", n(ms(&get(&v, "at"))))])
+            })
+            .collect();
+        let _ = cb.call1(&JsValue::NULL, &list);
+    })
+    .into_js_value();
+    f("onSnapshot", &[q(c(&["calls"]), vec![w(s("to"), "==", s(&uid_of()?)), w(s("state"), "==", s("ringing")), lim(5.0)]), next, report_fn()])
+}
+fn call_cands(id: String, cb: js_sys::Function) -> R {
+    let me_ = uid_of()?;
+    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
+        let Ok(ch) = m(&snap, "docChanges", &[]).and_then(|v| v.dyn_into::<js_sys::Array>().map_err(|e| e)) else { return };
+        for x in ch.iter() {
+            if st(&get(&x, "type")) != "added" {
+                continue;
+            }
+            let v = data(&get(&x, "doc"));
+            if st(&get(&v, "by")) == me_ {
+                continue;
+            }
+            let _ = cb.call1(&JsValue::NULL, &get(&v, "c"));
+        }
+    })
+    .into_js_value();
+    f("onSnapshot", &[c(&["calls", &id, "c"]), next, report_fn()])
+}
+
 /* ---------- window.cloud 만들기 ---------- */
 
 type Args = [JsValue; 5];
@@ -2039,6 +2088,14 @@ fn build() -> js_sys::Object {
         set(&x, &k, &a[2]);
         update_doc(d(&["chats", &sa(&a[0]), "messages", &sa(&a[1])]), x.into()).await
     });
+    /* ----- 통화 ----- */
+    am!(api, "callStart", |a| call_start(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
+    am!(api, "callAnswer", |a| update_doc(d(&["calls", &sa(&a[0])]), o(&[("answer", a[1].clone()), ("state", s("active"))])).await);
+    am!(api, "callEnd", |a| Ok(update_doc(d(&["calls", &sa(&a[0])]), o(&[("state", s("ended"))])).await.unwrap_or(JsValue::UNDEFINED)));
+    am!(api, "callCand", |a| set_doc(new_id(c(&["calls", &sa(&a[0]), "c"])), o(&[("by", s(&uid_of()?)), ("c", a[1].clone())])).await);
+    method_now(&api, "callWatch", |a| call_watch(sa(&a[0]), a[1].clone().dyn_into()?));
+    method_now(&api, "callIncoming", |a| call_incoming(a[0].clone().dyn_into()?));
+    method_now(&api, "callCands", |a| call_cands(sa(&a[0]), a[1].clone().dyn_into()?));
     am!(api, "markRead", |a| {
         let k = format!("reads.{}", uid_of()?);
         let x = js_sys::Object::new();

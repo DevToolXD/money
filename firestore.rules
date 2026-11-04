@@ -1043,5 +1043,34 @@ service cloud.firestore {
         );
       }
     }
+  
+    // 통화: 두 사람만 읽고 써요. 여기에는 연결 정보(offer·answer·후보)만 담고, 소리는 두 기기가 바로 주고받아요
+    function callPath(id) { return /databases/$(database)/documents/calls/$(id); }
+    function inCallOf(d) { return signedIn() && (request.auth.uid == d.from || request.auth.uid == d.to); }
+    match /calls/{id} {
+      allow read: if inCallOf(resource.data);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'chat', 'offer', 'state', 'at'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string && request.resource.data.to != request.auth.uid
+        && request.resource.data.chat is string
+        && request.resource.data.offer is map
+        && request.resource.data.state == 'ringing'
+        && request.resource.data.at == request.time
+        && request.auth.uid in get(/databases/$(database)/documents/chats/$(request.resource.data.chat)).data.members
+        && request.resource.data.to in get(/databases/$(database)/documents/chats/$(request.resource.data.chat)).data.members;
+      // 받는 사람만 answer를 적고(받기), 두 사람 다 끊을 수 있어요
+      allow update: if inCallOf(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer', 'state'])
+        && request.resource.data.state in ['active', 'ended']
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['answer']) || request.auth.uid == resource.data.to);
+      match /c/{cand} {
+        allow read: if inCallOf(get(callPath(id)).data);
+        allow create: if inCallOf(get(callPath(id)).data)
+          && request.resource.data.keys().hasOnly(['by', 'c'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.c is string && request.resource.data.c.size() < 2000;
+      }
+    }
   }
 }

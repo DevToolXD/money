@@ -50,7 +50,11 @@ struct St {
     sel: Option<u32>,
     busy: bool,
     last_prev: String,
+    /// 처음 업종을 정할 때: 맨 위 칸이 "업종을 정하세요"가 되고, 고르면 회사 업종이 정해져요
+    kind_mode: bool,
 }
+/// 업종 칸: 식품·컴퓨터·인공지능·원자력 발전
+const KINDS: [(&str, &str, &str); 4] = [("food", "식품", "food"), ("pc", "컴퓨터", "pc"), ("ai", "인공지능", "ai"), ("nuclear", "전기", "nuclear")];
 
 thread_local! {
     static ELS: RefCell<Option<Els>> = const { RefCell::new(None) };
@@ -113,6 +117,7 @@ pub fn init() {
 
 fn title_of(e: Entry) -> &'static str {
     match e {
+        Entry::Root if st(|s| s.kind_mode) => "업종을 정하세요",
         Entry::Root => "팔 상품 정하기",
         Entry::List(n) | Entry::Soon(n) => n.label,
         Entry::Step(k) => step_info(k, leaf_now()).title,
@@ -234,6 +239,14 @@ fn summary_html() -> String {
 }
 fn view_html(e: Entry) -> String {
     match e {
+        Entry::Root if st(|s| s.kind_mode) => {
+            let orbs: String = KINDS
+                .iter()
+                .enumerate()
+                .map(|(i, (_, label, ic))| format!(r#"<div class="pk-orbwrap"><button class="pk-orb" type="button" data-orb="{i}" aria-label="{label}">{}</button><span class="pk-orb-l">{label}</span></div>"#, svg_i(icon(ic))))
+                .collect();
+            format!(r#"<div class="pk-root pk-kinds">{orbs}</div>"#)
+        }
         Entry::Root => {
             let orbs: String = ROOT
                 .iter()
@@ -395,6 +408,7 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
     }
     let Some(e) = els() else { return };
     st(|s| s.busy = true);
+    let kind_mode = st(|s| s.kind_mode);
     let node = &ROOT[i.min(ROOT.len() - 1)];
     if let Some(t) = qs(&e.pk, ".pk-title") {
         let t = t.get_bounding_client_rect();
@@ -411,6 +425,42 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
     }
     if let Some(l) = wrap.as_ref().and_then(|w| qs(w, ".pk-orb-l")) {
         anim(&l, r#"[{"opacity":1},{"opacity":0}]"#, r#"{"duration":200}"#);
+    }
+    if kind_mode {
+        let (kind, label, _) = KINDS[i.min(KINDS.len() - 1)];
+        spawn_local(async move {
+            let cid = company().map(|c| co_str(&c, "id")).unwrap_or_default();
+            let ok = cloud::call("setCompanyKind", &[JsValue::from_str(&cid), JsValue::from_str(kind)]).await.is_ok();
+            st(|s| {
+                s.busy = false;
+                s.kind_mode = false;
+            });
+            if !ok {
+                ctx().toast("업종을 정하지 못했어요. 잠시 뒤 다시 해 주세요");
+                return close();
+            }
+            crate::shell::company::patch(&dom::obj(&[("kind", JsValue::from_str(kind))]));
+            crate::shell::company::render();
+            ctx().toast(&format!("업종을 {label}(으)로 정했어요"));
+            crate::work::refresh(true);
+            super::refresh_now().await;
+            // 식품 회사는 바로 팔 상품을 이어서 골라요. 다른 업종은 사업 탭의 연구실에서 해요
+            match catalog::node("food").filter(|_| kind == "food") {
+                Some(n) => {
+                    if let Some(e) = els() {
+                        e.stage.set_inner_html("");
+                    }
+                    st(|s| s.hist = vec![Entry::List(n)]);
+                    if let (Some(e), Some(v)) = (els(), make_view(&view_html(Entry::List(n)))) {
+                        let _ = e.stage.append_child(&v);
+                    }
+                    sync_top();
+                    paint_foot();
+                }
+                None => close(),
+            }
+        });
+        return;
     }
     set_timeout(
         move || {
@@ -557,20 +607,38 @@ fn sell() {
 
 /* ---------- 열기, 닫기 ---------- */
 
+/// 처음 업종을 정할 때 (창업한 뒤에 열려요)
+pub fn open_kind() {
+    open_as(true);
+}
 pub fn open() {
+    open_as(false);
+}
+fn open_as(kind_mode: bool) {
     if company().is_none() {
         return;
     }
     let Some(e) = els() else { return };
+    // 업종이 정해진 회사는 그 업종 칸부터 열어요 (식품 회사면 식품 안의 것만)
+    let kind = company().map(|c| co_str(&c, "kind")).unwrap_or_default();
+    let first = if kind_mode {
+        Entry::Root
+    } else {
+        match catalog::node(if kind.is_empty() { "food" } else { &kind }) {
+            Some(n) if !n.soon => Entry::List(n),
+            _ => Entry::Root,
+        }
+    };
     st(|s| {
-        s.hist = vec![Entry::Root];
+        s.kind_mode = kind_mode;
+        s.hist = vec![first];
         s.pick = None;
         s.sel = None;
         s.last_prev.clear();
     });
     e.stage.set_inner_html("");
     set_prev(String::new(), false, false);
-    if let Some(v) = make_view(&view_html(Entry::Root)) {
+    if let Some(v) = make_view(&view_html(first)) {
         let _ = e.stage.append_child(&v);
     }
     sync_top();

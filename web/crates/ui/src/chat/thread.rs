@@ -395,6 +395,16 @@ async fn load_older() {
 }
 
 pub fn init() {
+    // 전화 걸기 (1:1 대화에서)
+    if let Some(b) = by_id("thread-call") {
+        dom::on(&b, "click", |_| {
+            let Some(c) = open_chat() else { return };
+            if c.group {
+                return crate::shell::toast("단톡방에서는 아직 전화를 걸 수 없어요");
+            }
+            crate::call::dial(&c.other, &c.id, &c.name, &c.photo);
+        });
+    }
     if let Some(b) = by_id("bubbles") {
         dom::on(&b, "click", |e| {
             if dom::closest(&e, ".more").is_some() && open_chat().is_some() {

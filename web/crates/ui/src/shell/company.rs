@@ -30,6 +30,10 @@ fn kind_label(k: &str) -> &'static str {
 fn s(v: &JsValue, k: &str) -> String {
     cloud::get(v, k).as_string().unwrap_or_default()
 }
+/// 내 회사 전부 (사장인 곳)
+pub fn all() -> Vec<JsValue> {
+    COMPANIES.with(|c| c.borrow().clone())
+}
 pub fn current() -> JsValue {
     COMPANY.with(|c| c.borrow().clone())
 }
@@ -55,7 +59,7 @@ pub fn patch(p: &JsValue) {
     COMPANY.with(|c| *c.borrow_mut() = next);
 }
 
-fn render() {
+pub(crate) fn render() {
     let co = current();
     dom::set_hidden("biz-loading", !co.is_undefined());
     dom::set_hidden("biz-none", !co.is_null());
@@ -258,6 +262,8 @@ async fn found() {
             sheet_open(false, None);
             select(&cid);
             toast(&format!("{name}을(를) 창업했어요"));
+            // 이어서 업종을 정해요 (팔 상품 정하기 화면이 "업종을 정하세요"로 열려요)
+            crate::biz::picker::open_kind();
         }
         Err(e) => dom::set_text(
             "found-err",

@@ -214,7 +214,6 @@ struct Press {
     flick: bool,
 }
 struct Shot {
-    id: u64,
     tex: WebGlTexture,
     blur: WebGlTexture,
     css_w: f64,
@@ -233,6 +232,7 @@ struct Gfx {
     tex_a: WebGlTexture,
     tex_b: WebGlTexture,
     empty: WebGlTexture,
+    plain: WebGlTexture, // 사진이 아직 없을 때 비추는 화면 바탕색 (1×1)
 }
 impl Gfx {
     fn u(&self, n: &str) -> Option<&WebGlUniformLocation> {
@@ -251,8 +251,6 @@ struct Bar {
     backdrop: JsValue,
     page_root: HtmlElement,
     shots: Vec<(String, Shot)>,
-    shot_seq: u64,
-    last_entry: Option<u64>,
     plat_a: Option<HtmlElement>,
     plat_b: Option<HtmlElement>,
     grab_group: String,
@@ -290,6 +288,7 @@ struct Bar {
     masks: Vec<HtmlCanvasElement>,
     out: Vec<Out>,
     want_frame: bool,
+    plain_px: [u8; 4],
 }
 
 fn with<R>(f: impl FnOnce(&mut Bar) -> R) -> Option<R> {
@@ -423,7 +422,8 @@ impl Bar {
         gl.disable(GL::BLEND);
         gl.clear_color(0.0, 0.0, 0.0, 0.0);
         let empty = make_texture(&gl, None)?;
-        Some(Gfx { gl, u, tex, tex_a, tex_b, empty })
+        let plain = make_texture(&gl, None)?;
+        Some(Gfx { gl, u, tex, tex_a, tex_b, empty, plain })
     }
 
     // WebGL을 쓰는지에 따라 보이는 것이 달라져요 (못 쓰면 DOM 아이콘, CSS 유리 판, CSS 알약)
@@ -451,8 +451,7 @@ impl Bar {
             return;
         }
         let (Some(tex), Some(bt)) = (make_texture(gl, Some(&canvas)), make_texture(gl, Some(&blur))) else { return };
-        self.shot_seq += 1;
-        let s = Shot { id: self.shot_seq, tex, blur: bt, css_w: num(shot, "cssW"), css_h: num(shot, "cssH") };
+        let s = Shot { tex, blur: bt, css_w: num(shot, "cssW"), css_h: num(shot, "cssH") };
         if let Some(slot) = self.shots.iter_mut().find(|(k, _)| *k == name) {
             gl.delete_texture(Some(&slot.1.tex));
             gl.delete_texture(Some(&slot.1.blur));
@@ -1054,16 +1053,27 @@ impl Bar {
 
         // 뒤 화면 사진 (지금 보이는 화면의 것). 새 화면의 사진이 아직 없으면 마지막으로 쓰던 사진을 그대로 써요
         let active = if self.backdrop.is_null() || self.backdrop.is_undefined() { None } else { js_sys::Reflect::get(&self.backdrop, &"active".into()).ok().and_then(|v| v.as_string()) };
-        let mut entry = active.and_then(|a| self.shots.iter().position(|(k, _)| *k == a));
-        if let Some(e) = entry {
-            self.last_entry = Some(self.shots[e].1.id);
-        } else if let Some(pos) = self.last_entry.and_then(|id| self.shots.iter().position(|(_, s)| s.id == id)) {
-            entry = Some(pos);
-        } else if !self.shots.is_empty() {
-            entry = Some(0);
-            self.last_entry = Some(self.shots[0].1.id);
+        // 이 화면의 사진이 아직 없으면 다른 화면 사진을 빌리지 않고(다른 창이 비쳐 보였어요), 이 화면의 바탕색만 비춰요. 유리는 그대로 유리예요
+        let entry = active.as_ref().and_then(|a| self.shots.iter().position(|(k, _)| k == a));
+        let plain = entry.is_none() && !self.shots.is_empty();
+        if plain {
+            let el = js_sys::Reflect::get(&self.backdrop, &"activeEl".into()).ok().and_then(|e| e.dyn_into::<web_sys::Element>().ok());
+            let mut bg = el.and_then(|e| win().get_computed_style(&e).ok().flatten()).and_then(|c| c.get_property_value("background-color").ok()).unwrap_or_default();
+            let c = parse_color(&bg);
+            if c[3] < 0.5 {
+                bg = crate::dom::doc().document_element().and_then(|r| win().get_computed_style(&r).ok().flatten()).and_then(|c| c.get_property_value("--bg-canvas").ok()).unwrap_or_else(|| "#f2f2f7".into());
+            }
+            let c = parse_color(if bg.trim().is_empty() { "#f2f2f7" } else { &bg });
+            let px = [(c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8, 255];
+            if self.plain_px != px {
+                self.plain_px = px;
+                if let Some(g) = &self.g {
+                    g.gl.bind_texture(GL::TEXTURE_2D, Some(&g.plain));
+                    let _ = g.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(GL::TEXTURE_2D, 0, GL::RGBA as i32, 1, 1, 0, GL::RGBA, GL::UNSIGNED_BYTE, Some(&px));
+                }
+            }
         }
-        let glass_on = entry.is_some() && self.bar_a.is_some() && self.bar_b.is_some();
+        let glass_on = (entry.is_some() || plain) && self.bar_a.is_some() && self.bar_b.is_some();
         if glass_on != self.glass_on {
             self.glass_on = glass_on;
             if !glass_on {
@@ -1104,19 +1114,21 @@ impl Bar {
 
         let ent = entry.map(|e| &self.shots[e].1);
         gl.active_texture(GL::TEXTURE1);
-        gl.bind_texture(GL::TEXTURE_2D, Some(ent.map(|e| &e.tex).unwrap_or(&g.empty)));
+        let back = if plain { &g.plain } else { &g.empty };
+        gl.bind_texture(GL::TEXTURE_2D, Some(ent.map(|e| &e.tex).unwrap_or(back)));
         gl.uniform1i(g.u("uBack"), 1);
         gl.active_texture(GL::TEXTURE2);
-        gl.bind_texture(GL::TEXTURE_2D, Some(ent.map(|e| &e.blur).unwrap_or(&g.empty)));
+        gl.bind_texture(GL::TEXTURE_2D, Some(ent.map(|e| &e.blur).unwrap_or(back)));
         gl.uniform1i(g.u("uBlur"), 2);
         gl.active_texture(GL::TEXTURE0);
         u1f("uGlass", if glass_on { 1.0 } else { 0.0 });
         u1f("uGlassMix", self.glass_mix);
         u4f("uBarA", a.cx, a.cy, a.hw, a.hh);
         u4f("uBarB", b.cx, b.cy, b.hw, b.hh);
-        if let (true, Some(e)) = (glass_on, ent) {
+        if glass_on {
+            let (pw, ph) = ent.map(|e| (e.css_w, e.css_h)).unwrap_or((self.cw, self.ch));
             u2f("uPageOff", self.app_off.0 - PAD_X, self.app_off.1 - PAD_TOP + scroll);
-            u2f("uPageSize", e.css_w, e.css_h);
+            u2f("uPageSize", pw, ph);
             let grab = clamp(self.grab.x, 0.0, 1.0);
             u2f("uPress", if self.grab_group == "main" { grab } else { 0.0 }, if self.grab_group == "side" { grab } else { 0.0 });
         }
@@ -1184,8 +1196,6 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
         backdrop,
         page_root: page_root.clone(),
         shots: Vec::new(),
-        shot_seq: 0,
-        last_entry: None,
         grab_group: "main".into(),
         canvas: canvas.clone(),
         tabs,
@@ -1219,6 +1229,7 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
         masks: Vec::new(),
         out: Vec::new(),
         want_frame: false,
+        plain_px: [0; 4],
     };
     let rc = Rc::new(RefCell::new(bar));
     BAR.with(|b| *b.borrow_mut() = Some(rc.clone()));

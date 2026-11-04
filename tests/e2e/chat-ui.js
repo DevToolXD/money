@@ -57,9 +57,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   // 받는 사람
   ok('받는 사람 목록에 대화와 안 읽음 점', await waitText(bp, '#chat-list', '보내는이') && (await bp.$('#chat-list .chat-row .dot')) !== null);
   ok('미리보기 글은 마지막 글', (await text(bp, '#chat-list .chat-prev')) === '두 번째');
-  await bp.click('#filter-unread'); await bp.waitForTimeout(300);
-  ok('안 읽음만 보기에도 보여요', (await text(bp, '#chat-list')).includes('보내는이'));
-  await bp.click('#filter-unread'); await bp.waitForTimeout(300);
+  await bp.click('#filter-unread'); await bp.waitForTimeout(600);
+  ok('줄 세 개 버튼: 녹음 저장소', !(await bp.isHidden('#rec-store')) && (await text(bp, '#rec-store')).includes('녹음 저장소'));
+  await bp.click('#rec-store [data-rec-close]'); await bp.waitForTimeout(600);
   await bp.fill('#chat-search', '없는이름'); await bp.waitForTimeout(300);
   ok('찾기: 없으면 결과가 없어요', (await text(bp, '#chat-empty')) === '결과가 없어요' && !(await bp.isHidden('#chat-empty')));
   await bp.fill('#chat-search', ''); await bp.waitForTimeout(300);
@@ -160,6 +160,10 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await a.click('#edit-chats'); await a.waitForTimeout(300);
   ok('편집 버튼이 완료로', (await text(a, '#edit-chats')) === '완료');
   await a.click('#chat-list [data-del]'); await a.waitForTimeout(400);
+  ok('삭제: 한 번 물어봐요', (await text(a, '.alert-card')).includes('삭제할까요'));
+  await okAlert(a);
+  ok('삭제: 한 번 더 물어봐요', (await text(a, '.alert-card')).includes('정말 삭제할까요'));
+  await okAlert(a); await a.waitForTimeout(400);
   ok('삭제하면 목록에서 빠져요', !(await text(a, '#chat-list')).includes('받는이'));
   await a.click('#edit-chats');
 

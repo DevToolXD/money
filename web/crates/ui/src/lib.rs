@@ -3,6 +3,7 @@
 pub mod backdrop;
 pub mod biz;
 pub mod bounce;
+pub mod call;
 pub mod icons;
 pub mod tabbar;
 pub mod chat;
@@ -15,6 +16,7 @@ pub mod inventory;
 pub mod manage;
 pub mod money;
 pub mod notices;
+pub mod notify;
 pub mod parts;
 pub mod shell;
 pub mod shop;

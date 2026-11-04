@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=74">
+<link rel="stylesheet" href="app/app.css?v=75">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -25,7 +25,7 @@
 
   <div class="topbar" id="topbar">
     <span class="topbar-title" id="topbar-title">메시지</span>
-    <div class="nav-set" data-for="messages"><button class="glass-btn" id="edit-chats" type="button">편집</button><div class="nav-right"><button class="glass-btn round" id="filter-unread" type="button" aria-pressed="false" aria-label="읽지 않은 대화만 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg></button><button class="glass-btn round" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></div></div>
+    <div class="nav-set" data-for="messages"><button class="glass-btn" id="edit-chats" type="button">편집</button><div class="nav-right"><button class="glass-btn round" id="filter-unread" type="button" aria-label="녹음 저장소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg></button><button class="glass-btn round" id="compose" type="button" aria-label="새 메시지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a1.8 1.8 0 0 1 2.5 2.5L12 15l-3.5 1 1-3.5z"/></svg></button></div></div>
     <div class="nav-set" data-for="account"><button class="glass-btn" id="open-manage" type="button" hidden>관리</button><button class="glass-btn js-edit-profile" type="button">편집</button></div>
   </div>
 
@@ -169,7 +169,7 @@
       <button class="t-glass" id="thread-back" type="button" aria-label="뒤로"><svg viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2L3 11l8 9"/></svg><span class="badge" id="thread-badge">0</span></button>
       <div class="t-center"><span class="avatar contact" id="thread-avatar"></span><button class="t-glass t-name" id="thread-name-btn" type="button" aria-label="배경화면 바꾸기"><span id="thread-name"></span><svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg></button></div>
       <button class="t-glass round" id="thread-invite" type="button" aria-label="사람 초대" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M19 8v6M16 11h6"/></button>
-      <span class="t-glass round" aria-hidden="true"><svg viewBox="0 0 30 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="2" y="3" width="18" height="16" rx="4"/><path d="M22 9l6-4v12l-6-4z" fill="currentColor"/></svg></span>
+      <button class="t-glass round" id="thread-call" type="button" aria-label="전화 걸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 3.5h3l1.5 4-2 1.3a11 11 0 0 0 6.1 6.1l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A17 17 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2z"/></svg></button>
     </header>
     <div class="bubbles" id="bubbles"></div>
     <form class="composer" id="composer"><button class="plus" id="plus" type="button" aria-label="더 보내기"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M13 3v20M3 13h20"/></svg></button>
@@ -234,8 +234,8 @@
     <div class="sheet-head"><button class="link" id="found-cancel" type="button">취소</button><h2>회사 만들기</h2><span style="width:36px"></span></div>
     <p class="found-sub">회사 이름과 마크를 고르세요</p>
     <button class="found-logo" id="found-logo" type="button" aria-label="회사 마크 고르기"><span class="found-logo-img" id="found-logo-img"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.500A2.500 2.500 0 0 1 6.500 6h1.200l1.300-2h6l1.300 2h1.200A2.500 2.500 0 0 1 20 8.500v8A2.500 2.500 0 0 1 17.500 19h-11A2.500 2.500 0 0 1 4 16.500z"/><circle cx="12" cy="12.500" r="3.200"/></svg></button>
-    <p class="field-l">회사 종류</p>
-    <div class="found-kinds" id="found-kinds" role="group" aria-label="회사 종류">
+    <p class="field-l" hidden>회사 종류</p>
+    <div class="found-kinds" id="found-kinds" role="group" aria-label="회사 종류" hidden>
       <button class="gg wk-pill" type="button" aria-pressed="true" data-kind="food">식품</button>
       <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="pc">컴퓨터</button>
       <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="ai">인공지능</button>
@@ -344,7 +344,7 @@
 </div>
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
-<script type="module" src="app/firebase.js?v=48"></script>
-<script type="module" src="app/rs/boot.js?v=15"></script>
+<script type="module" src="app/firebase.js?v=49"></script>
+<script type="module" src="app/rs/boot.js?v=16"></script>
 </body>
 </html>

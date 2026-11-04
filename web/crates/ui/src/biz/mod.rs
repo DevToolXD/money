@@ -4,7 +4,7 @@
 mod drag;
 mod hire;
 mod lab;
-mod picker;
+pub(crate) mod picker;
 
 use std::cell::{Cell, RefCell};
 

@@ -2,7 +2,7 @@
 //! 탭 바와 뒤 화면 사진(backdrop) 연결, 로그인한 뒤 시작 흐름. 다른 화면(러스트 모듈)에 넘기는 도움 묶음(ctx)도 여기서 만들어요.
 
 mod account;
-mod company;
+pub(crate) mod company;
 mod login;
 mod ranking;
 
