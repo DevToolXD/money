@@ -1809,20 +1809,20 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 .eat.bye { opacity: 0; transition: opacity 0.25s; }
 .eat-stage { position: relative; width: 220px; height: 220px; }
 .eat-food { position: absolute; inset: 20px; display: grid; place-items: center; transform: scale(0.4) translateY(80px); opacity: 0; transition: transform 0.45s cubic-bezier(0.2, 1.2, 0.4, 1), opacity 0.25s; --b1: 0px; --b2: 0px; --b3: 0px;
-  -webkit-mask: radial-gradient(circle at 88% 30%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 92% 62%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 70% 88%, transparent var(--b3), #000 calc(var(--b3) + 0.5px));
-  -webkit-mask-composite: source-in; mask: radial-gradient(circle at 88% 30%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 92% 62%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 70% 88%, transparent var(--b3), #000 calc(var(--b3) + 0.5px)); mask-composite: intersect; }
+  -webkit-mask: radial-gradient(circle at 70% 36%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 73% 54%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 60% 68%, transparent var(--b3), #000 calc(var(--b3) + 0.5px));
+  -webkit-mask-composite: source-in; mask: radial-gradient(circle at 70% 36%, transparent var(--b1), #000 calc(var(--b1) + 0.5px)), radial-gradient(circle at 73% 54%, transparent var(--b2), #000 calc(var(--b2) + 0.5px)), radial-gradient(circle at 60% 68%, transparent var(--b3), #000 calc(var(--b3) + 0.5px)); mask-composite: intersect; }
 .eat-food > * { width: 100%; height: 100%; }
 .eat.go .eat-food { transform: none; opacity: 1; }
-.eat.b1 .eat-food { --b1: 42px; animation: eatChomp 0.18s; }
-.eat.b2 .eat-food { --b2: 48px; animation: eatChomp 0.18s; }
-.eat.b3 .eat-food { --b3: 52px; animation: eatChomp 0.18s; }
+.eat.b1 .eat-food { --b1: 30px; animation: eatChomp 0.18s; }
+.eat.b2 .eat-food { --b2: 34px; animation: eatChomp 0.18s; }
+.eat.b3 .eat-food { --b3: 38px; animation: eatChomp 0.18s; }
 .eat.done .eat-food { transform: scale(0.5); opacity: 0; transition: transform 0.4s, opacity 0.4s; }
 .eat.drink .eat-food { -webkit-mask: linear-gradient(to top, #000 var(--lv, 100%), transparent var(--lv, 100%)); mask: linear-gradient(to top, #000 var(--lv, 100%), transparent var(--lv, 100%)); transition: transform 0.45s cubic-bezier(0.2, 1.2, 0.4, 1), opacity 0.25s; }
 .eat.drink.go .eat-food { transform: rotate(-28deg); }
 .eat.drink.b1 .eat-food { --lv: 72%; animation: none; }
 .eat.drink.b2 .eat-food { --lv: 44%; animation: none; }
 .eat.drink.b3 .eat-food { --lv: 14%; animation: none; }
-.eat-crumb { position: absolute; left: 82%; top: 50%; width: 7px; height: 7px; border-radius: 2px; background: #d9b77e; opacity: 0; }
+.eat-crumb { position: absolute; left: 70%; top: 50%; width: 7px; height: 7px; border-radius: 2px; background: #d9b77e; opacity: 0; }
 .eat.go .eat-crumb { animation: eatCrumb 0.6s var(--d) ease-out forwards; }
 .eat.drink .eat-crumb { display: none; }
 .eat-gain { margin: 0; min-height: 30px; color: #fff; font-size: 24px; font-weight: 800; opacity: 0; transform: translateY(10px); }
@@ -1838,3 +1838,14 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 .pkv-tech.pkv-sm .pkv-logo { width: 34%; height: 34%; }
 /* 숨긴 카드·제목·버튼은 확실히 숨겨요 (display를 정한 class가 hidden을 덮어쓰지 않게) */
 .card[hidden], .section-title[hidden], .btn[hidden], .biz-blk[hidden] { display: none !important; }
+.sns-compose[hidden] { display: none; }
+.sns-dbody.swap { animation: snsSwap 0.32s cubic-bezier(0.2, 0.9, 0.25, 1); }
+@keyframes snsSwap { from { opacity: 0; transform: translateX(28px); } }
+.sns-wr textarea { min-height: 42px; overflow: hidden; }
+/* 먹기 연출: 음식 그림이 잘리지 않고 다 보여요 */
+.eat-stage { width: 260px; height: 320px; }
+/* 베어 문 자국(mask)은 판 테두리 안만 보여줘서, 판을 넉넉하게 잡고 그림은 안쪽 여백 안에 다 들어가게 해요 */
+.eat-food { inset: 0; padding: 36px; box-sizing: border-box; }
+.eat-food > .pkv { height: 100%; width: auto; max-width: 100%; margin: auto; transform: scale(1.35); }
+/* 일 탭: 회사 고르기 알약은 가운데 */
+.wk-cos { justify-content: center; flex-wrap: wrap; overflow: visible; }

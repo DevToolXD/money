@@ -1112,6 +1112,15 @@ service cloud.firestore {
           && request.resource.data.rc == resource.data.rc + 1
           && !exists(postPath(request.resource.data.last))
           && getAfter(postPath(request.resource.data.last)).data.parent == id)
+        ||
+        // 답글을 지우면: 같은 묶음에서 그 답글(내 것)이 사라지고 댓글 수가 1 줄어요
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rc', 'last'])
+          && request.resource.data.rc == resource.data.rc - 1
+          && request.resource.data.rc >= 0
+          && exists(postPath(request.resource.data.last))
+          && !existsAfter(postPath(request.resource.data.last))
+          && get(postPath(request.resource.data.last)).data.parent == id
+          && get(postPath(request.resource.data.last)).data.by == request.auth.uid)
       );
       allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }

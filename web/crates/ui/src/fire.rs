@@ -1993,6 +1993,21 @@ async fn post_get(id: String) -> R {
     let sn = rethrow(get_doc(d(&["posts", &id])).await)?;
     Ok(if exists(&sn) { post_row(&sn) } else { JsValue::NULL })
 }
+/// 글 지우기: 답글이면 같은 묶음에서 원래 글의 댓글 수도 1 줄여요
+async fn post_delete(id: String) -> R {
+    let sn = rethrow(get_doc(d(&["posts", &id])).await)?;
+    let parent = st(&get(&data(&sn), "parent"));
+    let b = batch();
+    m(&b, "delete", &[d(&["posts", &id])])?;
+    if !parent.is_empty() {
+        let ps = get_doc(d(&["posts", &parent])).await?;
+        if exists(&ps) && num(&get(&data(&ps), "rc")) >= 1.0 {
+            m(&b, "update", &[d(&["posts", &parent]), o(&[("rc", inc(-1.0)), ("last", s(&id))])])?;
+        }
+    }
+    rethrow(commit(&b).await)?;
+    Ok(s(&parent))
+}
 /// 좋아요·리포스트 켜고 끄기 (내 표시만)
 async fn post_mark(id: String, field: &str, on: bool) -> R {
     let k = format!("{field}.{}", uid_of()?);
@@ -2179,7 +2194,7 @@ fn build() -> js_sys::Object {
     am!(api, "postGet", |a| post_get(sa(&a[0])).await);
     am!(api, "postLike", |a| post_mark(sa(&a[0]), "likes", a[1].is_truthy()).await);
     am!(api, "postRepost", |a| post_mark(sa(&a[0]), "reposts", a[1].is_truthy()).await);
-    am!(api, "postDelete", |a| rethrow(aw(f("deleteDoc", &[d(&["posts", &sa(&a[0])])])).await));
+    am!(api, "postDelete", |a| post_delete(sa(&a[0])).await);
     am!(api, "markRead", |a| {
         let k = format!("reads.{}", uid_of()?);
         let x = js_sys::Object::new();

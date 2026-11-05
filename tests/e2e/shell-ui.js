@@ -93,18 +93,14 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   ok('창업 시트: 내 토큰 100', (await text(p, '#found-cost')).includes('100 토큰'));
   await p.click('#found-go'); await p.waitForTimeout(200);
   ok('이름이 없으면 안내', (await text(p, '#found-err')) === '회사 이름을 적어 주세요');
+  await p.click('#found-kinds [data-kind="nuclear"]');
   await p.fill('#found-name', '셸 발전');
-  await p.click('#found-go');
-  ok('창업 알림', await toastHas(p, '셸 발전을(를) 창업했어요'));
-  // 창업하면 바로 업종을 정해요 (팔 상품 정하기 화면이 "업종을 정하세요"로 열려요)
-  await p.waitForTimeout(900);
-  ok('업종을 정하세요 화면', (await text(p, '.pk-title b')) === '업종을 정하세요' && (await p.$$('.pk-kinds .pk-orb')).length === 4);
-  await p.click('.pk-kinds .pk-orb[data-orb="3"]');
-  ok('업종: 한 번 물어봐요', (await text(p, '.alert-card')).includes('정할까요'));
+  await p.click('#found-go'); await p.waitForTimeout(600);
+  ok('창업: 업종을 한 번 물어봐요', (await text(p, '.alert-card')).includes('원자력 발전 회사로 정할까요'));
   await p.click('#alert-ok'); await p.waitForTimeout(900);
-  ok('업종: 한 번 더 물어봐요', (await text(p, '.alert-card')).includes('정말 정할까요'));
+  ok('창업: 한 번 더 물어봐요', (await text(p, '.alert-card')).includes('정말 정할까요'));
   await p.click('#alert-ok');
-  ok('업종 정한 알림', await toastHas(p, '업종을 전기(으)로 정했어요'));
+  ok('창업 알림', await toastHas(p, '셸 발전을(를) 창업했어요'));
   await p.waitForTimeout(2500);
   ok('사업 화면: 회사 이름과 종류', (await text(p, '#biz-name')) === '셸 발전' && (await text(p, '#biz-since')).includes('원자력 발전 회사'));
   // 회사 프로필: 업종 바꾸기

@@ -232,6 +232,15 @@ async fn found() {
     if crate::money::balance().unwrap_or(0.0) < 10.0 {
         return dom::set_text("found-err", "토큰이 부족해요");
     }
+    // 업종은 한 번 정하면 바꿀 수 없어서 두 번 물어요
+    let kind0 = FOUND_KIND.with(|k| k.borrow().clone());
+    let label = kind_label(&kind0);
+    if !super::ask(&format!("{label}로 정할까요?"), "이 회사는 이 업종의 상품만 만들고 팔 수 있어요", "정하기", "취소").await {
+        return;
+    }
+    if !super::ask("정말 정할까요?", "한 번 정하면 바꿀 수 없어요", "네, 창업할게요", "다시 고를게요").await {
+        return;
+    }
     FOUNDING.set(true);
     let btn = by_id("found-go");
     if let Some(b) = &btn {
@@ -241,7 +250,8 @@ async fn found() {
     let logo = FOUND_LOGO.with(|l| l.borrow().clone());
     let kind = FOUND_KIND.with(|k| k.borrow().clone());
     let (n2, l2) = (name.clone(), logo.clone());
-    let f = Closure::once_into_js(move || cloud::call_now("foundCompany", &[JsValue::from_str(&n2), JsValue::from_str(&l2)]).unwrap_or(JsValue::UNDEFINED));
+    let k2 = kind.clone();
+    let f = Closure::once_into_js(move || cloud::call_now("foundCompany", &[JsValue::from_str(&n2), JsValue::from_str(&l2), JsValue::from_str(&k2)]).unwrap_or(JsValue::UNDEFINED));
     match wasm_bindgen_futures::JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {
         Ok(cid) => {
             let cid = cid.as_string().unwrap_or_default();
@@ -251,7 +261,7 @@ async fn found() {
                 ("name", JsValue::from_str(&name)),
                 ("logo", JsValue::from_str(&logo)),
                 ("kind", JsValue::from_str(&kind)),
-                ("kindSet", false.into()),
+                ("kindSet", true.into()),
                 ("owner", JsValue::from_str(&uid)),
                 ("open", 0.into()),
                 ("staff", 0.into()),
@@ -263,8 +273,6 @@ async fn found() {
             sheet_open(false, None);
             select(&cid);
             toast(&format!("{name}을(를) 창업했어요"));
-            // 이어서 업종을 정해요 (팔 상품 정하기 화면이 "업종을 정하세요"로 열려요)
-            crate::biz::picker::open_kind();
         }
         Err(e) => dom::set_text(
             "found-err",

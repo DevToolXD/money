@@ -40,6 +40,8 @@ thread_local! {
     static REPLY_TO: RefCell<String> = const { RefCell::new(String::new()) };
     static DRAFT_IMG: RefCell<String> = const { RefCell::new(String::new()) };
     static POSTING: Cell<bool> = const { Cell::new(false) };
+    /// 답글 안으로 들어갈 때 이전 글을 쌓아 둬요 (뒤로 가면 하나씩 돌아가요)
+    static STACK: RefCell<Vec<Post>> = const { RefCell::new(Vec::new()) };
 }
 
 /* ---------- 아이콘 (직접 그린 윤곽선) ---------- */
@@ -156,7 +158,11 @@ fn build() {
     let Some(r) = by_id("sns") else { return };
     dom::on(&r, "click", on_click);
     if let Some(t) = by_id("sns-text") {
-        dom::on(&t, "input", |_| paint_post_btn());
+        let t2 = t.clone();
+        dom::on(&t, "input", move |_| {
+            grow(&t2);
+            paint_post_btn();
+        });
     }
     if let Some(f) = by_id("sns-file") {
         dom::on(&f, "change", |_| {
@@ -174,6 +180,12 @@ fn build() {
     }
 }
 
+/// 쓰는 만큼 글쓰기 칸이 늘어나요
+fn grow(t: &web_sys::HtmlElement) {
+    let st = t.style();
+    let _ = st.set_property("height", "auto");
+    let _ = st.set_property("height", &format!("{}px", t.scroll_height().max(42)));
+}
 fn me_html(cls: &str) -> String {
     let uid = cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default();
     let (name, photo) = person(&uid);
@@ -269,8 +281,19 @@ fn on_click(e: web_sys::Event) {
                 return;
             }
             match cloud::call("postDelete", &[JsValue::from_str(&id)]).await {
-                Ok(_) => {
+                Ok(parent) => {
                     crate::shell::toast("글을 삭제했어요");
+                    // 답글이었으면 원래 글의 댓글 수를 줄여요
+                    if let Some(par) = parent.as_string().filter(|p| !p.is_empty()) {
+                        // 피드는 서버 숫자를 실시간으로 받아요. 글 화면(실시간이 아님)만 직접 줄여요
+                        OPEN.with(|o| {
+                            if let Some((p, _)) = o.borrow_mut().as_mut().filter(|(p, _)| p.id == par) {
+                                p.rc = (p.rc - 1.0).max(0.0);
+                            }
+                        });
+                        STACK.with(|s| s.borrow_mut().iter_mut().filter(|p| p.id == par).for_each(|p| p.rc = (p.rc - 1.0).max(0.0)));
+                        paint_feed();
+                    }
                     if OPEN.with(|o| o.borrow().as_ref().is_some_and(|(p, _)| p.id == id)) {
                         close_detail();
                     } else {
@@ -288,8 +311,9 @@ fn on_click(e: web_sys::Event) {
         return;
     }
     if let Some(a) = dom::closest(&e, ".sp") {
-        let in_detail = dom::closest(&e, "#sns-detail").is_some();
-        if !in_detail {
+        // 피드의 글, 또는 글 화면 안의 답글(큰 글이 아닌 것)을 누르면 그 글 안으로 들어가요
+        let in_parent_preview = dom::closest(&e, "#sns-parent").is_some();
+        if !a.class_list().contains("big") && !in_parent_preview {
             open_detail(&dom::data(&a, "id"));
         }
     }
@@ -347,6 +371,7 @@ fn open_sheet(reply_to: &str) {
     }
     if let Some(t) = by_id("sns-text").and_then(|t| t.dyn_into::<web_sys::HtmlTextAreaElement>().ok()) {
         t.set_value("");
+        grow(&t);
         let who = find(reply_to).map(|p| person(&p.by).0);
         t.set_placeholder(&who.map(|n| format!("{n}님에게 답글 남기기")).unwrap_or_else(|| "새로운 소식이 있나요?".into()));
         let t2 = t.clone();
@@ -428,8 +453,32 @@ fn post() {
 fn open_detail(id: &str) {
     let Some(p) = find(id) else { return };
     let Some(d) = by_id("sns-detail") else { return };
+    // 이미 글을 보고 있으면(답글을 누른 것) 지금 글을 쌓아 두고 그 답글 안으로 들어가요
+    let now = OPEN.with(|o| o.borrow().as_ref().map(|(p, _)| p.clone()));
+    let inside = !d.hidden() && now.is_some();
+    if let Some(cur) = now.filter(|_| inside) {
+        if cur.id == id {
+            return;
+        }
+        STACK.with(|s| s.borrow_mut().push(cur));
+    } else {
+        STACK.with(|s| s.borrow_mut().clear());
+    }
     OPEN.with(|o| *o.borrow_mut() = Some((p.clone(), Vec::new())));
     paint_open();
+    if let Some(body) = by_id("sns-dbody") {
+        body.set_scroll_top(0);
+        if inside {
+            let _ = body.class_list().remove_1("swap");
+            let _ = body.offset_width();
+            let _ = body.class_list().add_1("swap");
+        }
+    }
+    if inside {
+        let id = id.to_string();
+        spawn_local(async move { load_replies(&id).await });
+        return;
+    }
     d.set_hidden(false);
     let _ = d.class_list().remove_1("out");
     let _ = d.offset_width();
@@ -467,6 +516,14 @@ fn paint_open() {
     }
 }
 fn close_detail() {
+    // 답글 안에 들어와 있었으면 한 단계만 돌아가요
+    if let Some(prev) = STACK.with(|s| s.borrow_mut().pop()) {
+        let id = prev.id.clone();
+        OPEN.with(|o| *o.borrow_mut() = Some((prev, Vec::new())));
+        paint_open();
+        spawn_local(async move { load_replies(&id).await });
+        return;
+    }
     let Some(d) = by_id("sns-detail") else { return };
     let _ = d.class_list().remove_1("in");
     let _ = d.class_list().add_1("out");
