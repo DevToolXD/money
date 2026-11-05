@@ -68,6 +68,14 @@ const ACCOUNT: &[Part] = &[
 ];
 
 /// 탭 이름 → 아이콘
+// SNS: 두 사람 (앞사람이 크고, 뒷사람은 오른쪽 뒤에 살짝 가려져요)
+const SNS: &[Part] = &[
+    Part { d: "M10 4.6A4.3 4.3 0 1 1 10 13.2 4.3 4.3 0 0 1 10 4.6Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M2.5 24.2C2.5 19.6 5.9 16.4 10 16.4S17.5 19.6 17.5 24.2Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M15.6 8.4A3.6 3.6 0 1 1 18.9 13.4", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M17.4 17.1C18.2 16.7 19.1 16.5 20 16.5 23.1 16.5 25.5 19.2 25.5 23.3V24.2H19.6", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+];
+
 pub fn icon(name: &str) -> Option<&'static [Part]> {
     Some(match name {
         "messages" => MESSAGES,
@@ -75,7 +83,7 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "work" => WORK,
         "untitled" => UNTITLED,
         "inventory" => INVENTORY,
-        "untitled3" => UNTITLED,
+        "untitled3" => SNS,
         "shop" => SHOP,
         "ranking" => RANKING,
         "manage" => MANAGE,

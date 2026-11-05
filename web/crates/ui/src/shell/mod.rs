@@ -350,6 +350,7 @@ fn setup_tabbar(first: &str) {
             "shop" => crate::shop::refresh(),
             "inventory" => crate::inventory::refresh(),
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
+            "untitled3" => crate::sns::open(),
             _ => {}
         }
         invoke(&backdrop(), "setActive", &[JsValue::from_str(&name)]);

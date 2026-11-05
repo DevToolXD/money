@@ -39,7 +39,7 @@ const PAGE: Preset = Preset { w: 20.0, z: 1.0 }; // 핫바 넘기기: 튕기지 
 // 핫바: 옆으로 넘기면 바 안의 내용만 다음 쪽으로 바뀌어요 (프로필 버튼은 그대로)
 const PAGES: [[(&str, &str); 4]; 2] = [
     [("messages", "메시지"), ("money", "돈"), ("work", "일"), ("shop", "상점")],
-    [("ranking", "랭킹"), ("inventory", "인벤토리"), ("business", "사업"), ("untitled3", "무제")],
+    [("ranking", "랭킹"), ("inventory", "인벤토리"), ("business", "사업"), ("untitled3", "SNS")],
 ];
 
 const VERT: &str = "\nattribute vec2 aPos;\nvoid main() { gl_Position = vec4(aPos, 0.0, 1.0); }\n";
