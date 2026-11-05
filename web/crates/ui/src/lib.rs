@@ -20,6 +20,5 @@ pub mod parts;
 pub mod pay;
 pub mod shell;
 pub mod shop;
-pub mod sns;
 pub mod vitals;
 pub mod work;
