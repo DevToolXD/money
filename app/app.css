@@ -1820,8 +1820,6 @@ html[data-theme="dark"] .pf-rank { background: rgba(255, 255, 255, 0.14); }
 /* SNS: 위는 흰색, 아래로 갈수록 연한 회색. 기본 프로필은 흰 동그라미에 회색 글씨, 윤곽선 없음 */
 #screen-untitled3 { background: linear-gradient(180deg, #ffffff 0%, #f7f7fa 40%, #e4e4ea 100%); background-attachment: local; min-height: 100%; padding-bottom: calc(var(--dock-clearance) + 70px); }
 html[data-theme="dark"] #screen-untitled3 { background: linear-gradient(180deg, #000 0%, #0c0c10 40%, #1c1c22 100%); }
-#screen-untitled3 .avatar:not(.photo), .sns-sheet .avatar:not(.photo), .pf .avatar:not(.photo) { background: #fff; color: #8e8e93; }
-html[data-theme="dark"] #screen-untitled3 .avatar:not(.photo), html[data-theme="dark"] .sns-sheet .avatar:not(.photo), html[data-theme="dark"] .pf .avatar:not(.photo) { background: #2c2c30; color: #a1a1a8; }
 .pf-av .pf-avatar { box-shadow: 0 4px 16px rgba(40, 60, 80, 0.12); }
 .sns-feed { display: grid; gap: 14px; padding: 6px 16px 0; }
 .sns-none { margin: 30px 10px; text-align: center; color: var(--text-tertiary); font-size: 15px; }
@@ -1841,7 +1839,7 @@ html[data-theme="dark"] .sns-card, html[data-theme="dark"] .sns-fab, html[data-t
 .sns-chip { position: absolute; right: 10px; top: 10px; height: 28px; padding: 0 10px; border-radius: 14px; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; color: #fff; background: rgba(40, 45, 40, 0.38); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .sns-noimg .sns-chip { left: 2px; right: auto; top: 6px; color: var(--text-primary); background: rgba(120, 120, 128, 0.14); }
 .sns-chip svg { width: 13px; height: 13px; }
-.sns-cm { position: relative; margin-top: -18px; padding: 11px 10px 10px; border-radius: 14px; background: rgba(255, 255, 255, 0.82); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.06); }
+.sns-cm { position: relative; margin-top: -18px; padding: 11px 10px 10px; border-radius: 14px; background: rgba(236, 236, 242, 0.84); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.06); }
 .sns-cm.flat, .sns-noimg + .sns-cm { margin-top: 0; }
 html[data-theme="dark"] .sns-cm { background: rgba(40, 40, 46, 0.82); }
 .sns-tx { margin: 0 0 6px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
@@ -1897,3 +1895,19 @@ html[data-theme="dark"] .sns-tool, html[data-theme="dark"] .sns-cancel, html[dat
 .sns-rf { display: flex; gap: 8px; align-items: center; }
 .sns-send { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #0a7cff; flex: none; }
 .sns-send svg { width: 20px; height: 20px; }
+
+.sns-sl { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; display: grid; align-content: start; gap: 4px; }
+.sns-sr { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 6px 4px; background: none; color: inherit; text-align: left; border-radius: 16px; }
+.sns-srn { flex: 1; min-width: 0; display: grid; font-size: 16px; font-weight: 600; }
+.sns-srn small { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.sns-ck { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: transparent; box-shadow: inset 0 0 0 1.8px rgba(120, 120, 128, 0.4); transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.sns-ck svg { width: 16px; height: 16px; stroke-width: 2.6; }
+.sns-sr.on .sns-ck { background: #0a7cff; color: #fff; box-shadow: none; }
+.grp-top { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.grp-photo { position: relative; width: 84px; height: 84px; border-radius: 50%; background: none; flex: none; }
+.grp-av { width: 84px; height: 84px; font-size: 26px; }
+.grp-photo i { position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #111; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+.grp-photo i svg { width: 16px; height: 16px; }
+.grp-name { flex: 1; min-width: 0; display: grid; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+.grp-name input { width: 100%; box-sizing: border-box; height: 44px; border: 0; border-radius: 14px; padding: 0 14px; font-size: 17px; font-weight: 600; color: var(--text-primary); background: rgba(120, 120, 128, 0.12); outline: none; }
+.grp-h { margin: 6px 0 10px; font-size: 15px; font-weight: 700; }

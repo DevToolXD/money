@@ -252,7 +252,7 @@ fn on_chats(docs: JsValue) {
             o.map(|o| o.name.clone()).unwrap_or_else(|| "…".into())
         };
         let photo = if group {
-            String::new()
+            g("photo").as_string().unwrap_or_default()
         } else if has_p {
             cloud::get(&p, "photo").as_string().unwrap_or_default()
         } else {

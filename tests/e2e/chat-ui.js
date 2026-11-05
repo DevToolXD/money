@@ -145,7 +145,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
   // 배경화면
   await a.click('#thread-name-btn'); await a.waitForTimeout(500);
-  await a.click('[data-pick="mint"]'); await a.waitForTimeout(300);
+  await a.click('#wall-sheet [data-pick="mint"]'); await a.waitForTimeout(300);
   ok('배경화면 바꾸기', (await a.getAttribute('#thread', 'data-wall')) === 'mint');
   await a.click('#wall-done'); await a.waitForTimeout(400);
   ok('배경 저장 (이 기기)', JSON.parse(await a.evaluate(() => localStorage.getItem('walls')) || '{}')[await a.evaluate(() => document.querySelector('#chat-list .chat-row, #pinned .pin')?.dataset.id || '')] === 'mint' || (await a.evaluate(() => localStorage.getItem('walls'))).includes('mint'));

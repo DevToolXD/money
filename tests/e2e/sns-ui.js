@@ -39,7 +39,10 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   ok('다른 사람도 글을 봐요', (await p.textContent('#sns-feed')).includes('오늘 첫 매출'));
   await p.click('.sns-card .sns-like'); await p.waitForTimeout(1500);
   ok('좋아요', (await p.textContent('.sns-card .sns-like')).includes('1') && await p.$eval('.sns-card .sns-like', (e) => e.classList.contains('on')));
-  await p.fill('.sns-card .sns-ci', '대박이에요'); await p.press('.sns-card .sns-ci', 'Enter'); await p.waitForTimeout(2500);
+  ok('카드에 댓글 입력칸이 없어요', (await p.$$('.sns-card .sns-ci')).length === 0);
+  await p.click('.sns-card [data-act="replies"]'); await p.waitForTimeout(1200);
+  await p.fill('#sns-ri', '대박이에요'); await p.press('#sns-ri', 'Enter'); await p.waitForTimeout(2500);
+  await p.click('#sns-replies [data-close]'); await p.waitForTimeout(500);
   ok('댓글 수 1', (await p.textContent('.sns-card [data-act="replies"]')).includes('1'));
   await a.waitForTimeout(2500);
   ok('글쓴이 카드에 댓글 미리보기', (await a.textContent('#sns-feed')).includes('대박이에요'));
@@ -47,7 +50,34 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   await p.click('.sns-card [data-act="replies"]'); await p.waitForTimeout(1500);
   ok('댓글 모두 보기', (await p.textContent('#sns-rl')).includes('대박이에요'));
   await p.click('#sns-replies [data-close]'); await p.waitForTimeout(500);
-  await a.screenshot({ path: path.join(__dirname, 'shots', 'sns.png') });
+  // 보내기: 시뮬레이터 안 메시지로
+  await p.click('.sns-card [data-act="share"]'); await p.waitForTimeout(800);
+  ok('보내기 판에 사람', (await p.textContent('#sns-sl')).includes('글쓴이'));
+  await p.click('#sns-sl .sns-sr:has-text("글쓴이")'); await p.waitForTimeout(300);
+  await p.click('#sns-send'); await p.waitForTimeout(3500);
+  ok('보내기 판이 닫혀요', !(await p.isVisible('#sns-share .sns-panel')));
+  await a.waitForTimeout(2500);
+  await a.evaluate(() => window.tabbar.flipPage()); await a.waitForTimeout(600);
+  await a.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]').click()); await a.waitForTimeout(1500);
+  ok('받은 쪽 대화 미리보기에 게시물', (await a.textContent('body')).includes('구경꾼'));
+  // 단톡방 설정
+  const gid = await a.evaluate(async (u) => { const l = await window.cloud.listUsers(true); const o = l.list.find((x) => x.id === u); return window.cloud.createGroup('우리방', [o.uid]); }, 'snb' + t);
+  await a.evaluate(async (g) => { await window.cloud.send(g, g, { type: 'text', text: '안녕' }, '안녕'); }, gid);
+  await a.waitForTimeout(2500);
+  await a.evaluate((g) => { window.__open = g; }, gid);
+  await a.reload(); await a.waitForTimeout(6000);
+  await a.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]').click()); await a.waitForTimeout(1500);
+  await a.click('.row:has-text("우리방"), .chat-row:has-text("우리방"), [data-id]:has-text("우리방")'); await a.waitForTimeout(1500);
+  await a.click('#thread-name-btn'); await a.waitForTimeout(800);
+  ok('단톡방 설정 판', await a.isVisible('#group-sheet') && await a.isVisible('#grp-name'));
+  ok('배경 고르기도 있어요', (await a.$$('#group-sheet [data-pick]')).length === 5);
+  await a.fill('#grp-name', '새 방이름'); await a.press('#grp-name', 'Enter'); await a.waitForTimeout(2000);
+  ok('방 이름이 바뀌어요', (await a.textContent('#thread-name')).includes('새 방이름'));
+  await a.setInputFiles('#grp-file', path.join(__dirname, 'shots', 'sns.png')); await a.waitForTimeout(2500);
+  ok('방 사진이 바뀌어요', await a.$eval('#thread-avatar', (e) => e.classList.contains('photo')));
+  await a.click('#group-sheet [data-pick="mint"]'); await a.waitForTimeout(400);
+  ok('방 배경이 바뀌어요', (await a.getAttribute('#thread', 'data-wall')) === 'mint');
+  await a.screenshot({ path: path.join(__dirname, 'shots', 'group.png') });
   ok('화면 오류 없음', a.errs.length + p.errs.length === 0); if (a.errs.length + p.errs.length) console.log(a.errs.concat(p.errs).slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close(); process.exit(res.every(Boolean) ? 0 : 1);

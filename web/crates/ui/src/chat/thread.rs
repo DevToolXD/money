@@ -451,15 +451,21 @@ pub fn init() {
     if let Some(a) = by_id("thread-avatar") {
         dom::on(&a, "click", |_| {
             if let Some(c) = super::open_chat() {
-                if !c.other.is_empty() {
+                if c.group {
+                    open_group_sheet(&c);
+                } else if !c.other.is_empty() {
                     crate::profile::show(&c.other, &c.name, None);
                 }
             }
         });
     }
     if let Some(b) = by_id("thread-name-btn") {
-        dom::on(&b, "click", |_| super::sheet_open(true, "wall-sheet"));
+        dom::on(&b, "click", |_| match super::open_chat() {
+            Some(c) if c.group => open_group_sheet(&c),
+            _ => super::sheet_open(true, "wall-sheet"),
+        });
     }
+    bind_group();
     for b in dom::qsa(&dom::doc().document_element().expect("html"), "[data-pick]") {
         let b2 = b.clone();
         dom::on(&b, "click", move |_| {
@@ -478,5 +484,100 @@ pub fn init() {
     }
     if let Some(b) = by_id("wall-done") {
         dom::on(&b, "click", |_| super::sheet_open(false, ""));
+    }
+}
+
+/* ---------- 단톡방 설정: 이름, 사진, 배경 ---------- */
+
+fn paint_head(c: &Chat) {
+    dom::set_text("thread-name", &c.name);
+    if let Some(tav) = by_id("thread-avatar") {
+        let tp = safe_img(&c.photo, 40000);
+        tav.set_text_content(Some(&if tp.is_empty() { dom::initials(&c.name) } else { String::new() }));
+        let _ = tav.style().set_property("background-image", &if tp.is_empty() { String::new() } else { format!("url({tp})") });
+        dom::toggle(&tav, "photo", !tp.is_empty());
+    }
+    if let Some(av) = by_id("grp-av") {
+        let tp = safe_img(&c.photo, 40000);
+        av.set_text_content(Some(&if tp.is_empty() { dom::initials(&c.name) } else { String::new() }));
+        let _ = av.style().set_property("background-image", &if tp.is_empty() { String::new() } else { format!("url({tp})") });
+        dom::toggle(&av, "photo", !tp.is_empty());
+    }
+}
+fn open_group_sheet(c: &Chat) {
+    paint_head(c);
+    if let Some(i) = by_id("grp-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+        i.set_value(&c.name);
+    }
+    super::sheet_open(true, "group-sheet");
+}
+fn save_group_name() {
+    let Some(c) = open_chat() else { return };
+    let Some(i) = by_id("grp-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) else { return };
+    let n = dom::cut(i.value().trim(), 20);
+    if n.is_empty() || n == c.name {
+        i.set_value(&c.name);
+        return;
+    }
+    let id = c.id.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        match cloud::call("setGroup", &[JsValue::from_str(&id), dom::obj(&[("name", JsValue::from_str(&n))])]).await {
+            Ok(_) => {
+                let n2 = n.clone();
+                super::update_open(move |c| c.name = n2.clone());
+                if let Some(c) = open_chat() {
+                    paint_head(&c);
+                }
+            }
+            Err(_) => super::toast("이름을 바꾸지 못했어요"),
+        }
+    });
+}
+fn bind_group() {
+    if let Some(i) = by_id("grp-name") {
+        dom::on(&i, "change", |_| save_group_name());
+        dom::on(&i, "keydown", |e| {
+            if e.dyn_ref::<web_sys::KeyboardEvent>().map(|k| k.key() == "Enter").unwrap_or(false) {
+                e.prevent_default();
+                save_group_name();
+                if let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok()) {
+                    let _ = t.blur();
+                }
+            }
+        });
+    }
+    if let Some(b) = by_id("group-done") {
+        dom::on(&b, "click", |_| {
+            save_group_name();
+            super::sheet_open(false, "");
+        });
+    }
+    if let Some(b) = by_id("grp-photo-btn") {
+        dom::on(&b, "click", |_| {
+            if let Some(f) = by_id("grp-file") {
+                f.click();
+            }
+        });
+    }
+    if let Some(f) = by_id("grp-file") {
+        dom::on(&f, "change", |_| {
+            let Some(file) = super::attach::take_file("grp-file") else { return };
+            let Some(c) = open_chat() else { return };
+            wasm_bindgen_futures::spawn_local(async move {
+                let img = match super::attach::read_image(file, 320.0, 38000, 0.8, true).await {
+                    Ok(i) => i,
+                    Err(_) => return super::toast("사진을 넣지 못했어요"),
+                };
+                match cloud::call("setGroup", &[JsValue::from_str(&c.id), dom::obj(&[("photo", JsValue::from_str(&img))])]).await {
+                    Ok(_) => {
+                        super::update_open(move |c| c.photo = img.clone());
+                        if let Some(c) = open_chat() {
+                            paint_head(&c);
+                        }
+                    }
+                    Err(_) => super::toast("사진을 바꾸지 못했어요"),
+                }
+            });
+        });
     }
 }

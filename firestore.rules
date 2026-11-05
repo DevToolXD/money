@@ -977,6 +977,15 @@ service cloud.firestore {
           && request.resource.data.lastAt == request.time
           && request.time >= resource.data.lastAt + duration.value(600, 'ms'))
         ||
+        // 단톡방 이름·사진: 멤버 누구나 바꿔요
+        (resource.data.get('group', false) == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 20)
+        ||
+        (resource.data.get('group', false) == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])
+          && photoOk(request.resource.data.photo))
+        ||
         // 읽음 표시: 내 칸만
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reads'])
           && request.resource.data.reads.diff(resource.data.reads).affectedKeys().hasOnly([request.auth.uid])

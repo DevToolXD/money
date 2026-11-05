@@ -1367,6 +1367,19 @@ await t("단톡방: 여러 명과 이름으로 만들고, 멤버가 초대하고
   await assertFails(updateDoc(doc(alice, "chats/" + gid), { members: ["uA", "uC"] })); // 기존 멤버를 빼면 안 돼요
   await assertFails(updateDoc(doc(pw("uD", "dan"), "chats/" + gid), { members: ["uA", "uB", "uC", "uD"] })); // 멤버가 아니면 못 초대해요
 });
+await t("단톡방: 멤버는 이름과 사진을 바꾸고, 멤버가 아니거나 1:1 방이면 못 바꿔요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "chats/g_" + "b".repeat(20)), { members: ["uA", "uB"], group: true, name: "방", owner: "uA", last: "", lastFrom: "", lastAt: EPOCH, reads: {} }); });
+  const gid = "g_" + "b".repeat(20);
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await assertSucceeds(updateDoc(doc(bob, "chats/" + gid), { name: "새 이름" }));
+  await assertFails(updateDoc(doc(bob, "chats/" + gid), { name: "" }));
+  await assertFails(updateDoc(doc(bob, "chats/" + gid), { name: "가".repeat(21) }));
+  await assertSucceeds(updateDoc(doc(alice, "chats/" + gid), { photo: "" }));
+  await assertSucceeds(updateDoc(doc(alice, "chats/" + gid), { photo: "data:image/jpeg;base64,AAAA" }));
+  await assertFails(updateDoc(doc(alice, "chats/" + gid), { photo: "http://x.com/a.png" }));
+  await assertFails(updateDoc(doc(alice, "chats/" + gid), { name: "x", photo: "" })); // 한 번에 하나만
+  await assertFails(updateDoc(doc(pw("uD", "dan"), "chats/" + gid), { name: "침입" }));
+});
 await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청은 못 해요", async () => {
   const gid = "g_" + "b".repeat(20);
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "chats/" + gid), { members: ["uA", "uB", "uC"], group: true, name: "방", owner: "uA", last: "", lastFrom: "", lastAt: EPOCH, reads: {} }); });

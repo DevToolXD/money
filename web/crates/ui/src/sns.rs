@@ -36,6 +36,7 @@ thread_local! {
     static LAST: RefCell<std::collections::HashMap<String, (String, String)>> = RefCell::new(std::collections::HashMap::new()); // 글 → (쓴 사람, 마지막 댓글)
     static UNSUB: RefCell<Option<js_sys::Function>> = const { RefCell::new(None) };
     static DRAFT_IMG: RefCell<String> = const { RefCell::new(String::new()) };
+    static SHARE: RefCell<(String, Vec<String>)> = const { RefCell::new((String::new(), Vec::new())) }; // 보낼 글, 고른 곳
     static OPEN: RefCell<String> = const { RefCell::new(String::new()) }; // 댓글 모두 보기 중인 글
     static LOADED: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
@@ -44,7 +45,7 @@ thread_local! {
 
 const HEART: &str = r#"<path d="M12 20.5s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.8c0 5.8-7.5 10.4-7.5 10.4z"/>"#;
 const BUBBLE: &str = r#"<path d="M20 11.5c0 4-3.8 7-8.5 7-1 0-2-.1-2.9-.4L4.5 19.5l1.3-3.3C4.7 15 4 13.4 4 11.5c0-4 3.8-7 8-7s8 3 8 7z"/>"#;
-const SHARE: &str = r#"<path d="M14 5l6 6-6 6"/><path d="M20 11h-7a8 8 0 0 0-8 8"/>"#;
+const SHARE_I: &str = r#"<path d="M14 5l6 6-6 6"/><path d="M20 11h-7a8 8 0 0 0-8 8"/>"#;
 const PIN: &str = r#"<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/>"#;
 const MORE: &str = r#"<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>"#;
 const X: &str = r#"<path d="M7 7l10 10M17 7L7 17"/>"#;
@@ -99,7 +100,6 @@ fn paint_top() {
 
 fn card(p: &Post) -> String {
     let (name, photo) = person(&p.by);
-    let (mn, mp) = me();
     let img = safe_img(&p.img, 300000);
     let place = if p.place.is_empty() { String::new() } else { format!(r#"<span class="sns-chip">{}{}</span>"#, svg(PIN), esc(&p.place)) };
     let media = if img.is_empty() {
@@ -113,16 +113,20 @@ fn card(p: &Post) -> String {
         _ => String::new(),
     };
     let text = if p.text.is_empty() { String::new() } else { format!(r#"<p class="sns-tx">{}</p>"#, esc(&p.text)) };
+    let cm = if text.is_empty() && reply.is_empty() {
+        String::new()
+    } else {
+        format!(r#"<div class="sns-cm{}">{text}{reply}</div>"#, if img.is_empty() && place.is_empty() { " flat" } else { "" })
+    };
     format!(
-        r#"<article class="sns-card" data-id="{id}"><header class="sns-ch"><button type="button" class="sns-who" data-uid="{by}">{av}<span><b>{name}</b><small>{ago}</small></span></button>{more}</header>{media}<div class="sns-cm{flat}">{text}{reply}<form class="sns-cf" data-id="{id}">{mav}<input class="sns-ci" maxlength="300" placeholder="댓글 달기..." aria-label="댓글 달기" autocomplete="off"></form></div><footer class="sns-act"><button type="button" class="sns-like{on}" data-act="like" aria-label="{ll}" aria-pressed="{pr}">{heart}<span>{likes}</span></button><button type="button" data-act="replies" aria-label="댓글 {rc}개">{bubble}<span>{rc}</span></button><button type="button" data-act="share" aria-label="공유">{share}</button></footer></article>"#,
+        r#"<article class="sns-card" data-id="{id}"><header class="sns-ch"><button type="button" class="sns-who" data-uid="{by}">{av}<span><b>{name}</b><small>{ago}</small></span></button>{more}</header>{media}{cm}<footer class="sns-act"><button type="button" class="sns-like{on}" data-act="like" aria-label="{ll}" aria-pressed="{pr}">{heart}<span>{likes}</span></button><button type="button" data-act="replies" aria-label="댓글 {rc}개">{bubble}<span>{rc}</span></button><button type="button" data-act="share" aria-label="공유">{share}</button></footer></article>"#,
         id = esc(&p.id),
         by = esc(&p.by),
         av = dom::avatar_html(&name, &photo, "avatar contact sns-cav"),
         name = esc(&name),
         ago = ago(p.at),
         more = if p.by == my_uid() { format!(r#"<button type="button" class="sns-more" data-act="more" aria-label="더 보기">{}</button>"#, svg(MORE)) } else { String::new() },
-        flat = if img.is_empty() && place.is_empty() { " flat" } else { "" },
-        mav = dom::avatar_html(&mn, &mp, "avatar contact sns-mav"),
+        cm = cm,
         on = if p.liked { " on" } else { "" },
         ll = if p.liked { "좋아요 취소" } else { "좋아요" },
         pr = p.liked,
@@ -130,7 +134,7 @@ fn card(p: &Post) -> String {
         likes = if p.likes > 0.0 { (p.likes as i64).to_string() } else { String::new() },
         rc = p.rc as i64,
         bubble = svg(BUBBLE),
-        share = svg(SHARE),
+        share = svg(SHARE_I),
     )
 }
 
@@ -140,22 +144,8 @@ fn paint_feed() {
         el.set_inner_html("");
         return;
     }
-    // 쓰고 있던 댓글은 다시 그려도 남겨 둬요
-    let typing: Vec<(String, String)> = dom::qsa(&el, ".sns-cf")
-        .iter()
-        .filter_map(|f| {
-            let i: web_sys::HtmlInputElement = f.query_selector(".sns-ci").ok()??.dyn_into().ok()?;
-            let v = i.value();
-            (!v.is_empty()).then(|| (dom::data(f, "id"), v))
-        })
-        .collect();
     let html: String = POSTS.with(|p| p.borrow().iter().map(card).collect());
     el.set_inner_html(&if html.is_empty() { r#"<p class="sns-none">아직 게시물이 없어요. + 를 눌러 첫 게시물을 올려 보세요</p>"#.into() } else { html });
-    for (id, v) in typing {
-        if let Some(i) = el.query_selector(&format!(r#".sns-cf[data-id="{}"] .sns-ci"#, esc(&id))).ok().flatten().and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()) {
-            i.set_value(&v);
-        }
-    }
 }
 
 /// 댓글이 있는 글의 마지막 댓글을 읽어 와요 (아직 모르는 것만)
@@ -232,16 +222,7 @@ fn on_feed_click(e: web_sys::Event) {
             });
         }
         "replies" => open_replies(&id),
-        "share" => {
-            let text = POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).map(|p| p.text.clone()).unwrap_or_default());
-            if let Some(w) = web_sys::window() {
-                let _ = w.navigator().clipboard().write_text(&if text.is_empty() { "자본주의 시뮬레이터 SNS 게시물".to_string() } else { text });
-            }
-            crate::shell::toast("게시물 글을 복사했어요");
-            spawn_local(async move {
-                let _ = cloud::call("postShare", &[JsValue::from_str(&id)]).await;
-            });
-        }
+        "share" => open_share(&id),
         "more" => {
             spawn_local(async move {
                 if crate::chat::ctx().ask("게시물을 지울까요?", "지운 게시물은 되돌릴 수 없어요", "지우기", "취소").await {
@@ -309,6 +290,108 @@ async fn load_replies(id: String) {
     if let Some(l) = by_id("sns-rl") {
         l.set_inner_html(&if html.is_empty() { r#"<p class="sns-none">첫 댓글을 달아 보세요</p>"#.into() } else { html });
     }
+}
+
+/* ---------- 보내기: 시뮬레이터 안 메시지로 (대화방·단톡방·사람) ---------- */
+
+/// (키, 이름, 사진, 단톡방인지): 키는 "c:대화번호"나 "u:사람번호"
+fn share_targets() -> Vec<(String, String, String, bool)> {
+    let me = my_uid();
+    let chats: Vec<(String, String, String, bool, String)> = crate::chat::with_chats(|cs| cs.iter().map(|c| (c.id.clone(), c.name.clone(), c.photo.clone(), c.group, c.other.clone())).collect());
+    let have: Vec<String> = chats.iter().filter(|c| !c.3).map(|c| c.4.clone()).collect();
+    let mut out: Vec<(String, String, String, bool)> = chats.into_iter().map(|c| (format!("c:{}", c.0), c.1, c.2, c.3)).collect();
+    PEOPLE.with(|p| {
+        for (uid, name, photo) in p.borrow().iter() {
+            if *uid != me && !have.contains(uid) {
+                out.push((format!("u:{uid}"), name.clone(), photo.clone(), false));
+            }
+        }
+    });
+    out
+}
+fn paint_share() {
+    let sel = SHARE.with(|s| s.borrow().1.clone());
+    let html: String = share_targets()
+        .iter()
+        .map(|(k, n, ph, g)| {
+            format!(
+                r#"<li><button type="button" class="sns-sr{}" data-key="{}" aria-pressed="{}">{}<span class="sns-srn">{}<small>{}</small></span><i class="sns-ck" aria-hidden="true">{}</i></button></li>"#,
+                if sel.contains(k) { " on" } else { "" },
+                esc(k),
+                sel.contains(k),
+                dom::avatar_html(n, ph, "avatar contact sns-cav"),
+                esc(n),
+                if *g { "단톡방" } else { "" },
+                svg(r#"<path d="M5 12.5l4.5 4.5L19 7.5"/>"#)
+            )
+        })
+        .collect();
+    if let Some(l) = by_id("sns-sl") {
+        l.set_inner_html(&if html.is_empty() { r#"<p class="sns-none">보낼 사람이 아직 없어요</p>"#.into() } else { html });
+    }
+    if let Some(b) = by_id("sns-send") {
+        let _ = if sel.is_empty() { b.set_attribute("disabled", "") } else { b.remove_attribute("disabled") };
+        b.set_text_content(Some(&if sel.is_empty() { "보내기".to_string() } else { format!("보내기 {}", sel.len()) }));
+    }
+}
+fn open_share(id: &str) {
+    SHARE.with(|s| *s.borrow_mut() = (id.to_string(), Vec::new()));
+    paint_share();
+    sheet(true, "sns-share");
+}
+fn share_row_click(e: web_sys::Event) {
+    e.stop_propagation(); // 다시 그리면 눌린 칸이 사라져서 "바깥을 눌렀다"고 읽히지 않게
+    let Some(b) = dom::closest(&e, "[data-key]") else { return };
+    let k = dom::data(&b, "key");
+    SHARE.with(|s| {
+        let mut s = s.borrow_mut();
+        if let Some(i) = s.1.iter().position(|x| *x == k) {
+            s.1.remove(i);
+        } else if s.1.len() < 10 {
+            s.1.push(k);
+        }
+    });
+    dom::vibrate(6);
+    paint_share();
+}
+fn send_share() {
+    let (id, sel) = SHARE.with(|s| s.borrow().clone());
+    let Some(p) = POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).cloned()) else { return };
+    if sel.is_empty() || BUSY.replace(true) {
+        return;
+    }
+    if let Some(b) = by_id("sns-send") {
+        let _ = b.set_attribute("disabled", "");
+    }
+    let names: std::collections::HashMap<String, (String, String)> = PEOPLE.with(|x| x.borrow().iter().map(|(u, n, ph)| (u.clone(), (n.clone(), ph.clone()))).collect());
+    spawn_local(async move {
+        let who = person(&p.by).0;
+        let body = if p.text.is_empty() { "사진".to_string() } else { dom::cut(&p.text, 300) };
+        let text = format!("{who}님의 게시물\n{body}");
+        let mut done = 0;
+        for k in sel {
+            let chat = if let Some(cid) = k.strip_prefix("c:") {
+                crate::chat::with_chats(|cs| cs.iter().find(|c| c.id == cid).cloned())
+            } else if let Some(uid) = k.strip_prefix("u:") {
+                let (n, ph) = names.get(uid).cloned().unwrap_or_default();
+                match crate::chat::people::chat_with(uid, "", &n, &ph).await {
+                    Ok(cid) => crate::chat::with_chats(|cs| cs.iter().find(|c| c.id == cid).cloned()),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            };
+            let Some(chat) = chat else { continue };
+            let payload = dom::obj(&[("type", "text".into()), ("text", JsValue::from_str(&text))]);
+            if crate::chat::send_payload(&chat, payload).await.is_ok() {
+                done += 1;
+            }
+        }
+        BUSY.set(false);
+        sheet(false, "sns-share");
+        crate::shell::toast(if done > 0 { "메시지로 보냈어요" } else { "보내지 못했어요" });
+        let _ = cloud::call("postShare", &[JsValue::from_str(&id)]).await;
+    });
 }
 
 /* ---------- 새 게시물 ---------- */
@@ -412,17 +495,11 @@ fn bind() {
     }
     if let Some(f) = by_id("sns-feed") {
         dom::on(&f, "click", on_feed_click);
-        dom::on(&f, "submit", |e| {
-            e.prevent_default();
-            let Some(form) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) else { return };
-            let Some(i) = form.query_selector(".sns-ci").ok().flatten().and_then(|i| i.dyn_into().ok()) else { return };
-            send_reply(dom::data(&form, "id"), i);
-        });
     }
     if let Some(b) = by_id("sns-fab") {
         dom::on(&b, "click", |_| open_compose());
     }
-    for id in ["sns-compose", "sns-replies"] {
+    for id in ["sns-compose", "sns-replies", "sns-share"] {
         if let Some(s) = by_id(id) {
             let id2 = id.to_string();
             dom::on(&s, "click", move |e| {
@@ -439,6 +516,12 @@ fn bind() {
                 }
             });
         }
+    }
+    if let Some(l) = by_id("sns-sl") {
+        dom::on(&l, "click", share_row_click);
+    }
+    if let Some(b) = by_id("sns-send") {
+        dom::on(&b, "click", |_| send_share());
     }
     if let Some(f) = by_id("sns-rf") {
         dom::on(&f, "submit", |e| {

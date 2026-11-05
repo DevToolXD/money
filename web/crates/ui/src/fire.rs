@@ -2176,6 +2176,8 @@ fn build() -> js_sys::Object {
     am!(api, "openChat", |a| open_chat(sa(&a[0])).await);
     am!(api, "createGroup", |a| create_group(a[0].clone(), a[1].clone()).await);
     am!(api, "inviteMembers", |a| invite_members(sa(&a[0]), a[1].clone()).await);
+    // 단톡방 이름이나 사진 바꾸기: 둘째 값은 {name} 또는 {photo}
+    am!(api, "setGroup", |a| rethrow(update_doc(d(&["chats", &sa(&a[0])]), a[1].clone()).await));
     am!(api, "nameOf", |a| name_of(sa(&a[0])).await);
     method_now(&api, "watchChats", |a| watch_chats(a[0].clone().dyn_into()?));
     method_now(&api, "watchMessages", |a| watch_messages(sa(&a[0]), a[1].clone().dyn_into()?, a[2].clone()));

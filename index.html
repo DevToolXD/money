@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=96">
+<link rel="stylesheet" href="app/app.css?v=98">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -258,6 +258,14 @@
     </div>
   </section>
 
+  <section class="sheet" id="group-sheet" aria-label="단톡방 설정">
+    <div class="grabber"></div>
+    <div class="sheet-head"><span></span><h2>단톡방 설정</h2><button class="link" id="group-done" type="button" style="font-weight:700">완료</button></div>
+    <div class="grp-top"><button type="button" class="grp-photo" id="grp-photo-btn" aria-label="단톡방 사진 바꾸기"><span class="avatar contact grp-av" id="grp-av"></span><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3V19H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg></i></button><input id="grp-file" type="file" accept="image/*" hidden><label class="grp-name"><span>방 이름</span><input id="grp-name" maxlength="20" autocomplete="off" aria-label="단톡방 이름"></label></div>
+    <h3 class="grp-h">배경화면</h3>
+    <div class="walls"><button class="wall-opt" type="button" data-pick="white" aria-pressed="false"><i data-wall="white"></i>흰색</button><button class="wall-opt" type="button" data-pick="sunset" aria-pressed="false"><i data-wall="sunset"></i>노을</button><button class="wall-opt" type="button" data-pick="aurora" aria-pressed="false"><i data-wall="aurora"></i>오로라</button><button class="wall-opt" type="button" data-pick="night" aria-pressed="false"><i data-wall="night"></i>밤하늘</button><button class="wall-opt" type="button" data-pick="mint" aria-pressed="false"><i data-wall="mint"></i>민트</button></div>
+  </section>
+
   <section class="sheet" id="wall-sheet" aria-label="배경화면">
     <div class="grabber"></div>
     <div class="sheet-head"><span></span><h2>배경화면</h2><button class="link" id="wall-done" type="button" style="font-weight:700">완료</button></div>
@@ -316,6 +324,7 @@
   <div class="status-fab" id="status-fab" hidden><div class="fab-tiles" id="fab-tiles"></div><button class="status-bubble" id="status-bubble" type="button" aria-label="상태 보기" aria-expanded="false"><svg class="fab-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg><svg class="fab-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.800 8.800l6.400 6.400M15.200 8.800l-6.400 6.400"/></svg></button></div>
 
   <div class="sns-sheet" id="sns-compose" hidden><section class="sns-panel" role="dialog" aria-modal="true" aria-label="새 게시물"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>새 게시물</b><button type="button" class="sns-post" id="sns-post" disabled>올리기</button></header><div class="sns-cme" id="sns-cme"></div><textarea id="sns-text" class="sns-text" maxlength="500" rows="4" placeholder="무슨 일이 있었나요?" aria-label="게시물 글"></textarea><div id="sns-prev"></div><div class="sns-tools"><label class="sns-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-8 8"/></svg><span>사진</span><input id="sns-file" type="file" accept="image/*" hidden></label><label class="sns-tool sns-placebox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/></svg><input id="sns-place" maxlength="20" placeholder="장소" autocomplete="off" aria-label="장소"></label></div><p class="sns-pub">모두에게 보여요</p></section></div>
+  <div class="sns-sheet" id="sns-share" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="보내기"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>보내기</b><button type="button" class="sns-post" id="sns-send" disabled>보내기</button></header><ul class="sns-sl" id="sns-sl"></ul></section></div>
   <div class="sns-sheet" id="sns-replies" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="댓글"><span class="sns-grab"></span><header class="sns-sh"><span></span><b>댓글</b><button type="button" class="sns-x" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></header><ul class="sns-rl" id="sns-rl"></ul><form class="sns-rf" id="sns-rf"><input id="sns-ri" class="sns-ci" maxlength="300" placeholder="댓글 달기..." aria-label="댓글 달기" autocomplete="off"><button type="submit" class="sns-send" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5 21 3z"/></svg></button></form></section></div>
 
   <div class="dock">
@@ -337,7 +346,7 @@
 </div>
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
-<script type="module" src="app/firebase.js?v=53"></script>
-<script type="module" src="app/rs/boot.js?v=40"></script>
+<script type="module" src="app/firebase.js?v=54"></script>
+<script type="module" src="app/rs/boot.js?v=41"></script>
 </body>
 </html>
