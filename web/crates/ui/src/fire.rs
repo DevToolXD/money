@@ -1956,6 +1956,7 @@ fn post_row(dd: &JsValue) -> JsValue {
         ("topic", { let t = get(&v, "topic"); if t.is_string() { t } else { s("") } }),
         ("first", (get(&v, "first") == JsValue::TRUE).into()),
         ("sh", { let x = get(&v, "sh"); if is_int(&x) { x } else { n(0.0) } }),
+        ("last", { let x = get(&v, "last"); if x.is_string() { x } else { s("") } }),
         ("liked", mine("likes").into()),
         ("reposted", mine("reposts").into()),
     ])

@@ -1892,3 +1892,39 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 .app[data-screen="untitled3"] .sns-fab.show { opacity: 1; transform: none; pointer-events: auto; }
 .sns-fab:active { transform: scale(0.92); }
 .screen[data-screen="untitled3"] .sns-top { top: 0; }
+/* ===== SNS 다시 (사진처럼) ===== */
+.sns-top .sns-mark { opacity: var(--pull, 0); } /* 로고 자리는 비워 둬요. 당겨서 새로고침할 때만 표시가 나타나요 */
+.sns-top .sns-mark.spin { opacity: 1; }
+.sns-top { grid-template-columns: 48px 1fr 48px; height: 52px; padding: 0 10px; }
+.sns-ic { color: #a6a6a6; }
+.sns-ic svg { width: 28px; height: 28px; stroke-width: 2; }
+.sp-grp { border-bottom: 0.5px solid var(--sns-line); }
+.sp-grp .sp { border-bottom: 0; }
+.sp { gap: 10px; padding: 14px 14px 6px 14px; }
+.sp-av { width: 40px; height: 40px; font-size: 13px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12); }
+.sp-follow { width: 20px; height: 20px; right: -4px; bottom: -4px; background: #000; color: #fff; box-shadow: 0 0 0 2px var(--sns-bg, #fff); }
+html[data-theme="dark"] .sp-follow { background: #fff; color: #000; }
+.sp-follow svg { width: 12px; height: 12px; stroke-width: 2.6; }
+.sp-h { align-items: center; gap: 6px; min-height: 22px; }
+.sp-h b { font-size: 15px; font-weight: 600; }
+.sp-t { font-size: 15px; color: #999; }
+.sp-more { margin-left: auto; width: 28px; height: 22px; color: #999; }
+.sp-more svg { width: 22px; height: 22px; }
+.sp-x { margin: 3px 0 0; font-size: 15px; line-height: 21px; }
+.sp-media { margin-top: 10px; border-radius: 16px; overflow: hidden; border: 0.5px solid rgba(0, 0, 0, 0.12); max-width: 100%; width: fit-content; background: #fafafa; }
+.sp-media .sp-img { display: block; margin: 0; border: 0; border-radius: 0; max-height: 460px; }
+.sp-a { gap: 0; margin: 8px 0 0 -9px; }
+.sp-b { gap: 5px; height: 36px; padding: 0 9px; margin-right: 10px; font-size: 14px; color: #000; }
+html[data-theme="dark"] .sp-b { color: #f3f5f7; }
+.sp-b svg { width: 22px; height: 22px; stroke-width: 1.6; }
+/* 원래 글과 아래 답글 미리보기: 동그라미에서 선이 내려와 오른쪽으로 둥글게 꺾여요 */
+.sp.has-in { padding-bottom: 2px; }
+.sp.has-in .sp-l { position: relative; align-self: stretch; }
+.sp.has-in .sp-line { position: absolute; left: 19px; top: 46px; bottom: -34px; width: 22px; min-height: 0; background: none; border-left: 2px solid rgba(0, 0, 0, 0.12); border-bottom: 2px solid rgba(0, 0, 0, 0.12); border-bottom-left-radius: 18px; }
+html[data-theme="dark"] .sp.has-in .sp-line { border-color: rgba(255, 255, 255, 0.2); }
+.sp.sp-in { padding: 6px 14px 8px 64px; }
+.sp.sp-in .sp-av { width: 32px; height: 32px; font-size: 11px; }
+.sp.sp-in .sp-follow { width: 16px; height: 16px; }
+.sp.sp-in .sp-follow svg { width: 10px; height: 10px; }
+.sp-first { padding: 12px 14px 0 26px; }
+.sp-first + .sp { padding-top: 6px; }

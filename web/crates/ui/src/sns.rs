@@ -26,13 +26,14 @@ struct Post {
     topic: String,
     first: bool,
     sh: f64,
+    last: String,
 }
 impl Post {
     fn from(v: &JsValue) -> Self {
         let s = |k: &str| cloud::get(v, k).as_string().unwrap_or_default();
         let n = |k: &str| cloud::get(v, k).as_f64().unwrap_or(0.0);
         let b = |k: &str| cloud::get(v, k).as_bool().unwrap_or(false);
-        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), reposts: n("reposts"), rc: n("rc"), liked: b("liked"), reposted: b("reposted"), topic: s("topic"), first: b("first"), sh: n("sh") }
+        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), reposts: n("reposts"), rc: n("rc"), liked: b("liked"), reposted: b("reposted"), topic: s("topic"), first: b("first"), sh: n("sh"), last: s("last") }
     }
 }
 
@@ -53,16 +54,18 @@ thread_local! {
     static QUERY: RefCell<String> = const { RefCell::new(String::new()) };
     static PULL: Cell<Option<f64>> = const { Cell::new(None) };
     static REFRESHING: Cell<bool> = const { Cell::new(false) };
+    /// 피드에 미리 보여줄 마지막 답글 (답글 번호 → 답글, 없어졌으면 None). 한 번 읽으면 기억해요
+    static LAST_REPLY: RefCell<std::collections::HashMap<String, Option<Post>>> = RefCell::new(std::collections::HashMap::new());
 }
 
 /* ---------- 아이콘 (직접 그린 윤곽선) ---------- */
 fn svg(d: &str) -> String {
     format!(r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{d}</svg>"#)
 }
-const HEART: &str = r#"<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/>"#;
-const BUBBLE: &str = r#"<path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.2A8 8 0 1 1 20 11.5z"/>"#;
-const REPOST: &str = r#"<path d="M7 7h10l-2.5-2.5M17 17H7l2.5 2.5"/><path d="M17 7v4M7 17v-4"/>"#;
-const SHARE: &str = r#"<path d="M3.5 11.3 20 4l-7.3 16.5-2.3-6.9z"/><path d="M10.4 13.6 20 4"/>"#;
+const HEART: &str = r#"<path d="M12 20.3c-.3 0-8.8-4.9-8.8-11A4.9 4.9 0 0 1 12 6.6a4.9 4.9 0 0 1 8.8 2.7c0 6.1-8.5 11-8.8 11z"/>"#;
+const BUBBLE: &str = r#"<path d="M20.4 12a8.4 8.4 0 0 1-12.5 7.3L3.6 20.4l1.1-4.3A8.4 8.4 0 1 1 20.4 12z"/>"#;
+const REPOST: &str = r#"<path d="M18.5 13.5v1a4 4 0 0 1-4 4H8"/><path d="M10.5 16l-2.5 2.5 2.5 2.5"/><path d="M5.5 10.5v-1a4 4 0 0 1 4-4H16"/><path d="M13.5 8l2.5-2.5L13.5 3"/>"#;
+const SHARE: &str = r#"<path d="M21 12 4 4.5l2.6 7.5L4 19.5z"/><path d="M6.6 12H21"/>"#;
 const MORE: &str = r#"<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>"#;
 const PHOTO: &str = r#"<rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.5-4.5-8.5 8"/>"#;
 const BACK: &str = r#"<path d="M15 5l-7 7 7 7"/>"#;
@@ -118,14 +121,20 @@ fn my_uid() -> String {
     cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default()
 }
 fn post_html(p: &Post, big: bool, thread_line: bool) -> String {
+    post_html_x(p, big, thread_line, false)
+}
+/// inline: 피드에서 원래 글 아래에 들여 쓴 답글 미리보기
+fn post_html_x(p: &Post, big: bool, thread_line: bool, inline: bool) -> String {
     let (name, photo) = person(&p.by);
     let me = my_uid();
     let img = dom::safe_img(&p.img, 300000);
     let follow = p.by != me && !me.is_empty() && !FOLLOWS.with(|f| f.borrow().contains(&p.by));
+    let n = |v: f64| if v > 0.0 { format!("<span>{}</span>", count(v)) } else { String::new() };
     format!(
-        r#"{first}<article class="sp{big}" data-id="{id}"><div class="sp-l"><span class="sp-avw">{av}{badge}</span>{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b>{topic}<span class="sp-t">{t}</span>{more}</div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}<span>{nl}</span></button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}<span>{nr}</span></button><button type="button" class="sp-b{rp}" data-repost="{id}" aria-label="리포스트" aria-pressed="{reposted}">{rep}<span>{nrp}</span></button><button type="button" class="sp-b" data-share="{id}" aria-label="보내기">{share}<span>{nsh}</span></button></div></div></article>"#,
-        first = if p.first && !big { format!(r#"<p class="sp-first" aria-label="첫 스레드">{}첫 스레드</p>"#, svg(STAR)) } else { String::new() },
+        r#"{first}<article class="sp{big}{inl}" data-id="{id}"><div class="sp-l"><span class="sp-avw">{av}{badge}</span>{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b>{topic}<span class="sp-t">{t}</span><button type="button" class="sp-more" data-more="{id}" data-mine="{mine}" aria-label="더 보기">{more}</button></div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}{nl}</button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}{nr}</button><button type="button" class="sp-b{rp}" data-repost="{id}" aria-label="리포스트" aria-pressed="{reposted}">{rep}{nrp}</button><button type="button" class="sp-b" data-share="{id}" aria-label="보내기">{share}{nsh}</button></div></div></article>"#,
+        first = if p.first && !big && !inline { format!(r#"<p class="sp-first" aria-label="첫 스레드">{}첫 스레드</p>"#, svg(STAR)) } else { String::new() },
         big = if big { " big" } else { "" },
+        inl = if inline { " sp-in" } else if thread_line { " has-in" } else { "" },
         id = esc(&p.id),
         av = dom::avatar_html(&name, &photo, "avatar contact sp-av"),
         badge = if follow { format!(r#"<button type="button" class="sp-follow" data-follow="{}" aria-label="팔로우">{}</button>"#, esc(&p.by), svg(PLUS)) } else { String::new() },
@@ -133,21 +142,22 @@ fn post_html(p: &Post, big: bool, thread_line: bool) -> String {
         name = esc(&name),
         topic = if p.topic.is_empty() { String::new() } else { format!(r#"<span class="sp-tp"><em>›</em><i aria-hidden="true"></i>{}</span>"#, esc(&p.topic)) },
         t = ago(p.at),
-        more = if p.by == me { format!(r#"<button type="button" class="sp-more" data-more="{}" aria-label="더 보기">{}</button>"#, esc(&p.id), svg(MORE)) } else { String::new() },
+        mine = p.by == me,
+        more = svg(MORE),
         text = if p.text.is_empty() { String::new() } else { format!(r#"<p class="sp-x">{}</p>"#, esc(&p.text)) },
-        img = if img.is_empty() { String::new() } else { format!(r#"<img class="sp-img" src="{img}" alt="" loading="lazy" decoding="async">"#) },
+        img = if img.is_empty() { String::new() } else { format!(r#"<div class="sp-media"><img class="sp-img" src="{img}" alt="" loading="lazy" decoding="async"></div>"#) },
         lk = if p.liked { " on" } else { "" },
         liked = p.liked,
         heart = svg(HEART),
-        nl = count(p.likes),
+        nl = n(p.likes),
         bub = svg(BUBBLE),
-        nr = count(p.rc),
+        nr = n(p.rc),
         rp = if p.reposted { " on" } else { "" },
         reposted = p.reposted,
         rep = svg(REPOST),
-        nrp = count(p.reposts),
+        nrp = n(p.reposts),
         share = svg(SHARE),
-        nsh = count(p.sh),
+        nsh = n(p.sh),
     )
 }
 
@@ -356,9 +366,17 @@ fn paint_feed() {
                 _ => true,
             })
             .filter(|p| q.is_empty() || p.text.to_lowercase().contains(&q) || person(&p.by).0.to_lowercase().contains(&q) || p.topic.to_lowercase().contains(&q))
-            .map(|p| post_html(p, false, false))
+            .map(|p| {
+                // 답글이 있으면 마지막 답글을 아래에 들여 써서 미리 보여줘요 (선이 둥글게 이어져요)
+                let reply = (p.rc > 0.0 && !p.last.is_empty()).then(|| LAST_REPLY.with(|m| m.borrow().get(&p.last).cloned())).flatten().flatten().filter(|r| r.id == p.last);
+                match reply {
+                    Some(r) => format!(r#"<div class="sp-grp">{}{}</div>"#, post_html_x(p, false, true, false), post_html_x(&r, false, false, true)),
+                    None => format!(r#"<div class="sp-grp">{}</div>"#, post_html(p, false, false)),
+                }
+            })
             .collect::<String>()
     });
+    load_last_replies();
     let empty = if !q.is_empty() {
         "찾는 글이 없어요"
     } else {
@@ -371,12 +389,45 @@ fn paint_feed() {
     feed.set_inner_html(&if html.is_empty() { format!(r#"<p class="sns-empty">{empty}</p>"#) } else { html });
 }
 
+/// 피드 글의 마지막 답글을 아직 모르면 한 번씩 읽어요 (같은 답글은 다시 읽지 않아요)
+fn load_last_replies() {
+    let need: Vec<String> = FEED.with(|f| {
+        f.borrow()
+            .iter()
+            .filter(|p| p.rc > 0.0 && !p.last.is_empty())
+            .map(|p| p.last.clone())
+            .filter(|rid| !LAST_REPLY.with(|m| m.borrow().contains_key(rid)))
+            .collect()
+    });
+    if need.is_empty() {
+        return;
+    }
+    LAST_REPLY.with(|m| {
+        let mut m = m.borrow_mut();
+        for rid in &need {
+            m.insert(rid.clone(), None);
+        }
+    });
+    spawn_local(async move {
+        for rid in need {
+            let r = cloud::call("postGet", &[JsValue::from_str(&rid)]).await.ok().filter(|v| !v.is_null()).map(|v| Post::from(&v));
+            if let Some(r) = &r {
+                need_people(std::slice::from_ref(r));
+            }
+            LAST_REPLY.with(|m| m.borrow_mut().insert(rid, r));
+        }
+        paint_feed();
+    });
+}
+
 fn find(id: &str) -> Option<Post> {
-    let in_feed = FEED.with(|f| f.borrow().iter().find(|p| p.id == id).cloned());
+    let in_feed = FEED.with(|f| f.borrow().iter().find(|p| p.id == id).cloned())
+        .or_else(|| LAST_REPLY.with(|m| m.borrow().values().flatten().find(|r| r.id == id).cloned()));
     in_feed.or_else(|| OPEN.with(|o| o.borrow().as_ref().and_then(|(p, rs)| if p.id == id { Some(p.clone()) } else { rs.iter().find(|r| r.id == id).cloned() })))
 }
 fn patch(id: &str, f: impl Fn(&mut Post)) {
     FEED.with(|x| x.borrow_mut().iter_mut().filter(|p| p.id == id).for_each(&f));
+    LAST_REPLY.with(|m| m.borrow_mut().values_mut().flatten().filter(|p| p.id == id).for_each(&f));
     OPEN.with(|o| {
         if let Some((p, rs)) = o.borrow_mut().as_mut() {
             if p.id == id {
@@ -485,6 +536,14 @@ fn on_click(e: web_sys::Event) {
     }
     if let Some(b) = dom::closest(&e, "[data-more]") {
         let id = dom::data(&b, "more");
+        if dom::data(&b, "mine") != "true" {
+            // 남의 글: 글 내용을 복사해요
+            let text = find(&id).map(|p| p.text).unwrap_or_default();
+            if let Some(w) = web_sys::window() {
+                let _ = w.navigator().clipboard().write_text(&text);
+            }
+            return crate::shell::toast("글을 복사했어요");
+        }
         spawn_local(async move {
             if !crate::shell::ask("글을 삭제할까요?", "삭제하면 되돌릴 수 없어요", "삭제", "취소").await {
                 return;
