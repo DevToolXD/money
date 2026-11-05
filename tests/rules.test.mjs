@@ -2,7 +2,7 @@
 // 실행: cd tests && npm install && npm run rules
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment, collectionGroup } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment, collectionGroup, deleteField } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({ projectId: "demo-money", firestore: { rules: readFileSync(process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url), "utf8") } });
 const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
@@ -1384,6 +1384,31 @@ await t("공장: 정산은 아직 시간이 안 지났으면 안 돼요 (재료�
   await assertFails(updateDoc(doc(alice, "companies/uA/products/p1"), { stock: 1 })); // 재고만 늘리기
   // 금고만 바꾸는 것도 안 돼요 (재고가 같은 묶음에서 늘어야 해요)
   await assertFails(updateDoc(labRef(alice), { cash: 9900 }));
+});
+await t("공장: 두 대면 30초마다 한 개씩 고르게 나와요 (정산은 만든 개수 × 60초 ÷ 대수만큼만 시각이 가요)", async () => {
+  await coSeed();
+  await factorySeed({ plv: 2, prod: { pid: "p1", left: 3, at: EPOCH, total: 3 } });
+  const alice = pw("uA", "alice");
+  const settle = (u, atShift, cash = 10000 - 100 * u) => {
+    const b = writeBatch(alice);
+    b.update(labRef(alice), { cash, prod: u === 3 ? deleteField() : { pid: "p1", left: 3 - u, at: Timestamp.fromMillis(EPOCH.toMillis() + atShift), total: 3 } });
+    b.update(doc(alice, "companies/uA/products/p1"), { stock: u });
+    return b;
+  };
+  await assertFails(settle(1, 60000).commit()); // 옛 방식(60초): 한 개에 30초만 가야 해요
+  await assertFails(settle(1, 29000).commit()); // 시각이 덜 가면 같은 시간을 또 쓸 수 있어요
+  await assertFails(settle(1, 30000, 10000).commit()); // 재료값이 안 나갔어요
+  await assertSucceeds(settle(1, 30000).commit()); // 한 개: 30초
+  await seed((d) => updateDoc(doc(d, "companies/uA/products/p1"), { stock: 0 }));
+  await seed((d) => updateDoc(doc(d, "companies/uA/lab/main"), { cash: 10000, prod: { pid: "p1", left: 3, at: EPOCH, total: 3 } }));
+  await assertSucceeds(settle(3, 0).commit().catch(() => { throw new Error("다 만든 정산은 시각이 필요 없어요"); })); // 세 개를 한 번에: 90초가 지났으면 되고, 다 만들면 기록이 지워져요
+});
+await t("공장: 돌리기는 총 개수(total)를 남기고, 다른 값이면 안 돼요", async () => {
+  await coSeed();
+  await factorySeed();
+  const alice = pw("uA", "alice");
+  await assertFails(updateDoc(labRef(alice), { prod: { pid: "p1", left: 3, at: serverTimestamp(), total: 9 } }));
+  await assertSucceeds(updateDoc(labRef(alice), { prod: { pid: "p1", left: 3, at: serverTimestamp(), total: 3 } }));
 });
 await t("공장 추가: 500토큰을 금고에서 내고, 돌고 있으면 못 해요", async () => {
   await coSeed();

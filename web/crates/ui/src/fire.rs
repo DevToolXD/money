@@ -1285,7 +1285,7 @@ async fn lab_start_factory(cid: String, pid: String, k: JsValue) -> R {
                 if get(&l, "prod").is_truthy() {
                     return Err(fail("busy", "공장이 이미 돌고 있어요. 다 만들 때까지 기다려 주세요"));
                 }
-                m(&tx, "update", &[lref, o(&[("prod", o(&[("pid", s(&pid)), ("left", k.clone()), ("at", ts())]))])])?;
+                m(&tx, "update", &[lref, o(&[("prod", o(&[("pid", s(&pid)), ("left", k.clone()), ("at", ts()), ("total", k.clone())]))])])?;
                 Ok(k)
             })
         })
@@ -1320,9 +1320,10 @@ async fn lab_settle_factory(cid: String) -> R {
                 let pat = m(&get(&prod, "at"), "toMillis", &[]).map(|x| num(&x))?;
                 let plv = num(&get(&l, "plv"));
                 let pleft = num(&get(&prod, "left"));
-                let elapsed = (now() - 3000.0 - pat).max(0.0);
-                // 60초가 한 번 지날 때마다 공장 대수만큼 한꺼번에 나와요 (공장이 늘어도 빨라지지 않아요)
-                let mut u = pleft.min((elapsed / 60000.0).floor() * plv);
+                let total = if is_int(&get(&prod, "total")) { num(&get(&prod, "total")) } else { pleft };
+                let elapsed = (now() - 3000.0 - pat).max(0.0).floor();
+                // 한 개마다 60초 ÷ 공장 대수가 걸려요 (공장이 늘어도 전체 속도는 같고, 하나씩 고르게 나와요)
+                let mut u = pleft.min((elapsed * plv / 60000.0).floor());
                 if each > 0.0 {
                     u = u.min((num(&get(&l, "cash")) / each).floor());
                 }
@@ -1335,7 +1336,7 @@ async fn lab_settle_factory(cid: String) -> R {
                 if left == 0.0 {
                     m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", f("deleteField", &[])?)])])?;
                 } else {
-                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", o(&[("pid", s(&pid)), ("left", n(left)), ("at", from_millis(pat + (u / plv).ceil() * 60000.0))]))])])?;
+                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", o(&[("pid", s(&pid)), ("left", n(left)), ("at", from_millis(pat + ((u * 60000.0 + plv - 1.0) / plv).floor())), ("total", n(total))]))])])?;
                 }
                 m(&tx, "update", &[pref, o(&[("stock", n(stock + u))])])?;
                 Ok(o(&[("units", n(u)), ("left", n(left))]))

@@ -1,4 +1,4 @@
-// 진짜 번들 + 진짜 규칙 (에뮬레이터): 공장 두 대가 한 개씩 만들어요 (60초에 두 개). 재료값은 만든 만큼, 재고는 정산할 때 바로 늘어요
+// 진짜 번들 + 진짜 규칙 (에뮬레이터): 공장 두 대는 30초마다 한 개씩 고르게 만들어요 (60초에 두 개). 재료값은 만든 만큼, 재고는 정산할 때 바로 늘어요
 const { chromium } = require('playwright');
 const fs = require('fs');
 const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
@@ -39,13 +39,13 @@ const wait = (p, ms) => p.waitForTimeout(ms);
   ok('돌리고 있으면 또 못 돌려요', String(await call(p, 'labStartFactory', [cid, pid, 2])).startsWith('ERR'));
   ok('시작할 때는 재고도 금고도 그대로예요', (await stockOf(cid, pid)) === 0 && (await cashOf(cid)) === 10000);
   ok('바로 정산하면 아무것도 안 나와요', (await call(p, 'labSettleFactory', [cid])).units === 0);
-  await wait(p, 35000); // 공장이 두 대여도 빨라지지 않아요: 60초가 지나야 한꺼번에 나와요
+  await wait(p, 35000); // 두 대: 한 개마다 30초 (빨라지지 않아요: 60초에 두 개)
   const r1 = await call(p, 'labSettleFactory', [cid]);
-  ok('35초 뒤에는 아직 0개 (두 대라도 빨라지지 않아요)', r1.units === 0 && (await stockOf(cid, pid)) === 0);
+  ok('35초 뒤에는 1개가 나와요 (30초마다 한 개씩)', r1.units === 1 && r1.left === 1 && (await stockOf(cid, pid)) === 1 && (await cashOf(cid)) === 9900);
   await wait(p, 30000);
   const r2 = await call(p, 'labSettleFactory', [cid]);
   console.log('  r2 =', JSON.stringify(r2), 'stock', await stockOf(cid, pid), 'cash', await cashOf(cid));
-  ok('60초가 지나면 두 대가 한꺼번에 2개 → 재고 2, 다 만들어서 공장이 쉬어요', r2.units === 2 && r2.left === 0 && (await stockOf(cid, pid)) === 2 && (await cashOf(cid)) === 9800);
+  ok('다음 30초 뒤 한 개 더 → 재고 2, 다 만들어서 공장이 쉬어요', r2.units === 1 && r2.left === 0 && (await stockOf(cid, pid)) === 2 && (await cashOf(cid)) === 9800);
   ok('다 만든 뒤에는 다시 돌릴 수 있어요', (await call(p, 'labStartFactory', [cid, pid, 1])) === 1);
   const errs = [];
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);

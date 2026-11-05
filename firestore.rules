@@ -284,7 +284,7 @@ service cloud.firestore {
             && getAfter(walletPath(request.auth.uid)).data.bal - get(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
             && request.resource.data.cash == before - getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
         }
-        // ----- 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요. 대수(plv)가 많으면 60초에 대수만큼 만들어요.
+        // ----- 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요. 대수(plv)가 많으면 한 개마다 60초 ÷ 대수가 걸려요 (고르게 하나씩 나와요).
         // 돌리기: 개수(left)를 정해 두고 시작해요. 재료값과 재고는 만든 만큼 같은 묶음에서 바뀌어요 (정산할 때).
         // 정산: 지금까지 만든 개수 u는 서버 시각으로 계산한 최대치 이하면 돼요 (덜 받는 건 괜찮아요).
         // 공장 추가: 500토큰(50000센트)을 금고에서 내요. 돌고 있으면 못 해요.
@@ -294,8 +294,9 @@ service cloud.firestore {
             && request.resource.data.get('prod', null) != null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prod'])
             && labOwner()
-            && request.resource.data.prod.keys().hasOnly(['pid', 'left', 'at'])
+            && request.resource.data.prod.keys().hasOnly(['pid', 'left', 'at', 'total'])
             && request.resource.data.prod.left is int && request.resource.data.prod.left >= 1 && request.resource.data.prod.left <= 100000
+            && request.resource.data.prod.get('total', request.resource.data.prod.left) == request.resource.data.prod.left
             && request.resource.data.prod.at == request.time
             && get(prodPath(request.resource.data.prod.pid)).data.get('owner', '') == request.auth.uid
             && get(prodPath(request.resource.data.prod.pid)).data.get('active', false) == true;
@@ -308,8 +309,8 @@ service cloud.firestore {
           return resource.data.get('prod', null) != null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'prod'])
             && u >= 1 && u <= old.left
-            // 공장 한 대는 60초에 1개: 공장이 늘면 60초마다 대수만큼 한꺼번에 나와요 (빨라지지 않아요)
-            && math.ceil(u / plv) * 60000 <= request.time.toMillis() - old.at.toMillis()
+            // 공장 한 대는 60초에 1개: 공장이 늘면 개수가 그만큼 고르게 나와요 (한 개마다 60초 ÷ 대수, 빨라지지 않아요)
+            && ((u * 60000 + plv - 1) / plv) <= request.time.toMillis() - old.at.toMillis()
             && request.resource.data.cash == resource.data.get('cash', 0) - u * get(prodPath(old.pid)).data.get('costCents', 0)
             && request.resource.data.cash >= 0
             && getAfter(prodPath(old.pid)).data.stock == get(prodPath(old.pid)).data.get('stock', 0) + u
@@ -317,7 +318,7 @@ service cloud.firestore {
               || (request.resource.data.get('prod', null) != null
                 && request.resource.data.prod.pid == old.pid
                 && request.resource.data.prod.left >= 1
-                && request.resource.data.prod.at.toMillis() == old.at.toMillis() + math.ceil(u / plv) * 60000));
+                && request.resource.data.prod.at.toMillis() == old.at.toMillis() + ((u * 60000 + plv - 1) / plv)));
         }
         function factoryBuy() {
           return resource.data.get('prod', null) == null
@@ -820,7 +821,7 @@ service cloud.firestore {
             && getAfter(walletPath(request.auth.uid)).data.bal - get(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
             && request.resource.data.cash == before - getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
         }
-        // ----- 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요. 대수(plv)가 많으면 60초에 대수만큼 만들어요.
+        // ----- 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요. 대수(plv)가 많으면 한 개마다 60초 ÷ 대수가 걸려요 (고르게 하나씩 나와요).
         // 돌리기: 개수(left)를 정해 두고 시작해요. 재료값과 재고는 만든 만큼 같은 묶음에서 바뀌어요 (정산할 때).
         // 정산: 지금까지 만든 개수 u는 서버 시각으로 계산한 최대치 이하면 돼요 (덜 받는 건 괜찮아요).
         // 공장 추가: 500토큰(50000센트)을 금고에서 내요. 돌고 있으면 못 해요.

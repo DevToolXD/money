@@ -204,6 +204,13 @@ fn paint() {
     }
 }
 
+/// 공장에서 한 개씩 나올 때 창고 목록 재고를 바로 늘려요 (다시 읽지 않아요)
+pub(crate) fn add_stock(pid: &str, n: f64) {
+    if let Some(l) = products() {
+        l.update(|v| v.iter_mut().filter(|p| p.id == pid).for_each(|p| p.stock += n));
+    }
+}
+
 /// 사업 탭을 열 때: 연구실 숫자를 다시 읽어요 (상품 목록은 그대로 두어요)
 pub fn lab_refresh() {
     if company().is_some() {
