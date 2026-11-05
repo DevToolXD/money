@@ -1953,17 +1953,30 @@ fn post_row(dd: &JsValue) -> JsValue {
         ("likes", n(count("likes"))),
         ("reposts", n(count("reposts"))),
         ("rc", { let r = get(&v, "rc"); if is_int(&r) { r } else { n(0.0) } }),
+        ("topic", { let t = get(&v, "topic"); if t.is_string() { t } else { s("") } }),
+        ("first", (get(&v, "first") == JsValue::TRUE).into()),
+        ("sh", { let x = get(&v, "sh"); if is_int(&x) { x } else { n(0.0) } }),
         ("liked", mine("likes").into()),
         ("reposted", mine("reposts").into()),
     ])
 }
 /// 새 글 (parent가 있으면 그 글의 댓글이에요)
-async fn post_create(text: String, img_: String, parent: String) -> R {
+async fn post_create(text: String, img_: String, parent: String, topic: String) -> R {
+    // 처음 쓰는 글이면 "첫 스레드" 표시를 붙여요
+    let me_ = uid_of()?;
+    let mine = get_docs(q(c(&["posts"]), vec![w(s("by"), "==", s(&me_)), lim(1.0)])).await.map(|sn| docs(&sn).len()).unwrap_or(1);
     let r = new_id(c(&["posts"]));
     let id = get(&r, "id");
     let data_ = o(&[("by", s(&uid_of()?)), ("text", s(&text)), ("at", ts()), ("likes", js_sys::Object::new().into()), ("reposts", js_sys::Object::new().into()), ("rc", n(0.0)), ("parent", s(&parent))]);
     if !img_.is_empty() {
         set(&data_, "img", &s(&img_));
+    }
+    let topic: String = topic.trim().chars().filter(|c| *c != '<' && *c != '>').take(20).collect();
+    if !topic.is_empty() && parent.is_empty() {
+        set(&data_, "topic", &s(&topic));
+    }
+    if mine == 0 && parent.is_empty() {
+        set(&data_, "first", &true.into());
     }
     let b = batch();
     m(&b, "set", &[r, data_])?;
@@ -2188,7 +2201,19 @@ fn build() -> js_sys::Object {
     method_now(&api, "callIncoming", |a| call_incoming(a[0].clone().dyn_into()?));
     method_now(&api, "callCands", |a| call_cands(sa(&a[0]), a[1].clone().dyn_into()?));
     /* ----- SNS ----- */
-    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2])).await);
+    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3])).await);
+    am!(api, "postShare", |a| rethrow(update_doc(d(&["posts", &sa(&a[0])]), o(&[("sh", inc(1.0))])).await));
+    // 팔로우: 내 설정 문서의 follows (사람 번호 → true)
+    am!(api, "myFollows", |_a| {
+        let sn = get_doc(d(&["users", &uid_of()?])).await?;
+        let f_ = get(&data(&sn), "follows");
+        Ok(if f_.is_object() { js_sys::Object::keys(f_.unchecked_ref::<js_sys::Object>()).into() } else { js_sys::Array::new().into() })
+    });
+    am!(api, "follow", |a| {
+        let x = js_sys::Object::new();
+        set(&x, &sa(&a[0]), &if a[1].is_truthy() { JsValue::TRUE } else { f("deleteField", &[])? });
+        rethrow(set_merge(d(&["users", &uid_of()?]), o(&[("follows", x.into())])).await)
+    });
     method_now(&api, "postsWatch", |a| posts_watch(a[0].clone().dyn_into()?));
     am!(api, "postReplies", |a| post_replies(sa(&a[0])).await);
     am!(api, "postGet", |a| post_get(sa(&a[0])).await);

@@ -23,13 +23,16 @@ struct Post {
     rc: f64,
     liked: bool,
     reposted: bool,
+    topic: String,
+    first: bool,
+    sh: f64,
 }
 impl Post {
     fn from(v: &JsValue) -> Self {
         let s = |k: &str| cloud::get(v, k).as_string().unwrap_or_default();
         let n = |k: &str| cloud::get(v, k).as_f64().unwrap_or(0.0);
         let b = |k: &str| cloud::get(v, k).as_bool().unwrap_or(false);
-        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), reposts: n("reposts"), rc: n("rc"), liked: b("liked"), reposted: b("reposted") }
+        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), reposts: n("reposts"), rc: n("rc"), liked: b("liked"), reposted: b("reposted"), topic: s("topic"), first: b("first"), sh: n("sh") }
     }
 }
 
@@ -42,6 +45,14 @@ thread_local! {
     static POSTING: Cell<bool> = const { Cell::new(false) };
     /// 답글 안으로 들어갈 때 이전 글을 쌓아 둬요 (뒤로 가면 하나씩 돌아가요)
     static STACK: RefCell<Vec<Post>> = const { RefCell::new(Vec::new()) };
+    /// 내가 팔로우한 사람들
+    static FOLLOWS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// 피드 보기: 0 전체, 1 팔로우 중, 2 내 글
+    static MODE: Cell<u8> = const { Cell::new(0) };
+    /// 찾기 글자 (비어 있으면 다 보여요)
+    static QUERY: RefCell<String> = const { RefCell::new(String::new()) };
+    static PULL: Cell<Option<f64>> = const { Cell::new(None) };
+    static REFRESHING: Cell<bool> = const { Cell::new(false) };
 }
 
 /* ---------- 아이콘 (직접 그린 윤곽선) ---------- */
@@ -55,6 +66,10 @@ const SHARE: &str = r#"<path d="M3.5 11.3 20 4l-7.3 16.5-2.3-6.9z"/><path d="M10
 const MORE: &str = r#"<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>"#;
 const PHOTO: &str = r#"<rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.5-4.5-8.5 8"/>"#;
 const BACK: &str = r#"<path d="M15 5l-7 7 7 7"/>"#;
+const MENU: &str = r#"<path d="M4 9h16M4 15h16"/>"#;
+const SEARCH: &str = r#"<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>"#;
+const PLUS: &str = r#"<path d="M12 5v14M5 12h14"/>"#;
+const STAR: &str = r#"<path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/>"#;
 // 우리 앱의 표시: 겹친 두 말풍선 (어느 서비스의 로고도 아니에요)
 const MARK: &str = r#"<path d="M14.5 9.5a6 6 0 1 1-3.4 5.4"/><path d="M9.5 14.5a6 6 0 1 1 3.4-5.4"/>"#;
 
@@ -99,17 +114,24 @@ fn count(n: f64) -> String {
 }
 
 /* ---------- 그리기 ---------- */
+fn my_uid() -> String {
+    cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default()
+}
 fn post_html(p: &Post, big: bool, thread_line: bool) -> String {
     let (name, photo) = person(&p.by);
-    let me = cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default();
+    let me = my_uid();
     let img = dom::safe_img(&p.img, 300000);
+    let follow = p.by != me && !me.is_empty() && !FOLLOWS.with(|f| f.borrow().contains(&p.by));
     format!(
-        r#"<article class="sp{}" data-id="{id}"><div class="sp-l">{av}{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b><span class="sp-t">{t}</span>{more}</div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}<span>{nl}</span></button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}<span>{nr}</span></button><button type="button" class="sp-b{rp}" data-repost="{id}" aria-label="리포스트" aria-pressed="{reposted}">{rep}<span>{nrp}</span></button><button type="button" class="sp-b" data-share="{id}" aria-label="공유">{share}</button></div></div></article>"#,
-        if big { " big" } else { "" },
+        r#"{first}<article class="sp{big}" data-id="{id}"><div class="sp-l"><span class="sp-avw">{av}{badge}</span>{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b>{topic}<span class="sp-t">{t}</span>{more}</div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}<span>{nl}</span></button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}<span>{nr}</span></button><button type="button" class="sp-b{rp}" data-repost="{id}" aria-label="리포스트" aria-pressed="{reposted}">{rep}<span>{nrp}</span></button><button type="button" class="sp-b" data-share="{id}" aria-label="보내기">{share}<span>{nsh}</span></button></div></div></article>"#,
+        first = if p.first && !big { format!(r#"<p class="sp-first" aria-label="첫 스레드">{}첫 스레드</p>"#, svg(STAR)) } else { String::new() },
+        big = if big { " big" } else { "" },
         id = esc(&p.id),
         av = dom::avatar_html(&name, &photo, "avatar contact sp-av"),
+        badge = if follow { format!(r#"<button type="button" class="sp-follow" data-follow="{}" aria-label="팔로우">{}</button>"#, esc(&p.by), svg(PLUS)) } else { String::new() },
         line = if thread_line { r#"<i class="sp-line" aria-hidden="true"></i>"# } else { "" },
         name = esc(&name),
+        topic = if p.topic.is_empty() { String::new() } else { format!(r#"<span class="sp-tp"><em>›</em><i aria-hidden="true"></i>{}</span>"#, esc(&p.topic)) },
         t = ago(p.at),
         more = if p.by == me { format!(r#"<button type="button" class="sp-more" data-more="{}" aria-label="더 보기">{}</button>"#, esc(&p.id), svg(MORE)) } else { String::new() },
         text = if p.text.is_empty() { String::new() } else { format!(r#"<p class="sp-x">{}</p>"#, esc(&p.text)) },
@@ -125,6 +147,7 @@ fn post_html(p: &Post, big: bool, thread_line: bool) -> String {
         rep = svg(REPOST),
         nrp = count(p.reposts),
         share = svg(SHARE),
+        nsh = count(p.sh),
     )
 }
 
@@ -138,17 +161,20 @@ fn build() {
         return;
     }
     sc.set_inner_html(&format!(
-        r#"<div class="sns" id="sns"><header class="sns-top"><span class="sns-mark">{}</span></header><button type="button" class="sns-compose" id="sns-compose"><span id="sns-me"></span><span class="sns-ph">새로운 소식이 있나요?</span><span class="sns-pic">{}</span></button><div class="sns-feed" id="sns-feed"><p class="sns-empty">불러오는 중이에요</p></div></div>
-        <section class="sns-sheet" id="sns-sheet" hidden aria-label="새로운 스레드"><header class="sns-sh"><button type="button" class="sns-cancel" data-sheet-close>취소</button><b id="sns-sheet-title">새로운 스레드</b><span></span></header><div class="sns-parent" id="sns-parent"></div><div class="sns-write"><span id="sns-me2"></span><div class="sns-wr"><b id="sns-myname"></b><textarea id="sns-text" maxlength="500" rows="3" placeholder="새로운 소식이 있나요?"></textarea><div class="sns-prev" id="sns-prev"></div><label class="sns-attach" aria-label="사진 넣기">{}<input id="sns-file" type="file" accept="image/*" hidden></label></div></div><footer class="sns-sf"><span>누구에게나 답글 허용</span><button type="button" class="sns-post" id="sns-post" disabled>게시</button></footer></section>
+        r#"<div class="sns" id="sns"><header class="sns-top" id="sns-top"><button type="button" class="sns-ic" data-menu aria-label="보기 메뉴">{menu}</button><span class="sns-mark" id="sns-mark">{}</span><button type="button" class="sns-ic" data-search aria-label="찾기">{search}</button></header><div class="sns-search" id="sns-search" hidden><label class="sns-q">{search}<input id="sns-q" type="search" placeholder="글이나 사람 찾기" autocomplete="off"></label><button type="button" class="sns-cancel" data-search-close>취소</button></div><div class="sns-menu" id="sns-menu" hidden><button type="button" data-mode="0">전체</button><button type="button" data-mode="1">팔로우 중</button><button type="button" data-mode="2">내 글</button><button type="button" data-refresh>새로고침</button></div><div class="sns-body" id="sns-body"><button type="button" class="sns-compose" id="sns-compose"><span id="sns-me"></span><span class="sns-cw"><b id="sns-myname0"></b><span class="sns-ph">새로운 소식을 공유해보세요.</span></span><span class="sns-pic">{}</span></button><div class="sns-feed" id="sns-feed"><p class="sns-empty">불러오는 중이에요</p></div></div></div><button type="button" class="sns-fab" id="sns-fab" aria-label="새 글 쓰기">{plus}</button>
+        <section class="sns-sheet" id="sns-sheet" hidden aria-label="새로운 스레드"><header class="sns-sh"><button type="button" class="sns-cancel" data-sheet-close>취소</button><b id="sns-sheet-title">새로운 스레드</b><span></span></header><div class="sns-parent" id="sns-parent"></div><div class="sns-write"><span id="sns-me2"></span><div class="sns-wr"><div class="sns-who"><b id="sns-myname"></b><input id="sns-topic" class="sns-topic" maxlength="20" placeholder="› 주제 추가" autocomplete="off" aria-label="주제"></div><textarea id="sns-text" maxlength="500" rows="3" placeholder="새로운 소식이 있나요?"></textarea><div class="sns-prev" id="sns-prev"></div><label class="sns-attach" aria-label="사진 넣기">{}<input id="sns-file" type="file" accept="image/*" hidden></label></div></div><footer class="sns-sf"><span>누구에게나 답글 허용</span><button type="button" class="sns-post" id="sns-post" disabled>게시</button></footer></section>
         <section class="sns-detail" id="sns-detail" hidden aria-label="스레드"><header class="sns-dh"><button type="button" class="sns-back" data-detail-close aria-label="뒤로">{}</button><b>스레드</b><span></span></header><div class="sns-dbody" id="sns-dbody"></div><button type="button" class="sns-replybar" id="sns-replybar"></button></section>"#,
         svg(MARK),
         svg(PHOTO),
         svg(PHOTO),
-        svg(BACK)
+        svg(BACK),
+        menu = svg(MENU),
+        search = svg(SEARCH),
+        plus = svg(PLUS),
     ));
     // 글쓰기 판과 글 보기는 화면 위에 덮이도록 앱 틀로 옮겨요
     if let Some(app) = dom::app_el() {
-        for id in ["sns-sheet", "sns-detail"] {
+        for id in ["sns-sheet", "sns-detail", "sns-fab"] {
             if let Some(el) = by_id(id) {
                 let _ = app.append_child(&el);
                 dom::on(&el, "click", on_click);
@@ -157,6 +183,40 @@ fn build() {
     }
     let Some(r) = by_id("sns") else { return };
     dom::on(&r, "click", on_click);
+    if let Some(q) = by_id("sns-q") {
+        let q2 = q.clone();
+        dom::on(&q, "input", move |_| {
+            let v = js_sys::Reflect::get(&q2, &"value".into()).ok().and_then(|v| v.as_string()).unwrap_or_default();
+            QUERY.with(|x| *x.borrow_mut() = v.trim().to_lowercase());
+            paint_feed();
+        });
+    }
+    // 스크롤: 내리면 오른쪽 아래에 글쓰기 버튼이 떠올라요. 맨 위에서 더 당기면 새로고침해요
+    dom::on(&sc, "scroll", move |_| {
+        let y = by_id("screen-untitled3").map(|s| s.scroll_top()).unwrap_or(0);
+        if let Some(f) = by_id("sns-fab") {
+            dom::toggle(&f, "show", y > 160);
+        }
+    });
+    let sc2 = sc.clone();
+    dom::on(&sc, "touchstart", move |e| {
+        if sc2.scroll_top() <= 0 && !REFRESHING.get() {
+            PULL.set(touch_y(&e));
+        }
+    });
+    let sc3 = sc.clone();
+    dom::on_active(&sc, "touchmove", move |e| {
+        let (Some(y0), Some(y)) = (PULL.get(), touch_y(&e)) else { return };
+        let d = y - y0;
+        if d <= 0.0 || sc3.scroll_top() > 0 {
+            set_pull(0.0, false);
+            return;
+        }
+        e.prevent_default();
+        set_pull(110.0 * (1.0 - 1.0 / (d * 0.5 / 110.0 + 1.0)), false);
+    });
+    dom::on(&sc, "touchend", |_| end_pull());
+    dom::on(&sc, "touchcancel", |_| end_pull());
     if let Some(t) = by_id("sns-text") {
         let t2 = t.clone();
         dom::on(&t, "input", move |_| {
@@ -180,11 +240,72 @@ fn build() {
     }
 }
 
+fn touch_y(e: &web_sys::Event) -> Option<f64> {
+    let t = e.dyn_ref::<web_sys::TouchEvent>()?.touches().get(0)?;
+    Some(t.client_y() as f64)
+}
+/// 당긴 만큼 글이 내려오고, 위쪽 표시가 흔들리며 다시 그려져요
+fn set_pull(px: f64, back: bool) {
+    if let Some(b) = by_id("sns-body") {
+        let st = b.style();
+        let _ = st.set_property("transition", if back { "transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)" } else { "none" });
+        let _ = st.set_property("transform", &if px > 0.0 { format!("translateY({px}px)") } else { String::new() });
+    }
+    if let Some(m) = by_id("sns-mark") {
+        let _ = m.style().set_property("--pull", &format!("{}", (px / 64.0).min(1.0)));
+    }
+}
+fn end_pull() {
+    let Some(_) = PULL.take() else { return };
+    let shown = by_id("sns-body").and_then(|b| b.style().get_property_value("transform").ok()).unwrap_or_default();
+    let px: f64 = shown.trim_start_matches("translateY(").trim_end_matches("px)").parse().unwrap_or(0.0);
+    if px < 56.0 {
+        return set_pull(0.0, true);
+    }
+    refresh();
+}
+/// 새로고침: 표시가 돌며 다시 그려지는 동안 글을 새로 읽어요
+fn refresh() {
+    if REFRESHING.replace(true) {
+        return;
+    }
+    set_pull(56.0, true);
+    if let Some(m) = by_id("sns-mark") {
+        let _ = m.class_list().add_1("spin");
+    }
+    dom::vibrate(8);
+    spawn_local(async {
+        load_follows().await;
+        let missing: js_sys::Array = FEED.with(|f| f.borrow().iter().map(|p| JsValue::from_str(&p.by)).collect());
+        let _ = cloud::call("fetchProfiles", &[missing.into()]).await;
+        dom::sleep(700).await;
+        paint_feed();
+        if let Some(m) = by_id("sns-mark") {
+            let _ = m.class_list().remove_1("spin");
+        }
+        set_pull(0.0, true);
+        REFRESHING.set(false);
+    });
+}
+async fn load_follows() {
+    if let Ok(v) = cloud::call("myFollows", &[]).await {
+        let list: Vec<String> = js_sys::Array::from(&v).iter().filter_map(|x| x.as_string()).collect();
+        FOLLOWS.with(|f| *f.borrow_mut() = list);
+    }
+}
 /// 쓰는 만큼 글쓰기 칸이 늘어나요
 fn grow(t: &web_sys::HtmlElement) {
     let st = t.style();
     let _ = st.set_property("height", "auto");
     let _ = st.set_property("height", &format!("{}px", t.scroll_height().max(42)));
+}
+fn my_name() -> String {
+    let n = person(&my_uid()).0;
+    if n == "…" {
+        cloud::cloud().map(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string().unwrap_or_default()).unwrap_or_default()
+    } else {
+        n
+    }
 }
 fn me_html(cls: &str) -> String {
     let uid = cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default();
@@ -206,6 +327,7 @@ pub fn open() {
     if let Some(m) = by_id("sns-me") {
         m.set_inner_html(&me_html("avatar contact sp-av"));
     }
+    dom::set_text("sns-myname0", &my_name());
     if WATCHING.replace(true) {
         return;
     }
@@ -216,12 +338,37 @@ pub fn open() {
         paint_feed();
     });
     let _ = cloud::call_now("postsWatch", &[cb.into_js_value()]);
+    spawn_local(async {
+        load_follows().await;
+        paint_feed();
+    });
 }
 
 fn paint_feed() {
     let Some(feed) = by_id("sns-feed") else { return };
-    let html = FEED.with(|f| f.borrow().iter().map(|p| post_html(p, false, false)).collect::<String>());
-    feed.set_inner_html(if html.is_empty() { r#"<p class="sns-empty">아직 글이 없어요. 첫 글을 남겨 보세요</p>"# } else { &html });
+    let (mode, q, me) = (MODE.get(), QUERY.with(|x| x.borrow().clone()), my_uid());
+    let html = FEED.with(|f| {
+        f.borrow()
+            .iter()
+            .filter(|p| match mode {
+                1 => FOLLOWS.with(|x| x.borrow().contains(&p.by)),
+                2 => p.by == me,
+                _ => true,
+            })
+            .filter(|p| q.is_empty() || p.text.to_lowercase().contains(&q) || person(&p.by).0.to_lowercase().contains(&q) || p.topic.to_lowercase().contains(&q))
+            .map(|p| post_html(p, false, false))
+            .collect::<String>()
+    });
+    let empty = if !q.is_empty() {
+        "찾는 글이 없어요"
+    } else {
+        match mode {
+            1 => "팔로우한 사람의 글이 없어요. 동그라미의 +를 눌러 팔로우해 보세요",
+            2 => "아직 쓴 글이 없어요",
+            _ => "아직 글이 없어요. 첫 글을 남겨 보세요",
+        }
+    };
+    feed.set_inner_html(&if html.is_empty() { format!(r#"<p class="sns-empty">{empty}</p>"#) } else { html });
 }
 
 fn find(id: &str) -> Option<Post> {
@@ -241,6 +388,62 @@ fn patch(id: &str, f: impl Fn(&mut Post)) {
 }
 
 fn on_click(e: web_sys::Event) {
+    if dom::closest(&e, "[data-menu]").is_some() {
+        if let Some(m) = by_id("sns-menu") {
+            m.set_hidden(!m.hidden());
+            for b in dom::qsa(&m, "[data-mode]") {
+                dom::toggle(&b, "on", dom::data(&b, "mode") == MODE.get().to_string());
+            }
+        }
+        return;
+    }
+    if let Some(b) = dom::closest(&e, "[data-mode]") {
+        MODE.set(dom::data(&b, "mode").parse().unwrap_or(0));
+        dom::set_hidden("sns-menu", true);
+        return paint_feed();
+    }
+    if dom::closest(&e, "[data-refresh]").is_some() {
+        dom::set_hidden("sns-menu", true);
+        return refresh();
+    }
+    if dom::closest(&e, "[data-search]").is_some() {
+        dom::set_hidden("sns-search", false);
+        if let Some(q) = by_id("sns-q") {
+            let _ = q.focus();
+        }
+        return;
+    }
+    if dom::closest(&e, "[data-search-close]").is_some() {
+        dom::set_hidden("sns-search", true);
+        QUERY.with(|x| x.borrow_mut().clear());
+        if let Some(q) = by_id("sns-q") {
+            let _ = js_sys::Reflect::set(&q, &"value".into(), &"".into());
+        }
+        return paint_feed();
+    }
+    if let Some(b) = dom::closest(&e, "[data-follow]") {
+        let who = dom::data(&b, "follow");
+        FOLLOWS.with(|f| f.borrow_mut().push(who.clone()));
+        let _ = b.class_list().add_1("done");
+        dom::vibrate(8);
+        let name = person(&who).0;
+        spawn_local(async move {
+            if cloud::call("follow", &[JsValue::from_str(&who), true.into()]).await.is_ok() {
+                crate::shell::toast(&format!("{name}님을 팔로우했어요"));
+                dom::sleep(450).await;
+                paint_feed();
+                paint_open();
+            } else {
+                FOLLOWS.with(|f| f.borrow_mut().retain(|x| *x != who));
+                crate::shell::toast("팔로우하지 못했어요");
+                paint_feed();
+            }
+        });
+        return;
+    }
+    if dom::closest(&e, "#sns-fab").is_some() {
+        return open_sheet("");
+    }
     if dom::closest(&e, "#sns-compose").is_some() {
         return open_sheet("");
     }
@@ -268,10 +471,16 @@ fn on_click(e: web_sys::Event) {
         return open_sheet(&id);
     }
     if let Some(b) = dom::closest(&e, "[data-share]") {
-        let text = find(&dom::data(&b, "share")).map(|p| p.text).unwrap_or_default();
+        let id = dom::data(&b, "share");
+        let text = find(&id).map(|p| p.text).unwrap_or_default();
         if let Some(w) = web_sys::window() {
             let _ = w.navigator().clipboard().write_text(&text);
         }
+        patch(&id, |p| p.sh += 1.0);
+        paint_open();
+        spawn_local(async move {
+            let _ = cloud::call("postShare", &[JsValue::from_str(&id)]).await;
+        });
         return crate::shell::toast("글을 복사했어요");
     }
     if let Some(b) = dom::closest(&e, "[data-more]") {
@@ -366,6 +575,10 @@ fn open_sheet(reply_to: &str) {
     let my = person(&uid).0;
     let my = if my == "…" { cloud::cloud().map(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string().unwrap_or_default()).unwrap_or_default() } else { my };
     dom::set_text("sns-myname", &my);
+    if let Some(t) = by_id("sns-topic") {
+        let _ = js_sys::Reflect::set(&t, &"value".into(), &"".into());
+        t.set_hidden(!reply_to.is_empty()); // 답글에는 주제가 없어요
+    }
     if let Some(par) = by_id("sns-parent") {
         par.set_inner_html(&find(reply_to).map(|p| post_html(&p, false, true)).unwrap_or_default());
     }
@@ -427,7 +640,8 @@ fn post() {
     POSTING.set(true);
     paint_post_btn();
     spawn_local(async move {
-        let r = cloud::call("postCreate", &[JsValue::from_str(&text), JsValue::from_str(&img), JsValue::from_str(&parent)]).await;
+        let topic = by_id("sns-topic").and_then(|t| js_sys::Reflect::get(&t, &"value".into()).ok()).and_then(|v| v.as_string()).unwrap_or_default();
+        let r = cloud::call("postCreate", &[JsValue::from_str(&text), JsValue::from_str(&img), JsValue::from_str(&parent), JsValue::from_str(&topic)]).await;
         POSTING.set(false);
         match r {
             Ok(_) => {

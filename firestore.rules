@@ -40,7 +40,9 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isMe(uid);
       allow write: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['profile', 'walls', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['profile', 'walls', 'updatedAt', 'follows'])
+        // SNS 팔로우: 사람 번호 → true (500명까지)
+        && (!('follows' in request.resource.data) || (request.resource.data.follows is map && request.resource.data.follows.size() <= 500))
         && (!('profile' in request.resource.data) || (
               request.resource.data.profile.keys().hasOnly(['name', 'bio'])
               && request.resource.data.profile.name is string && request.resource.data.profile.name.size() <= 30
@@ -1087,7 +1089,10 @@ service cloud.firestore {
     match /posts/{id} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'at', 'likes', 'reposts', 'rc', 'parent', 'last'])
+        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'at', 'likes', 'reposts', 'rc', 'parent', 'last', 'topic', 'first', 'sh'])
+        && (!('topic' in request.resource.data) || (request.resource.data.topic is string && request.resource.data.topic.matches('^[^<>]{1,20}$')))
+        && (!('first' in request.resource.data) || request.resource.data.first is bool)
+        && request.resource.data.get('sh', 0) == 0
         && request.resource.data.by == request.auth.uid
         && request.resource.data.text is string && request.resource.data.text.size() <= 500
         && (request.resource.data.text.size() >= 1 || request.resource.data.get('img', '') != '')
@@ -1112,6 +1117,10 @@ service cloud.firestore {
           && request.resource.data.rc == resource.data.rc + 1
           && !exists(postPath(request.resource.data.last))
           && getAfter(postPath(request.resource.data.last)).data.parent == id)
+        ||
+        // 보내기(공유) 수: 누구나 1씩만 늘려요
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sh'])
+          && request.resource.data.sh == resource.data.get('sh', 0) + 1)
         ||
         // 답글을 지우면: 같은 묶음에서 그 답글(내 것)이 사라지고 댓글 수가 1 줄어요
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rc', 'last'])

@@ -95,6 +95,13 @@ pub(crate) fn update_chrome(el: &web_sys::HtmlElement) {
     let (Some(top), Some(title)) = (by_id("topbar"), by_id("topbar-title")) else { return };
     let y = el.scroll_top() as f64;
     let ts = title.style();
+    // 자기 위쪽 바가 있는 화면(SNS)은 앱의 위쪽 바를 아예 띄우지 않아요
+    if el.has_attribute("data-ownbar") {
+        let _ = top.style().set_property("--p", "0");
+        dom::toggle(&top, "on", false);
+        let _ = ts.set_property("opacity", "0");
+        return;
+    }
     let Some(h1) = qs(el, ".large-title h1") else {
         // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요. 돈 탭처럼 data-notitle이면 제목 없이 유리만 나타나요
         let p0 = (y / 16.0).clamp(0.0, 1.0);
