@@ -303,13 +303,7 @@ fn take_out(p: Prod, btn: web_sys::HtmlElement, n: f64) {
                 c.toast(&format!("{} {}개를 인벤토리에 넣었어요", p.name, n as i64));
                 refresh_now().await;
             }
-            Err(e) => c.toast(if e.code == "permission-denied" {
-                "지금은 꺼낼 수 없어요. 재고를 확인해 주세요"
-            } else if !e.message.is_empty() {
-                &e.message
-            } else {
-                "꺼내지 못했어요. 잠시 뒤 다시 해 주세요"
-            }),
+            Err(e) => c.toast(&if e.code == "permission-denied" { "꺼낼 수 없어요 · 창고 재고가 모자라거나 이미 다른 곳에서 바뀌었어요".to_string() } else { format!("꺼내지 못했어요 · {}", cloud::why(&e.code)) }),
         }
         TAKING.set(false);
         dom::toggle(&btn, "busy", false);
@@ -389,8 +383,8 @@ fn on_more(id: String) {
             Ok(())
         }
         .await;
-        if r.is_err() {
-            c.toast("처리하지 못했어요. 잠시 뒤 다시 해 주세요");
+        if let Err(e) = &r {
+            c.toast(&format!("처리하지 못했어요 · {}", cloud::why(&e.code)));
         }
     });
 }

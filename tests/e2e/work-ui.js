@@ -51,6 +51,7 @@ const okAlert = async (p) => { await p.waitForSelector('#alert-ok', { state: 'vi
   // 레시피대로 재료를 넣고 섞기를 꾹 눌러요
   const need = await S.page.$$eval('#fm-recipe .fm-chip', (cs) => cs.map((c) => [c.dataset.i, Number(c.dataset.need)]));
   for (const [i, n] of need) for (let k = 0; k < n; k++) await S.page.click(`.fm-jar[data-food="${i}"]`);
+  await S.page.evaluate(() => document.getElementById('wk-tune').scrollIntoView({ block: 'center' })); await S.page.waitForTimeout(400);
   const st = await S.page.locator('#wk-tune').boundingBox();
   await S.page.mouse.move(st.x + st.width / 2, st.y + st.height / 2); await S.page.mouse.down(); await S.page.waitForTimeout(1800); await S.page.mouse.up();
   await S.page.waitForTimeout(3500);

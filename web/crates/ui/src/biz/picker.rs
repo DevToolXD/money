@@ -464,13 +464,14 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
                 return;
             }
             let cid = company().map(|c| co_str(&c, "id")).unwrap_or_default();
-            let ok = cloud::call("setCompanyKind", &[JsValue::from_str(&cid), JsValue::from_str(kind)]).await.is_ok();
+            let kind_r = cloud::call("setCompanyKind", &[JsValue::from_str(&cid), JsValue::from_str(kind)]).await;
+            let ok = kind_r.is_ok();
             st(|s| {
                 s.busy = false;
                 s.kind_mode = false;
             });
             if !ok {
-                ctx().toast("업종을 정하지 못했어요. 잠시 뒤 다시 해 주세요");
+                ctx().toast(&format!("업종을 정하지 못했어요 · {}", kind_r.err().map(|e| cloud::why(&e.code)).unwrap_or("")));
                 return close();
             }
             crate::shell::company::patch(&dom::obj(&[("kind", JsValue::from_str(kind)), ("kindSet", true.into())]));
@@ -632,7 +633,7 @@ fn sell() {
                 set_timeout(close, Duration::from_millis(900));
             }
             Err(e) => {
-                err.set_text_content(Some(if e.code == "permission-denied" { "올리지 못했어요. 회사가 있는지 확인해 주세요" } else { "올리지 못했어요. 잠시 뒤 다시 해 주세요" }));
+                err.set_text_content(Some(&format!("올리지 못했어요 · {}", cloud::why(&e.code))));
                 dom::toggle(&btn, "busy", false);
             }
         }

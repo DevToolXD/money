@@ -146,10 +146,27 @@ pub(crate) fn toast(t: &str) {
     el.set_text_content(Some(t));
     let _ = el.class_list().add_1("on");
     win().clear_timeout_with_handle(TOAST_T.get());
+    // 안 된 이야기는 읽을 시간이 더 필요해요
+    let bad = t.contains("못") || t.contains("않") || t.contains("모자라") || t.contains("부족");
     let cb = Closure::once_into_js(move || {
         let _ = el.class_list().remove_1("on");
     });
-    TOAST_T.set(win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 1900).unwrap_or(0));
+    TOAST_T.set(win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), if bad { 4200 } else { 2200 }).unwrap_or(0));
+    biz_log(t, bad);
+}
+/// 사업 탭에서 알림은 화면에 남겨 둬요 (알림은 금방 사라져서 되고 있는지 알 수 없었어요). 최근 3개
+fn biz_log(t: &str, bad: bool) {
+    if !dom::screen_active("business") {
+        return;
+    }
+    let Some(box_) = by_id("biz-log") else { return };
+    let d = js_sys::Date::new_0();
+    let item = format!(r#"<li class="{}"><time>{:02}:{:02}</time><span>{}</span></li>"#, if bad { "bad" } else { "ok" }, d.get_hours(), d.get_minutes(), dom::esc(t));
+    let old = box_.inner_html();
+    let mut items: Vec<String> = old.split("</li>").filter(|x| x.contains("<li")).map(|x| format!("{x}</li>")).take(2).collect();
+    items.insert(0, item);
+    box_.set_inner_html(&items.concat());
+    box_.set_hidden(false);
 }
 /// 확인 창: 고르면 true (cancel이 비어 있으면 확인 버튼만 보여요)
 pub(crate) fn ask_promise(title: &str, body: &str, ok: &str, cancel: &str) -> Promise {

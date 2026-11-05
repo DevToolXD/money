@@ -29,6 +29,8 @@ thread_local! {
     static FOR: RefCell<String> = const { RefCell::new(String::new()) };
     static AT: Cell<f64> = const { Cell::new(0.0) };
     static BUSY: Cell<bool> = const { Cell::new(false) };
+    /// 직원 목록을 읽은 결과: None이면 읽는 중, Some(None)이면 읽음, Some(Some(이유))이면 못 읽음
+    static STATE: RefCell<Option<Option<String>>> = const { RefCell::new(None) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -81,6 +83,7 @@ pub fn paint() {
     if !same {
         FOR.with(|f| *f.borrow_mut() = cid.clone());
         LIST.with(|l| l.borrow_mut().clear());
+        STATE.with(|x| *x.borrow_mut() = None);
         LAB.with(|l| *l.borrow_mut() = None);
     }
     render();
@@ -95,13 +98,16 @@ fn load(cid: String) {
         if FOR.with(|f| *f.borrow() != cid) {
             return;
         }
-        if let Ok(v) = staff {
-            let list: Vec<Member> = js_sys::Array::from(&v).iter().map(|m| Member { uid: get(&m, "uid").as_string().unwrap_or_default(), at: num(&m, "at"), wage: num(&m, "wage"), n: num(&m, "n"), seen: num(&m, "seen") }).collect();
+        if let Ok(v) = &staff {
+            let list: Vec<Member> = js_sys::Array::from(v).iter().map(|m| Member { uid: get(&m, "uid").as_string().unwrap_or_default(), at: num(&m, "at"), wage: num(&m, "wage"), n: num(&m, "n"), seen: num(&m, "seen") }).collect();
             let who: js_sys::Array = list.iter().map(|m| JsValue::from_str(&m.uid)).collect();
             LIST.with(|l| *l.borrow_mut() = list);
             let _ = cloud::call("fetchProfiles", &[who.into()]).await;
+            STATE.with(|x| *x.borrow_mut() = Some(None));
         } else {
             AT.set(0.0);
+            let why = staff.err().map(|e| cloud::why(&e.code)).unwrap_or("");
+            STATE.with(|x| *x.borrow_mut() = Some(Some(why.to_string())));
         }
         if let Ok(l) = lab {
             if !l.is_null() && !l.is_undefined() {
@@ -134,7 +140,7 @@ fn render() {
             let pct = p * 100.0;
             let eta = if p >= 1.0 {
                 "종결에 닿았어요".to_string()
-            } else if p <= 0.0 {
+            } else if p < 0.001 {
                 "아직 시작 단계예요".to_string()
             } else {
                 // 지금까지 평균 속도로 계속 일한다고 보면 (올라갈수록 느려지니 실제로는 더 걸려요)
@@ -176,7 +182,12 @@ fn render() {
             )
         })
         .collect();
-    let list = if members.is_empty() { r#"<p class="stf-empty">직원이 아직 없어요. 위에서 채용 공고를 올려 보세요</p>"#.to_string() } else { format!(r#"<ul class="stf-list">{rows}</ul>"#) };
+    let state = STATE.with(|x| x.borrow().clone());
+    let list = if let Some(Some(why)) = &state {
+        format!(r#"<p class="stf-empty">직원 목록을 불러오지 못했어요 · {}</p>"#, esc(why))
+    } else if state.is_none() {
+        r#"<p class="stf-empty">직원 목록을 불러오는 중이에요…</p>"#.to_string()
+    } else if members.is_empty() { r#"<p class="stf-empty">직원이 아직 없어요. 위에서 채용 공고를 올려 보세요</p>"#.to_string() } else { format!(r#"<ul class="stf-list">{rows}</ul>"#) };
     // 쓰고 있던 숫자는 다시 그려도 남겨 둬요
     let typing = by_id("stf-fund-n").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()).map(|i| i.value()).unwrap_or_default();
     el.set_inner_html(&format!(r#"{dev}<h3 class="stf-h">급여</h3>{fund}<h3 class="stf-h">직원 {}명</h3>{list}"#, members.len()));
@@ -217,7 +228,7 @@ fn bind() {
                     LIST.with(|l| l.borrow_mut().iter_mut().filter(|m| m.uid == uid).for_each(|m| m.wage = w));
                     ctx().toast(&format!("시급을 {} 토큰으로 정했어요", fmt_num(w, 0)));
                 }
-                Err(_) => ctx().toast("임금을 정하지 못했어요. 잠시 뒤 다시 해 주세요"),
+                Err(e) => ctx().toast(&format!("임금을 정하지 못했어요 · {}", cloud::why(&e.code))),
             }
         });
     });
@@ -247,7 +258,7 @@ fn fund() {
                 ctx().toast(&format!("급여 금고에 {} 토큰을 넣었어요", fmt_num(amt, 0)));
                 render();
             }
-            Err(_) => ctx().toast("넣지 못했어요. 잠시 뒤 다시 해 주세요"),
+            Err(e) => ctx().toast(&format!("급여 금고에 넣지 못했어요 · {}", cloud::why(&e.code))),
         }
         BUSY.set(false);
     });
@@ -277,7 +288,7 @@ fn fire(uid: String) {
                 c.toast(&format!("{name}님을 해고했어요"));
                 render();
             }
-            Err(_) => c.toast("해고하지 못했어요. 잠시 뒤 다시 해 주세요"),
+            Err(e) => c.toast(&format!("해고하지 못했어요 · {}", cloud::why(&e.code))),
         }
         BUSY.set(false);
     });

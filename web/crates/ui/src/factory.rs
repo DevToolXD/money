@@ -76,8 +76,7 @@ fn fac_msg(e: &CloudError) -> String {
         "bad" => "개수를 확인해 주세요".into(),
         "max" => "공장을 더 살 수 없어요".into(),
         "unsellable" => "지금은 만들 수 없는 상품이에요".into(),
-        _ if !e.message.is_empty() => e.message.clone(),
-        _ => "잠시 뒤 다시 해 주세요".into(),
+        _ => format!("못 했어요 · {}", cloud::why(&e.code)),
     }
 }
 
@@ -182,7 +181,7 @@ async fn load_products(s: FacSig) {
         Err(e) => {
             cloud::warn(&format!("만들 상품을 불러오지 못했어요: {e}"));
             if alive(s) {
-                s.note.set("만들 상품을 불러오지 못했어요".into());
+                s.note.set(format!("만들 상품을 불러오지 못했어요 · {}", cloud::why(&e.code)));
             }
         }
     }
@@ -228,7 +227,12 @@ fn settle(s: FacSig) {
                 load_lab(s).await;
                 load_products(s).await;
             }
-            Err(e) => cloud::warn(&format!("공장 정산을 하지 못했어요: {e}")),
+            Err(e) => {
+                cloud::warn(&format!("공장 정산을 하지 못했어요: {e}"));
+                if alive(s) {
+                    s.note.set(format!("만든 것을 정산하지 못했어요 · {}. 곧 다시 해 볼게요", cloud::why(&e.code)));
+                }
+            }
         }
     });
 }

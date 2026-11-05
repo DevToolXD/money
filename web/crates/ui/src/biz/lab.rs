@@ -460,6 +460,8 @@ fn cash(ev: web_sys::MouseEvent, dir: f64) {
         return c.toast("1 이상의 토큰 수를 적어 주세요");
     }
     btn.set_disabled(true);
+    let label = btn.text_content().unwrap_or_default();
+    btn.set_text_content(Some("처리하는 중…"));
     let cid = co_str(&co, "id");
     spawn_local(async move {
         // 쌓인 이자를 먼저 받아 두어요
@@ -474,8 +476,10 @@ fn cash(ev: web_sys::MouseEvent, dir: f64) {
             .await;
         match r {
             Ok(_) => c.toast(&if dir > 0.0 { format!("{} 토큰을 금고에 넣었어요", fmt_lab(v)) } else { format!("{} 토큰을 지갑으로 뺐어요", fmt_lab(v)) }),
-            Err(e) => c.toast(if e.code == "insufficient" { "토큰이 부족해요" } else { "처리하지 못했어요. 잠시 뒤 다시 해 주세요" }),
+            Err(e) => c.toast(&if e.code == "insufficient" { "토큰이 부족해요".to_string() } else { format!("처리하지 못했어요 · {}", cloud::why(&e.code)) }),
         }
+        btn.set_text_content(Some(&label));
+        btn.set_disabled(false);
         paint();
     });
 }
@@ -585,8 +589,8 @@ fn act(ev: web_sys::MouseEvent, what: &'static str) {
             Ok(())
         }
         .await;
-        if r.is_err() {
-            c.toast("처리하지 못했어요. 잠시 뒤 다시 해 주세요");
+        if let Err(e) = &r {
+            c.toast(&format!("처리하지 못했어요 · {}", cloud::why(&e.code)));
         }
         paint();
     });

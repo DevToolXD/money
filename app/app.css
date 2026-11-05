@@ -1957,3 +1957,11 @@ html[data-theme="dark"] .sns-tool, html[data-theme="dark"] .sns-cancel, html[dat
 .co-prof #co-edit-save { margin-top: 10px; }
 .co-photo .co-mark .avatar { width: 96px; height: 96px; font-size: 30px; }
 .co-prof .co-edit, .co-prof #co-edit-save { justify-self: stretch; }
+
+/* 사업 탭: 방금 있었던 일 (알림이 사라져도 남아요) */
+.biz-log { list-style: none; margin: -4px var(--gutter) 14px; padding: 10px 14px; border-radius: 14px; background: rgba(120, 120, 128, 0.1); display: grid; gap: 6px; }
+.biz-log[hidden] { display: none; }
+.biz-log li { display: flex; gap: 10px; align-items: baseline; font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.biz-log li:first-child { color: var(--text-primary); font-weight: 600; }
+.biz-log li.bad:first-child { color: #d70015; }
+.biz-log time { flex: none; font-variant-numeric: tabular-nums; opacity: 0.7; }

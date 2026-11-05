@@ -634,8 +634,8 @@ fn Mine(s: Sig, owner: bool, co: Company, job_at: f64, extra: Option<Company>, c
             </div>
         </div>
         <Stats c=co.clone()/>
-        {(!owner).then(|| view! { <div class="card wk-wage" id="wk-wage" data-cid=co.id.clone() data-name=co.name.clone()></div> })}
         {card}
+        {(!owner).then(|| view! { <div class="card wk-wage" id="wk-wage" data-cid=co.id.clone() data-name=co.name.clone()></div> })}
         {quit_co.map(|q| {
             let (cid, name) = (q.id.clone(), q.name.clone());
             view! { <button type="button" class="gg wk-quit" data-quit=cid.clone() data-name=name.clone() on:click=move |_| quit(cid.clone(), name.clone())>{format!("{}에서 그만두기", q.name)}</button> }
