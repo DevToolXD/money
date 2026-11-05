@@ -54,6 +54,8 @@ thread_local! {
     static QUERY: RefCell<String> = const { RefCell::new(String::new()) };
     static PULL: Cell<Option<f64>> = const { Cell::new(None) };
     static REFRESHING: Cell<bool> = const { Cell::new(false) };
+    /// 스토리 줄에서 고른 사람 (그 사람 글만 봐요)
+    static STORY: RefCell<String> = const { RefCell::new(String::new()) };
     /// 피드에 미리 보여줄 마지막 답글 (답글 번호 → 답글, 없어졌으면 None). 한 번 읽으면 기억해요
     static LAST_REPLY: RefCell<std::collections::HashMap<String, Option<Post>>> = RefCell::new(std::collections::HashMap::new());
 }
@@ -64,14 +66,15 @@ fn svg(d: &str) -> String {
 }
 const HEART: &str = r#"<path d="M12 20.3c-.3 0-8.8-4.9-8.8-11A4.9 4.9 0 0 1 12 6.6a4.9 4.9 0 0 1 8.8 2.7c0 6.1-8.5 11-8.8 11z"/>"#;
 const BUBBLE: &str = r#"<path d="M20.4 12a8.4 8.4 0 0 1-12.5 7.3L3.6 20.4l1.1-4.3A8.4 8.4 0 1 1 20.4 12z"/>"#;
-const REPOST: &str = r#"<path d="M18.5 13.5v1a4 4 0 0 1-4 4H8"/><path d="M10.5 16l-2.5 2.5 2.5 2.5"/><path d="M5.5 10.5v-1a4 4 0 0 1 4-4H16"/><path d="M13.5 8l2.5-2.5L13.5 3"/>"#;
 const SHARE: &str = r#"<path d="M21 12 4 4.5l2.6 7.5L4 19.5z"/><path d="M6.6 12H21"/>"#;
 const MORE: &str = r#"<circle cx="6" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18" cy="12" r="1.2" fill="currentColor"/>"#;
 const PHOTO: &str = r#"<rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-4.5-4.5-8.5 8"/>"#;
 const BACK: &str = r#"<path d="M15 5l-7 7 7 7"/>"#;
-const MENU: &str = r#"<path d="M4 9h16M4 15h16"/>"#;
 const SEARCH: &str = r#"<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>"#;
 const PLUS: &str = r#"<path d="M12 5v14M5 12h14"/>"#;
+const BELL: &str = r#"<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>"#;
+const PIN: &str = r#"<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>"#;
+const CLOCK: &str = r#"<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>"#;
 const STAR: &str = r#"<path d="M12 4l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/>"#;
 // 우리 앱의 표시: 겹친 두 말풍선 (어느 서비스의 로고도 아니에요)
 const MARK: &str = r#"<path d="M14.5 9.5a6 6 0 1 1-3.4 5.4"/><path d="M9.5 14.5a6 6 0 1 1 3.4-5.4"/>"#;
@@ -131,7 +134,7 @@ fn post_html_x(p: &Post, big: bool, thread_line: bool, inline: bool) -> String {
     let follow = p.by != me && !me.is_empty() && !FOLLOWS.with(|f| f.borrow().contains(&p.by));
     let n = |v: f64| if v > 0.0 { format!("<span>{}</span>", count(v)) } else { String::new() };
     format!(
-        r#"{first}<article class="sp{big}{inl}" data-id="{id}"><div class="sp-l"><span class="sp-avw">{av}{badge}</span>{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b>{topic}<span class="sp-t">{t}</span><button type="button" class="sp-more" data-more="{id}" data-mine="{mine}" aria-label="더 보기">{more}</button></div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}{nl}</button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}{nr}</button><button type="button" class="sp-b{rp}" data-repost="{id}" aria-label="리포스트" aria-pressed="{reposted}">{rep}{nrp}</button><button type="button" class="sp-b" data-share="{id}" aria-label="보내기">{share}{nsh}</button></div></div></article>"#,
+        r#"{first}<article class="sp{big}{inl}" data-id="{id}"><div class="sp-l"><span class="sp-avw">{av}{badge}</span>{line}</div><div class="sp-r"><div class="sp-h"><b>{name}</b>{topic}<span class="sp-t">{t}</span><button type="button" class="sp-more" data-more="{id}" data-mine="{mine}" aria-label="더 보기">{more}</button></div>{text}{img}<div class="sp-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}{nl}</button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}{nr}</button><button type="button" class="sp-b" data-share="{id}" aria-label="보내기">{share}{nsh}</button></div></div></article>"#,
         first = if p.first && !big && !inline { format!(r#"<p class="sp-first" aria-label="첫 스레드">{}첫 스레드</p>"#, svg(STAR)) } else { String::new() },
         big = if big { " big" } else { "" },
         inl = if inline { " sp-in" } else if thread_line { " has-in" } else { "" },
@@ -152,13 +155,84 @@ fn post_html_x(p: &Post, big: bool, thread_line: bool, inline: bool) -> String {
         nl = n(p.likes),
         bub = svg(BUBBLE),
         nr = n(p.rc),
-        rp = if p.reposted { " on" } else { "" },
-        reposted = p.reposted,
-        rep = svg(REPOST),
-        nrp = n(p.reposts),
         share = svg(SHARE),
         nsh = n(p.sh),
     )
+}
+
+/// 피드 카드 (서클 모양): 머리, 글, 사진(위에 주제·시간 알약), 댓글 미리보기, 댓글 달기 칸, 하트·댓글·보내기
+fn card_html(p: &Post, reply: Option<&Post>) -> String {
+    let (name, photo) = person(&p.by);
+    let me = my_uid();
+    let follow = p.by != me && !me.is_empty() && !FOLLOWS.with(|f| f.borrow().contains(&p.by));
+    let img = dom::safe_img(&p.img, 300000);
+    let n = |v: f64| if v > 0.0 { format!("<span>{}</span>", count(v)) } else { String::new() };
+    let sub = if p.topic.is_empty() { ago(p.at) } else { format!("{} · {}", p.topic, ago(p.at)) };
+    let chips = format!(
+        r#"<div class="sc-chips">{}<span class="sc-chip">{}{}</span></div>"#,
+        if p.topic.is_empty() { String::new() } else { format!(r#"<span class="sc-chip">{}{}</span>"#, svg(PIN), esc(&p.topic)) },
+        svg(CLOCK),
+        ago(p.at)
+    );
+    let media = if img.is_empty() { String::new() } else { format!(r#"<div class="sc-media"><img src="{img}" alt="" loading="lazy" decoding="async">{chips}</div>"#) };
+    let comments = reply
+        .map(|r| format!(r#"<div class="sc-cm"><b>댓글 {}개</b><p><b>{}</b> {}</p></div>"#, count(p.rc.max(1.0)), esc(&person(&r.by).0), esc(&dom::cut(&r.text, 60))))
+        .unwrap_or_default();
+    format!(
+        r#"{first}<article class="sc" data-id="{id}"><header class="sc-h"><span class="sp-avw">{av}{badge}</span><div class="sc-who"><b>{name}</b><span>{sub}</span></div><button type="button" class="sp-more" data-more="{id}" data-mine="{mine}" aria-label="더 보기">{more}</button></header>{text}{media}{comments}<button type="button" class="sc-input" data-reply="{id}">{meav}<span>댓글 달기…</span></button><div class="sc-a"><button type="button" class="sp-b{lk}" data-like="{id}" aria-label="좋아요" aria-pressed="{liked}">{heart}{nl}</button><button type="button" class="sp-b" data-reply="{id}" aria-label="댓글">{bub}{nr}</button><button type="button" class="sp-b sc-share" data-share="{id}" aria-label="보내기">{share}{nsh}</button></div></article>"#,
+        first = if p.first { format!(r#"<p class="sp-first">{}첫 스레드</p>"#, svg(STAR)) } else { String::new() },
+        id = esc(&p.id),
+        av = dom::avatar_html(&name, &photo, "avatar contact sp-av"),
+        badge = if follow { format!(r#"<button type="button" class="sp-follow" data-follow="{}" aria-label="팔로우">{}</button>"#, esc(&p.by), svg(PLUS)) } else { String::new() },
+        name = esc(&name),
+        sub = esc(&sub),
+        mine = p.by == me,
+        more = svg(MORE),
+        text = if p.text.is_empty() { String::new() } else { format!(r#"<p class="sc-x">{}</p>"#, esc(&p.text)) },
+        meav = me_html("avatar contact sc-meav"),
+        lk = if p.liked { " on" } else { "" },
+        liked = p.liked,
+        heart = svg(HEART),
+        nl = n(p.likes),
+        bub = svg(BUBBLE),
+        nr = n(p.rc),
+        share = svg(SHARE),
+        nsh = n(p.sh),
+    )
+}
+
+/// 스토리 줄: 최근에 글을 쓴 사람들 (하루 안에 쓴 사람은 초록 테두리). 누르면 그 사람 글만 봐요
+fn paint_stories() {
+    let Some(el) = by_id("sns-stories") else { return };
+    let me = my_uid();
+    let mut seen: Vec<(String, f64)> = vec![(me.clone(), 0.0)];
+    FEED.with(|f| {
+        for p in f.borrow().iter() {
+            match seen.iter_mut().find(|(u, _)| *u == p.by) {
+                Some(x) => x.1 = x.1.max(p.at),
+                None => seen.push((p.by.clone(), p.at)),
+            }
+        }
+    });
+    let pick = STORY.with(|x| x.borrow().clone());
+    let html: String = seen
+        .iter()
+        .take(20)
+        .map(|(u, at)| {
+            let (name, photo) = person(u);
+            let label = if *u == me { "나".to_string() } else { name.clone() };
+            let fresh = *at > 0.0 && js_sys::Date::now() - at < 86400000.0;
+            format!(
+                r#"<button type="button" class="st{}{}" data-story="{}"><span class="st-ring">{}</span><span class="st-n">{}</span></button>"#,
+                if fresh { " fresh" } else { "" },
+                if pick == *u { " on" } else { "" },
+                esc(u),
+                dom::avatar_html(&name, &photo, "avatar contact st-av"),
+                esc(&label)
+            )
+        })
+        .collect();
+    el.set_inner_html(&html);
 }
 
 fn root() -> Option<web_sys::HtmlElement> {
@@ -171,15 +245,15 @@ fn build() {
         return;
     }
     sc.set_inner_html(&format!(
-        r#"<div class="sns" id="sns"><header class="sns-top" id="sns-top"><button type="button" class="sns-ic" data-menu aria-label="보기 메뉴">{menu}</button><span class="sns-mark" id="sns-mark">{}</span><button type="button" class="sns-ic" data-search aria-label="찾기">{search}</button></header><div class="sns-search" id="sns-search" hidden><label class="sns-q">{search}<input id="sns-q" type="search" placeholder="글이나 사람 찾기" autocomplete="off"></label><button type="button" class="sns-cancel" data-search-close>취소</button></div><div class="sns-menu" id="sns-menu" hidden><button type="button" data-mode="0">전체</button><button type="button" data-mode="1">팔로우 중</button><button type="button" data-mode="2">내 글</button><button type="button" data-refresh>새로고침</button></div><div class="sns-body" id="sns-body"><button type="button" class="sns-compose" id="sns-compose"><span id="sns-me"></span><span class="sns-cw"><b id="sns-myname0"></b><span class="sns-ph">새로운 소식을 공유해보세요.</span></span><span class="sns-pic">{}</span></button><div class="sns-feed" id="sns-feed"><p class="sns-empty">불러오는 중이에요</p></div></div></div><button type="button" class="sns-fab" id="sns-fab" aria-label="새 글 쓰기">{plus}</button>
+        r#"<div class="sns" id="sns"><header class="sns-top" id="sns-top"><h1 class="sns-title">서클</h1><span class="sns-mark" id="sns-mark" aria-hidden="true">{}</span><div class="sns-tr"><button type="button" class="sns-ic" data-search aria-label="찾기">{search}</button><button type="button" class="sns-ic" data-menu aria-label="알림과 보기">{bell}</button><span class="sns-meav" id="sns-meav"></span></div></header><div class="sns-search" id="sns-search" hidden><label class="sns-q">{search}<input id="sns-q" type="search" placeholder="글이나 사람 찾기" autocomplete="off"></label><button type="button" class="sns-cancel" data-search-close>취소</button></div><div class="sns-menu" id="sns-menu" hidden><button type="button" data-mode="0">전체</button><button type="button" data-mode="1">팔로우 중</button><button type="button" data-mode="2">내 글</button><button type="button" data-refresh>새로고침</button></div><div class="sns-body" id="sns-body"><div class="sns-stories" id="sns-stories"></div><button type="button" class="sns-compose" id="sns-compose"><span id="sns-me"></span><span class="sns-cw"><b id="sns-myname0"></b><span class="sns-ph">새로운 소식을 공유해보세요.</span></span><span class="sns-pic">{}</span></button><div class="sns-feed" id="sns-feed"><p class="sns-empty">불러오는 중이에요</p></div></div></div><button type="button" class="sns-fab" id="sns-fab" aria-label="새 글 쓰기">{plus}</button>
         <section class="sns-sheet" id="sns-sheet" hidden aria-label="새로운 스레드"><header class="sns-sh"><button type="button" class="sns-cancel" data-sheet-close>취소</button><b id="sns-sheet-title">새로운 스레드</b><span></span></header><div class="sns-parent" id="sns-parent"></div><div class="sns-write"><span id="sns-me2"></span><div class="sns-wr"><div class="sns-who"><b id="sns-myname"></b><input id="sns-topic" class="sns-topic" maxlength="20" placeholder="› 주제 추가" autocomplete="off" aria-label="주제"></div><textarea id="sns-text" maxlength="500" rows="3" placeholder="새로운 소식이 있나요?"></textarea><div class="sns-prev" id="sns-prev"></div><label class="sns-attach" aria-label="사진 넣기">{}<input id="sns-file" type="file" accept="image/*" hidden></label></div></div><footer class="sns-sf"><span>누구에게나 답글 허용</span><button type="button" class="sns-post" id="sns-post" disabled>게시</button></footer></section>
-        <section class="sns-detail" id="sns-detail" hidden aria-label="스레드"><header class="sns-dh"><button type="button" class="sns-back" data-detail-close aria-label="뒤로">{}</button><b>스레드</b><span></span></header><div class="sns-dbody" id="sns-dbody"></div><button type="button" class="sns-replybar" id="sns-replybar"></button></section>"#,
+        <section class="sns-detail" id="sns-detail" hidden aria-label="스레드"><header class="sns-dh"><button type="button" class="sns-back" data-detail-close aria-label="뒤로">{}</button><b>서클</b><span></span></header><div class="sns-dbody" id="sns-dbody"></div><button type="button" class="sns-replybar" id="sns-replybar"></button></section>"#,
         svg(MARK),
         svg(PHOTO),
         svg(PHOTO),
         svg(BACK),
-        menu = svg(MENU),
         search = svg(SEARCH),
+        bell = svg(BELL),
         plus = svg(PLUS),
     ));
     // 글쓰기 판과 글 보기는 화면 위에 덮이도록 앱 틀로 옮겨요
@@ -360,6 +434,7 @@ fn paint_feed() {
     let html = FEED.with(|f| {
         f.borrow()
             .iter()
+            .filter(|p| STORY.with(|x| x.borrow().is_empty() || *x.borrow() == p.by))
             .filter(|p| match mode {
                 1 => FOLLOWS.with(|x| x.borrow().contains(&p.by)),
                 2 => p.by == me,
@@ -369,14 +444,15 @@ fn paint_feed() {
             .map(|p| {
                 // 답글이 있으면 마지막 답글을 아래에 들여 써서 미리 보여줘요 (선이 둥글게 이어져요)
                 let reply = (p.rc > 0.0 && !p.last.is_empty()).then(|| LAST_REPLY.with(|m| m.borrow().get(&p.last).cloned())).flatten().flatten().filter(|r| r.id == p.last);
-                match reply {
-                    Some(r) => format!(r#"<div class="sp-grp">{}{}</div>"#, post_html_x(p, false, true, false), post_html_x(&r, false, false, true)),
-                    None => format!(r#"<div class="sp-grp">{}</div>"#, post_html(p, false, false)),
-                }
+                card_html(p, reply.as_ref())
             })
             .collect::<String>()
     });
     load_last_replies();
+    paint_stories();
+    if let Some(m) = by_id("sns-meav") {
+        m.set_inner_html(&me_html("avatar contact sns-meav-i"));
+    }
     let empty = if !q.is_empty() {
         "찾는 글이 없어요"
     } else {
@@ -439,6 +515,14 @@ fn patch(id: &str, f: impl Fn(&mut Post)) {
 }
 
 fn on_click(e: web_sys::Event) {
+    if let Some(b) = dom::closest(&e, "[data-story]") {
+        let u = dom::data(&b, "story");
+        STORY.with(|x| {
+            let mut x = x.borrow_mut();
+            *x = if *x == u { String::new() } else { u };
+        });
+        return paint_feed();
+    }
     if dom::closest(&e, "[data-menu]").is_some() {
         if let Some(m) = by_id("sns-menu") {
             m.set_hidden(!m.hidden());
@@ -577,6 +661,9 @@ fn on_click(e: web_sys::Event) {
             }
         });
         return;
+    }
+    if let Some(a) = dom::closest(&e, ".sc") {
+        return open_detail(&dom::data(&a, "id"));
     }
     if let Some(a) = dom::closest(&e, ".sp") {
         // 피드의 글, 또는 글 화면 안의 답글(큰 글이 아닌 것)을 누르면 그 글 안으로 들어가요

@@ -33,7 +33,7 @@ const toSns = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); a
   ok('게시 알림', await until(A, () => document.querySelector('.toast')?.textContent.includes('게시했어요')));
   ok('내 피드에 글이 보여요', await until(A, () => document.getElementById('sns-feed').textContent.includes('첫 스레드 글이에요')));
   ok('다른 사람 피드에도 보여요 (이름과 함께)', await until(B, () => { const t = document.getElementById('sns-feed').textContent; return t.includes('첫 스레드 글이에요') && t.includes('가나다'); }));
-  ok('주제가 보여요 (› AI 이야기)', (await text(B, '#sns-feed .sp-tp')).includes('AI 이야기'));
+  ok('주제가 보여요 (› AI 이야기)', (await text(B, '#sns-feed .sc-who')).includes('AI 이야기'));
   ok('처음 쓴 글에는 첫 스레드 표시', (await text(B, '#sns-feed')).includes('첫 스레드'));
   ok('남의 글 동그라미에 + 팔로우 배지', await B.isVisible('#sns-feed .sp-follow'));
   ok('내 글에는 팔로우 배지가 없어요', !(await A.$('#sns-feed .sp-follow')));
@@ -56,7 +56,7 @@ const toSns = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); a
   await B.click('#sns-feed [data-like]');
   ok('좋아요: 빨간 하트와 1', await until(B, () => { const x = document.querySelector('#sns-feed [data-like]'); return x.classList.contains('on') && x.textContent.trim() === '1'; }));
   ok('글쓴이 화면에도 좋아요 1', await until(A, () => document.querySelector('#sns-feed [data-like]')?.textContent.trim() === '1'));
-  await B.click('#sns-feed .sp-x'); await B.waitForTimeout(800);
+  await B.click('#sns-feed .sc-x'); await B.waitForTimeout(800);
   ok('글을 누르면 글과 답글 화면', await B.isVisible('#sns-detail') && (await text(B, '#sns-replybar')).includes('가나다님에게 답글 남기기'));
   await B.click('#sns-replybar'); await B.waitForTimeout(700);
   ok('답글 판: 원래 글이 위에 보여요', (await text(B, '#sns-sheet-title')) === '답글' && (await text(B, '#sns-parent')).includes('첫 스레드 글이에요'));
@@ -64,11 +64,13 @@ const toSns = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); a
   await B.click('#sns-post');
   ok('답글이 글 화면에 보여요', await until(B, () => document.getElementById('sns-dbody').textContent.includes('반가워요')));
   await B.screenshot({ path: __dirname + '/shots/sns-detail.png' });
-  ok('글쓴이 피드에 댓글 1', await until(A, () => document.querySelector('#sns-feed [data-reply]')?.textContent.trim() === '1'));
-  ok('답글은 따로 글로 나오지 않고, 원래 글 아래 미리보기로만 보여요', await until(A, () => [...document.querySelectorAll('#sns-feed .sp-grp > article:not(.sp-in)')].every((a) => !a.textContent.includes('반가워요')) && !!document.querySelector('#sns-feed .sp-in')?.textContent.includes('반가워요')));
+  ok('글쓴이 피드에 댓글 1', await until(A, () => document.querySelector('#sns-feed .sc-a [data-reply]')?.textContent.trim() === '1'));
+  ok('답글은 따로 글로 나오지 않고, 카드의 댓글 미리보기로만 보여요', await until(A, () => [...document.querySelectorAll('#sns-feed .sc-x')].every((a) => !a.textContent.includes('반가워요')) && !!document.querySelector('#sns-feed .sc-cm')?.textContent.includes('반가워요')));
+  ok('리포스트 버튼은 없어요', !(await A.$('#sns-feed [data-repost]')));
+  ok('스토리 줄에 글쓴이 동그라미', (await text(B, '#sns-stories')).includes('가나다'));
   // 내 글 지우기
   A.on('dialog', (d) => d.accept());
-  await A.click('#sns-feed [data-more]'); await A.waitForTimeout(500);
+  await A.evaluate(() => document.querySelector('#sns-feed [data-more]').click()); await A.waitForTimeout(500);
   await A.click('#alert-ok');
   ok('지우면 피드에서 사라져요', await until(A, () => !document.getElementById('sns-feed').textContent.includes('첫 스레드 글이에요')));
   ok('오류 없음', X.errs.length === 0 && Y.errs.length === 0);
