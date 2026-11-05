@@ -40,9 +40,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isMe(uid);
       allow write: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['profile', 'walls', 'updatedAt', 'follows'])
-        // SNS 팔로우: 사람 번호 → true (500명까지)
-        && (!('follows' in request.resource.data) || (request.resource.data.follows is map && request.resource.data.follows.size() <= 500))
+        && request.resource.data.keys().hasOnly(['profile', 'walls', 'updatedAt'])
         && (!('profile' in request.resource.data) || (
               request.resource.data.profile.keys().hasOnly(['name', 'bio'])
               && request.resource.data.profile.name is string && request.resource.data.profile.name.size() <= 30
@@ -1084,54 +1082,5 @@ service cloud.firestore {
       }
     }
   
-    // SNS (무제 탭): 글·사진 하나, 좋아요·리포스트는 내 표시만, 댓글 수는 댓글을 쓰는 같은 묶음에서만 1 늘어요
-    function postPath(id) { return /databases/$(database)/documents/posts/$(id); }
-    match /posts/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'at', 'likes', 'reposts', 'rc', 'parent', 'last', 'topic', 'first', 'sh'])
-        && (!('topic' in request.resource.data) || (request.resource.data.topic is string && request.resource.data.topic.matches('^[^<>]{1,20}$')))
-        && (!('first' in request.resource.data) || request.resource.data.first is bool)
-        && request.resource.data.get('sh', 0) == 0
-        && request.resource.data.by == request.auth.uid
-        && request.resource.data.text is string && request.resource.data.text.size() <= 500
-        && (request.resource.data.text.size() >= 1 || request.resource.data.get('img', '') != '')
-        && (request.resource.data.get('img', '') == '' || img(request.resource.data.img, 300000))
-        && request.resource.data.at == request.time
-        && request.resource.data.likes == {} && request.resource.data.reposts == {}
-        && request.resource.data.rc == 0
-        && request.resource.data.parent is string
-        && (request.resource.data.parent == ''
-          || getAfter(postPath(request.resource.data.parent)).data.rc == get(postPath(request.resource.data.parent)).data.rc + 1);
-      allow update: if signedIn() && (
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
-          && request.resource.data.likes.diff(resource.data.likes).affectedKeys().hasOnly([request.auth.uid])
-          && request.resource.data.likes.get(request.auth.uid, true) == true)
-        ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reposts'])
-          && request.resource.data.reposts.diff(resource.data.reposts).affectedKeys().hasOnly([request.auth.uid])
-          && request.resource.data.reposts.get(request.auth.uid, true) == true)
-        ||
-        // 댓글 수: 새 댓글(last)이 같은 묶음에서 생기고, 그 댓글의 부모가 이 글이에요
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rc', 'last'])
-          && request.resource.data.rc == resource.data.rc + 1
-          && !exists(postPath(request.resource.data.last))
-          && getAfter(postPath(request.resource.data.last)).data.parent == id)
-        ||
-        // 보내기(공유) 수: 누구나 1씩만 늘려요
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sh'])
-          && request.resource.data.sh == resource.data.get('sh', 0) + 1)
-        ||
-        // 답글을 지우면: 같은 묶음에서 그 답글(내 것)이 사라지고 댓글 수가 1 줄어요
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rc', 'last'])
-          && request.resource.data.rc == resource.data.rc - 1
-          && request.resource.data.rc >= 0
-          && exists(postPath(request.resource.data.last))
-          && !existsAfter(postPath(request.resource.data.last))
-          && get(postPath(request.resource.data.last)).data.parent == id
-          && get(postPath(request.resource.data.last)).data.by == request.auth.uid)
-      );
-      allow delete: if signedIn() && resource.data.by == request.auth.uid;
-    }
   }
 }

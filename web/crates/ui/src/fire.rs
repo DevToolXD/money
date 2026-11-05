@@ -1933,103 +1933,6 @@ fn call_cands(id: String, cb: js_sys::Function) -> R {
     f("onSnapshot", &[c(&["calls", &id, "c"]), next, report_fn()])
 }
 
-/* ---------- SNS (무제 탭) ---------- */
-
-fn post_row(dd: &JsValue) -> JsValue {
-    let v = data_est(dd);
-    let count = |k: &str| {
-        let m_ = get(&v, k);
-        if m_.is_object() { js_sys::Object::keys(m_.unchecked_ref::<js_sys::Object>()).length() as f64 } else { 0.0 }
-    };
-    let me_ = st(&get(&current(), "uid"));
-    let mine = |k: &str| get(&get(&v, k), &me_) == JsValue::TRUE;
-    o(&[
-        ("id", get(dd, "id")),
-        ("by", get(&v, "by")),
-        ("text", get(&v, "text")),
-        ("img", nn(get(&v, "img"))),
-        ("at", n(ms(&get(&v, "at")))),
-        ("parent", get(&v, "parent")),
-        ("likes", n(count("likes"))),
-        ("reposts", n(count("reposts"))),
-        ("rc", { let r = get(&v, "rc"); if is_int(&r) { r } else { n(0.0) } }),
-        ("topic", { let t = get(&v, "topic"); if t.is_string() { t } else { s("") } }),
-        ("first", (get(&v, "first") == JsValue::TRUE).into()),
-        ("sh", { let x = get(&v, "sh"); if is_int(&x) { x } else { n(0.0) } }),
-        ("last", { let x = get(&v, "last"); if x.is_string() { x } else { s("") } }),
-        ("liked", mine("likes").into()),
-        ("reposted", mine("reposts").into()),
-    ])
-}
-/// 새 글 (parent가 있으면 그 글의 댓글이에요)
-async fn post_create(text: String, img_: String, parent: String, topic: String) -> R {
-    // 처음 쓰는 글이면 "첫 스레드" 표시를 붙여요
-    let me_ = uid_of()?;
-    let mine = get_docs(q(c(&["posts"]), vec![w(s("by"), "==", s(&me_)), lim(1.0)])).await.map(|sn| docs(&sn).len()).unwrap_or(1);
-    let r = new_id(c(&["posts"]));
-    let id = get(&r, "id");
-    let data_ = o(&[("by", s(&uid_of()?)), ("text", s(&text)), ("at", ts()), ("likes", js_sys::Object::new().into()), ("reposts", js_sys::Object::new().into()), ("rc", n(0.0)), ("parent", s(&parent))]);
-    if !img_.is_empty() {
-        set(&data_, "img", &s(&img_));
-    }
-    let topic: String = topic.trim().chars().filter(|c| *c != '<' && *c != '>').take(20).collect();
-    if !topic.is_empty() && parent.is_empty() {
-        set(&data_, "topic", &s(&topic));
-    }
-    if mine == 0 && parent.is_empty() {
-        set(&data_, "first", &true.into());
-    }
-    let b = batch();
-    m(&b, "set", &[r, data_])?;
-    if !parent.is_empty() {
-        m(&b, "update", &[d(&["posts", &parent]), o(&[("rc", inc(1.0)), ("last", id.clone())])])?;
-    }
-    rethrow(commit(&b).await)?;
-    Ok(id)
-}
-/// 홈 피드: 최근 40개만 들어요 (댓글은 빼고 보여줘요)
-fn posts_watch(cb: js_sys::Function) -> R {
-    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
-        let list: js_sys::Array = docs(&snap).iter().map(post_row).filter(|p| st(&get(p, "parent")).is_empty()).collect();
-        let _ = cb.call1(&JsValue::NULL, &list);
-    })
-    .into_js_value();
-    f("onSnapshot", &[q(c(&["posts"]), vec![order("at", Some("desc")), lim(40.0)]), next, report_fn()])
-}
-/// 한 글의 댓글 (오래된 것부터)
-async fn post_replies(id: String) -> R {
-    let snap = rethrow(get_docs(q(c(&["posts"]), vec![w(s("parent"), "==", s(&id)), lim(100.0)])).await)?;
-    let mut list: Vec<JsValue> = docs(&snap).iter().map(post_row).collect();
-    list.sort_by(|a, b| num(&get(a, "at")).partial_cmp(&num(&get(b, "at"))).unwrap_or(std::cmp::Ordering::Equal));
-    Ok(list.into_iter().collect::<js_sys::Array>().into())
-}
-async fn post_get(id: String) -> R {
-    let sn = rethrow(get_doc(d(&["posts", &id])).await)?;
-    Ok(if exists(&sn) { post_row(&sn) } else { JsValue::NULL })
-}
-/// 글 지우기: 답글이면 같은 묶음에서 원래 글의 댓글 수도 1 줄여요
-async fn post_delete(id: String) -> R {
-    let sn = rethrow(get_doc(d(&["posts", &id])).await)?;
-    let parent = st(&get(&data(&sn), "parent"));
-    let b = batch();
-    m(&b, "delete", &[d(&["posts", &id])])?;
-    if !parent.is_empty() {
-        let ps = get_doc(d(&["posts", &parent])).await?;
-        if exists(&ps) && num(&get(&data(&ps), "rc")) >= 1.0 {
-            m(&b, "update", &[d(&["posts", &parent]), o(&[("rc", inc(-1.0)), ("last", s(&id))])])?;
-        }
-    }
-    rethrow(commit(&b).await)?;
-    Ok(s(&parent))
-}
-/// 좋아요·리포스트 켜고 끄기 (내 표시만)
-async fn post_mark(id: String, field: &str, on: bool) -> R {
-    let k = format!("{field}.{}", uid_of()?);
-    let x = js_sys::Object::new();
-    set(&x, &k, &if on { JsValue::TRUE } else { f("deleteField", &[])? });
-    rethrow(update_doc(d(&["posts", &id]), x.into()).await)
-}
-
 /* ---------- window.cloud 만들기 ---------- */
 
 type Args = [JsValue; 5];
@@ -2201,26 +2104,6 @@ fn build() -> js_sys::Object {
     method_now(&api, "callWatch", |a| call_watch(sa(&a[0]), a[1].clone().dyn_into()?));
     method_now(&api, "callIncoming", |a| call_incoming(a[0].clone().dyn_into()?));
     method_now(&api, "callCands", |a| call_cands(sa(&a[0]), a[1].clone().dyn_into()?));
-    /* ----- SNS ----- */
-    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3])).await);
-    am!(api, "postShare", |a| rethrow(update_doc(d(&["posts", &sa(&a[0])]), o(&[("sh", inc(1.0))])).await));
-    // 팔로우: 내 설정 문서의 follows (사람 번호 → true)
-    am!(api, "myFollows", |_a| {
-        let sn = get_doc(d(&["users", &uid_of()?])).await?;
-        let f_ = get(&data(&sn), "follows");
-        Ok(if f_.is_object() { js_sys::Object::keys(f_.unchecked_ref::<js_sys::Object>()).into() } else { js_sys::Array::new().into() })
-    });
-    am!(api, "follow", |a| {
-        let x = js_sys::Object::new();
-        set(&x, &sa(&a[0]), &if a[1].is_truthy() { JsValue::TRUE } else { f("deleteField", &[])? });
-        rethrow(set_merge(d(&["users", &uid_of()?]), o(&[("follows", x.into())])).await)
-    });
-    method_now(&api, "postsWatch", |a| posts_watch(a[0].clone().dyn_into()?));
-    am!(api, "postReplies", |a| post_replies(sa(&a[0])).await);
-    am!(api, "postGet", |a| post_get(sa(&a[0])).await);
-    am!(api, "postLike", |a| post_mark(sa(&a[0]), "likes", a[1].is_truthy()).await);
-    am!(api, "postRepost", |a| post_mark(sa(&a[0]), "reposts", a[1].is_truthy()).await);
-    am!(api, "postDelete", |a| post_delete(sa(&a[0])).await);
     am!(api, "markRead", |a| {
         let k = format!("reads.{}", uid_of()?);
         let x = js_sys::Object::new();
