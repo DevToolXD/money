@@ -47,6 +47,7 @@ impl Prod {
 }
 
 thread_local! {
+    static ASKED_KIND: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static CTX: RefCell<Ctx> = RefCell::new(Ctx::default());
     static PRODUCTS: Cell<Option<RwSignal<Vec<Prod>, LocalStorage>>> = const { Cell::new(None) };
     static TAKING: Cell<bool> = const { Cell::new(false) };
@@ -153,6 +154,16 @@ pub(crate) async fn refresh_now() {
         card.set_hidden(!food);
     }
     dom::set_hidden("biz-lab", false);
+    // 원자력(전기) 회사는 팔 상품이 없어요: 상품 칸을 통째로 숨겨요
+    dom::set_hidden("biz-empty", !food);
+    // 업종을 아직 정하지 않은 내 회사는 먼저 업종부터 정해요 (회사마다 한 번)
+    if let Some(c) = co.as_ref() {
+        let id = co_str(c, "id");
+        if mine_co() && cloud::get(c, "kindSet") == JsValue::FALSE && ASKED_KIND.with(|a| !a.borrow().contains(&id)) {
+            ASKED_KIND.with(|a| a.borrow_mut().push(id));
+            picker::open_kind();
+        }
+    }
     lab::paint();
     let Some(co) = co.filter(|_| food && cloud::signed_in()) else {
         list.set(Vec::new());
@@ -175,7 +186,8 @@ pub(crate) async fn refresh_now() {
 fn paint() {
     let Some(list) = products() else { return };
     let n = list.with_untracked(|l| l.len());
-    dom::set_hidden("biz-empty", n > 0);
+    let sells = company().map(|c| matches!(co_str(&c, "kind").as_str(), "" | "food" | "pc" | "ai")).unwrap_or(true);
+    dom::set_hidden("biz-empty", n > 0 || !sells);
     let show = mine_co() && n > 0;
     dom::set_hidden("biz-dash-card", !show);
     dom::set_hidden("biz-dash-title", !show);

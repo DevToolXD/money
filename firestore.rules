@@ -98,12 +98,13 @@ service cloud.firestore {
     }
 
     // ----- 회사: 한 사람이 회사를 여러 개 가질 수 있어요. 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만.
-    //       사장(owner)은 채용 공고(모집 인원 늘리기)와 업종 바꾸기만 해요. 직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 인원이 함께 바뀔 때만 -----
+    //       사장(owner)은 채용 공고(모집 인원 늘리기)와 업종 정하기(처음 한 번)만 해요. 직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 인원이 함께 바뀔 때만 -----
     match /companies/{cid} {
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 50;
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'products', 'open', 'staff', 'owner', 'at'])
+        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'kindSet', 'products', 'open', 'staff', 'owner', 'at'])
+        && request.resource.data.get('kindSet', true) == true
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.matches('^[^<>]{1,20}$')
@@ -117,15 +118,17 @@ service cloud.firestore {
         && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
         && getAfter(walletPath(request.auth.uid)).data.bal == get(walletPath(request.auth.uid)).data.bal - 10;
       allow update: if signedIn() && (
-        // 사장: 채용 공고(모집 인원을 정한 수로 맞추기)나 업종 바꾸기만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
+        // 사장: 채용 공고(모집 인원을 정한 수로 맞추기)나 업종 정하기(처음 한 번)만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
         (resource.data.get('owner', cid) == request.auth.uid && (
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
             && request.resource.data.open is int
             && request.resource.data.open >= 0)
           ||
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kind'])
+          // 업종은 처음 한 번만 정해요 (정한 뒤에는 바꿀 수 없어요: 전기 회사가 식품을 팔 수 없게)
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kind', 'kindSet'])
             && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
-            && request.resource.data.kind != resource.data.get('kind', 'food'))
+            && resource.data.get('kindSet', false) == false
+            && request.resource.data.kindSet == true)
         ))
         ||
         // 입사: 같은 묶음에서 내 일자리 기록이 생기고, 모집이 1명 줄고 직원이 1명 늘어요

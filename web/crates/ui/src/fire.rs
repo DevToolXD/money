@@ -405,6 +405,7 @@ fn company_of(id: &str, dd: &JsValue) -> JsValue {
         ("owner", if owner.is_string() { owner } else { s(id) }), // 예전 회사는 문서 번호가 사장이에요
         ("products", if js_sys::Array::is_array(&products) { products } else { js_sys::Array::new().into() }),
         ("at", n(ms(&get(dd, "at")))),
+        ("kindSet", (get(dd, "kindSet") == JsValue::TRUE).into()),
     ])
 }
 fn int3(v: &JsValue, keys: &[&str]) -> bool {
@@ -927,11 +928,17 @@ async fn quit_job(cid: String) -> R {
     Ok(JsValue::UNDEFINED)
 }
 async fn found_company(name: JsValue, logo: JsValue, kind: JsValue) -> R {
+    // 업종을 함께 주면 바로 정해져요. 안 주면(화면에서 창업할 때) 식품으로 두고, 이어서 업종을 정해요
+    let chosen = !kind.is_undefined();
     let kind = if kind.is_undefined() { s("food") } else { kind };
     let r = new_id(c(&["companies"]));
     let id = get(&r, "id");
     let b = batch();
-    m(&b, "set", &[r, o(&[("name", name), ("logo", logo), ("kind", kind), ("owner", s(&uid_of()?)), ("products", js_sys::Array::new().into()), ("open", n(0.0)), ("staff", n(0.0)), ("at", ts())])])?;
+    let co = o(&[("name", name), ("logo", logo), ("kind", kind), ("owner", s(&uid_of()?)), ("products", js_sys::Array::new().into()), ("open", n(0.0)), ("staff", n(0.0)), ("at", ts())]);
+    if chosen {
+        set(&co, "kindSet", &true.into());
+    }
+    m(&b, "set", &[r, co])?;
     m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0)), ("wt", ts()), ("op", o(&[("kind", s("found")), ("cid", id.clone())]))])])?;
     commit(&b).await?;
     Ok(id)
@@ -2068,7 +2075,7 @@ fn build() -> js_sys::Object {
     am!(api, "getCompany", |a| get_company(sa(&a[0])).await);
     am!(api, "listCompanies", |a| list_companies(a[0].clone()).await);
     am!(api, "setOpenings", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("open", a[1].clone())])).await));
-    am!(api, "setCompanyKind", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("kind", a[1].clone())])).await));
+    am!(api, "setCompanyKind", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("kind", a[1].clone()), ("kindSet", true.into())])).await));
     am!(api, "loadMyJob", |_a| load_my_job().await);
     am!(api, "applyJob", |a| apply_job(sa(&a[0]), a[1].clone()).await);
     am!(api, "quitJob", |a| quit_job(sa(&a[0])).await);

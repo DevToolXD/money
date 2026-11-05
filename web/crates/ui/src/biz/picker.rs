@@ -473,7 +473,7 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
                 ctx().toast("업종을 정하지 못했어요. 잠시 뒤 다시 해 주세요");
                 return close();
             }
-            crate::shell::company::patch(&dom::obj(&[("kind", JsValue::from_str(kind))]));
+            crate::shell::company::patch(&dom::obj(&[("kind", JsValue::from_str(kind)), ("kindSet", true.into())]));
             crate::shell::company::render();
             ctx().toast(&format!("업종을 {label}(으)로 정했어요"));
             crate::work::refresh(true);

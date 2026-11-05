@@ -1836,3 +1836,5 @@ html[data-theme="dark"] .sns-sheet, html[data-theme="dark"] .sns-detail { backgr
 .pkv-tech > svg { width: 58%; height: 58%; }
 .pkv-tech .pkv-logo { position: absolute; right: 8%; bottom: 8%; left: auto; top: auto; width: 30%; height: 30%; transform: none; }
 .pkv-tech.pkv-sm .pkv-logo { width: 34%; height: 34%; }
+/* 숨긴 카드·제목·버튼은 확실히 숨겨요 (display를 정한 class가 hidden을 덮어쓰지 않게) */
+.card[hidden], .section-title[hidden], .btn[hidden], .biz-blk[hidden] { display: none !important; }

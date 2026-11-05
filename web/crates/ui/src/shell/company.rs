@@ -240,8 +240,8 @@ async fn found() {
     dom::set_text("found-err", "");
     let logo = FOUND_LOGO.with(|l| l.borrow().clone());
     let kind = FOUND_KIND.with(|k| k.borrow().clone());
-    let (n2, l2, k2) = (name.clone(), logo.clone(), kind.clone());
-    let f = Closure::once_into_js(move || cloud::call_now("foundCompany", &[JsValue::from_str(&n2), JsValue::from_str(&l2), JsValue::from_str(&k2)]).unwrap_or(JsValue::UNDEFINED));
+    let (n2, l2) = (name.clone(), logo.clone());
+    let f = Closure::once_into_js(move || cloud::call_now("foundCompany", &[JsValue::from_str(&n2), JsValue::from_str(&l2)]).unwrap_or(JsValue::UNDEFINED));
     match wasm_bindgen_futures::JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {
         Ok(cid) => {
             let cid = cid.as_string().unwrap_or_default();
@@ -251,6 +251,7 @@ async fn found() {
                 ("name", JsValue::from_str(&name)),
                 ("logo", JsValue::from_str(&logo)),
                 ("kind", JsValue::from_str(&kind)),
+                ("kindSet", false.into()),
                 ("owner", JsValue::from_str(&uid)),
                 ("open", 0.into()),
                 ("staff", 0.into()),
