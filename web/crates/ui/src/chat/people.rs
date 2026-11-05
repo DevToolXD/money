@@ -339,3 +339,9 @@ pub fn init() {
         dom::on(&b, "click", |_| leptos::task::spawn_local(go()));
     }
 }
+
+/// 사람 카드의 메시지 버튼: 그 사람과의 대화를 찾거나 만들어서 번호를 돌려줘요
+pub(crate) async fn chat_with(uid: &str, id: &str, name: &str, photo: &str) -> Result<String, cloud::CloudError> {
+    let u = Person { uid: uid.into(), id: id.into(), name: name.into(), photo: photo.into() };
+    Ok(ensure_chat(&u).await?.id)
+}

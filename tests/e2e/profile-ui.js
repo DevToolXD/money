@@ -1,0 +1,41 @@
+// 화면: SNS에서 사람을 누르면 유리 사람 카드가 뜨고, 메시지를 누르면 그 사람과 대화가 열려요. 대화 위 사진을 누르면 다시 카드가 떠요
+const { chromium } = require('playwright');
+const fs = require('fs');
+const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
+  const mk = async () => {
+    const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+    page.errs = []; page.on('pageerror', (e) => page.errs.push(e.message));
+    await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+    await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+    await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
+    return page;
+  };
+  const t = Date.now().toString(36).slice(-4);
+  const a = await mk();
+  await a.evaluate((u) => window.cloud.signUp(u, 'abc123', '카드주인'), 'pfa' + t);
+  const p = await mk();
+  await p.evaluate((u) => window.cloud.signUp(u, 'abc123', '카드보기'), 'pfb' + t);
+  await p.reload(); await p.waitForTimeout(6000);
+  await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(600);
+  await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="untitled3"]').click()); await p.waitForTimeout(3500);
+  await p.click('#sns-people .sns-p:has-text("카드주인")');
+  await p.waitForTimeout(700);
+  ok('카드가 떠요', await p.isVisible('.pf.on .pf-card'));
+  ok('이름과 아이디', (await p.textContent('.pf-card')).includes('카드주인') && (await p.textContent('.pf-sub')).includes('@pfa'));
+  ok('점수·추천 없음', !/추천|점수/.test(await p.textContent('.pf-card')));
+  ok('유리 카드', (await p.evaluate(() => getComputedStyle(document.querySelector('.pf-card')).backdropFilter || getComputedStyle(document.querySelector('.pf-card')).webkitBackdropFilter)).includes('blur'));
+  await p.screenshot({ path: require('path').join(__dirname, 'shots', 'profile.png') });
+  await p.click('.pf-msg'); await p.waitForTimeout(2500);
+  ok('메시지를 누르면 대화가 열려요', (await p.textContent('#thread-name')).includes('카드주인'));
+  ok('카드는 닫혀요', !(await p.isVisible('.pf-card')));
+  await p.click('#thread-avatar'); await p.waitForTimeout(700);
+  ok('대화 사진을 누르면 카드', await p.isVisible('.pf.on .pf-card'));
+  await p.mouse.click(195, 80); await p.waitForTimeout(600);
+  ok('밖을 누르면 닫혀요', !(await p.isVisible('.pf-card')));
+  ok('화면 오류 없음', p.errs.length === 0); if (p.errs.length) console.log(p.errs.slice(0, 2));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();

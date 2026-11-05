@@ -18,6 +18,7 @@ pub mod notices;
 pub mod notify;
 pub mod parts;
 pub mod pay;
+pub mod profile;
 pub mod shell;
 pub mod shop;
 pub mod sns;

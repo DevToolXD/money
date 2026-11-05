@@ -447,6 +447,16 @@ pub fn init() {
         dom::on(&b, "click", |_| close());
     }
     // 배경화면
+    // 1:1 대화 위쪽 사진을 누르면 그 사람 카드가 떠요
+    if let Some(a) = by_id("thread-avatar") {
+        dom::on(&a, "click", |_| {
+            if let Some(c) = super::open_chat() {
+                if !c.other.is_empty() {
+                    crate::profile::show(&c.other, &c.name, None);
+                }
+            }
+        });
+    }
     if let Some(b) = by_id("thread-name-btn") {
         dom::on(&b, "click", |_| super::sheet_open(true, "wall-sheet"));
     }

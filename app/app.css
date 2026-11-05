@@ -1795,3 +1795,24 @@ html[data-theme="dark"] .screen[data-screen="untitled3"] { background: #000; }
 .sns-av { width: 58px; height: 58px; font-size: 17px; }
 .sns-n { max-width: 66px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sns-empty { margin: 8px 0; color: var(--text-tertiary); font-size: 15px; }
+
+/* 사람 카드: 리퀴드 글라스 */
+.pf { position: absolute; inset: 0; z-index: 260; display: flex; align-items: flex-end; background: rgba(10, 12, 24, 0); transition: background 0.3s var(--ease); }
+.pf[hidden] { display: none; }
+.pf.on { background: rgba(10, 12, 24, 0.28); }
+.pf-card { position: relative; width: 100%; margin: 0 8px calc(env(safe-area-inset-bottom, 0px) + 8px); padding: 10px 22px 22px; border-radius: 38px; text-align: center; transform: translateY(110%); transition: transform 0.42s var(--ease); }
+.pf.on .pf-card { transform: none; }
+.pf-grab { display: block; width: 40px; height: 5px; margin: 0 auto 14px; border-radius: 3px; background: rgba(120, 120, 128, 0.35); }
+.pf .pf-x { padding: 0; min-width: 0; position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--t-ink, #111); border: 0; width: 40px !important; height: 40px !important; }
+.pf-x svg { width: 20px; height: 20px; }
+.pf-av { display: flex; justify-content: center; margin: 8px 0 14px; }
+.pf-av .pf-avatar { width: 116px; height: 116px; font-size: 40px; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.7); }
+.pf-name { margin: 0; font-size: 28px; font-weight: 800; }
+.pf-sub { margin: 6px 0 20px; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 16px; color: var(--t-sub, #6b6b72); min-height: 22px; }
+.pf-rank { padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; color: var(--t-ink, #111); background: rgba(255, 255, 255, 0.45); }
+html[data-theme="dark"] .pf-rank { background: rgba(255, 255, 255, 0.14); }
+.pf .pf-msg { font-family: inherit; width: 100%; height: 56px; border: 0; border-radius: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 18px; font-weight: 700; color: #0a7cff !important; font-size: 18px !important; }
+.pf-msg svg { width: 22px; height: 22px; }
+#thread-avatar, .rk-col[data-uid], .rk-row[data-uid] { cursor: pointer; }
+.pf .pf-card .pf-msg span { font-size: 18px; font-weight: 700; color: #0a7cff; }
+.pf .pf-card .pf-rank { font-size: 14px; font-weight: 700; color: var(--t-ink, #111); }

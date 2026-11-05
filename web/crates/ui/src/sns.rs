@@ -53,12 +53,10 @@ pub fn open() {
             dom::on(&el, "click", |e| {
                 let Some(b) = dom::closest(&e, "[data-uid]") else { return };
                 let uid = dom::data(&b, "uid");
-                PICK.with(|p| {
-                    let mut p = p.borrow_mut();
-                    *p = if *p == uid { String::new() } else { uid };
-                });
-                dom::vibrate(6);
+                PICK.with(|p| *p.borrow_mut() = uid.clone());
                 paint();
+                let name = PEOPLE.with(|p| p.borrow().iter().find(|x| x.0 == uid).map(|x| x.1.clone()).unwrap_or_default());
+                crate::profile::show(&uid, &name, None);
             });
         }
         if let Some(b) = by_id("sns-bell") {

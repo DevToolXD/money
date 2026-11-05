@@ -31,7 +31,9 @@ fn photo_of(uid: &str) -> String {
 fn pod(u: Option<&JsValue>, n: usize) -> String {
     match u {
         Some(u) => format!(
-            r#"<div class="rk-col g{n}">{CROWN}<span class="rk-n">{n}</span>{}<b class="rk-name">{}</b><span class="rk-val">{}</span></div>"#,
+            r#"<div class="rk-col g{n}" data-uid="{}" data-name="{}" data-rank="{n}">{CROWN}<span class="rk-n">{n}</span>{}<b class="rk-name">{}</b><span class="rk-val">{}</span></div>"#,
+            esc(&s(u, "uid")),
+            esc(&s(u, "name")),
             avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"),
             esc(&s(u, "name")),
             fmt_tok(cloud::get(u, "bal").as_f64().unwrap_or(0.0))
@@ -52,8 +54,11 @@ fn paint(list: &[JsValue], my_rank: &str) {
                 .enumerate()
                 .map(|(i, u)| {
                     format!(
-                        r#"<li class="rk-row{}"><span class="rk-rn">{}</span>{}<span class="rk-rname">{}</span><span class="rk-rval">{}</span></li>"#,
+                        r#"<li class="rk-row{}" data-uid="{}" data-name="{}" data-rank="{}"><span class="rk-rn">{}</span>{}<span class="rk-rname">{}</span><span class="rk-rval">{}</span></li>"#,
                         if s(u, "uid") == me { " me" } else { "" },
+                        esc(&s(u, "uid")),
+                        esc(&s(u, "name")),
+                        i + 4,
                         i + 4,
                         avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"),
                         esc(&s(u, "name")),
@@ -120,4 +125,13 @@ pub fn load(force: bool) {
         BUSY.set(false);
     });
 }
-pub fn init() {}
+pub fn init() {
+    for id in ["rk-podium", "rk-list"] {
+        if let Some(el) = by_id(id) {
+            dom::on(&el, "click", |e| {
+                let Some(b) = dom::closest(&e, "[data-uid]") else { return };
+                crate::profile::show(&dom::data(&b, "uid"), &dom::data(&b, "name"), dom::data(&b, "rank").parse().ok());
+            });
+        }
+    }
+}

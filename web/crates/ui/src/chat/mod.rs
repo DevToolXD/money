@@ -6,7 +6,7 @@ pub(crate) mod attach;
 mod draw;
 mod gift;
 mod menu;
-mod people;
+pub(crate) mod people;
 mod poll;
 pub(crate) mod thread;
 
