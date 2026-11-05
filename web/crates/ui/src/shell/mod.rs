@@ -535,6 +535,7 @@ pub fn start() {
     crate::chat::init(c.clone());
     crate::money::init(c.clone());
     crate::work::init(c.clone());
+    crate::wage::init();
     crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
     crate::notices::init();

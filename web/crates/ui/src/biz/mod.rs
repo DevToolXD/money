@@ -5,6 +5,7 @@ mod drag;
 mod hire;
 mod lab;
 pub(crate) mod picker;
+mod staff;
 
 use std::cell::{Cell, RefCell};
 
@@ -146,6 +147,7 @@ pub fn refresh() {
 pub(crate) async fn refresh_now() {
     let Some(list) = products() else { return };
     hire::paint();
+    staff::paint();
     let co = company();
     // 상품을 파는 업종: 식품·컴퓨터·인공지능 (원자력은 연구실에서 전기를 팔아요)
     let food = co.as_ref().map(|c| co_str(c, "kind")).map(|k| matches!(k.as_str(), "" | "food" | "pc" | "ai")).unwrap_or(true);

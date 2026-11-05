@@ -155,6 +155,38 @@ fn paint_co_kinds() {
         b.set_disabled(!has_co() || s(&current(), "kind") == k);
     }
 }
+thread_local! {
+    static CO_LOGO: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+/// 회사 이름과 마크 저장 (사장만 이 판을 열어요)
+async fn save_info() {
+    if !has_co() {
+        return;
+    }
+    let co = current();
+    let name = by_id("co-name-in").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()).map(|i| i.value().trim().to_string()).unwrap_or_default();
+    let chars = name.chars().count();
+    if chars == 0 || chars > 20 || name.contains('<') || name.contains('>') {
+        return dom::set_text("co-edit-err", "이름은 1~20자로, < > 없이 적어 주세요");
+    }
+    let logo = CO_LOGO.with(|l| l.borrow().clone()).unwrap_or_else(|| s(&co, "logo"));
+    if name == s(&co, "name") && logo == s(&co, "logo") {
+        return sheet_open(false, None);
+    }
+    match cloud::call("setCompanyInfo", &[JsValue::from_str(&s(&co, "id")), JsValue::from_str(&name), JsValue::from_str(&logo)]).await {
+        Ok(_) => {
+            let p = crate::dom::obj(&[("name", JsValue::from_str(&name)), ("logo", JsValue::from_str(&logo))]);
+            patch(&p);
+            render();
+            if dom::screen_active("work") {
+                crate::work::refresh(true);
+            }
+            sheet_open(false, None);
+            toast("회사 정보를 저장했어요");
+        }
+        Err(_) => dom::set_text("co-edit-err", "저장하지 못했어요. 잠시 뒤 다시 해 주세요"),
+    }
+}
 async fn save_kind() {
     let k = CO_KIND.with(|k| k.borrow().clone());
     if !has_co() || s(&current(), "kind") == k {
@@ -312,11 +344,42 @@ pub fn init() {
                 m.set_inner_html(&avatar_html(&s(&co, "name"), &s(&co, "logo"), "avatar contact"));
             }
             dom::set_text("co-name", &s(&co, "name"));
+            CO_LOGO.with(|l| *l.borrow_mut() = None);
+            if let Some(i) = by_id("co-name-in").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+                i.set_value(&s(&co, "name"));
+            }
+            dom::set_text("co-edit-err", "");
             dom::set_text("co-since", kind_label(&s(&co, "kind")));
             dom::set_text("co-err", "");
             paint_co_kinds();
             sheet_by_id(true, "company-sheet");
         });
+    }
+    if let Some(b) = by_id("co-photo") {
+        dom::on(&b, "click", |_| {
+            if let Some(f) = by_id("co-file") {
+                f.click();
+            }
+        });
+    }
+    if let Some(f) = by_id("co-file") {
+        dom::on(&f, "change", |_| {
+            let Some(file) = crate::chat::take_file("co-file") else { return };
+            leptos::task::spawn_local(async move {
+                match crate::chat::read_image(file, 192.0, 36000, 0.8, true).await {
+                    Ok(img) => {
+                        if let Some(m) = by_id("co-mark") {
+                            m.set_inner_html(&avatar_html(&s(&current(), "name"), &img, "avatar contact"));
+                        }
+                        CO_LOGO.with(|l| *l.borrow_mut() = Some(img));
+                    }
+                    Err(_) => dom::set_text("co-edit-err", "사진을 불러오지 못했어요"),
+                }
+            });
+        });
+    }
+    if let Some(b) = by_id("co-edit-save") {
+        dom::on(&b, "click", |_| leptos::task::spawn_local(save_info()));
     }
     if let Some(b) = by_id("co-save") {
         dom::on(&b, "click", |_| leptos::task::spawn_local(save_kind()));

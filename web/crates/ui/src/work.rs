@@ -111,6 +111,11 @@ thread_local! {
     static LAB_TIMER: Cell<bool> = const { Cell::new(false) };
     /// 화면을 바꿀 때마다 올라가요. 돌던 놀이(검사판·배합)는 자기 번호가 아니면 멈춰요
     static GAME: Cell<u32> = const { Cell::new(0) };
+    /// 내 일자리 (직원일 때): 회사 번호, 서버에 적힌 일한 횟수, 아직 안 보낸 횟수
+    static JOB_CID: RefCell<Option<String>> = const { RefCell::new(None) };
+    static JOB_N: Cell<f64> = const { Cell::new(0.0) };
+    static PEND_N: Cell<f64> = const { Cell::new(0.0) };
+    static N_TIMER: Cell<bool> = const { Cell::new(false) };
 }
 
 pub(crate) fn ctx() -> Ctx {
@@ -195,6 +200,10 @@ pub fn refresh(force: bool) {
         match got {
             Ok((job, employer)) => {
                 MY_JOB.set(job.is_some());
+                JOB_CID.with(|j| *j.borrow_mut() = job.as_ref().and_then(|x| cloud::get(x, "cid").as_string()));
+                if let Some(j) = &job {
+                    JOB_N.set(cloud::get(j, "n").as_f64().unwrap_or(0.0));
+                }
                 if job.is_some() && employer.is_none() {
                     return s.view.set(View::Failed("다니는 회사를 찾지 못했어요"));
                 }
@@ -237,8 +246,13 @@ fn paint_mine(s: Sig, mine: Vec<Company>, job_at: f64, employer: Option<Company>
     LAB_CID.with(|l| *l.borrow_mut() = Some(primary.id.clone()));
     s.lab.set(None);
     let cid = primary.id.clone();
+    let (wname, wowner) = (primary.name.clone(), owner);
     s.view.set(View::Mine { owner, co: primary, job_at, extra, choices });
-    load_lab(s, cid);
+    load_lab(s, cid.clone());
+    if !wowner {
+        // 직원: 받을 수 있는 임금을 받아요 (칸이 그려진 다음에)
+        set_timeout(move || crate::wage::paint(&cid, &wname), Duration::from_millis(120));
+    }
 }
 
 fn paint_market(s: Sig) {
@@ -289,7 +303,10 @@ fn load_lab(s: Sig, cid: String) {
 
 /* ---------- 연구실 숫자: 누른 것은 모아서 2.5초에 한 번 서버에 보내요 ---------- */
 
-fn queue_lab(k: usize, v: f64) {
+/// 올린 만큼을 돌려줘요 (올라갈수록 덜 올라가요: balance.rs)
+fn queue_lab(k: usize, v: f64) -> f64 {
+    let v = crate::balance::eased(k, sig().and_then(|s| s.lab.get_untracked()).map(|l| l.0[k]).unwrap_or(0.0), v);
+    note_work();
     let mut p = LAB_PEND.get();
     p[k] += v;
     LAB_PEND.set(p);
@@ -304,6 +321,35 @@ fn queue_lab(k: usize, v: f64) {
         LAB_TIMER.set(true);
         set_timeout(flush_lab, Duration::from_millis(2500));
     }
+    v
+}
+
+/* ---------- 내가 일한 횟수 (직원이면 사장이 볼 수 있게 1분에 한 번 올려요) ---------- */
+
+fn note_work() {
+    if JOB_CID.with(|j| j.borrow().as_deref().is_some_and(|c| LAB_CID.with(|l| l.borrow().as_deref() == Some(c)))) {
+        PEND_N.set(PEND_N.get() + 1.0);
+        if !N_TIMER.get() {
+            N_TIMER.set(true);
+            set_timeout(flush_n, Duration::from_secs(60));
+        }
+    }
+}
+fn flush_n() {
+    N_TIMER.set(false);
+    let add = PEND_N.get();
+    if add < 1.0 {
+        return;
+    }
+    let total = JOB_N.get() + add;
+    PEND_N.set(0.0);
+    spawn_local(async move {
+        if cloud::call("trackWork", &[JsValue::from(total)]).await.is_ok() {
+            JOB_N.set(total);
+        } else {
+            PEND_N.set(PEND_N.get() + add);
+        }
+    });
 }
 
 fn flush_lab() {
@@ -588,6 +634,7 @@ fn Mine(s: Sig, owner: bool, co: Company, job_at: f64, extra: Option<Company>, c
             </div>
         </div>
         <Stats c=co.clone()/>
+        {(!owner).then(|| view! { <div class="card wk-wage" id="wk-wage" data-cid=co.id.clone() data-name=co.name.clone()></div> })}
         {card}
         {quit_co.map(|q| {
             let (cid, name) = (q.id.clone(), q.name.clone());
@@ -679,6 +726,7 @@ fn FoodCard(s: Sig, cid: String) -> impl IntoView {
                 match cloud::staff_work(&cid, 1).await {
                     Ok(v) => {
                         set_vitals(&v);
+                        note_work();
                         msg.set("잘 섞였어요! 다음 레시피예요".into());
                         ctx().toast("배합 완성 · 식품 성능 +1 · 에너지 -1");
                         recipe.set(new_recipe());
@@ -809,11 +857,10 @@ fn AiCard(s: Sig) -> impl IntoView {
                     h.set(Hit::Busy(p));
                     return tick(h, got, busy, t0, dur, game);
                 }
-                let mb = 20 + (rand() * 381.0).floor() as u32;
+                let mb = queue_lab(4, (20 + (rand() * 381.0).floor() as u32) as f64) as u32;
                 h.set(Hit::Done(mb));
                 busy.set(false);
                 got.update(|g| *g += 1);
-                queue_lab(4, mb as f64);
                 count_pop(&format!("이번에 받은 데이터 {}개", got.get_untracked()));
             });
         }
@@ -969,8 +1016,7 @@ fn MixCard(s: Sig) -> impl IntoView {
         stir.set(0.0);
         stir_p.set(0.0);
         let close = close_of(mix_rgb(counts.get_untracked()).unwrap_or([0, 0, 0]), goal.get_untracked());
-        let gain = 1 + (rand() * (4.0 + (26.0 * close).round())).floor() as u32;
-        queue_lab(0, gain as f64);
+        let gain = queue_lab(0, (1 + (rand() * (4.0 + (26.0 * close).round())).floor() as u32) as f64) as u32;
         float_text(format!("성능 +{gain}"));
         log.set(format!("핵연료 성능이 {gain} 올랐어요 · 목표 색과 {}% 일치", (close * 100.0).round()));
         counts.set([0, 0, 0]);
@@ -1133,7 +1179,7 @@ fn BoardCard(s: Sig) -> impl IntoView {
         let style = spot.get_attribute("style").unwrap_or_default();
         spot.remove();
         stack.update(|n| *n += 1);
-        queue_lab(k, v);
+        let v = queue_lab(k, v);
         if let (Some(b), Some(doc)) = (board.get_untracked(), web_sys::window().and_then(|w| w.document())) {
             if let Ok(f) = doc.create_element("span") {
                 f.set_class_name("wk-float");

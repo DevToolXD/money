@@ -14,6 +14,7 @@ const EPOCH = Timestamp.fromMillis(0);
 let pass = 0;
 const fails = [];
 async function t(name, fn) {
+  if (process.env.ONLY && !name.includes(process.env.ONLY)) return;
   await env.clearFirestore();
   try {
     await fn();
@@ -21,7 +22,7 @@ async function t(name, fn) {
     console.log("  ok   ", name);
   } catch (e) {
     fails.push(name);
-    console.log("  FAIL ", name, "\n        ", String(e.message || e).split("\n")[0]);
+    console.log("  FAIL ", name, "\n        ", String(e.message || e).split("\n")[0], (String(e.stack || "").match(/rules\.test\.mjs:\d+/) || [""])[0]);
   }
 }
 const seed = async (fn) => env.withSecurityRulesDisabled(async (c) => fn(c.firestore()));
@@ -541,10 +542,9 @@ await t("상품은 로그인한 사람이 보고, 목록은 50개까지 읽어�
   await assertFails(getDocs(query(collection(pw("uB", "bob"), "companies/uA/products"), where("active", "==", true), limit(51))));
   await assertFails(getDocs(collection(pw("uB", "bob"), "companies/uA/products")));
 });
-await t("회사 정보와 예전 상품 목록은 더 이상 바꿀 수 없어요", async () => {
+await t("예전 상품 목록(products)은 더 이상 바꿀 수 없어요", async () => {
   await coSeed();
   await assertFails(updateDoc(doc(pw("uA", "alice"), "companies/uA"), { products: ["water"] }));
-  await assertFails(updateDoc(doc(pw("uA", "alice"), "companies/uA"), { name: "바뀐 이름" }));
 });
 
 console.log("\n[취업]");
@@ -625,9 +625,101 @@ await t("일자리 기록은 나만 보고, 고칠 수는 없어요", async () =
   await coSeed({ open: 2 });
   await assertSucceeds(joinBatch(pw("uB", "bob"), "uB").commit());
   await assertSucceeds(getDoc(doc(pw("uB", "bob"), "jobs/uB")));
-  await assertFails(getDoc(doc(pw("uA", "alice"), "jobs/uB")));
+  await assertSucceeds(getDoc(doc(pw("uA", "alice"), "jobs/uB"))); // 그 회사 사장은 직원 기록을 봐요
+  await assertFails(getDoc(doc(pw("uC", "carol"), "jobs/uB"))); // 남은 못 봐요
   await assertFails(getDoc(doc(anon(), "jobs/uB")));
   await assertFails(updateDoc(doc(pw("uB", "bob"), "jobs/uB"), { kind: "ai" }));
+});
+await t("직원 관리: 사장이 직원 목록을 읽고 임금을 정해요. 해고는 직원 수와 함께, 직원은 임금 받기·일한 횟수만 올려요", async () => {
+  await coSeed({ open: 2 });
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob"), carol = pw("uC", "carol");
+  await assertSucceeds(joinBatch(bob, "uB").commit());
+  await assertSucceeds(getDocs(query(collection(alice, "jobs"), where("cid", "==", "uA"), limit(50))));
+  await assertFails(getDocs(query(collection(carol, "jobs"), where("cid", "==", "uA"), limit(50)))); // 사장이 아니면 목록을 못 읽어요
+  await assertFails(getDocs(query(collection(alice, "jobs"), where("cid", "==", "uA"), limit(51))));
+  await assertSucceeds(updateDoc(doc(alice, "jobs/uB"), { wage: 3 }));
+  await assertFails(updateDoc(doc(alice, "jobs/uB"), { wage: -1 }));
+  await assertFails(updateDoc(doc(alice, "jobs/uB"), { wage: 1.5 }));
+  await assertFails(updateDoc(doc(alice, "jobs/uB"), { wage: 2000000 }));
+  await assertFails(updateDoc(doc(bob, "jobs/uB"), { wage: 99999 })); // 직원이 자기 임금을 못 올려요
+  await assertFails(updateDoc(doc(carol, "jobs/uB"), { wage: 1 }));
+  await assertSucceeds(updateDoc(doc(bob, "jobs/uB"), { n: 25, seen: serverTimestamp() })); // 일한 횟수
+  await assertFails(updateDoc(doc(bob, "jobs/uB"), { n: 30, seen: serverTimestamp() })); // 1분 안에 또
+  await assertFails(updateDoc(doc(bob, "jobs/uB"), { n: 5, seen: serverTimestamp() })); // 줄일 수 없어요
+  // 해고
+  const fire = (db, uid, dStaff = -1, fired = uid) => {
+    const b = writeBatch(db);
+    b.delete(doc(db, "jobs/" + uid));
+    b.update(coRef(db), { staff: increment(dStaff), fired });
+    return b;
+  };
+  await assertFails(deleteDoc(doc(alice, "jobs/uB"))); // 기록만 지워요
+  await assertFails(fire(carol, "uB").commit()); // 사장이 아니에요
+  await assertFails(fire(alice, "uB", -2).commit()); // 두 명 줄여요
+  await assertFails(fire(alice, "uB", -1, "uX").commit()); // 다른 사람을 적어요
+  await assertSucceeds(fire(alice, "uB").commit());
+  const [, st] = await opened(alice);
+  same(st, 0);
+});
+await t("임금 받기: 정수 시간만큼만, 임금 × 시간이 급여 금고에서 지갑으로 같은 묶음에서 옮겨져요. 급여 금고는 사장이 채워요", async () => {
+  await coSeed({ open: 2, pay: 100000 });
+  const atMs = Math.floor((Date.now() - 5 * 3600e3) / 3600e3) * 3600e3;
+  await seed(async (d) => {
+    await setDoc(doc(d, "jobs/uB"), { cid: "uA", kind: "food", at: Timestamp.fromMillis(atMs), wage: 3 });
+    await setDoc(doc(d, "wallets/uB"), { bal: 100, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } });
+  });
+  const bob = pw("uB", "bob");
+  const claim = (hours, { amt = 3 * hours, payOut = amt * 100, paid = atMs + hours * 3600e3, kind = "wage", cid = "uA" } = {}) => {
+    const b = writeBatch(bob);
+    b.update(doc(bob, "jobs/uB"), { paidAt: Timestamp.fromMillis(paid) });
+    b.update(doc(bob, "wallets/uB"), { bal: increment(amt), wt: serverTimestamp(), op: { kind, cid, amt } });
+    b.update(coRef(bob), { pay: increment(-payOut) });
+    return b;
+  };
+  await assertFails(claim(2, { amt: 7 }).commit()); // 임금 × 시간이 아니에요
+  await assertFails(claim(2, { payOut: 100 }).commit()); // 급여 금고가 다르게 줄어요
+  await assertFails(claim(2, { paid: atMs + 2 * 3600e3 + 1000 }).commit()); // 정수 시간이 아니에요
+  await assertFails(claim(9).commit()); // 아직 오지 않은 시간이에요
+  await assertFails(claim(2, { kind: "claim" }).commit());
+  await assertFails(claim(2, { cid: "uC" }).commit());
+  await assertSucceeds(claim(2).commit());
+  const w = await getDoc(doc(bob, "wallets/uB"));
+  same(w.data().bal, 106);
+  await sleep(2100);
+  await assertSucceeds(claim(1, { paid: atMs + 3 * 3600e3 }).commit()); // 이어서 한 시간 더
+  await sleep(2100);
+  await assertFails(claim(1, { paid: atMs + 3 * 3600e3 }).commit()); // 같은 시간을 두 번 받을 수 없어요
+  await assertFails(updateDoc(doc(bob, "jobs/uB"), { paidAt: Timestamp.fromMillis(atMs + 4 * 3600e3) })); // 기록만 올려요
+  await assertFails(updateDoc(coRef(bob), { pay: increment(-300) })); // 급여 금고만 줄여요
+  await seed((d) => updateDoc(doc(d, "jobs/uB"), { wage: 0 }));
+  await assertFails(claim(1, { paid: atMs + 4 * 3600e3 }).commit()); // 임금이 0이에요
+  // 급여 금고 채우기: 사장만, 지갑 토큰이 그만큼 빠질 때만
+  const alice = pw("uA", "alice");
+  await seed((d) => setDoc(doc(d, "wallets/uA"), { bal: 500, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
+  const fund = (db, { amt = 50, pay = amt * 100, uid = "uA" } = {}) => {
+    const b = writeBatch(db);
+    b.update(doc(db, "wallets/" + uid), { bal: increment(-amt), wt: serverTimestamp(), op: { kind: "payfund", cid: "uA", amt } });
+    b.update(coRef(db), { pay: increment(pay) });
+    return b;
+  };
+  await assertFails(fund(alice, { pay: 9999 }).commit()); // 금고가 다르게 늘어요
+  await assertFails(updateDoc(coRef(alice), { pay: increment(5000) })); // 지갑 없이 늘려요
+  await assertSucceeds(fund(alice).commit());
+  const c = await getDoc(coRef(alice));
+
+});
+await t("회사 이름과 마크는 사장이 바꾸고, 길이와 사진 규칙을 지켜야 해요", async () => {
+  await coSeed();
+  const alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  await assertSucceeds(updateDoc(coRef(alice), { name: "새 이름" }));
+  await assertSucceeds(updateDoc(coRef(alice), { logo: "data:image/jpeg;base64,AAAA" }));
+  await assertSucceeds(updateDoc(coRef(alice), { name: "다시", logo: "" }));
+  await assertFails(updateDoc(coRef(alice), { name: "" }));
+  await assertFails(updateDoc(coRef(alice), { name: "가".repeat(21) }));
+  await assertFails(updateDoc(coRef(alice), { name: "<b>x</b>" }));
+  await assertFails(updateDoc(coRef(alice), { logo: "http://x.com/a.png" }));
+  await assertFails(updateDoc(coRef(alice), { name: "새 이름", open: 5 })); // 이름과 다른 칸을 함께는 안 돼요
+  await assertFails(updateDoc(coRef(bob), { name: "도둑" }));
 });
 await t("회사 목록은 최근 50곳, 이름 찾기는 20곳까지만 읽어요", async () => {
   await coSeed();
@@ -663,7 +755,7 @@ await t("회사를 여러 개 만들고, 회사마다 사장·상품·모집·�
   await assertFails(updateDoc(doc(a, "companies/c2"), { kind: "ai" })); // 정했다는 표시 없이는 안 돼요
   await assertSucceeds(updateDoc(doc(a, "companies/c2"), { kind: "ai", kindSet: true })); // 처음 한 번 정하기
   await assertFails(updateDoc(doc(a, "companies/c2"), { kind: "nuclear", kindSet: true })); // 정한 뒤에는 못 바꿔요
-  await assertFails(updateDoc(doc(a, "companies/c2"), { name: "바뀐 이름" })); // 이름은 못 바꿔요
+  await assertSucceeds(updateDoc(doc(a, "companies/c2"), { name: "바뀐 이름" })); // 이름은 사장이 바꿔요
   await assertFails(setDoc(doc(a, "companies/c2/products/" + pid()), pdoc({ owner: "uA" }))); // 인공지능 회사는 식품을 못 팔아요
   await assertSucceeds(setDoc(doc(a, "companies/c2/products/" + pid()), tdoc("ai", "chatbot"))); // 인공지능 회사는 인공지능 상품
   await assertFails(setDoc(doc(a, "companies/c2/products/" + pid()), tdoc("pc", "laptop"))); // 다른 업종 상품은 안 돼요

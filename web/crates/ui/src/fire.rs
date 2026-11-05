@@ -406,6 +406,7 @@ fn company_of(id: &str, dd: &JsValue) -> JsValue {
         ("products", if js_sys::Array::is_array(&products) { products } else { js_sys::Array::new().into() }),
         ("at", n(ms(&get(dd, "at")))),
         ("kindSet", (get(dd, "kindSet") == JsValue::TRUE).into()),
+        ("pay", int_or0("pay")),
     ])
 }
 fn int3(v: &JsValue, keys: &[&str]) -> bool {
@@ -911,7 +912,100 @@ async fn load_my_job() -> R {
         return Ok(JsValue::NULL);
     }
     let dd = data_est(&sn);
-    Ok(o(&[("cid", get(&dd, "cid")), ("kind", get(&dd, "kind")), ("at", n(ms(&get(&dd, "at"))))]))
+    let num_or0 = |k: &str| {
+        let v = get(&dd, k);
+        if is_int(&v) { v } else { n(0.0) }
+    };
+    Ok(o(&[
+        ("cid", get(&dd, "cid")),
+        ("kind", get(&dd, "kind")),
+        ("at", n(ms(&get(&dd, "at")))),
+        ("wage", num_or0("wage")),
+        ("n", num_or0("n")),
+        ("paidAt", n(if get(&dd, "paidAt").is_object() { ms(&get(&dd, "paidAt")) } else { ms(&get(&dd, "at")) })),
+    ]))
+}
+/* ----- 직원 관리 ----- */
+/// 사장: 내 회사 직원 목록 (일자리 기록)
+async fn list_staff(cid: String) -> R {
+    let snap = rethrow(get_docs(q(c(&["jobs"]), vec![w(s("cid"), "==", s(&cid)), lim(50.0)])).await)?;
+    let mut out: Vec<JsValue> = docs(&snap)
+        .iter()
+        .map(|dd| {
+            let v = data_est(dd);
+            let int = |k: &str| {
+                let x = get(&v, k);
+                if is_int(&x) { x } else { n(0.0) }
+            };
+            o(&[
+                ("uid", get(dd, "id")),
+                ("kind", get(&v, "kind")),
+                ("at", n(ms(&get(&v, "at")))),
+                ("wage", int("wage")),
+                ("n", int("n")),
+                ("seen", n(if get(&v, "seen").is_object() { ms(&get(&v, "seen")) } else { 0.0 })),
+                ("paidAt", n(if get(&v, "paidAt").is_object() { ms(&get(&v, "paidAt")) } else { ms(&get(&v, "at")) })),
+            ])
+        })
+        .collect();
+    out.sort_by(|a, b| num(&get(a, "at")).partial_cmp(&num(&get(b, "at"))).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(out.into_iter().collect::<js_sys::Array>().into())
+}
+async fn fire_staff(cid: String, uid: String) -> R {
+    let b = batch();
+    m(&b, "delete", &[d(&["jobs", &uid])])?;
+    m(&b, "update", &[d(&["companies", &cid]), o(&[("staff", inc(-1.0)), ("fired", s(&uid))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+/// 내가 일한 횟수 올리기 (총합으로 적어요)
+async fn track_work(total: JsValue) -> R {
+    rethrow(update_doc(d(&["jobs", &uid_of()?]), o(&[("n", total), ("seen", ts())])).await)
+}
+/// 임금 받기: 받을 수 있는 정수 시간만큼. 급여 금고에 있는 만큼만 받아요.
+/// 돌려주는 값: amt(받은 토큰), wage(시급), due(받을 시간 수), pay(급여 금고 토큰), next(다음 한 시간까지 남은 밀리초)
+async fn claim_wage(cid: String) -> R {
+    let uid = uid_of()?;
+    let (js, cs) = (get_doc(d(&["jobs", &uid])), get_doc(d(&["companies", &cid])));
+    let rs = join_all(vec![Box::pin(js) as Fut, Box::pin(cs) as Fut]).await;
+    let mut it = rs.into_iter();
+    let job = rethrow(it.next().unwrap())?;
+    let co = rethrow(it.next().unwrap())?;
+    let out = |amt: f64, wage: f64, due: f64, pay: f64, next: f64| o(&[("amt", n(amt)), ("wage", n(wage)), ("due", n(due)), ("pay", n(pay)), ("next", n(next))]);
+    if !exists(&job) || !exists(&co) {
+        return Ok(out(0.0, 0.0, 0.0, 0.0, 0.0));
+    }
+    let jd = data(&job);
+    let wage = num(&get(&jd, "wage"));
+    let paid = if get(&jd, "paidAt").is_object() { ms(&get(&jd, "paidAt")) } else { ms(&get(&jd, "at")) };
+    let pay = num(&get(&data(&co), "pay")) / 100.0;
+    if !(wage >= 1.0 && paid > 0.0) {
+        return Ok(out(0.0, wage, 0.0, pay, 0.0));
+    }
+    // 시계가 조금 빨라도 서버 시각을 넘지 않게 2분 여유를 둬요
+    let edge = now() - 120000.0;
+    let due = ((edge - paid) / 3600000.0).floor().max(0.0);
+    let next = (paid + (due + 1.0) * 3600000.0 - edge).max(0.0);
+    let hours = due.min((pay / wage).floor());
+    if !(hours >= 1.0) {
+        return Ok(out(0.0, wage, due, pay, next));
+    }
+    let amt = wage * hours;
+    let b = batch();
+    m(&b, "update", &[d(&["jobs", &uid]), o(&[("paidAt", from_millis(paid + hours * 3600000.0))])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(amt)), ("wt", ts()), ("op", o(&[("kind", s("wage")), ("cid", s(&cid)), ("amt", n(amt))]))])])?;
+    m(&b, "update", &[d(&["companies", &cid]), o(&[("pay", inc(-amt * 100.0))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(out(amt, wage, due - hours, pay - amt, next))
+}
+/// 사장: 급여 금고 채우기 (지갑 토큰 → 급여 금고)
+async fn fund_pay(cid: String, amt: JsValue) -> R {
+    let a = num(&amt);
+    let b = batch();
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-a)), ("wt", ts()), ("op", o(&[("kind", s("payfund")), ("cid", s(&cid)), ("amt", amt)]))])])?;
+    m(&b, "update", &[d(&["companies", &cid]), o(&[("pay", inc(a * 100.0))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
 }
 async fn apply_job(cid: String, kind: JsValue) -> R {
     let b = batch();
@@ -2108,6 +2202,13 @@ fn build() -> js_sys::Object {
     am!(api, "loadMyJob", |_a| load_my_job().await);
     am!(api, "applyJob", |a| apply_job(sa(&a[0]), a[1].clone()).await);
     am!(api, "quitJob", |a| quit_job(sa(&a[0])).await);
+    am!(api, "listStaff", |a| list_staff(sa(&a[0])).await);
+    am!(api, "setWage", |a| rethrow(update_doc(d(&["jobs", &sa(&a[0])]), o(&[("wage", a[1].clone())])).await));
+    am!(api, "fireStaff", |a| fire_staff(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "trackWork", |a| track_work(a[0].clone()).await);
+    am!(api, "claimWage", |a| claim_wage(sa(&a[0])).await);
+    am!(api, "fundPay", |a| fund_pay(sa(&a[0]), a[1].clone()).await);
+    am!(api, "setCompanyInfo", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("name", a[1].clone()), ("logo", a[2].clone())])).await));
     am!(api, "foundCompany", |a| found_company(a[0].clone(), a[1].clone(), a[2].clone()).await);
     /* ----- 연구실·공장 ----- */
     am!(api, "labGet", |a| lab_get(sa(&a[0])).await);
