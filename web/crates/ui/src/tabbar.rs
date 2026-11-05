@@ -1052,7 +1052,8 @@ impl Bar {
         let active = if self.backdrop.is_null() || self.backdrop.is_undefined() { None } else { js_sys::Reflect::get(&self.backdrop, &"active".into()).ok().and_then(|v| v.as_string()) };
         // 이 화면의 사진이 아직 없으면 다른 화면 사진을 빌리지 않고(다른 창이 비쳐 보였어요), 이 화면의 바탕색만 비춰요. 유리는 그대로 유리예요
         let entry = active.as_ref().and_then(|a| self.shots.iter().position(|(k, _)| k == a));
-        let plain = entry.is_none() && !self.shots.is_empty();
+        // 사진이 하나도 없을 때(처음 켤 때, 테마가 바뀌어 버렸을 때, 그래픽 메모리를 되찾은 뒤)도 일반 판으로 돌아가지 않고 바탕색으로 유리를 그려요
+        let plain = entry.is_none();
         if plain {
             let el = js_sys::Reflect::get(&self.backdrop, &"activeEl".into()).ok().and_then(|e| e.dyn_into::<web_sys::Element>().ok());
             let mut bg = el.and_then(|e| win().get_computed_style(&e).ok().flatten()).and_then(|c| c.get_property_value("background-color").ok()).unwrap_or_default();
