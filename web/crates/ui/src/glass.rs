@@ -14,7 +14,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
 
 // 유리로 그리는 것들 (어둡게 덮는 뒤판·잠금 화면처럼 유리가 아닌 것은 빼요). 새 유리를 만들면 여기에 넣어요
-pub const SEL: &str = ".glass-btn,.t-glass,.plus,.field-glass,.ctx-menu,.lg-card,.lg-btn,.alert-card,.alert-btn,.chart-seg,.t-btn.grey,.attach,.a-ico,.poll-opt,.sheet.dark,.draw-undo,.pen-btn,.status-bubble,.fab-tile,.found-logo,.pk-glass,.pk-orb,.pk-row,.pk-soon-orb,.pk-card,.pk-step,.biz-more,.biz-tag,.bz-sheet-t,.bz-sheet-g,.bz-cancel,.bz-input,.bz-btn,.gg,.gseg,.lab-stats span,.lab-input,.lab-row,.lab-reagent,.notice-opt,.inv-empty-glass,.mg-sug-row,.pk-ic";
+pub const SEL: &str = ".glass-btn,.t-glass,.plus,.field-glass,.ctx-menu,.lg-card,.lg-btn,.alert-card,.alert-btn,.chart-seg,.t-btn.grey,.attach,.a-ico,.poll-opt,.sheet.dark,.draw-undo,.pen-btn,.status-bubble,.fab-tile,.found-logo,.pk-glass,.pk-orb,.pk-row,.pk-soon-orb,.pk-card,.pk-step,.biz-more,.biz-tag,.bz-sheet-t,.bz-sheet-g,.bz-cancel,.bz-input,.bz-btn,.gg,.gseg,.lab-stats span,.lab-input,.lab-row,.lab-reagent,.notice-opt,.inv-empty-glass,.mg-sug-row,.pk-ic,.sns-card,.sns-fab,.sns-panel";
 const PRESSABLE: &str = "button, a, [role='button'], .pk-ic, .a-ico";
 
 #[derive(Default)]
