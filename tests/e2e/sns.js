@@ -65,7 +65,7 @@ const toSns = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); a
   ok('답글이 글 화면에 보여요', await until(B, () => document.getElementById('sns-dbody').textContent.includes('반가워요')));
   await B.screenshot({ path: __dirname + '/shots/sns-detail.png' });
   ok('글쓴이 피드에 댓글 1', await until(A, () => document.querySelector('#sns-feed [data-reply]')?.textContent.trim() === '1'));
-  ok('답글은 홈 피드에 따로 나오지 않아요', !(await text(A, '#sns-feed')).includes('반가워요'));
+  ok('답글은 따로 글로 나오지 않고, 원래 글 아래 미리보기로만 보여요', await until(A, () => [...document.querySelectorAll('#sns-feed .sp-grp > article:not(.sp-in)')].every((a) => !a.textContent.includes('반가워요')) && !!document.querySelector('#sns-feed .sp-in')?.textContent.includes('반가워요')));
   // 내 글 지우기
   A.on('dialog', (d) => d.accept());
   await A.click('#sns-feed [data-more]'); await A.waitForTimeout(500);
