@@ -148,6 +148,9 @@ pub(crate) fn go_screen(name: &str) {
     if name == "notices" {
         crate::notices::refresh();
     }
+    if name == "manage" {
+        crate::feedback::admin_list();
+    }
     set_title(name);
     if let Some(s) = screen(name) {
         update_chrome(&s);
@@ -578,6 +581,7 @@ pub fn start() {
     crate::settings::init();
     crate::invite::init();
     crate::coach::init();
+    crate::feedback::init();
     crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
     crate::notices::init();

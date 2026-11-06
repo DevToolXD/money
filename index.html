@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=108">
+<link rel="stylesheet" href="app/app.css?v=109">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -73,6 +73,8 @@
       <header class="large-title"><h1 id="title-manage">관리</h1><button class="glass-btn" id="manage-back" type="button">계정</button></header>
       <p class="lead">관리자만 볼 수 있어요.</p>
       <div id="manage-root" class="manage-root" aria-live="polite"></div>
+      <h2 class="section-title">받은 피드백</h2>
+      <div class="card"><ul class="list fb-list" id="fb-list"><li class="inv-empty">불러오는 중이에요</li></ul></div>
       <h2 class="section-title">베타 종료</h2>
       <div class="card beta-card"><p class="beta-x" id="beta-text">모든 사람의 데이터(관리자 포함)를 한꺼번에 지워요. 딱 한 번만 할 수 있고 되돌릴 수 없어요. 끝나면 로그아웃되고, 관리자는 owner로 다시 로그인하면 새로 시작해요.</p><button class="btn beta-btn" id="beta-end" type="button">베타 종료하고 모두 초기화</button></div>
     </section>
@@ -187,11 +189,17 @@
       <div class="card"><button class="row logout" id="set-logout" type="button"><b>로그아웃</b></button></div>
       <p class="set-ver" id="set-ver">자본주의 시뮬레이터 베타</p>
     </section>
-    <section class="screen" id="screen-youtube" data-screen="youtube" data-title="유튜브" aria-labelledby="title-youtube">
-      <header class="large-title"><h1 id="title-youtube">유튜브</h1></header>
-      <div class="card"><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">유튜브 탭은 곧 열려요.</p></div></div>
-    </section>
-    <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
+    <section class="screen" id="screen-feedback" data-screen="feedback" data-title="피드백" aria-labelledby="title-feedback">
+      <header class="large-title"><h1 id="title-feedback">피드백</h1></header>
+      <p class="lead">버그나 바라는 점을 개발자에게 바로 보내요.</p>
+      <div class="card fb-card">
+        <div class="fb-kinds" id="fb-kinds" role="radiogroup" aria-label="종류"><button type="button" class="gg wk-pill" data-fb="bug" aria-pressed="true">버그 제보</button><button type="button" class="gg wk-pill" data-fb="idea" aria-pressed="false">제안</button><button type="button" class="gg wk-pill" data-fb="etc" aria-pressed="false">기타</button></div>
+        <label class="fb-field"><span>내용</span><textarea id="fb-text" maxlength="1000" rows="6" placeholder="어떤 화면에서 무엇을 했을 때 어떻게 됐는지 적어 주세요"></textarea></label>
+        <p class="fb-count" id="fb-count">0 / 1000</p>
+        <button class="btn primary" id="fb-send" type="button" disabled>개발자에게 보내기</button>
+        <p class="fb-note">보낸 내용은 개발자만 볼 수 있어요.</p>
+      </div>
+    </section>    <section class="screen" id="screen-account" data-screen="account" data-title="계정" aria-labelledby="title-account">
       <header class="large-title"><h1 id="title-account">계정</h1></header>
       <div id="auth-card" hidden><h2 class="guest-title">로그인 하세요</h2><button class="btn primary" id="open-login" type="button">로그인</button></div>
       <div class="card pad profile center">
@@ -401,6 +409,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=59"></script>
+<script type="module" src="app/rs/boot.js?v=60"></script>
 </body>
 </html>

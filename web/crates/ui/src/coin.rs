@@ -85,7 +85,6 @@ fn claim() {
                 }
                 if amt > 0.0 {
                     EARNED.set(EARNED.get() + amt);
-                    crate::shell::toast(&format!("채굴 보상 {} 토큰을 받았어요", amt as i64));
                 }
             }
             Err(e) => cloud::warn(&format!("채굴 보상을 받지 못했어요: {}", e.code)),

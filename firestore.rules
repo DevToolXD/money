@@ -795,6 +795,17 @@ service cloud.firestore {
         && getAfter(walletPath(request.auth.uid)).data.wt == request.time;
     }
 
+    // ----- 피드백: 누구나(로그인) 개발자에게 보내고, 관리자만 읽고 지워요 -----
+    match /feedback/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['by', 'kind', 'text', 'at'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.kind in ['bug', 'idea', 'etc']
+        && request.resource.data.text is string && request.resource.data.text.size() >= 2 && request.resource.data.text.size() <= 1000
+        && request.resource.data.at == request.time;
+      allow get, list, delete: if isOwner();
+    }
+
     // ----- 베타 종료 (관리자 한 번만): 상태를 'wiping'으로 정하면 그동안 관리자가 모든 문서를 읽고 지울 수 있어요. 끝나면 'done'이 되고 다시는 못 해요 -----
     match /meta/beta {
       allow get: if signedIn();

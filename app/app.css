@@ -2101,3 +2101,23 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .beta-btn { color: #fff !important; background: #ff3b30 !important; }
 .coach-hint { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: #0a7cff; }
 .coach-tip { pointer-events: none; }
+
+/* 피드백 */
+.card.fb-card { padding: 18px; display: grid; gap: 12px; }
+.fb-kinds { display: flex; gap: 8px; }
+.fb-kinds .wk-pill { margin: 0; }
+.fb-kinds .wk-pill[aria-pressed="true"] { background: #0a7cff; color: #fff; }
+.fb-field { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.fb-field textarea { width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; padding: 12px 14px; font: inherit; font-size: 16px; font-weight: 400; line-height: 1.45; color: var(--text-primary); background: rgba(120, 120, 128, 0.1); resize: vertical; outline: none; user-select: text; -webkit-user-select: text; }
+.fb-count { margin: -4px 0 0; text-align: right; font-size: 12px; color: var(--text-secondary); }
+.fb-note { margin: 0; font-size: 13px; color: var(--text-secondary); text-align: center; }
+.fb-row { list-style: none; padding: 12px 16px; border-bottom: 0.5px solid rgba(120, 120, 128, 0.2); }
+.fb-h { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.fb-h time { flex: 1; font-size: 12px; color: var(--text-secondary); }
+.fb-tag { font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(120, 120, 128, 0.14); }
+.fb-tag.k-bug { background: rgba(255, 59, 48, 0.14); color: #d70015; }
+.fb-tag.k-idea { background: rgba(10, 124, 255, 0.14); color: #0a7cff; }
+.fb-del { font-size: 13px; color: #ff3b30; background: none; min-height: 32px; }
+.fb-row p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
+/* 튜토리얼: 핫바 넘기기는 손가락이 옆으로 미는 모습이 보여요 */
+.coach.swipe .coach-ring { border-radius: 40px; }

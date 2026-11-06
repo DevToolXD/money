@@ -589,6 +589,16 @@ async fn make_wallet_with(ref_: &str) -> R {
     }
     make_wallet().await
 }
+/* ----- 피드백 ----- */
+async fn feedback_send(kind: String, text: String) -> R {
+    let text: String = text.trim().chars().take(1000).collect();
+    let kind = if ["bug", "idea", "etc"].contains(&kind.as_str()) { kind } else { "etc".into() };
+    rethrow(set_doc(new_id(c(&["feedback"])), o(&[("by", s(&uid_of()?)), ("kind", s(&kind)), ("text", s(&text)), ("at", ts())])).await)
+}
+async fn feedback_list() -> R {
+    let snap = rethrow(get_docs(q(c(&["feedback"]), vec![order("at", Some("desc")), lim(50.0)])).await)?;
+    Ok(docs(&snap).iter().map(|dd| { let v = data(dd); o(&[("id", get(dd, "id")), ("by", get(&v, "by")), ("kind", get(&v, "kind")), ("text", get(&v, "text")), ("at", n(ms(&get(&v, "at"))))]) }).collect::<js_sys::Array>().into())
+}
 /* ----- 친구 초대 ----- */
 async fn invites_list() -> R {
     let snap = rethrow(get_docs(q(c(&["invites"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(100.0)])).await)?;
@@ -2386,6 +2396,9 @@ fn build() -> js_sys::Object {
     // 인자는 5개까지예요: 아이디, 비밀번호, 이름, 사진, 초대한 사람 번호 (휴대폰 인증번호는 지금 쓰지 않아요)
     am!(api, "signUp", |a| sign_up(sa(&a[0]), sa(&a[1]), sa(&a[2]), opt_s(&a[3]), String::new(), opt_s(&a[4])).await);
     am!(api, "invitesList", |_a| invites_list().await);
+    am!(api, "feedbackSend", |a| feedback_send(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "feedbackList", |_a| feedback_list().await);
+    am!(api, "feedbackDelete", |a| rethrow(aw(f("deleteDoc", &[d(&["feedback", &sa(&a[0])])])).await));
     am!(api, "inviteClaim", |a| invite_claim(sa(&a[0])).await);
     am!(api, "betaState", |_a| beta_state().await);
     am!(api, "betaEnd", |_a| beta_end().await);

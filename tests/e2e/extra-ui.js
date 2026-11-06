@@ -46,27 +46,42 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   // 튜토리얼 (시험에서는 coach-test로 켜요)
   await A.evaluate(() => { localStorage.setItem('coach-test', '1'); localStorage.removeItem('coach-intro'); });
   await A.reload(); await A.waitForTimeout(8000);
-  ok('튜토리얼이 떠요 (1 / 4)', (await A.isVisible('#coach .coach-tip')) && (await A.textContent('#coach .coach-n')).includes('1 / 4'));
+  ok('튜토리얼이 떠요 (1 / 8)', (await A.isVisible('#coach .coach-tip')) && (await A.textContent('#coach .coach-n')).includes('1 / 8'));
   await A.screenshot({ path: path.join(__dirname, 'shots', 'coach.png') });
   await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="money"]').click()); await A.waitForTimeout(900);
-  ok('눌러 보라는 곳을 누르면 다음 단계 (2 / 4)', (await A.textContent('#coach .coach-n')).includes('2 / 4'));
+  ok('눌러 보라는 곳을 누르면 다음 단계 (2 / 8)', (await A.textContent('#coach .coach-n')).includes('2 / 8'));
   ok('다음·건너뛰기 버튼이 없어요', (await A.$$('#coach button')).length === 0);
   const before = await A.evaluate(() => document.querySelector('.app').dataset.screen);
   await A.mouse.click(350, 785); await A.waitForTimeout(600); // 다른 곳(상점 근처)을 눌러요
-  ok('다른 곳은 눌리지 않아요', (await A.textContent('#coach .coach-n')).includes('2 / 4') && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
+  ok('다른 곳은 눌리지 않아요', (await A.textContent('#coach .coach-n')).includes('2 / 8') && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
   const box = async (sel) => (await A.$(sel)).boundingBox();
   let bb = await box('.tabbar .tab[data-tab="work"]'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
-  ok('일 탭을 누르면 3 / 4', (await A.textContent('#coach .coach-n')).includes('3 / 4'));
+  ok('일 탭을 누르면 3 / 8', (await A.textContent('#coach .coach-n')).includes('3 / 8'));
   bb = await box('#status-bubble'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
-  ok('상태를 누르면 4 / 4', (await A.textContent('#coach .coach-n')).includes('4 / 4'));
-  bb = await box('.tabbar .tab-account'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
-  ok('메뉴를 누르면 끝나요', !(await A.isVisible('#coach .coach-tip')) && (await A.isVisible('#qm .qm')));
+  ok('상태를 누르면 핫바 넘기기 (4 / 8)', (await A.textContent('#coach .coach-n')).includes('4 / 8') && (await A.textContent('#coach .coach-hint')).includes('옆으로'));
+  bb = await box('.tabbar .tab[data-tab="money"]');
+  await A.mouse.move(bb.x + bb.width / 2 + 60, bb.y + bb.height / 2); await A.mouse.down(); await A.mouse.move(bb.x - 40, bb.y + bb.height / 2, { steps: 4 }); await A.mouse.up(); await A.waitForTimeout(1200);
+  ok('탭 바를 밀어 넘기면 5 / 8', (await A.textContent('#coach .coach-n')).includes('5 / 8'));
+  const tapC = async (sel) => { const r = await box(sel); await A.mouse.click(r.x + r.width / 2, r.y + r.height / 2); await A.waitForTimeout(900); };
+  await tapC('.tabbar .tab-account');
+  ok('메뉴를 누르면 코인 (6 / 8)', (await A.textContent('#coach .coach-n')).includes('6 / 8'));
+  await tapC('.qm-row[data-go="coin"]');
+  ok('코인을 누르면 코인 화면, 7 / 8', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'coin' && (await A.textContent('#coach .coach-n')).includes('7 / 8'));
+  await tapC('.tabbar .tab-account'); await tapC('.qm-row[data-go="invite"]');
+  ok('친구 초대를 누르면 끝나요', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'invite' && !(await A.isVisible('#coach .coach-tip')));
+  // 피드백
+  await menu(A, 'feedback');
+  ok('유튜브 대신 피드백 화면', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'feedback' && !(await A.$('.qm-row[data-go="youtube"]')));
+  await A.click('#fb-kinds [data-fb="bug"]'); await A.fill('#fb-text', '상점에서 사기를 누르면 멈춰요'); await A.click('#fb-send'); await A.waitForTimeout(1500);
+  ok('피드백을 보내요', (await A.inputValue('#fb-text')) === '' );
   // 베타 종료 (관리자): 다른 화면은 닫아요
   const aErr = A.errs.length + B.errs.length; await A.context().close(); await B.context().close();
   const O = await open();
   await O.evaluate(() => window.cloud.signUp('owner', 'abc123', '관리자').catch(() => window.cloud.signIn('owner', 'abc123')));
   await O.reload(); await O.waitForTimeout(6000);
   await O.evaluate(() => { const b = document.getElementById('open-manage'); if (b) b.click(); }); await O.waitForTimeout(1500);
+  await O.waitForTimeout(1500);
+  ok('관리 화면에 받은 피드백', (await O.textContent('#fb-list')).includes('상점에서 사기를 누르면 멈춰요'));
   ok('관리 화면에 베타 종료', await O.isVisible('#beta-end'));
   await O.evaluate(() => document.getElementById('beta-end').scrollIntoView({ block: 'center' }));
   await O.click('#beta-end'); await O.waitForTimeout(1500);

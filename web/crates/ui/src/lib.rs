@@ -11,6 +11,7 @@ pub mod coin;
 pub mod ctx;
 pub mod dom;
 pub mod factory;
+pub mod feedback;
 pub mod fire;
 pub mod glass;
 pub mod inventory;

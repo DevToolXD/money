@@ -19,7 +19,7 @@ const ITEMS: [(&str, &str, &str); 6] = [
     ("account", "프로필", r#"<circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/>"#),
     ("invite", "친구 초대", r#"<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/>"#),
     ("settings", "설정", r#"<path d="M10.3 3.6h3.4l.5 2.4a6.6 6.6 0 0 1 1.7 1l2.3-.8 1.7 2.9-1.8 1.6a6.6 6.6 0 0 1 0 2l1.8 1.6-1.7 2.9-2.3-.8a6.6 6.6 0 0 1-1.7 1l-.5 2.4h-3.4l-.5-2.4a6.6 6.6 0 0 1-1.7-1l-2.3.8-1.7-2.9 1.8-1.6a6.6 6.6 0 0 1 0-2L4.1 9.1l1.7-2.9 2.3.8a6.6 6.6 0 0 1 1.7-1z"/><circle cx="12" cy="12" r="2.8"/>"#),
-    ("youtube", "유튜브", r#"<rect x="3" y="6" width="18" height="12" rx="3.5"/><path d="M10.5 9.5v5l4.2-2.5z"/>"#),
+    ("feedback", "피드백", r#"<path d="M20 12a8 7 0 0 1-12.5 5.8L4 19l1.2-3.4A8 7 0 1 1 20 12z"/><path d="M12 8.5v4M12 15.3h.01"/>"#),
 ];
 
 fn svg(d: &str) -> String {
@@ -53,6 +53,7 @@ fn root() -> Option<web_sys::HtmlElement> {
                 "coin" => crate::coin::open(),
                 "invite" => crate::invite::open(),
                 "settings" => crate::settings::open(),
+                "feedback" => crate::feedback::open(),
                 _ => {}
             }
             return;

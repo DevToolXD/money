@@ -15,18 +15,27 @@ struct Step {
     sel: &'static str,
     title: &'static str,
     text: &'static str,
-    /// true면 그곳을 눌러야 다음으로 가요. false면 "다음" 버튼으로 가요
+    /// true면 그곳을 눌러야 다음으로 가요
     click: bool,
+    /// 이 곳이 화면에 나타나면 다음으로 가요 (핫바 넘기기처럼 누르기가 아닌 동작)
+    until: &'static str,
 }
 const fn st(sel: &'static str, title: &'static str, text: &'static str, click: bool) -> Step {
-    Step { sel, title, text, click }
+    Step { sel, title, text, click, until: "" }
+}
+const fn swipe(sel: &'static str, title: &'static str, text: &'static str, until: &'static str) -> Step {
+    Step { sel, title, text, click: false, until }
 }
 
 const INTRO: &[Step] = &[
     st(".tabbar .tab[data-tab=\"money\"]", "돈 탭", "여기를 눌러 보세요. 내 토큰과 이자 상품을 볼 수 있어요.", true),
     st(".tabbar .tab[data-tab=\"work\"]", "일 탭", "여기를 눌러 보세요. 회사에 지원하거나 내 회사에서 일해요.", true),
     st("#status-bubble", "내 상태", "여기를 눌러 보세요. 배고픔·목마름·에너지를 볼 수 있어요.", true),
+    swipe(".tabbar", "핫바 넘기기", "탭 바를 손가락으로 옆으로 쓱 밀어 보세요. 랭킹·인벤토리·사업·SNS 탭이 나와요.", ".tabbar .tab[data-tab=\"business\"]"),
     st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 코인, 친구 초대, 설정이 나와요.", true),
+    st(".qm-row[data-go=\"coin\"]", "코인", "여기를 눌러 보세요. 허락하면 채굴을 켜서 100초마다 토큰을 받아요.", true),
+    st(".tabbar .tab-account", "메뉴", "메뉴를 한 번 더 눌러 보세요.", true),
+    st(".qm-row[data-go=\"invite\"]", "친구 초대", "여기를 눌러 보세요. 친구를 초대하면 한 명마다 50 토큰을 받아요.", true),
 ];
 // 사업 안내: 누르면 다른 화면이 열리는 곳(팔 상품 정하기)은 맨 끝에 둬요
 const FOOD: &[Step] = &[
@@ -124,6 +133,9 @@ fn place() {
     let Some((_, steps, i)) = RUN.with(|r| r.borrow().clone()) else { return };
     let (Some(el), Some(app)) = (root(), dom::app_el()) else { return };
     let step = steps[i];
+    if !step.until.is_empty() && target(step.until).is_some() {
+        return next();
+    }
     let Some(t) = target(step.sel) else { return };
     let a = app.get_bounding_client_rect();
     let r = t.get_bounding_client_rect();
@@ -169,7 +181,11 @@ fn show() {
     if let Some(n) = q(".coach-x") {
         n.set_inner_html(&esc(step.text));
     }
-    dom::toggle(&el, "tap", step.click);
+    dom::toggle(&el, "tap", step.click || !step.until.is_empty());
+    dom::toggle(&el, "swipe", !step.until.is_empty());
+    if let Some(h) = q(".coach-hint") {
+        h.set_text_content(Some(if step.until.is_empty() { "빛나는 곳을 눌러 주세요" } else { "빛나는 탭 바를 옆으로 밀어 주세요" }));
+    }
     el.set_hidden(false);
     let _ = el.offset_width();
     let _ = el.class_list().add_1("on");

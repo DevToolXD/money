@@ -1535,6 +1535,16 @@ await t("친구 초대: 가입하는 묶음에서만 한 번 남기고, 초대�
   await sleep(2100);
   await assertFails(claim(alice, "uA").commit()); // 한 번만
 });
+await t("피드백: 로그인한 사람은 보내고, 관리자만 읽어요", async () => {
+  await seed(seedBase);
+  const a = pw("uA", "alice");
+  const owner = env.authenticatedContext("uO", { email: "owner@money-sim.app", firebase: { sign_in_provider: "password" } }).firestore();
+  await assertSucceeds(setDoc(doc(a, "feedback/f1"), { by: "uA", kind: "bug", text: "버그가 있어요", at: serverTimestamp() }));
+  await assertFails(setDoc(doc(a, "feedback/f2"), { by: "uB", kind: "bug", text: "남인 척", at: serverTimestamp() }));
+  await assertFails(setDoc(doc(a, "feedback/f3"), { by: "uA", kind: "bug", text: "가".repeat(1001), at: serverTimestamp() }));
+  await assertFails(getDoc(doc(a, "feedback/f1")));
+  await assertSucceeds(getDocs(query(collection(owner, "feedback"), limit(50))));
+});
 console.log("\n[베타 종료]");
 await t("베타 종료: 관리자만 한 번 시작하고, 그동안만 모든 문서를 지우며, 끝나면 다시 못 해요", async () => {
   await seed(seedBase);
