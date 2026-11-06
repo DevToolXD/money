@@ -123,6 +123,19 @@ pub fn init_system() {
     })
     .into_js_value();
     let _ = call(&c, "addEventListener", &[JsValue::from_str("message"), cb]);
+    // 앱이 꺼져 있을 때 알림을 눌러 열었으면 (주소에 ?chat=) 그 대화를 열어요
+    let q = win().location().search().unwrap_or_default();
+    if let Some(id) = web_sys::UrlSearchParams::new_with_str(&q).ok().and_then(|p| p.get("chat")).filter(|s| !s.is_empty() && s.len() <= 200) {
+        wasm_bindgen_futures::spawn_local(async move {
+            for _ in 0..60 {
+                if crate::chat::live() {
+                    crate::chat::thread::open(&id);
+                    return;
+                }
+                dom::sleep(500).await;
+            }
+        });
+    }
 }
 /// 켜기: 권한을 물어요 (버튼을 누른 순간에만 물을 수 있어요). 허락되면 true
 pub async fn ask_permission() -> bool {

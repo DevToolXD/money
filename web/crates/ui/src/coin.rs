@@ -196,7 +196,7 @@ fn connect() {
         if ON.get() {
             let why = match e.reason().as_str() {
                 "origin" => "이 사이트 주소가 채굴 서버에 허락되지 않았어요".to_string(),
-                r if r.starts_with("pool") => format!("채굴 풀에 연결하지 못했어요 · {}", dom::store_get("coin-last-error", r)),
+                r if r.starts_with("pool") => format!("채굴 풀에 연결하지 못했어요. {}", dom::store_get("coin-last-error", r)),
                 "" => format!("채굴 서버에 연결하지 못했어요 (코드 {})", e.code()),
                 r => format!("채굴 서버와 연결이 끊겼어요 ({r})"),
             };

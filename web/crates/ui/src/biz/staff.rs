@@ -184,7 +184,7 @@ fn render() {
         .collect();
     let state = STATE.with(|x| x.borrow().clone());
     let list = if let Some(Some(why)) = &state {
-        format!(r#"<p class="stf-empty">직원 목록을 불러오지 못했어요 · {}</p>"#, esc(why))
+        format!(r#"<p class="stf-empty">직원 목록을 불러오지 못했어요. {}</p>"#, esc(why))
     } else if state.is_none() {
         r#"<p class="stf-empty">직원 목록을 불러오는 중이에요…</p>"#.to_string()
     } else if members.is_empty() { r#"<p class="stf-empty">직원이 아직 없어요. 위에서 채용 공고를 올려 보세요</p>"#.to_string() } else { format!(r#"<ul class="stf-list">{rows}</ul>"#) };
@@ -228,7 +228,7 @@ fn bind() {
                     LIST.with(|l| l.borrow_mut().iter_mut().filter(|m| m.uid == uid).for_each(|m| m.wage = w));
                     ctx().toast(&format!("시급을 {} 토큰으로 정했어요", fmt_num(w, 0)));
                 }
-                Err(e) => ctx().toast(&format!("임금을 정하지 못했어요 · {}", cloud::why(&e.code))),
+                Err(e) => ctx().toast(&format!("임금을 정하지 못했어요. {}", cloud::why(&e.code))),
             }
         });
     });
@@ -258,7 +258,7 @@ fn fund() {
                 ctx().toast(&format!("급여 금고에 {} 토큰을 넣었어요", fmt_num(amt, 0)));
                 render();
             }
-            Err(e) => ctx().toast(&format!("급여 금고에 넣지 못했어요 · {}", cloud::why(&e.code))),
+            Err(e) => ctx().toast(&format!("급여 금고에 넣지 못했어요. {}", cloud::why(&e.code))),
         }
         BUSY.set(false);
     });
@@ -288,7 +288,7 @@ fn fire(uid: String) {
                 c.toast(&format!("{name}님을 해고했어요"));
                 render();
             }
-            Err(e) => c.toast(&format!("해고하지 못했어요 · {}", cloud::why(&e.code))),
+            Err(e) => c.toast(&format!("해고하지 못했어요. {}", cloud::why(&e.code))),
         }
         BUSY.set(false);
     });

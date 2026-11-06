@@ -13,11 +13,12 @@ thread_local! {
     static SEQ: Cell<u32> = const { Cell::new(0) };
 }
 
-const ITEMS: [(&str, &str, &str); 5] = [
-    ("coin", "코인", r#"<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M14.6 9.4c-.5-.8-1.5-1.2-2.6-1.2-1.5 0-2.6.8-2.6 1.9 0 2.6 5.4 1.3 5.4 3.9 0 1.1-1.2 1.9-2.8 1.9-1.2 0-2.2-.5-2.7-1.3"/>"#),
+const ITEMS: [(&str, &str, &str); 6] = [
+    ("coin", "코인", r#"<circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5V9l3.5 4 3.5-4v6.5"/>"#),
     ("game", "게임", r#"<path d="M7.5 8h9a4.5 4.5 0 0 1 4.4 5.4l-.6 3a2.4 2.4 0 0 1-4 1.3L14.6 16H9.4l-1.7 1.7a2.4 2.4 0 0 1-4-1.3l-.6-3A4.5 4.5 0 0 1 7.5 8z"/><path d="M8 11v3M6.5 12.5h3"/><path d="M15.5 12.3h.01M17.5 13.6h.01"/>"#),
     ("account", "프로필", r#"<circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/>"#),
-    ("settings", "설정", r#"<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M6 18l1.6-1.6M16.4 7.6L18 6"/>"#),
+    ("invite", "친구 초대", r#"<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/>"#),
+    ("settings", "설정", r#"<path d="M10.3 3.6h3.4l.5 2.4a6.6 6.6 0 0 1 1.7 1l2.3-.8 1.7 2.9-1.8 1.6a6.6 6.6 0 0 1 0 2l1.8 1.6-1.7 2.9-2.3-.8a6.6 6.6 0 0 1-1.7 1l-.5 2.4h-3.4l-.5-2.4a6.6 6.6 0 0 1-1.7-1l-2.3.8-1.7-2.9 1.8-1.6a6.6 6.6 0 0 1 0-2L4.1 9.1l1.7-2.9 2.3.8a6.6 6.6 0 0 1 1.7-1z"/><circle cx="12" cy="12" r="2.8"/>"#),
     ("youtube", "유튜브", r#"<rect x="3" y="6" width="18" height="12" rx="3.5"/><path d="M10.5 9.5v5l4.2-2.5z"/>"#),
 ];
 
@@ -48,8 +49,11 @@ fn root() -> Option<web_sys::HtmlElement> {
             let to = dom::data(&b, "go");
             close();
             crate::shell::go_screen(&to);
-            if to == "coin" {
-                crate::coin::open();
+            match to.as_str() {
+                "coin" => crate::coin::open(),
+                "invite" => crate::invite::open(),
+                "settings" => crate::settings::open(),
+                _ => {}
             }
             return;
         }

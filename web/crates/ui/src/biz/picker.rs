@@ -471,7 +471,7 @@ fn pick_root(i: usize, orb: web_sys::HtmlElement) {
                 s.kind_mode = false;
             });
             if !ok {
-                ctx().toast(&format!("업종을 정하지 못했어요 · {}", kind_r.err().map(|e| cloud::why(&e.code)).unwrap_or("")));
+                ctx().toast(&format!("업종을 정하지 못했어요. {}", kind_r.err().map(|e| cloud::why(&e.code)).unwrap_or("")));
                 return close();
             }
             crate::shell::company::patch(&dom::obj(&[("kind", JsValue::from_str(kind)), ("kindSet", true.into())]));
@@ -633,7 +633,7 @@ fn sell() {
                 set_timeout(close, Duration::from_millis(900));
             }
             Err(e) => {
-                err.set_text_content(Some(&format!("올리지 못했어요 · {}", cloud::why(&e.code))));
+                err.set_text_content(Some(&format!("올리지 못했어요. {}", cloud::why(&e.code))));
                 dom::toggle(&btn, "busy", false);
             }
         }

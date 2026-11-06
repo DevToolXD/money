@@ -65,10 +65,27 @@ fn screens() -> Vec<web_sys::HtmlElement> {
 
 /// 색 토큰(design-system)과 탭 바가 같은 테마를 보게 해요
 fn apply_theme() {
-    let dark = win().match_media("(prefers-color-scheme: dark)").ok().flatten().is_some_and(|m| m.matches());
+    // 설정의 화면 모드 (자동이면 기기 설정을 따라요)
+    let dark = match dom::store_get("theme", "auto").as_str() {
+        "dark" => true,
+        "light" => false,
+        _ => win().match_media("(prefers-color-scheme: dark)").ok().flatten().is_some_and(|m| m.matches()),
+    };
     if let Some(r) = dom::doc().document_element() {
         let _ = r.set_attribute("data-theme", if dark { "dark" } else { "light" });
     }
+}
+/// 설정에서 화면 모드를 바꿀 때: 색을 바꾸고, 탭 바 유리가 쓰던 옛 색 사진은 버리고 새로 찍어요
+pub(crate) fn set_theme(mode: &str) {
+    dom::store_set("theme", mode);
+    apply_theme();
+    let bd = backdrop();
+    if bd.is_null() {
+        return;
+    }
+    invoke(&tabbar(), "dropShots", &[]);
+    invoke(&bd, "invalidateAll", &[]);
+    invoke(&bd, "ensure", &[cloud::get(&bd, "active"), true.into()]);
 }
 pub(crate) fn show_screen(name: &str) {
     let app = app();
@@ -509,6 +526,8 @@ pub(crate) async fn cloud_ready() -> JsValue {
 /* ---------- 시작 ---------- */
 
 pub fn start() {
+    // 멈춤 오류가 나면 이유를 콘솔에 남겨요 (고칠 때 원인을 찾으려고)
+    std::panic::set_hook(Box::new(|i| web_sys::console::error_1(&JsValue::from_str(&format!("멈춤: {i}")))));
     crate::fire::start();
     crate::glass::start();
     apply_theme();
@@ -556,6 +575,9 @@ pub fn start() {
     crate::wage::init();
     crate::coin::init();
     crate::notify::init_system();
+    crate::settings::init();
+    crate::invite::init();
+    crate::coach::init();
     crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
     crate::notices::init();

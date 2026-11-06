@@ -254,12 +254,19 @@ async fn submit() {
         }
         return;
     }
-    let code = dom::input_value("login-code").trim().to_string();
-    if code.is_empty() {
-        return dom::set_text("login-error", "휴대폰 번호로 인증번호를 받아 입력해 주세요");
+    // 임시: 한 기기(브라우저)에서는 계정을 하나만 만들어요
+    let made = dom::store_get("acct-made", "");
+    if !made.is_empty() {
+        return dom::set_text("login-error", &format!("이 기기에서는 이미 계정을 만들었어요 ({made}). 그 계정으로 로그인해 주세요"));
     }
     let photo = safe_img(&dom::store_get("profile-photo", ""), 40000).to_string();
-    run(move |_| cloud::call_now("signUp", &[JsValue::from_str(&id), JsValue::from_str(&pw), JsValue::from_str(&name), JsValue::from_str(&photo), JsValue::from_str(&code)]), false).await;
+    let r#ref = dom::store_get("invite-ref", "");
+    let id2 = id.clone();
+    run(move |_| cloud::call_now("signUp", &[JsValue::from_str(&id), JsValue::from_str(&pw), JsValue::from_str(&name), JsValue::from_str(&photo), JsValue::from_str(&r#ref)]), false).await;
+    if cloud::signed_in() {
+        dom::store_set("acct-made", &id2);
+        dom::store_set("invite-ref", "");
+    }
 }
 /// 인증번호 받기 (가입). 60초 안에는 다시 못 보내요
 async fn send_code() {

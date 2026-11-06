@@ -5,8 +5,7 @@ import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebas
 import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment, collectionGroup, deleteField } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({ projectId: "demo-money", firestore: { rules: readFileSync(process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url), "utf8") } });
-const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, phone_number: "+8210" + String(uid.charCodeAt(1) || 0).padStart(8, "0"), firebase: { sign_in_provider: "password" } }).firestore();
-const nophone = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
+const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
 const anon = () => env.authenticatedContext("anon1", { firebase: { sign_in_provider: "anonymous" } }).firestore();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
@@ -1514,12 +1513,44 @@ await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청
   await assertFails(msg({ type: "request", to: gid, amount: 5, done: false })); // 요청은 못 해요
 });
 
-console.log("\n[휴대폰 인증]");
-await t("휴대폰 번호 인증을 안 한 계정은 프로필과 지갑을 만들 수 없어요", async () => {
-  await assertFails(setDoc(doc(nophone("uZ", "zed"), "profiles/uZ"), { id: "zed", name: "김제드", photo: "" }));
-  await assertSucceeds(setDoc(doc(pw("uZ", "zed"), "profiles/uZ"), { id: "zed", name: "김제드", photo: "" }));
-  await assertFails(setDoc(doc(nophone("uZ", "zed"), "wallets/uZ"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }));
-  await assertSucceeds(setDoc(doc(pw("uZ", "zed"), "wallets/uZ"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }));
+console.log("\n[친구 초대]");
+await t("친구 초대: 가입하는 묶음에서만 한 번 남기고, 초대한 사람만 50 토큰을 한 번 받아요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "profiles/uN"), { id: "newbie", name: "새친구", photo: "" }); });
+  const nb = pw("uN", "newbie"), alice = pw("uA", "alice"), bob = pw("uB", "bob");
+  const join = (by, withWallet = true) => { const b = writeBatch(nb); b.set(doc(nb, "invites/uN"), { by, at: serverTimestamp(), claimed: false }); if (withWallet) b.set(doc(nb, "wallets/uN"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }); return b; };
+  await assertFails(join("uA", false).commit()); // 가입(지갑 만들기) 없이 따로는 못 남겨요
+  await assertFails(join("uN").commit()); // 자기 자신은 안 돼요
+  await assertFails(join("uX").commit()); // 없는 사람
+  await assertSucceeds(join("uA").commit());
+  await assertFails(setDoc(doc(nb, "invites/uN"), { by: "uB", at: serverTimestamp(), claimed: false })); // 다시 못 써요
+  await assertSucceeds(getDocs(query(collection(alice, "invites"), where("by", "==", "uA"), limit(100))));
+  await assertFails(getDocs(query(collection(bob, "invites"), where("by", "==", "uA"), limit(100))));
+  await seed((d) => setDoc(doc(d, "wallets/uA"), { bal: 10, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
+  const claim = (db, uid, amt = 50) => { const b = writeBatch(db); b.update(doc(db, "invites/uN"), { claimed: true }); b.update(doc(db, "wallets/" + uid), { bal: increment(amt), wt: serverTimestamp(), op: { kind: "invite", ref: "uN", amt } }); return b; };
+  await assertFails(claim(bob, "uB").commit()); // 초대한 사람이 아니에요
+  await assertFails(claim(alice, "uA", 500).commit()); // 50이 아니에요
+  await assertFails(updateDoc(doc(alice, "invites/uN"), { claimed: true })); // 지갑 없이
+  await assertSucceeds(claim(alice, "uA").commit());
+  same((await getDoc(doc(alice, "wallets/uA"))).data().bal, 60);
+  await sleep(2100);
+  await assertFails(claim(alice, "uA").commit()); // 한 번만
+});
+console.log("\n[베타 종료]");
+await t("베타 종료: 관리자만 한 번 시작하고, 그동안만 모든 문서를 지우며, 끝나면 다시 못 해요", async () => {
+  await seed(seedBase);
+  const owner = env.authenticatedContext("uO", { email: "owner@money-sim.app", firebase: { sign_in_provider: "password" } }).firestore();
+  const alice = pw("uA", "alice");
+  await assertFails(deleteDoc(doc(owner, "profiles/uA"))); // 시작 전에는 못 지워요
+  await assertFails(setDoc(doc(alice, "meta/beta"), { state: "wiping", at: serverTimestamp() })); // 관리자만
+  await assertSucceeds(setDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() }));
+  await assertFails(deleteDoc(doc(alice, "profiles/uA"))); // 다른 사람은 여전히 못 지워요
+  await assertSucceeds(getDocs(query(collection(owner, "wallets"), limit(300))));
+  await assertSucceeds(deleteDoc(doc(owner, "profiles/uA")));
+  await assertSucceeds(deleteDoc(doc(owner, "chats/uA_uB")));
+  await assertSucceeds(updateDoc(doc(owner, "meta/beta"), { state: "done", at: serverTimestamp() }));
+  await assertFails(deleteDoc(doc(owner, "profiles/uB"))); // 끝난 뒤에는 못 지워요
+  await assertFails(updateDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() })); // 다시 못 해요
+  await assertFails(setDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() }));
 });
 console.log("\n[채굴]");
 await t("채굴: 계정 하나에 100초마다 1 토큰, 시각과 지갑이 같은 묶음에서, 5분 안에, 미래 시각은 안 돼요", async () => {

@@ -69,7 +69,7 @@ fn HireCard(h: Hire) -> impl IntoView {
                     let _ = c.call("patchCompany", &[dom::obj(&[("open", JsValue::from(n))])]);
                     c.toast(&format!("모집 인원을 {}명으로 맞췄어요", n as i64));
                 }
-                Err(e) => c.toast(&format!("모집 인원을 맞추지 못했어요 · {}", cloud::why(&e.code))),
+                Err(e) => c.toast(&format!("모집 인원을 맞추지 못했어요. {}", cloud::why(&e.code))),
             }
             h.hiring.set(false);
             paint();

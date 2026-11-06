@@ -1,0 +1,78 @@
+// 화면+서버: 친구 초대(링크로 가입 → 초대한 사람이 50 토큰 받기), 설정(화면 모드·진동·움직임), 튜토리얼(하나씩 눌러 보기), 베타 종료(관리자 한 번)
+const { chromium } = require('playwright');
+const fs = require('fs'); const path = require('path');
+const emu = fs.readFileSync(path.join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+const H = { authorization: 'Bearer owner' };
+const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json());
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
+  const open = async (q = '') => { const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message)); p.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('GL')) console.log('CONSOLE', m.text().slice(0, 200)); });
+    await p.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+    await p.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+    await p.goto('http://127.0.0.1:8765/index.html' + q); await p.waitForTimeout(3500); return p; };
+  const menu = async (p, go) => { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500); await p.click(`.qm-row[data-go="${go}"]`); await p.waitForTimeout(900); };
+  const sfx = Date.now().toString(36).slice(-4);
+  const A = await open();
+  await A.evaluate((u) => window.cloud.signUp(u, 'abc123', '초대왕'), 'ia' + sfx);
+  await A.reload(); await A.waitForTimeout(6000);
+  const uA = await A.evaluate(() => window.cloud.uid);
+  // 친구가 초대 링크로 들어와요
+  const B = await open('?ref=' + uA);
+  ok('초대 링크를 기억해요', (await B.evaluate(() => localStorage.getItem('invite-ref'))) === uA);
+  await B.evaluate(([u, r]) => window.cloud.signUp(u, 'abc123', '새친구', '', r), ['ib' + sfx, uA]); await B.waitForTimeout(1500);
+  const uB = await B.evaluate(() => window.cloud.uid);
+  ok('가입하면 초대 기록이 남아요', (await raw(`invites/${uB}`)).fields?.by?.stringValue === uA);
+  // 초대한 사람: 친구 초대 화면에서 받기
+  await menu(A, 'invite');
+  ok('친구 초대 화면 문구', (await A.textContent('#screen-invite')).includes('친구를 초대하고 50 토큰을 받으세요'));
+  await A.waitForTimeout(1500);
+  ok('초대한 친구가 보여요', (await A.textContent('#invite-list')).includes('새친구'));
+  const bal0 = Number((await raw(`wallets/${uA}`)).fields.bal.integerValue);
+  await A.click('#invite-list [data-claim]'); await A.waitForTimeout(2500);
+  ok('받기를 누르면 50 토큰', Number((await raw(`wallets/${uA}`)).fields.bal.integerValue) - bal0 === 50);
+  ok('받은 뒤에는 받음', (await A.textContent('#invite-list')).includes('받음'));
+  // 설정
+  await menu(A, 'settings');
+  await A.click('#set-theme [data-theme-pick="dark"]'); await A.waitForTimeout(300);
+  ok('화면 모드: 어둡게', (await A.evaluate(() => document.documentElement.dataset.theme)) === 'dark');
+  await A.click('#set-theme [data-theme-pick="auto"]'); await A.waitForTimeout(300);
+  await A.click('#toggle-motion'); await A.waitForTimeout(200);
+  ok('움직임 줄이기', await A.evaluate(() => document.documentElement.hasAttribute('data-reduce')));
+  await A.click('#toggle-motion'); await A.click('#toggle-vibrate'); await A.waitForTimeout(200);
+  ok('진동 끄기', (await A.evaluate(() => localStorage.getItem('vibrate'))) === 'off');
+  ok('알림 줄이 설정에 있어요', await A.isVisible('#screen-settings #toggle-notify'));
+  // 튜토리얼 (시험에서는 coach-test로 켜요)
+  await A.evaluate(() => { localStorage.setItem('coach-test', '1'); localStorage.removeItem('coach-intro'); });
+  await A.reload(); await A.waitForTimeout(8000);
+  ok('튜토리얼이 떠요 (1 / 4)', (await A.isVisible('#coach .coach-tip')) && (await A.textContent('#coach .coach-n')).includes('1 / 4'));
+  await A.screenshot({ path: path.join(__dirname, 'shots', 'coach.png') });
+  await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="money"]').click()); await A.waitForTimeout(900);
+  ok('눌러 보라는 곳을 누르면 다음 단계 (2 / 4)', (await A.textContent('#coach .coach-n')).includes('2 / 4'));
+  await A.click('#coach .coach-skip'); await A.waitForTimeout(400);
+  ok('건너뛰면 닫혀요', !(await A.isVisible('#coach .coach-tip')));
+  // 베타 종료 (관리자): 다른 화면은 닫아요
+  const aErr = A.errs.length + B.errs.length; await A.context().close(); await B.context().close();
+  const O = await open();
+  await O.evaluate(() => window.cloud.signUp('owner', 'abc123', '관리자').catch(() => window.cloud.signIn('owner', 'abc123')));
+  await O.reload(); await O.waitForTimeout(6000);
+  await O.evaluate(() => { const b = document.getElementById('open-manage'); if (b) b.click(); }); await O.waitForTimeout(1500);
+  ok('관리 화면에 베타 종료', await O.isVisible('#beta-end'));
+  await O.evaluate(() => document.getElementById('beta-end').scrollIntoView({ block: 'center' }));
+  await O.click('#beta-end'); await O.waitForTimeout(1500);
+  console.log('alert1:', await O.textContent('#alert-title'), await O.isVisible('#alert-ok'));
+  await O.click('#alert-ok'); await O.waitForTimeout(1200);
+  console.log('alert2:', await O.textContent('#alert-title'));
+  await O.click('#alert-ok');
+  for (let i = 0; i < 90; i++) { await O.waitForTimeout(1000); if (!(await O.textContent('#beta-end')).includes('지우는 중')) break; }
+  console.log('beta btn:', await O.textContent('#beta-end'), '| toast:', await O.textContent('#toast'), '| log:', await O.evaluate(() => (document.getElementById('biz-log')||{}).textContent));
+  const left = await raw('profiles');
+  ok('모든 프로필이 지워져요', !left.documents || left.documents.length === 0);
+  const ws = (await raw('wallets')).documents || [];
+  ok('지갑도 지워져요 (켜져 있던 화면이 새로 만든 지갑은 0 토큰)', ws.every((w) => Number(w.fields.bal.integerValue) === 0));
+  ok('베타 종료는 끝났다고 남아요', (await raw('meta/beta')).fields?.state?.stringValue === 'done');
+  ok('화면 오류 없음', aErr + O.errs.length === 0); if (O.errs.length) console.log(O.errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
+})();

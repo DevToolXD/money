@@ -480,15 +480,14 @@ pub fn warn(msg: &str) {
 /// 오류 코드를 사람이 알 수 있는 이유로 바꿔요 (왜 안 됐는지 화면에 보여 주려고)
 pub fn why(code: &str) -> &'static str {
     match code {
-        "permission-denied" => "서버 규칙에 맞지 않아요 (조건이 안 맞거나 권한이 없어요)",
-        "unavailable" | "network-request-failed" | "walletop" => "인터넷 연결이 불안정해요",
-        "deadline-exceeded" | "aborted" | "busy" => "서버가 바빠요. 잠시 뒤 다시 눌러 주세요",
-        "resource-exhausted" => "너무 자주 눌렀어요. 잠깐 기다려 주세요",
+        "permission-denied" => "지금은 할 수 없는 일이에요",
+        "unavailable" | "network-request-failed" | "walletop" => "인터넷 연결을 확인해 주세요",
+        "deadline-exceeded" | "aborted" | "busy" => "서버가 바빠요. 다시 눌러 주세요",
+        "resource-exhausted" => "조금 천천히 눌러 주세요",
         "failed-precondition" => "지금 상태에서는 할 수 없어요",
         "not-found" => "찾는 정보가 없어요",
         "insufficient" => "토큰이 모자라요",
-        "unauthenticated" => "로그인이 풀렸어요. 다시 로그인해 주세요",
-        "" => "알 수 없는 이유예요",
-        _ => "처리하지 못했어요",
+        "unauthenticated" => "다시 로그인해 주세요",
+        _ => "잠시 뒤 다시 해 주세요",
     }
 }

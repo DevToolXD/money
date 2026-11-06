@@ -575,6 +575,73 @@ fn msg_part(snap: &JsValue) -> JsValue {
 async fn make_wallet() -> R {
     set_doc(wallet_ref()?, o(&[("bal", n(0.0)), ("rate", n(0.0)), ("t", ts()), ("wt", ts()), ("op", o(&[("kind", s("init"))]))])).await
 }
+/// 가입할 때 지갑을 만들면서, 초대 링크로 왔으면 같은 묶음에서 초대 기록을 남겨요 (초대한 사람이 없거나 이상하면 지갑만 만들어요)
+async fn make_wallet_with(ref_: &str) -> R {
+    let uid = uid_of()?;
+    let ok_ref = !ref_.is_empty() && ref_ != uid && ref_.len() <= 128 && ref_.chars().all(|c| c.is_ascii_alphanumeric());
+    if ok_ref && get_doc(d(&["profiles", ref_])).await.map(|sn| exists(&sn)).unwrap_or(false) {
+        let b = batch();
+        m(&b, "set", &[wallet_ref()?, o(&[("bal", n(0.0)), ("rate", n(0.0)), ("t", ts()), ("wt", ts()), ("op", o(&[("kind", s("init"))]))])])?;
+        m(&b, "set", &[d(&["invites", &uid]), o(&[("by", s(ref_)), ("at", ts()), ("claimed", false.into())])])?;
+        if commit(&b).await.is_ok() {
+            return Ok(JsValue::UNDEFINED);
+        }
+    }
+    make_wallet().await
+}
+/* ----- 친구 초대 ----- */
+async fn invites_list() -> R {
+    let snap = rethrow(get_docs(q(c(&["invites"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(100.0)])).await)?;
+    Ok(docs(&snap).iter().map(|dd| { let v = data(dd); o(&[("uid", get(dd, "id")), ("at", n(ms(&get(&v, "at")))), ("claimed", (get(&v, "claimed") == JsValue::TRUE).into())]) }).collect::<js_sys::Array>().into())
+}
+async fn invite_claim(r: String) -> R {
+    let b = batch();
+    m(&b, "update", &[d(&["invites", &r]), o(&[("claimed", true.into())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(50.0)), ("wt", ts()), ("op", o(&[("kind", s("invite")), ("ref", s(&r)), ("amt", n(50.0))]))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(n(50.0))
+}
+/* ----- 베타 종료 (관리자 한 번만): 모든 데이터를 지워요 ----- */
+async fn beta_state() -> R {
+    let sn = get_doc(d(&["meta", "beta"])).await?;
+    Ok(if exists(&sn) { get(&data(&sn), "state") } else { s("") })
+}
+async fn beta_end() -> R {
+    let st0 = st(&beta_state().await?);
+    if st0 == "done" {
+        return Err(fail("done", "베타 종료는 이미 한 번 했어요"));
+    }
+    if st0.is_empty() {
+        rethrow(set_doc(d(&["meta", "beta"]), o(&[("state", s("wiping")), ("at", ts())])).await)?;
+    }
+    let mut total = 0.0;
+    // 하위 묶음부터 지우고, 위 문서를 지워요
+    let groups = ["messages", "c", "lab", "products", "items"];
+    let tops = ["posts", "calls", "chats", "invites", "jobs", "companies", "mining", "vitals", "inventory", "ranks", "noticeReads", "notices", "adminLog", "adminAuth", "users", "wallets", "profiles"];
+    for (is_group, names) in [(true, &groups[..]), (false, &tops[..])] {
+        for name in names {
+            // 켜져 있는 다른 화면이 다시 만드는 문서가 있어도 끝없이 돌지 않게 몇 번까지만 돌아요
+            for _round in 0..40 {
+                let base = if is_group { f("collectionGroup", &[db(), s(name)])? } else { c(&[name]) };
+                let snap = rethrow(get_docs(q(base, vec![lim(300.0)])).await)?;
+                let ds = docs(&snap);
+                if ds.is_empty() {
+                    break;
+                }
+                let b = batch();
+                for dd in ds.iter() {
+                    m(&b, "delete", &[get(dd, "ref")])?;
+                }
+                rethrow(commit(&b).await)?;
+                total += ds.len() as f64;
+            }
+        }
+    }
+    let _ = rethrow(aw(f("deleteDoc", &[d(&["meta", "noticeIndex"])])).await);
+    rethrow(set_doc(d(&["meta", "beta"]), o(&[("state", s("done")), ("at", ts())])).await)?;
+    Ok(n(total))
+}
+
 /// wrap: 오류를 한국어 문장으로 바꿔요 (code는 그대로)
 fn wrapped(e: JsValue) -> JsValue {
     report(&e);
@@ -622,6 +689,28 @@ async fn phone_send(phone: String) -> R {
     PHONE.with(|x| *x.borrow_mut() = num.clone());
     Ok(s(&num))
 }
+/// 아이디·비밀번호로만 가입해요 (초대 링크로 왔으면 초대 기록도 남겨요)
+async fn sign_up_plain(id: String, pw: String, name: String, photo: String, ref_: String) -> R {
+    let r: R = async {
+        let cred = aw(f("createUserWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await?;
+        let user = get(&cred, "user");
+        let rest: R = async {
+            aw(f("updateProfile", &[user.clone(), o(&[("displayName", s(&name))])])).await?;
+            let ph = if photo.encode_utf16().count() <= 40000 { photo.clone() } else { String::new() };
+            set_doc(d(&["profiles", &st(&get(&user, "uid"))]), o(&[("id", s(&id.trim().to_lowercase())), ("name", s(&name)), ("photo", s(&ph))])).await?;
+            make_wallet_with(&ref_).await
+        }
+        .await;
+        if let Err(e) = rest {
+            let _ = aw(f("deleteUser", &[user])).await;
+            return Err(e);
+        }
+        Ok(JsValue::UNDEFINED)
+    }
+    .await;
+    r.map_err(wrapped)
+}
+#[allow(dead_code)]
 /// 시험(에뮬레이터)에서만: 가짜 번호로 문자를 보내고 에뮬레이터에서 인증번호를 읽어요
 async fn emu_code() -> Result<String, JsValue> {
     let num = format!("+1555{:07}", (js_sys::Math::random() * 9_999_999.0) as u64);
@@ -634,9 +723,13 @@ async fn emu_code() -> Result<String, JsValue> {
     Ok(code)
 }
 /// 가입: 휴대폰 인증번호로 먼저 로그인하고(번호 하나에 계정 하나), 그 계정에 아이디·비밀번호를 붙인 뒤 아이디로 다시 로그인해요
-async fn sign_up(id: String, pw: String, name: String, photo: String, code: String) -> R {
+async fn sign_up(id: String, pw: String, name: String, photo: String, code: String, ref_: String) -> R {
+    // 지금은 휴대폰 인증 없이 가입해요 (중복 가입은 앱이 기기에서 막아요). 인증번호가 오면 휴대폰 인증 방식으로 가입해요
+    if code.trim().is_empty() {
+        return sign_up_plain(id, pw, name, photo, ref_).await;
+    }
     let r: R = async {
-        let code = if code.trim().is_empty() && get(&fbo(), "emu").is_truthy() { emu_code().await? } else { code.trim().to_string() };
+        let code = code.trim().to_string();
         let conf = CONFIRM.with(|x| x.borrow().clone());
         if conf.is_undefined() {
             return Err(fail("no-phone", "휴대폰 인증번호를 먼저 받아 주세요"));
@@ -663,7 +756,7 @@ async fn sign_up(id: String, pw: String, name: String, photo: String, code: Stri
             aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await?;
             let ph = if photo.encode_utf16().count() <= 40000 { photo.clone() } else { String::new() };
             set_doc(d(&["profiles", &uid]), o(&[("id", s(&id.trim().to_lowercase())), ("name", s(&name)), ("photo", s(&ph))])).await?;
-            make_wallet().await
+            make_wallet_with(&ref_).await
         }
         .await;
         if let Err(e) = rest {
@@ -2290,7 +2383,12 @@ fn build() -> js_sys::Object {
         o(&[("id", s(&my_id())), ("name", if dn.is_truthy() { dn } else { s("") })])
     });
     /* ----- 계정 ----- */
-    am!(api, "signUp", |a| sign_up(sa(&a[0]), sa(&a[1]), sa(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
+    // 인자는 5개까지예요: 아이디, 비밀번호, 이름, 사진, 초대한 사람 번호 (휴대폰 인증번호는 지금 쓰지 않아요)
+    am!(api, "signUp", |a| sign_up(sa(&a[0]), sa(&a[1]), sa(&a[2]), opt_s(&a[3]), String::new(), opt_s(&a[4])).await);
+    am!(api, "invitesList", |_a| invites_list().await);
+    am!(api, "inviteClaim", |a| invite_claim(sa(&a[0])).await);
+    am!(api, "betaState", |_a| beta_state().await);
+    am!(api, "betaEnd", |_a| beta_end().await);
     am!(api, "phoneSend", |a| phone_send(sa(&a[0])).await);
     am!(api, "signIn", |a| aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&sa(&a[0]))), a[1].clone()])).await.map_err(wrapped));
     am!(api, "signOut", |_a| aw(f("signOut", &[auth()])).await);

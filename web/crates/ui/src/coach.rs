@@ -1,0 +1,281 @@
+//! 튜토리얼: 화면 위에 어두운 막을 깔고, 눌러 볼 곳만 밝게 뚫어서 "여기를 눌러 보세요"를 하나씩 보여 줘요.
+//! 처음 로그인하면 기본 사용법을, 사업 탭에서는 내 회사 업종(식품·컴퓨터·인공지능·원자력)에 맞는 사용법을 한 번씩 보여 줘요.
+//! 본 것은 기기에 기억하고, 설정 → 튜토리얼 다시 보기로 다시 볼 수 있어요.
+
+use std::cell::{Cell, RefCell};
+
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+
+use crate::dom::{self, by_id, esc};
+
+#[derive(Clone, Copy)]
+struct Step {
+    sel: &'static str,
+    title: &'static str,
+    text: &'static str,
+    /// true면 그곳을 눌러야 다음으로 가요. false면 "다음" 버튼으로 가요
+    click: bool,
+}
+const fn st(sel: &'static str, title: &'static str, text: &'static str, click: bool) -> Step {
+    Step { sel, title, text, click }
+}
+
+const INTRO: &[Step] = &[
+    st(".tabbar .tab[data-tab=\"money\"]", "돈 탭", "여기를 눌러 보세요. 내 토큰과 이자 상품을 볼 수 있어요.", true),
+    st(".tabbar .tab[data-tab=\"work\"]", "일 탭", "여기를 눌러 보세요. 회사에 지원하거나 내 회사에서 일해요.", true),
+    st("#status-bubble", "내 상태", "배고픔·목마름·에너지예요. 눌러서 자세히 보고, 끌어서 옮길 수 있어요.", false),
+    st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 코인, 친구 초대, 설정이 나와요.", true),
+];
+const FOOD: &[Step] = &[
+    st("#biz-pick", "팔 음식 정하기", "먼저 팔 음식을 정해요. 모양·색·가격을 고르면 상점에 올라가요.", false),
+    st("#cash-amt", "회사 금고", "음식을 만드는 재료값은 금고에서 나가요. 토큰 수를 적고 넣기를 눌러 채워 두세요.", false),
+    st("#fac-start", "식품 공장", "만들 개수를 정하고 돌리면 한 개씩 바로 재고에 들어가요. 걸리는 시간과 이익도 미리 보여 줘요.", false),
+    st("#biz-hire", "직원 채용", "모집 인원을 정하면 다른 사람이 지원해서 함께 일해요.", false),
+    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+];
+const PC: &[Step] = &[
+    st("#biz-lab", "컴퓨터 연구실", "용량·속도·전기값을 올리고 출시하면 인공지능 회사에 팔 수 있어요. 숫자는 일 탭의 부품 검사로 올라요.", false),
+    st("#biz-pick", "팔 상품 정하기", "상점에 올릴 컴퓨터 상품도 정할 수 있어요.", false),
+    st("#biz-hire", "직원 채용", "직원이 많을수록 연구가 빨라져요.", false),
+    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+];
+const AI: &[Step] = &[
+    st("#biz-lab", "인공지능 연구실", "데이터를 모아 학습하고 출시해요. 전기와 컴퓨터는 다른 회사에서 사요. 데이터는 일 탭에서 받아요.", false),
+    st("#biz-pick", "팔 상품 정하기", "출시한 인공지능을 상점에 올릴 수 있어요.", false),
+    st("#biz-hire", "직원 채용", "직원이 많을수록 데이터가 빨리 모여요.", false),
+    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+];
+const NUCLEAR: &[Step] = &[
+    st("#biz-lab", "원자력 발전소", "핵연료 성능을 올리고 전기를 만들어 인공지능 회사에 팔아요. 성능은 일 탭의 핵연료 배합으로 올라요.", false),
+    st("#biz-hire", "직원 채용", "직원이 많을수록 성능이 빨리 올라요.", false),
+    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+];
+
+thread_local! {
+    static RUN: RefCell<Option<(String, Vec<Step>, usize)>> = const { RefCell::new(None) };
+    static TICK: Cell<i32> = const { Cell::new(0) };
+    static BOUND: Cell<bool> = const { Cell::new(false) };
+}
+
+fn done_key(name: &str) -> String {
+    format!("coach-{name}")
+}
+/// 시험(에뮬레이터 묶음)에서는 저절로 띄우지 않아요 (화면 시험이 막혀요)
+fn auto_ok() -> bool {
+    let fb = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("fb")).unwrap_or(JsValue::UNDEFINED);
+    !cloud::get(&fb, "emu").is_truthy() || dom::store_get("coach-test", "") == "1"
+}
+
+fn target(sel: &str) -> Option<web_sys::HtmlElement> {
+    let el: web_sys::HtmlElement = dom::doc().query_selector(sel).ok().flatten()?.dyn_into().ok()?;
+    let r = el.get_bounding_client_rect();
+    (r.width() > 0.0 && r.height() > 0.0 && !el.closest("[hidden]").ok().flatten().is_some()).then_some(el)
+}
+
+fn root() -> Option<web_sys::HtmlElement> {
+    if let Some(e) = by_id("coach") {
+        return Some(e);
+    }
+    let app = dom::app_el()?;
+    let el: web_sys::HtmlElement = dom::doc().create_element("div").ok()?.dyn_into().ok()?;
+    el.set_id("coach");
+    el.set_class_name("coach");
+    el.set_hidden(true);
+    el.set_inner_html(r#"<i class="cb t"></i><i class="cb r"></i><i class="cb b"></i><i class="cb l"></i><span class="coach-ring" aria-hidden="true"></span><div class="coach-tip" role="dialog" aria-live="polite"><p class="coach-n"></p><b class="coach-t"></b><p class="coach-x"></p><div class="coach-btns"><button type="button" class="coach-skip">건너뛰기</button><button type="button" class="coach-next">다음</button></div></div>"#);
+    let _ = app.append_child(&el);
+    dom::on(&el, "click", |e| {
+        if dom::closest(&e, ".coach-skip").is_some() {
+            finish();
+        } else if dom::closest(&e, ".coach-next").is_some() {
+            next();
+        }
+    });
+    Some(el)
+}
+
+fn bind() {
+    if BOUND.replace(true) {
+        return;
+    }
+    // 눌러야 하는 단계: 그곳을 누르면(누름은 그대로 전해져요) 다음 단계로 가요
+    let cb = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
+        let Some(step) = RUN.with(|r| r.borrow().as_ref().map(|(_, s, i)| s[*i])) else { return };
+        if !step.click {
+            return;
+        }
+        let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::Node>().ok()) else { return };
+        if target(step.sel).is_some_and(|el| el.contains(Some(&t))) {
+            let cb2 = Closure::once_into_js(next);
+            let _ = web_sys::window().map(|w| w.set_timeout_with_callback_and_timeout_and_arguments_0(cb2.unchecked_ref(), 350));
+        }
+    })
+    .into_js_value();
+    let o = web_sys::AddEventListenerOptions::new();
+    o.set_capture(true);
+    let _ = dom::doc().add_event_listener_with_callback_and_add_event_listener_options("click", cb.unchecked_ref(), &o);
+}
+
+/// 지금 단계를 그려요 (뚫린 곳, 고리, 말풍선 자리). 화면이 움직여도 따라가요
+fn place() {
+    let Some((_, steps, i)) = RUN.with(|r| r.borrow().clone()) else { return };
+    let (Some(el), Some(app)) = (root(), dom::app_el()) else { return };
+    let step = steps[i];
+    let Some(t) = target(step.sel) else { return };
+    let a = app.get_bounding_client_rect();
+    let r = t.get_bounding_client_rect();
+    let pad = 6.0;
+    let (x, y, w, h) = (r.left() - a.left() - pad, r.top() - a.top() - pad, r.width() + pad * 2.0, r.height() + pad * 2.0);
+    let (aw, ah) = (a.width(), a.height());
+    let set = |q: &str, css: String| {
+        if let Some(e) = el.query_selector(q).ok().flatten().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+            let _ = e.set_attribute("style", &css);
+        }
+    };
+    set(".cb.t", format!("left:0;top:0;width:{aw}px;height:{}px", y.max(0.0)));
+    set(".cb.b", format!("left:0;top:{}px;width:{aw}px;height:{}px", y + h, (ah - y - h).max(0.0)));
+    set(".cb.l", format!("left:0;top:{y}px;width:{}px;height:{h}px", x.max(0.0)));
+    set(".cb.r", format!("left:{}px;top:{y}px;width:{}px;height:{h}px", x + w, (aw - x - w).max(0.0)));
+    set(".coach-ring", format!("left:{x}px;top:{y}px;width:{w}px;height:{h}px"));
+    // 말풍선: 아래 자리가 넉넉하면 아래, 아니면 위
+    let below = ah - (y + h) > 200.0;
+    let tip_x = (x + w / 2.0 - 150.0).clamp(12.0, (aw - 312.0).max(12.0));
+    set(".coach-tip", if below { format!("left:{tip_x}px;top:{}px", y + h + 14.0) } else { format!("left:{tip_x}px;bottom:{}px", ah - y + 14.0) });
+}
+
+fn show() {
+    let Some((name, steps, i)) = RUN.with(|r| r.borrow().clone()) else { return };
+    let Some(el) = root() else { return };
+    // 없는 곳(숨어 있거나 아직 안 그려진 칸)은 건너뛰어요
+    let step = steps[i];
+    let Some(t) = target(step.sel) else {
+        return next();
+    };
+    t.scroll_into_view_with_scroll_into_view_options(&{
+        let o = web_sys::ScrollIntoViewOptions::new();
+        o.set_block(web_sys::ScrollLogicalPosition::Center);
+        o
+    });
+    let q = |s: &str| el.query_selector(s).ok().flatten();
+    if let Some(n) = q(".coach-n") {
+        n.set_text_content(Some(&format!("{} / {}", i + 1, steps.len())));
+    }
+    if let Some(n) = q(".coach-t") {
+        n.set_text_content(Some(step.title));
+    }
+    if let Some(n) = q(".coach-x") {
+        n.set_inner_html(&esc(step.text));
+    }
+    if let Some(b) = q(".coach-next") {
+        b.set_text_content(Some(if i + 1 == steps.len() { "알겠어요" } else { "다음" }));
+        let _ = b.set_attribute("style", if step.click { "display:none" } else { "" });
+    }
+    dom::toggle(&el, "tap", step.click);
+    el.set_hidden(false);
+    let _ = el.offset_width();
+    let _ = el.class_list().add_1("on");
+    let _ = name;
+    place();
+    // 고리가 한 번 톡 튀어요 (단계마다)
+    if let Some(r) = q(".coach-ring") {
+        let _ = r.class_list().remove_1("pop");
+        let _ = r.dyn_ref::<web_sys::HtmlElement>().map(|h| h.offset_width());
+        let _ = r.class_list().add_1("pop");
+    }
+}
+
+fn next() {
+    let more = RUN.with(|r| {
+        let mut r = r.borrow_mut();
+        if let Some((_, steps, i)) = r.as_mut() {
+            *i += 1;
+            *i < steps.len()
+        } else {
+            false
+        }
+    });
+    if more {
+        show();
+    } else {
+        finish();
+    }
+}
+
+fn finish() {
+    let name = RUN.with(|r| r.borrow_mut().take().map(|(n, _, _)| n));
+    if let Some(n) = name {
+        dom::store_set(&done_key(&n), "1");
+        if n == "intro" {
+            crate::shell::toast("준비 끝! 사업 탭에서 회사를 만들어 보세요");
+        }
+    }
+    if let Some(w) = web_sys::window() {
+        w.clear_interval_with_handle(TICK.get());
+    }
+    if let Some(el) = by_id("coach") {
+        let _ = el.class_list().remove_1("on");
+        el.set_hidden(true);
+    }
+}
+
+fn run(name: &str, steps: &[Step], force: bool) {
+    if RUN.with(|r| r.borrow().is_some()) || (!force && dom::store_get(&done_key(name), "") == "1") {
+        return;
+    }
+    bind();
+    RUN.with(|r| *r.borrow_mut() = Some((name.to_string(), steps.to_vec(), 0)));
+    if let Some(w) = web_sys::window() {
+        let cb = Closure::<dyn FnMut()>::new(place).into_js_value();
+        TICK.set(w.set_interval_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 250).unwrap_or(0));
+    }
+    show();
+}
+
+/// 앱을 열 때: 로그인되면 처음 한 번 기본 사용법을 보여 줘요
+pub fn init() {
+    if !auto_ok() || dom::store_get(&done_key("intro"), "") == "1" {
+        return;
+    }
+    spawn_local(async {
+        for _ in 0..120 {
+            if cloud::signed_in() && crate::chat::live() {
+                dom::sleep(1500).await;
+                run("intro", INTRO, false);
+                return;
+            }
+            dom::sleep(1000).await;
+        }
+    });
+}
+
+/// 사업 탭: 내 회사 업종에 맞는 사용법을 업종마다 한 번 보여 줘요
+pub fn business(kind: &str) {
+    if !auto_ok() {
+        return;
+    }
+    let (name, steps) = match kind {
+        "pc" => ("biz-pc", PC),
+        "ai" => ("biz-ai", AI),
+        "nuclear" => ("biz-nuclear", NUCLEAR),
+        _ => ("biz-food", FOOD),
+    };
+    if dom::store_get(&done_key(name), "") == "1" {
+        return;
+    }
+    let name = name.to_string();
+    spawn_local(async move {
+        dom::sleep(900).await;
+        if dom::screen_active("business") {
+            run(&name, steps, false);
+        }
+    });
+}
+
+/// 설정 → 튜토리얼 다시 보기: 본 기록을 지우고 기본 사용법부터 다시 보여 줘요 (사업 탭 사용법은 사업 탭을 열면 다시 나와요)
+pub fn replay() {
+    for k in ["intro", "biz-food", "biz-pc", "biz-ai", "biz-nuclear"] {
+        dom::store_set(&done_key(k), "");
+    }
+    run("intro", INTRO, true);
+}

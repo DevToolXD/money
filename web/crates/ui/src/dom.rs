@@ -75,7 +75,8 @@ pub fn data(el: &web_sys::Element, key: &str) -> String {
 
 /// 움직임을 줄였으면 true (prefers-reduced-motion)
 pub fn reduce_motion() -> bool {
-    web_sys::window()
+    store_get("motion", "") == "less"
+        || web_sys::window()
         .and_then(|w| w.match_media("(prefers-reduced-motion: reduce)").ok().flatten())
         .map(|m| m.matches())
         .unwrap_or(false)
@@ -142,6 +143,9 @@ pub fn repop(el: &web_sys::HtmlElement) {
 }
 /// 짧게 떨기 (지원하는 기기만)
 pub fn vibrate(ms: u32) {
+    if store_get("vibrate", "on") == "off" {
+        return;
+    }
     if let Some(n) = web_sys::window().map(|w| w.navigator()) {
         if let Ok(f) = Reflect::get(&n, &JsValue::from_str("vibrate")).and_then(|f| f.dyn_into::<Function>()) {
             let _ = f.call1(&n, &JsValue::from(ms));

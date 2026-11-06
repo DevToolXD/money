@@ -54,33 +54,13 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.click('#login-submit'); await p.waitForTimeout(200);
   ok('비밀번호 확인이 다르면 안내', (await text(p, '#login-error')) === '비밀번호가 서로 달라요');
   await p.fill('#login-pw2', 'abc123');
-  // 휴대폰 번호 인증: 번호를 넣고 인증번호를 받아요 (에뮬레이터에서 번호를 읽어요)
-  const phone = '010' + String(Date.now()).slice(-8);
-  await p.fill('#login-phone', phone);
-  await p.click('#phone-send'); await p.waitForTimeout(1500);
-  ok('인증번호를 보냈다는 안내', (await text(p, '#login-error')).includes('인증번호를 문자로 보냈어요'));
-  const codes = await (await fetch('http://127.0.0.1:9099/emulator/v1/projects/money-sim-36ed8/verificationCodes')).json();
-  const e164 = '+82' + phone.slice(1);
-  const code = codes.verificationCodes.filter((c) => c.phoneNumber === e164).pop().code;
-  await p.fill('#login-code', code);
   await p.click('#login-submit'); await p.waitForTimeout(400);
   ok('실명 확인 질문', (await text(p, '#alert-title')).includes('홍길동'));
   await p.click('#alert-ok');
   let inOk = false;
   for (let i = 0; i < 40 && !inOk; i++) { await p.waitForTimeout(250); inOk = !(await p.evaluate(() => document.getElementById('login').classList.contains('is-open'))); }
   ok('가입하면 로그인 화면이 닫혀요', inOk);
-  {
-    const q = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
-    await q.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
-    await q.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
-    await q.goto('http://127.0.0.1:8765/index.html'); await q.waitForTimeout(3500);
-    await q.evaluate((ph) => window.cloud.phoneSend(ph), phone);
-    const c2 = (await (await fetch('http://127.0.0.1:9099/emulator/v1/projects/money-sim-36ed8/verificationCodes')).json()).verificationCodes.filter((c) => c.phoneNumber === e164).pop().code;
-    const r2 = await q.evaluate(([u, c]) => window.cloud.signUp(u, 'abc123', '김둘째', '', c).then(() => 'ok', (e) => e.message), ['dup' + sfx, c2]);
-    console.log('dup result:', r2);
-    ok('같은 번호로는 또 가입할 수 없어요', String(r2).includes('이미 이 휴대폰 번호로 가입한 계정'));
-    await q.close();
-  }
+  ok('이 기기에 계정을 만들었다고 기억해요', (await p.evaluate(() => localStorage.getItem('acct-made'))) === id);
   await p.waitForTimeout(2500);
   ok('계정 화면: 이름과 아이디', (await text(p, '#profile-name')) === '홍길동' && (await text(p, '#profile-id')) === '@' + id);
   ok('로그아웃 줄이 보여요', !(await p.isHidden('#auth-row')));
@@ -145,6 +125,18 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.evaluate(() => { const s = document.querySelector('.screen.is-active'); s.scrollTop = 0; });
   await p.click('#logout'); await p.waitForTimeout(5000);
   ok('로그아웃하면 손님 화면', (await p.evaluate(() => window.cloud?.user)) == null && (await p.evaluate(() => localStorage.getItem('profile-name'))) === null);
+
+  // 같은 기기에서는 계정을 또 만들 수 없어요 (임시: 브라우저에 기억)
+  ok('로그아웃해도 이 기기 계정 기억은 남아요', (await p.evaluate(() => localStorage.getItem('acct-made'))) === id);
+  await p.evaluate(() => window.__shell && 0);
+  await p.evaluate(() => { const b = document.querySelector('.js-open-login') || document.getElementById('open-login'); if (b) b.click(); }); await p.waitForTimeout(800);
+  if (!(await p.evaluate(() => document.getElementById('login').classList.contains('signup')))) { await p.click('#login-switch'); await p.waitForTimeout(500); }
+  await p.fill('#login-name', '김둘째'); await p.waitForTimeout(400);
+  if (await p.isVisible('#alert-ok')) { await p.click('#alert-ok'); await p.waitForTimeout(400); }
+  await p.fill('#login-email', 'two' + sfx); await p.fill('#login-pw', 'abc123'); await p.fill('#login-pw2', 'abc123');
+  await p.click('#login-submit'); await p.waitForTimeout(400);
+  if (await p.isVisible('#alert-ok')) { await p.click('#alert-ok'); await p.waitForTimeout(800); }
+  ok('같은 기기에서 두 번째 가입은 막혀요', (await text(p, '#login-error')).includes('이 기기에서는 이미 계정을 만들었어요'));
 
   const errs = O.errs;
   ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));

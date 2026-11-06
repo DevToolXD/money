@@ -233,7 +233,7 @@ pub fn init() {
             if DRAG.with(|d| d.borrow().is_some()) || OPEN.get() {
                 return;
             }
-            let _ = fab.class_list().add_1("fab-away");
+            let _ = &fab; // 상태 동그라미는 스크롤해도 숨기지 않아요 (늘 보여요)
             win().clear_timeout_with_handle(idle.get());
             let f2 = fab.clone();
             let cb = Closure::once_into_js(move || {

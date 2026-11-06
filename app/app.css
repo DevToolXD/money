@@ -2045,3 +2045,57 @@ html[data-theme="dark"] .qm { background: rgba(44, 44, 50, 0.3); box-shadow: ins
 .phone-send[disabled] { opacity: 0.6; }
 #phone-captcha { height: 0; overflow: hidden; }
 #phone-row label + label { border-top: 0.5px solid rgba(255, 255, 255, 0.22); }
+
+/* 알림 알약: 글자가 이상하게 끊기지 않게 (한국어는 낱말 단위로 줄바꿈, 두 줄이면 고르게) */
+.toast { width: max-content; max-width: min(86%, 340px); white-space: normal; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; line-height: 1.35; border-radius: 22px; padding: 11px 18px; }
+/* 상태 동그라미는 늘 보여요 */
+.status-fab.fab-away { opacity: 1 !important; transform: none !important; pointer-events: auto !important; }
+
+/* 튜토리얼 */
+.coach { position: absolute; inset: 0; z-index: 280; pointer-events: none; opacity: 0; transition: opacity 0.25s; }
+.coach[hidden] { display: none; }
+.coach.on { opacity: 1; }
+.coach .cb { position: absolute; background: rgba(8, 10, 20, 0.55); pointer-events: auto; transition: all 0.3s var(--ease); }
+.coach-ring { position: absolute; border-radius: 18px; box-shadow: 0 0 0 2.5px #fff, 0 0 0 7px rgba(10, 124, 255, 0.55); transition: all 0.3s var(--ease); pointer-events: none; }
+.coach.tap .coach-ring { animation: coachPulse 1.4s ease-in-out infinite; }
+.coach-ring.pop { animation: coachPop 0.45s var(--spring); }
+.coach.tap .coach-ring.pop { animation: coachPop 0.45s var(--spring), coachPulse 1.4s ease-in-out 0.45s infinite; }
+@keyframes coachPulse { 50% { box-shadow: 0 0 0 2.5px #fff, 0 0 0 14px rgba(10, 124, 255, 0); } }
+@keyframes coachPop { 0% { transform: scale(1.25); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.coach-tip { position: absolute; width: 300px; max-width: calc(100% - 24px); padding: 16px 18px 12px; border-radius: 24px; pointer-events: auto; color: var(--text-primary); background: rgba(255, 255, 255, 0.82); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.9), 0 18px 40px rgba(0, 0, 0, 0.28); animation: coachTip 0.35s var(--spring); }
+html[data-theme="dark"] .coach-tip { background: rgba(44, 44, 50, 0.86); }
+@keyframes coachTip { from { transform: translateY(8px) scale(0.96); opacity: 0; } }
+.coach-n { margin: 0; font-size: 12px; font-weight: 700; color: #0a7cff; }
+.coach-t { display: block; margin: 2px 0 4px; font-size: 18px; font-weight: 800; }
+.coach-x { margin: 0; font-size: 15px; line-height: 21px; color: var(--text-secondary); word-break: keep-all; }
+.coach-btns { display: flex; justify-content: space-between; margin-top: 10px; }
+.coach-btns button { height: 40px; padding: 0 14px; border-radius: 20px; font-size: 15px; font-weight: 700; }
+.coach-skip { color: var(--text-secondary); background: none; }
+.coach-next { color: #fff; background: #0a7cff; }
+[data-reduce] *, [data-reduce] *::before, [data-reduce] *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+
+/* 설정 */
+.set-card { padding: 14px 16px; }
+.set-theme { display: flex; gap: 8px; }
+.set-theme .wk-pill { flex: 1; justify-content: center; margin: 0; }
+.set-theme .wk-pill[aria-pressed="true"] { background: #0a7cff; color: #fff; }
+.set-ver { margin: 8px var(--gutter) 24px; text-align: center; font-size: 13px; color: var(--text-secondary); }
+button.row { width: 100%; background: none; text-align: left; color: inherit; }
+
+/* 친구 초대 */
+.card.inv-hero { padding: 24px 20px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; }
+.inv-ic { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(10, 124, 255, 0.12); color: #0a7cff; }
+.inv-ic svg { width: 34px; height: 34px; }
+.inv-hero h2 { margin: 6px 0 0; font-size: 22px; font-weight: 800; word-break: keep-all; }
+.inv-hero p { margin: 0; font-size: 15px; line-height: 21px; color: var(--text-secondary); word-break: keep-all; }
+.inv-hero .btn { justify-self: stretch; margin-top: 8px; }
+.inv-empty { padding: 18px; text-align: center; color: var(--text-secondary); font-size: 15px; list-style: none; }
+.inv-row { display: flex; align-items: center; gap: 12px; }
+.inv-av { width: 40px; height: 40px; font-size: 14px; flex: none; }
+.inv-claim { width: auto; height: 36px; padding: 0 14px; font-size: 14px; margin: 0; }
+.inv-done { font-size: 14px; font-weight: 700; color: var(--text-secondary); }
+
+/* 베타 종료 */
+.card.beta-card { padding: 18px 20px; display: grid; gap: 12px; }
+.beta-x { margin: 0; font-size: 14px; line-height: 20px; color: var(--text-secondary); word-break: keep-all; }
+.beta-btn { color: #fff !important; background: #ff3b30 !important; }

@@ -22,9 +22,7 @@ service cloud.firestore {
     match /profiles/{uid} {
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 20;
-      // 새 계정은 휴대폰 번호 인증을 마쳐야 만들어요 (번호 하나에 계정 하나)
       allow create: if isMe(uid)
-        && request.auth.token.get('phone_number', null) is string
         && request.resource.data.keys().hasOnly(['id', 'name', 'photo'])
         && request.resource.data.id == myId()
         && request.resource.data.id.matches('^[a-z0-9_]{3,20}$')
@@ -668,507 +666,6 @@ service cloud.firestore {
           && getAfter(walletPath(uid)).data.op.amt == resource.data.get('wage', 0) * ((request.resource.data.paidAt.toMillis() - paidBefore()) / 3600000));
     }
 
-    // ----- 회사: 한 사람이 회사를 여러 개 가질 수 있어요. 창업은 10 토큰이 빠지는 지갑 쓰기와 같은 묶음에서만.
-    //       사장(owner)은 채용 공고(모집 인원 늘리기)와 업종 정하기(처음 한 번)만 해요. 직원이 되거나 그만두는 것은 일자리 기록(jobs)과 같은 묶음에서 인원이 함께 바뀔 때만 -----
-    match /companies/{cid} {
-      allow get: if signedIn();
-      allow list: if signedIn() && request.query.limit <= 50;
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['name', 'logo', 'kind', 'kindSet', 'products', 'open', 'staff', 'owner', 'at'])
-        && request.resource.data.get('kindSet', true) == true
-        && request.resource.data.owner == request.auth.uid
-        && request.resource.data.name is string
-        && request.resource.data.name.matches('^[^<>]{1,20}$')
-        && photoOk(request.resource.data.logo)
-        && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
-        && request.resource.data.products == []
-        && request.resource.data.open == 0
-        && request.resource.data.staff == 0
-        && request.resource.data.at == request.time
-        && getAfter(walletPath(request.auth.uid)).data.op.kind == 'found'
-        && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
-        && getAfter(walletPath(request.auth.uid)).data.bal == get(walletPath(request.auth.uid)).data.bal - 10;
-      allow update: if signedIn() && (
-        // 사장: 채용 공고(모집 인원을 정한 수로 맞추기)나 업종 정하기(처음 한 번)만 해요. 예전 회사는 owner 칸이 없어서 문서 번호가 사장이에요
-        (resource.data.get('owner', cid) == request.auth.uid && (
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open'])
-            && request.resource.data.open is int
-            && request.resource.data.open >= 0)
-          ||
-          // 업종은 처음 한 번만 정해요 (정한 뒤에는 바꿀 수 없어요: 전기 회사가 식품을 팔 수 없게)
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kind', 'kindSet'])
-            && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
-            && resource.data.get('kindSet', false) == false
-            && request.resource.data.kindSet == true)
-        ))
-        ||
-        // 입사: 같은 묶음에서 내 일자리 기록이 생기고, 모집이 1명 줄고 직원이 1명 늘어요
-        (resource.data.get('owner', cid) != request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open', 'staff'])
-          && resource.data.get('open', 0) >= 1
-          && request.resource.data.open == resource.data.get('open', 0) - 1
-          && request.resource.data.staff == resource.data.get('staff', 0) + 1
-          && getAfter(jobPath(request.auth.uid)).data.cid == cid)
-        ||
-        // 퇴사: 같은 묶음에서 내 일자리 기록이 지워지고, 직원이 1명 줄어요
-        (resource.data.get('owner', cid) != request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['staff'])
-          && request.resource.data.staff == resource.data.get('staff', 0) - 1
-          && request.resource.data.staff >= 0
-          && get(jobPath(request.auth.uid)).data.cid == cid
-          && !existsAfter(jobPath(request.auth.uid)))
-      );
-
-      // 연구실·발전소 숫자 (사장과 그 회사 직원만 바꿔요). 금고(cash, 센트)는 사장만 넣고 빼고, 발전 비용과 사고팔 때 내고 받아요.
-      //   원자력 발전: 핵연료 성능(nperf)이 높을수록 적은 돈으로(1초 = 1 토큰), 빨리, 한 번에 많이(최대 성능 × 10) 만들어요. 받기는 회사 사람 누구나 해요.
-      //   컴퓨터: 처리 용량(cap)·처리 속도(spd)·전기값(pow)을 올리고, 출시하면 그때 숫자를 rel에 남겨요.
-      //   인공지능: 데이터(aiData)를 쌓고, 출시하면 점수(aiScore)를 남겨요. 숫자는 줄지 않아요. 출시 값은 사장만 바꿔요.
-      //   사고팔기: 전기(e)는 원자력 발전 회사가 팔고 인공지능 회사가 사요. 컴퓨터(p)도 같아요. 인공지능 사용 시간(h)은 누구나 살 수 있어요.
-      //     파는 쪽과 사는 쪽이 같은 묶음에서 함께 바뀔 때만 돼요 (기록 시각이 이 쓰기의 서버 시각이어야 해요). 단가(price)는 파는 회사 사장이 정해요.
-      match /lab/{ld} {
-        function labOk(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food', 'fperf', 'plv', 'prod'])
-            && d.nperf is int && d.nperf >= 100 && d.nperf <= 1000000
-            && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
-            && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
-                && d.gen.amt is int && d.gen.amt >= 1 && d.gen.amt <= 100000
-                && d.gen.secs is int && d.gen.secs >= 1 && d.gen.started is timestamp))
-            && d.cap is int && d.cap >= 0 && d.cap <= 1000000
-            && d.spd is int && d.spd >= 0 && d.spd <= 1000000
-            && d.pow is int && d.pow >= 0 && d.pow <= 1000000
-            && (d.get('rel', null) == null || (d.rel.keys().hasOnly(['cap', 'spd', 'pow'])
-                && d.rel.cap is int && d.rel.cap >= 0 && d.rel.cap <= d.cap
-                && d.rel.spd is int && d.rel.spd >= 0 && d.rel.spd <= d.spd
-                && d.rel.pow is int && d.rel.pow >= 0 && d.rel.pow <= d.pow))
-            && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
-            && d.aiScore is int && d.aiScore >= -1 && d.get('aiDev', 0) is int && d.get('aiDev', 0) >= 0 && d.get('aiDev', 0) <= 1000000000
-            && (d.get('trn', null) == null || (d.trn.keys().hasOnly(['d', 'secs', 'score', 'started'])
-                && d.trn.d is int && d.trn.d >= 1 && d.trn.secs is int && d.trn.secs >= 1
-                && d.trn.score is int && d.trn.score >= 0 && d.trn.started is timestamp))
-            && d.cash is int && d.cash >= 0 && d.cash <= 100000000000
-            && d.price is int && d.price >= 0 && d.price <= 100000000
-            && (d.get('sold', null) == null || (d.sold.keys().hasOnly(['to', 'kind', 'n', 'total', 'at', 'cap', 'spd', 'pow'])
-                && d.sold.to is string && d.sold.kind in ['e', 'p', 'h'] && d.sold.n is int && d.sold.n >= 1
-                && d.sold.total is int && d.sold.total >= 0 && d.sold.at is timestamp))
-            && (d.get('bought', null) == null || (d.bought.keys().hasOnly(['from', 'kind', 'n', 'total', 'at', 'cap', 'spd', 'pow'])
-                && d.bought.from is string && d.bought.kind in ['e', 'p', 'h'] && d.bought.n is int && d.bought.n >= 1
-                && d.bought.total is int && d.bought.total >= 0 && d.bought.at is timestamp))
-            && d.get('pcN', 0) is int && d.get('pcN', 0) >= 0 && d.get('pcN', 0) <= 1000000
-            && (d.get('pcM', null) == null || (d.pcM.keys().hasOnly(['cap', 'spd', 'pow'])
-                && d.pcM.cap is int && d.pcM.spd is int && d.pcM.pow is int))
-            && d.get('aiH', 0) is int && d.get('aiH', 0) >= 0 && d.get('aiH', 0) <= 1000000000
-            && d.get('fperf', 100) is int && d.get('fperf', 100) >= 100 && d.get('fperf', 100) <= 30000000
-        }
-        // 평소 쓰기(회사 사람)는 사고팔기 기록·학습 기록을 다시 검사하지 않아요. 그 칸은 사고파는 묶음과 학습 조건에서 따로 확인해요
-        function labCore(d) {
-          return d.keys().hasOnly(['nperf', 'elec', 'gen', 'cap', 'spd', 'pow', 'rel', 'aiData', 'aiScore', 'cash', 'price', 'sold', 'bought', 'pcN', 'pcM', 'aiH', 'trn', 'aiDev', 'food', 'fperf', 'plv', 'prod'])
-            && d.nperf is int && d.nperf >= 100 && d.nperf <= 1000000
-            && d.elec is int && d.elec >= 0 && d.elec <= 1000000000
-            && (d.get('gen', null) == null || (d.gen.keys().hasOnly(['amt', 'secs', 'started'])
-                && d.gen.amt is int && d.gen.amt >= 1 && d.gen.amt <= 100000
-                && d.gen.secs is int && d.gen.secs >= 1 && d.gen.started is timestamp))
-            && d.cap is int && d.cap >= 0 && d.cap <= 1000000
-            && d.spd is int && d.spd >= 0 && d.spd <= 1000000
-            && d.pow is int && d.pow >= 0 && d.pow <= 1000000
-            && (d.get('rel', null) == null || (d.rel.keys().hasOnly(['cap', 'spd', 'pow'])
-                && d.rel.cap is int && d.rel.cap >= 0 && d.rel.cap <= d.cap
-                && d.rel.spd is int && d.rel.spd >= 0 && d.rel.spd <= d.spd
-                && d.rel.pow is int && d.rel.pow >= 0 && d.rel.pow <= d.pow))
-            && d.aiData is int && d.aiData >= 0 && d.aiData <= 1000000000
-            && d.aiScore is int && d.aiScore >= -1
-            && d.get('aiDev', 0) is int && d.get('aiDev', 0) >= 0 && d.get('aiDev', 0) <= 1000000000
-            && d.cash is int && d.cash >= 0 && d.cash <= 100000000000
-            && d.price is int && d.price >= 0 && d.price <= 100000000
-            && d.get('fperf', 100) is int && d.get('fperf', 100) >= 100 && d.get('fperf', 100) <= 30000000
-        }
-        // 일하기 묶음: 같은 묶음에서 내 기록(vitals)이 바뀌었고, 바뀐 일 수(wk)만큼 성능이 올라갈 때만 돼요
-        function workedNow() {
-          let vp = /databases/$(database)/documents/vitals/$(request.auth.uid);
-          return getAfter(vp).data.get('wk', 0) == request.resource.data.get('fperf', 100) - resource.data.get('fperf', 100)
-            && getAfter(vp).data.at != get(vp).data.at;
-        }
-        function labWho() {
-          return signedIn() && (labOwner() || (exists(jobPath(request.auth.uid)) && get(jobPath(request.auth.uid)).data.cid == cid));
-        }
-        function labOwner() {
-          return get(companyPath(cid)).data.get('owner', cid) == request.auth.uid;
-        }
-        function labPathOf(c) { return /databases/$(database)/documents/companies/$(c)/lab/main; }
-        // 발전 시작: 걸리는 시간은 핵연료 성능으로 정해요 (올림: 전기 × 100 ÷ 성능). 한 번에 최대 성능 × 10까지예요.
-        //   시작 시각은 이 쓰기의 서버 시각이어야 해요
-        function genStarts(d) {
-          return d.get('gen', null) != null
-            && d.gen.secs == (d.gen.amt * 100 + d.nperf - 1) / d.nperf
-            && d.gen.amt <= d.nperf * 10
-            && d.gen.started == request.time;
-        }
-        // 창고 받기: 발전 시간이 다 지나야 해요
-        function genDone(o) {
-          return o.get('gen', null) != null
-            && request.time >= o.gen.started + duration.value(o.gen.secs, 's');
-        }
-        // 금고 넣기: 사장이 같은 묶음에서 지갑 토큰을 그만큼 뺀 경우만 (금고는 센트: 토큰 × 100)
-        function depositOk(before) {
-          return labOwner()
-            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'deposit'
-            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
-            && get(walletPath(request.auth.uid)).data.bal - getAfter(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
-            && request.resource.data.cash == before + getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
-        }
-        // 금고 빼기: 사장이 같은 묶음에서 지갑에 토큰을 그만큼 더한 경우만
-        function withdrawOk(before) {
-          return labOwner()
-            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'withdraw'
-            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
-            && getAfter(walletPath(request.auth.uid)).data.bal - get(walletPath(request.auth.uid)).data.bal == getAfter(walletPath(request.auth.uid)).data.op.amt
-            && request.resource.data.cash == before - getAfter(walletPath(request.auth.uid)).data.op.amt * 100;
-        }
-        // ----- 식품 공장 (사장만). 공장 한 대는 한 개를 60초에 만들어요. 대수(plv)가 많으면 한 개마다 60초 ÷ 대수가 걸려요 (고르게 하나씩 나와요).
-        // 돌리기: 개수(left)를 정해 두고 시작해요. 재료값과 재고는 만든 만큼 같은 묶음에서 바뀌어요 (정산할 때).
-        // 정산: 지금까지 만든 개수 u는 서버 시각으로 계산한 최대치 이하면 돼요 (덜 받는 건 괜찮아요).
-        // 공장 추가: 500토큰(50000센트)을 금고에서 내요. 돌고 있으면 못 해요.
-        function prodPath(pid) { return /databases/$(database)/documents/companies/$(cid)/products/$(pid); }
-        function factoryStart() {
-          return resource.data.get('prod', null) == null
-            && request.resource.data.get('prod', null) != null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prod'])
-            && labOwner()
-            && request.resource.data.prod.keys().hasOnly(['pid', 'left', 'at'])
-            && request.resource.data.prod.left is int && request.resource.data.prod.left >= 1 && request.resource.data.prod.left <= 100000
-            && request.resource.data.prod.at == request.time
-            && get(prodPath(request.resource.data.prod.pid)).data.get('owner', '') == request.auth.uid
-            && get(prodPath(request.resource.data.prod.pid)).data.get('active', false) == true;
-        }
-        function factorySettle() {
-          let old = resource.data.get('prod', {'left': 0, 'at': request.time, 'pid': ''});
-          let plv = resource.data.get('plv', 1);
-          let np = request.resource.data.get('prod', {'left': 0});
-          let u = old.left - np.left;
-          return resource.data.get('prod', null) != null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'prod'])
-            && u >= 1 && u <= old.left
-            // 공장 한 대는 60초에 1개: 공장이 늘면 60초마다 대수만큼 한꺼번에 나와요 (빨라지지 않아요)
-            && math.ceil(u / plv) * 60000 <= request.time.toMillis() - old.at.toMillis()
-            && request.resource.data.cash == resource.data.get('cash', 0) - u * get(prodPath(old.pid)).data.get('costCents', 0)
-            && request.resource.data.cash >= 0
-            && getAfter(prodPath(old.pid)).data.stock == get(prodPath(old.pid)).data.get('stock', 0) + u
-            && ((request.resource.data.get('prod', null) == null && u == old.left)
-              || (request.resource.data.get('prod', null) != null
-                && request.resource.data.prod.pid == old.pid
-                && request.resource.data.prod.left >= 1
-                && request.resource.data.prod.at.toMillis() == old.at.toMillis() + math.ceil(u / plv) * 60000));
-        }
-        function factoryBuy() {
-          return resource.data.get('prod', null) == null
-            && request.resource.data.get('prod', null) == null
-            && labOwner()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'plv'])
-            && request.resource.data.plv == resource.data.get('plv', 1) + 1
-            && request.resource.data.plv <= 1000
-            && request.resource.data.cash == resource.data.get('cash', 0) - 50000
-            && request.resource.data.cash >= 0;
-        }
-        // 사고팔기 기록(sold·bought)과 물건 숫자(pcN·pcM·aiH)는 사고파는 묶음에서만 바뀌어요
-        // 학습 시작 (사장만): 가진 컴퓨터(pcM)로 학습해요. 배치 수 = 올림(데이터 ÷ 처리 용량), 전기 = 배치 수 × 전기값,
-        //   걸리는 시간 = 올림(배치 수 ÷ 처리 속도), 개발 점수 = 데이터 × (용량 + 속도) ÷ 100 (내림). 데이터는 그대로예요
-        function trainStartsOk(o) {
-          return request.resource.data.get('trn', null) != null
-            && o.get('trn', null) == null
-            && labOwner()
-            && request.resource.data.get('pcN', 0) >= 1
-            && request.resource.data.get('pcM', null) != null
-            && request.resource.data.trn.keys().hasOnly(['d', 'secs', 'score', 'started'])
-            && request.resource.data.trn.d >= 1
-            && request.resource.data.trn.d <= request.resource.data.aiData
-            && request.resource.data.trn.started == request.time
-            && request.resource.data.trn.score == (request.resource.data.trn.d * (request.resource.data.pcM.cap + request.resource.data.pcM.spd)) / 100
-            && request.resource.data.trn.secs == ((((request.resource.data.trn.d + request.resource.data.pcM.cap - 1) / request.resource.data.pcM.cap) + request.resource.data.pcM.spd - 1) / request.resource.data.pcM.spd)
-            && request.resource.data.elec == o.elec - (((request.resource.data.trn.d + request.resource.data.pcM.cap - 1) / request.resource.data.pcM.cap) * request.resource.data.pcM.pow);
-        }
-        // 학습 결과 받기: 걸린 시간이 지나야 해요
-        function trainDone(o) {
-          return o.get('trn', null) != null
-            && request.time >= o.trn.started + duration.value(o.trn.secs, 's');
-        }
-        // 학습 기록(trn)과 개발 점수(aiDev)는 학습 묶음에서만 바뀌어요
-        function trainSame() {
-          return request.resource.data.get('trn', null) == resource.data.get('trn', null)
-            && request.resource.data.get('aiDev', 0) == resource.data.get('aiDev', 0);
-        }
-        function marketSame() {
-          return request.resource.data.get('food', null) == resource.data.get('food', null)
-            && request.resource.data.get('sold', null) == resource.data.get('sold', null)
-            && request.resource.data.get('bought', null) == resource.data.get('bought', null)
-            && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
-            && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
-            && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0)
-            && request.resource.data.get('plv', 1) == resource.data.get('plv', 1)
-            && request.resource.data.get('prod', null) == resource.data.get('prod', null);
-        }
-        // 음식은 금고를 바로 늘리지 않아요. 만든 음식은 상품 재고(products)가 늘고, 상점에서 팔릴 때 금고가 늘어요 (shopIn)
-        // 상점 판매 (파는 회사 금고): 사는 사람의 지갑 쓰기가 같은 묶음에 있고, 그 토큰(× 100 센트)만큼만 금고가 늘어요. 다른 칸은 그대로예요
-        function shopIn() {
-          // 칸 확인을 먼저 해요 (다른 칸이 바뀌는 평소 쓰기는 여기서 바로 넘어가요. 규칙 계산 횟수를 아껴요)
-          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash'])
-            && signedIn()
-            && getAfter(walletPath(request.auth.uid)).data.wt == request.time
-            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'shop'
-            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
-            && request.resource.data.cash == resource.data.get('cash', 0) + getAfter(walletPath(request.auth.uid)).data.op.tokens * 100;
-        }
-        // 파는 쪽: 사는 회사 사장이 같은 묶음에서 사는 쪽 기록(bought)을 쓸 때만, 돈이 들어오고 재고가 줄어요
-        function saleIn() {
-          return signedIn()
-            && request.resource.data.get('sold', null) != null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'elec', 'sold'])
-            && request.resource.data.cash >= 0
-            && request.resource.data.elec >= 0
-            && request.resource.data.sold.n >= 1
-            && request.resource.data.sold.total >= 0
-            && request.resource.data.sold.to is string
-            && get(companyPath(request.resource.data.sold.to)).data.get('owner', request.resource.data.sold.to) == request.auth.uid
-            && request.resource.data.sold.at == request.time
-            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.at == request.time
-            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.from == cid
-            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.kind == request.resource.data.sold.kind
-            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.n == request.resource.data.sold.n
-            && getAfter(labPathOf(request.resource.data.sold.to)).data.bought.total == request.resource.data.sold.total
-            && request.resource.data.sold.total == request.resource.data.sold.n * resource.data.get('price', 0)
-            && request.resource.data.cash == resource.data.get('cash', 0) + request.resource.data.sold.total
-            && ((request.resource.data.sold.kind == 'e'
-                  && get(companyPath(cid)).data.kind == 'nuclear'
-                  && request.resource.data.elec == resource.data.elec - request.resource.data.sold.n)
-                || (request.resource.data.sold.kind == 'p'
-                  && get(companyPath(cid)).data.kind == 'pc'
-                  && request.resource.data.elec == resource.data.elec
-                  && resource.data.get('rel', null) == {'cap': request.resource.data.sold.cap, 'spd': request.resource.data.sold.spd, 'pow': request.resource.data.sold.pow})
-                || (request.resource.data.sold.kind == 'h'
-                  && get(companyPath(cid)).data.kind == 'ai'
-                  && request.resource.data.elec == resource.data.elec
-                  && resource.data.get('aiScore', -1) >= 0));
-        }
-        // 사는 쪽: 파는 회사 기록(sold)이 같은 묶음에서 쓰일 때만, 돈이 나가고 물건이 들어와요
-        function saleOut() {
-          return signedIn()
-            && request.resource.data.get('bought', null) != null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'elec', 'pcN', 'pcM', 'aiH', 'bought'])
-            && request.resource.data.cash >= 0
-            && request.resource.data.elec >= 0
-            && request.resource.data.bought.n >= 1
-            && request.resource.data.bought.total >= 0
-            && labOwner()
-            && request.resource.data.bought.from is string
-            && request.resource.data.bought.at == request.time
-            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.to == cid
-            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.at == request.time
-            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.kind == request.resource.data.bought.kind
-            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.n == request.resource.data.bought.n
-            && getAfter(labPathOf(request.resource.data.bought.from)).data.sold.total == request.resource.data.bought.total
-            && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.bought.total
-            && ((request.resource.data.bought.kind == 'e'
-                  && get(companyPath(cid)).data.kind == 'ai'
-                  && request.resource.data.elec == resource.data.elec + request.resource.data.bought.n
-                  && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
-                  && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
-                  && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0))
-                || (request.resource.data.bought.kind == 'p'
-                  && get(companyPath(cid)).data.kind == 'ai'
-                  && request.resource.data.elec == resource.data.elec
-                  && request.resource.data.get('aiH', 0) == resource.data.get('aiH', 0)
-                  && request.resource.data.pcM == {'cap': request.resource.data.bought.cap, 'spd': request.resource.data.bought.spd, 'pow': request.resource.data.bought.pow}
-                  && ((resource.data.get('pcM', null) == request.resource.data.pcM && request.resource.data.pcN == resource.data.get('pcN', 0) + request.resource.data.bought.n)
-                      || (resource.data.get('pcM', null) != request.resource.data.pcM && request.resource.data.pcN == request.resource.data.bought.n)))
-                || (request.resource.data.bought.kind == 'h'
-                  && request.resource.data.elec == resource.data.elec
-                  && request.resource.data.get('pcN', 0) == resource.data.get('pcN', 0)
-                  && request.resource.data.get('pcM', null) == resource.data.get('pcM', null)
-                  && request.resource.data.aiH == resource.data.get('aiH', 0) + request.resource.data.bought.n));
-        }
-        allow get: if signedIn();
-        allow create: if labWho() && labOk(request.resource.data)
-          && request.resource.data.elec == 0
-          && request.resource.data.get('gen', null) == null
-          && (request.resource.data.cash == 0 || depositOk(0))
-          && (request.resource.data.price == 0 || labOwner())
-          && (request.resource.data.get('rel', null) == null && request.resource.data.aiScore == -1 || labOwner())
-          && request.resource.data.get('sold', null) == null
-          && request.resource.data.get('bought', null) == null
-          && request.resource.data.get('pcN', 0) == 0
-          && request.resource.data.get('pcM', null) == null
-          && request.resource.data.get('aiH', 0) == 0
-          && request.resource.data.get('trn', null) == null
-          && request.resource.data.get('prod', null) == null
-          && request.resource.data.get('plv', 1) == 1
-          && request.resource.data.get('aiDev', 0) == 0;
-        // 사고파는 쪽을 먼저 봐요 (규칙 호출 횟수 한도 안에서 판단하도록). 그다음이 회사 사람의 일반 쓰기예요
-        allow update: if saleIn()
-          || saleOut()
-          || shopIn()
-          || ((request.resource.data.get('prod', null) != resource.data.get('prod', null) || request.resource.data.get('plv', 1) != resource.data.get('plv', 1))
-            && labOwner() && (factoryStart() || factorySettle() || factoryBuy()))
-          || (labWho() && labCore(request.resource.data) && marketSame()
-            && request.resource.data.nperf >= resource.data.nperf
-            && request.resource.data.cap >= resource.data.get('cap', 0)
-            && request.resource.data.spd >= resource.data.get('spd', 0)
-            && request.resource.data.pow >= resource.data.get('pow', 0)
-            && request.resource.data.aiData >= resource.data.aiData
-            && request.resource.data.get('fperf', 100) >= resource.data.get('fperf', 100)
-            && (request.resource.data.get('fperf', 100) == resource.data.get('fperf', 100) || workedNow())
-            && (
-              // 금고만 넣고 빼는 쓰기 (발전·학습 기록은 그대로): 평소 쓰기는 여기서 바로 확인해요
-              (request.resource.data.get('gen', null) == resource.data.get('gen', null)
-                && request.resource.data.elec == resource.data.elec
-                && trainSame()
-                && (request.resource.data.cash == resource.data.get('cash', 0)
-                    || depositOk(resource.data.get('cash', 0))
-                    || withdrawOk(resource.data.get('cash', 0))))
-              // 발전 시작 (사장만): 아직 발전 중이 아닐 때, 비용(걸린 초 × 1 토큰)이 금고에서 나가고 창고는 그대로예요
-              || (resource.data.get('gen', null) == null && genStarts(request.resource.data) && labOwner()
-                && request.resource.data.elec == resource.data.elec
-                && request.resource.data.cash == resource.data.get('cash', 0) - request.resource.data.gen.secs * 100
-                && trainSame())
-              // 창고 받기 (회사 사람 누구나): 발전이 끝나면 발전량만큼 창고가 늘고, 발전 기록은 지워져요. 돈은 그대로예요
-              || (genDone(resource.data) && request.resource.data.get('gen', null) == null
-                && request.resource.data.elec == resource.data.elec + resource.data.gen.amt
-                && request.resource.data.cash == resource.data.get('cash', 0)
-                && trainSame())
-              // 학습 시작 (사장만): 컴퓨터로 학습하고, 전기가 창고에서 나가요. 데이터와 금고는 그대로예요
-              || (trainStartsOk(resource.data)
-                && request.resource.data.get('gen', null) == resource.data.get('gen', null)
-                && request.resource.data.cash == resource.data.get('cash', 0)
-                && request.resource.data.get('aiDev', 0) == resource.data.get('aiDev', 0))
-              // 학습 결과 받기 (회사 사람 누구나): 걸린 시간이 지나면 개발 점수가 정해지고, 학습 기록은 지워져요
-              || (trainDone(resource.data) && request.resource.data.get('trn', null) == null
-                && request.resource.data.get('aiDev', 0) == resource.data.trn.score
-                && request.resource.data.elec == resource.data.elec
-                && request.resource.data.cash == resource.data.get('cash', 0)
-                && request.resource.data.get('gen', null) == resource.data.get('gen', null))
-            )
-            && (request.resource.data.price == resource.data.get('price', 0) || labOwner())
-            && (request.resource.data.get('rel', null) == resource.data.get('rel', null)
-                || (labOwner() && request.resource.data.get('rel', null) != null
-                    && request.resource.data.rel.cap == request.resource.data.cap
-                    && request.resource.data.rel.spd == request.resource.data.spd
-                    && request.resource.data.rel.pow == request.resource.data.pow))
-            // 출시: 사장만, 지금의 개발 점수를 그대로 적어요 (1 이상)
-            && (request.resource.data.aiScore == resource.data.aiScore
-                || (labOwner() && request.resource.data.get('aiDev', 0) >= 1 && request.resource.data.aiScore == request.resource.data.get('aiDev', 0))))
-          || saleIn()
-          || saleOut()
-          || factoryStart();
-        allow delete: if false;
-      }
-
-      // 팔 상품: 한 상품이 한 문서예요. 회사 사장만 만들고 고쳐요. 만들 때 종류·모양·색·원가·가격을 모두 검사해요 (원가·가격은 센트 정수예요: 50 = 0.5 토큰).
-      // 나중에는 이름 바꾸기, 판매 멈춤·다시 시작(paused), 판매 종료(active를 false로)만 할 수 있어요. 판매를 끝낸 상품은 더 못 바꿔요
-      match /products/{pid} {
-        allow get: if signedIn();
-        allow list: if signedIn() && request.query.limit <= 50;
-        allow create: if signedIn()
-          && get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
-          && request.resource.data.keys().hasOnly(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'cap', 'capColor', 'content', 'costCents', 'priceCents', 'paused', 'active', 'at'])
-          && request.resource.data.keys().hasAll(['owner', 'cat', 'group', 'item', 'name', 'shape', 'color', 'costCents', 'priceCents', 'paused', 'active', 'at'])
-          && request.resource.data.owner == request.auth.uid
-          // 상품 종류는 회사 업종과 같아야 해요 (식품 회사는 식품만, 컴퓨터 회사는 컴퓨터만, 인공지능 회사는 인공지능만)
-          && request.resource.data.cat == get(companyPath(cid)).data.get('kind', 'food')
-          && (
-            (request.resource.data.cat == 'food'
-              && request.resource.data.group in ['water', 'snack', 'meal', 'energy']
-              && (
-                (request.resource.data.group == 'water' && request.resource.data.item == 'water')
-                || (request.resource.data.group == 'snack' && request.resource.data.item in ['jelly', 'chips', 'bread'])
-                || (request.resource.data.group == 'meal' && request.resource.data.item in ['lunchbox', 'meat'])
-                || (request.resource.data.group == 'energy' && request.resource.data.item in ['bar', 'drink', 'coffee'])
-              ))
-            || (request.resource.data.cat == 'pc' && request.resource.data.group == 'pc' && request.resource.data.item in ['desktop', 'laptop', 'phone'])
-            || (request.resource.data.cat == 'ai' && request.resource.data.group == 'ai' && request.resource.data.item in ['chatbot', 'vision', 'voice'])
-          )
-          && request.resource.data.name is string
-          && request.resource.data.name.matches('^[^<>]{1,30}$')
-          && request.resource.data.shape is int && request.resource.data.shape >= 0 && request.resource.data.shape <= 49
-          && request.resource.data.color is int && request.resource.data.color >= -1 && request.resource.data.color <= 49
-          && (!('cap' in request.resource.data) || (request.resource.data.item == 'water' && request.resource.data.cap is int && request.resource.data.cap >= 0 && request.resource.data.cap <= 49))
-          && (!('capColor' in request.resource.data) || (request.resource.data.item == 'water' && request.resource.data.capColor is int && request.resource.data.capColor >= -1 && request.resource.data.capColor <= 49))
-          && (!('content' in request.resource.data) || (request.resource.data.content is int && request.resource.data.content >= 0 && request.resource.data.content <= 5))
-          && request.resource.data.costCents is int && request.resource.data.costCents >= 1 && request.resource.data.costCents <= 999999
-          && request.resource.data.priceCents is int && request.resource.data.priceCents >= 1 && request.resource.data.priceCents <= 99999999
-          && request.resource.data.paused == false
-          && request.resource.data.active == true
-          && request.resource.data.at == request.time;
-        allow update: if signedIn()
-          && resource.data.owner == request.auth.uid
-          && resource.data.active == true
-          && (
-            // 판매 종료: active만 false로 (되돌릴 수 없어요)
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
-              && request.resource.data.active == false)
-            ||
-            // 판매 멈춤·다시 시작: paused만 실제로 바꿔요 (예전 상품에는 paused가 없어서 false로 봐요)
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paused'])
-              && request.resource.data.paused is bool
-              && request.resource.data.paused != resource.data.get('paused', false))
-            ||
-            // 이름 바꾸기: name만 실제로 바꿔요. 만들 때와 같은 글자 규칙
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
-              && request.resource.data.name is string
-              && request.resource.data.name != resource.data.name
-              && request.resource.data.name.matches('^[^<>]{1,30}$'))
-          );
-        // 음식 생산 (사장만): 재고가 늘면, 같은 묶음에서 공장 정산이 그만큼 금고를 줄여야 해요 (재료값 = 개수 × 원가)
-        function producing() {
-          return get(companyPath(cid)).data.get('owner', cid) == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
-            && request.resource.data.stock > resource.data.get('stock', 0)
-            && getAfter(/databases/$(database)/documents/companies/$(cid)/lab/main).data.cash
-              == get(/databases/$(database)/documents/companies/$(cid)/lab/main).data.get('cash', 0) - (request.resource.data.stock - resource.data.get('stock', 0)) * resource.data.get('costCents', 0);
-        }
-        // 상점에서 사기: 재고만 줄어요. 같은 묶음에서 사는 사람 지갑이 값(토큰, 올림)을 내고, 파는 회사 금고가 그만큼 늘어야 해요
-        function shopping() {
-          return resource.data.get('active', false) == true
-            && resource.data.get('paused', false) == false
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
-            && request.resource.data.stock >= 0
-            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'shop'
-            && getAfter(walletPath(request.auth.uid)).data.op.cid == cid
-            && getAfter(walletPath(request.auth.uid)).data.op.pid == pid
-            && getAfter(walletPath(request.auth.uid)).data.wt == request.time
-            && request.resource.data.stock == resource.data.get('stock', 0) - getAfter(walletPath(request.auth.uid)).data.op.n
-            && getAfter(walletPath(request.auth.uid)).data.op.tokens * 100 >= getAfter(walletPath(request.auth.uid)).data.op.n * resource.data.priceCents
-            && getAfter(walletPath(request.auth.uid)).data.op.tokens * 100 < getAfter(walletPath(request.auth.uid)).data.op.n * resource.data.priceCents + 100;
-        }
-        allow update: if signedIn() && producing();
-        allow update: if signedIn() && shopping();
-        // 꺼내 먹기 (사장만): 창고에서 한 개만 줄어요. 먹기 기록(vitals)은 같은 묶음에서 써야 하고, 그쪽에서 이 줄어듦을 확인해요
-        allow update: if signedIn() && resource.data.get('owner', '') == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
-          && request.resource.data.stock < resource.data.get('stock', 0)
-          && request.resource.data.stock >= 0;
-        allow delete: if false;
-      }
-    }
-
-    // ----- 상점: 재고가 있는 음식 상품을 여러 회사에서 한꺼번에 찾아요 (읽기만 해요. 한 번에 50개까지) -----
-    match /{path=**}/products/{pid} {
-      allow get: if signedIn();
-      allow list: if signedIn() && request.query.limit <= 50;
-    }
-
-    // ----- 일자리: 내가 다니는 회사 한 곳이에요. 만들거나 지우는 것은 회사 인원이 같은 묶음에서 바뀔 때만. 내 회사에는 지원할 수 없어요 -----
-    match /jobs/{uid} {
-      allow get: if isMe(uid);
-      allow create: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['cid', 'kind', 'at'])
-        && request.resource.data.cid is string
-        && request.resource.data.kind in ['food', 'pc', 'ai', 'nuclear']
-        && request.resource.data.at == request.time
-        && get(companyPath(request.resource.data.cid)).data.get('owner', request.resource.data.cid) != uid
-        && getAfter(companyPath(request.resource.data.cid)).data.get('kind', 'food') == request.resource.data.kind
-        && getAfter(companyPath(request.resource.data.cid)).data.get('staff', 0) == get(companyPath(request.resource.data.cid)).data.get('staff', 0) + 1;
-      allow delete: if isMe(uid)
-        && getAfter(companyPath(resource.data.cid)).data.get('staff', 0) == get(companyPath(resource.data.cid)).data.get('staff', 0) - 1;
-      allow update: if false;
-    }
-
     // ----- 상태(배고픔·목마름·에너지): 값은 시간이 지나면 닳기만 해요. 쓰러졌을 때만 기록하고, 그때 다 10%로 돌아오며 1·2·3시간… 쉬어요 -----
     match /vitals/{uid} {
       allow delete: if isOwner() && adminDelOk();
@@ -1278,6 +775,37 @@ service cloud.firestore {
           && getAfter(walletPath(uid)).data.op.amt == (request.resource.data.at.toMillis() - resource.data.at.toMillis()) / step(resource.data.get('k', 1))));
     }
 
+    // ----- 친구 초대: 초대 링크로 가입한 사람이 가입하는 같은 묶음(지갑을 처음 만들 때)에서만 한 번 남겨요.
+    //       초대한 사람은 자기가 초대한 기록을 보고, 받기를 누르면 지갑에 50 토큰이 들어오며 '받음'으로 바뀌어요 -----
+    match /invites/{uid} {
+      allow get: if isMe(uid) || (signedIn() && resource.data.by == request.auth.uid);
+      allow list: if signedIn() && resource.data.by == request.auth.uid && request.query.limit <= 100;
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['by', 'at', 'claimed'])
+        && request.resource.data.by is string && request.resource.data.by != uid
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.by))
+        && request.resource.data.at == request.time
+        && request.resource.data.claimed == false
+        && !exists(walletPath(uid)) && existsAfter(walletPath(uid));
+      allow update: if signedIn() && resource.data.by == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed'])
+        && resource.data.claimed == false && request.resource.data.claimed == true
+        && getAfter(walletPath(request.auth.uid)).data.op.kind == 'invite'
+        && getAfter(walletPath(request.auth.uid)).data.op.ref == uid
+        && getAfter(walletPath(request.auth.uid)).data.wt == request.time;
+    }
+
+    // ----- 베타 종료 (관리자 한 번만): 상태를 'wiping'으로 정하면 그동안 관리자가 모든 문서를 읽고 지울 수 있어요. 끝나면 'done'이 되고 다시는 못 해요 -----
+    match /meta/beta {
+      allow get: if signedIn();
+      allow create: if isOwner() && request.resource.data.keys().hasOnly(['state', 'at']) && request.resource.data.state == 'wiping' && request.resource.data.at == request.time;
+      allow update: if isOwner() && resource.data.state == 'wiping' && request.resource.data.keys().hasOnly(['state', 'at']) && request.resource.data.state == 'done' && request.resource.data.at == request.time;
+    }
+    function wiping() { return isOwner() && get(/databases/$(database)/documents/meta/beta).data.get('state', '') == 'wiping'; }
+    match /{document=**} {
+      allow list, delete: if wiping();
+    }
+
     match /wallets/{uid} {
       // 회사 금고(lab)는 센트 단위예요 (1 토큰 = 100 센트). 같은 묶음에서 금고가 정확히 같은 만큼 바뀌어야 해요
       function labDoc(c) { return /databases/$(database)/documents/companies/$(c)/lab/main; }
@@ -1292,7 +820,6 @@ service cloud.firestore {
 
       // 처음 한 번만, 정해진 금액으로 만들어요 (실명 프로필이 있어야 해요)
       allow create: if isMe(uid)
-        && request.auth.token.get('phone_number', null) is string
         && exists(/databases/$(database)/documents/profiles/$(uid))
         && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
         && request.resource.data.bal == 0
@@ -1362,6 +889,17 @@ service cloud.firestore {
             && request.resource.data.op.amt >= 1 && request.resource.data.op.amt <= 4
             && getAfter(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() == get(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() + request.resource.data.op.amt * (get(/databases/$(database)/documents/mining/$(uid)).data.get('k', 1) == 2 ? 66667 : 100000)
             && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt)
+          ||
+          // 친구 초대 보상 받기: 내가 초대한 친구의 초대 기록(invites)이 같은 묶음에서 '받음'으로 바뀌고, 50 토큰이 들어와요 (한 친구에 한 번)
+          (request.resource.data.op.kind == 'invite'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.ref is string
+            && request.resource.data.op.amt == 50
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.by == uid
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.claimed == false
+            && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.claimed == true
+            && request.resource.data.bal == resource.data.bal + 50)
           ||
           // 상점에서 사기: 같은 묶음에서 파는 회사의 음식 재고가 n개 줄고, 금고가 토큰만큼(센트) 늘어요. 내 지갑은 그 토큰만큼만 줄어요
           (request.resource.data.op.kind == 'shop'
