@@ -1626,10 +1626,8 @@ async fn staff_work(cid: String, k: JsValue) -> R {
                 let t = (num(&get(&v, "t")) - eff * 100.0 / FULL_T).max(0.0);
                 let e = num(&get(&v, "e")) - tt * 100.0 / FULL_E;
                 let kn = num(&k);
-                if e < kn {
-                    return Err(fail("tired", "에너지가 모자라요. 먹고 쉬어 주세요"));
-                }
-                let next = o(&[("h", n(h)), ("t", n(t)), ("e", n(e - kn)), ("at", n(t_now)), ("wk", k.clone())]);
+                // 에너지가 모자라도 일할 수 있어요 (0 밑으로는 안 내려가요)
+                let next = o(&[("h", n(h)), ("t", n(t)), ("e", n((e - kn).max(0.0))), ("at", n(t_now)), ("wk", k.clone())]);
                 m(&tx, "update", &[vref, next.clone()])?;
                 m(&tx, "update", &[lref, o(&[("fperf", n(num(&get(&lab_of(&data(&ls)), "fperf")) + kn))])])?;
                 let out = ext(&v, &[]);

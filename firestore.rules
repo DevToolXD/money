@@ -731,9 +731,8 @@ service cloud.firestore {
           && request.resource.data.at is int
           && request.resource.data.at >= request.time.toMillis() - 120000
           && request.resource.data.at <= request.time.toMillis() + 120000
-          && decE(resource.data.e) >= request.resource.data.wk - 0.5
           && request.resource.data.e >= 0
-          && request.resource.data.e <= decE(resource.data.e) - request.resource.data.wk + 0.5
+          && request.resource.data.e <= (decE(resource.data.e) - request.resource.data.wk > 0 ? decE(resource.data.e) - request.resource.data.wk : 0) + 0.5
           && request.resource.data.e >= decE(resource.data.e) - request.resource.data.wk - 0.5
           && nearTo(request.resource.data.h, hNow)
           && nearTo(request.resource.data.t, tNow);

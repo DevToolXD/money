@@ -533,6 +533,7 @@ pub fn start() {
     std::panic::set_hook(Box::new(|i| web_sys::console::error_1(&JsValue::from_str(&format!("멈춤: {i}")))));
     crate::fire::start();
     crate::glass::start();
+    haptics();
     apply_theme();
     // 내용이 없는 자리 표시 줄
     for bx in qsa(&dom::doc().document_element().expect("html"), ".skeletons") {
@@ -612,4 +613,38 @@ pub fn start() {
         },
         std::time::Duration::from_millis(8000),
     );
+}
+
+/// 앱 어디서든 누르면(버튼·탭·목록·스위치) 짧게, 옆으로 넘기면 조금 더 길게 진동해요 (설정에서 끌 수 있어요)
+fn haptics() {
+    thread_local!(static START: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) });
+    let d = crate::dom::doc();
+    let tap = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
+        let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) else { return };
+        if t.closest("button, a, [role=button], [role=tab], [role=switch], [role=option], label, summary, input[type=checkbox], input[type=radio], select, .row, .card, li").ok().flatten().is_some() {
+            crate::dom::vibrate(8);
+        }
+    });
+    let _ = d.add_event_listener_with_callback_and_bool("click", tap.as_ref().unchecked_ref(), true);
+    tap.forget();
+    fn xy(e: &web_sys::Event) -> (f64, f64) {
+        // 손가락 이벤트면 첫 손가락 자리를 써요 (가로 넘김은 pointerup이 안 올 수 있어요)
+        let t = ["touches", "changedTouches"].iter().find_map(|k| Reflect::get(e, &JsValue::from_str(k)).ok().and_then(|l| Reflect::get(&l, &JsValue::from(0)).ok()).filter(|v| v.is_object()));
+        let src: JsValue = t.unwrap_or_else(|| e.clone().into());
+        let g = |k: &str| Reflect::get(&src, &JsValue::from_str(k)).ok().and_then(|v| v.as_f64()).unwrap_or(0.0);
+        (g("clientX"), g("clientY"))
+    }
+    let ts = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| START.set(xy(&e)));
+    let _ = d.add_event_listener_with_callback_and_bool("touchstart", ts.as_ref().unchecked_ref(), true);
+    ts.forget();
+    let te = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
+        let (x, y) = START.get();
+        let (px, py) = xy(&e);
+        let (dx, dy) = (px - x, py - y);
+        if dx.abs() > 40.0 && dx.abs() > dy.abs() * 1.4 {
+            crate::dom::vibrate(14);
+        }
+    });
+    let _ = d.add_event_listener_with_callback_and_bool("touchend", te.as_ref().unchecked_ref(), true);
+    te.forget();
 }

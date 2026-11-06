@@ -106,9 +106,19 @@ fn paint() {
     let low = vals[0].min(vals[1]).min(vals[2]);
     // 배고픔·목마름이 0이 되어도 쓰러지지 않아요 (쓰러짐은 없앴어요)
     let dead = false;
-    // 베타 동안은 낮아져도 화면 가장자리가 붉어지지 않아요 (불이익 없음)
     let _ = low;
-    vig.set_class_name("vignette");
+    // 목마름이 낮으면 붉은 가장자리, 배고픔이 낮으면 화면이 양옆으로 떨리고, 에너지가 낮으면 초점이 풀렸다 돌아와요
+    let t = vals[1];
+    vig.set_class_name(if t <= 5.0 { "vignette v5" } else if t <= 10.0 { "vignette v10" } else if t <= 20.0 { "vignette v20" } else { "vignette" });
+    if let Some(app) = dom::doc().query_selector(".app").ok().flatten() {
+        let cl = app.class_list();
+        let h = vals[0];
+        let e = vals[2];
+        let _ = cl.toggle_with_force("vit-shake", h <= 20.0);
+        let _ = cl.toggle_with_force("vit-shake2", h <= 5.0);
+        let _ = cl.toggle_with_force("vit-blur", e <= 20.0);
+        let _ = cl.toggle_with_force("vit-blur2", e <= 3.0);
+    }
     if dead && !DYING.get() {
         DYING.set(true);
         let deaths = n(&v, "deaths") + 1.0;

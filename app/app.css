@@ -2121,3 +2121,15 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .fb-row p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
 /* 튜토리얼: 핫바 넘기기는 손가락이 옆으로 미는 모습이 보여요 */
 .coach.swipe .coach-ring { border-radius: 40px; }
+
+/* 몸 상태 화면 효과: 에너지 낮음 = 몇 초마다 초점 풀림, 배고픔 낮음 = 몇 초마다 양옆 떨림 */
+@keyframes vitblur { 0%, 70%, 100% { filter: none; } 80% { filter: blur(2.5px); } 90% { filter: blur(1px); } }
+@keyframes vitblur2 { 0%, 55%, 100% { filter: none; } 68% { filter: blur(5px); } 85% { filter: blur(2px); } }
+@keyframes vitshake { 0%, 86%, 100% { transform: none; } 88% { transform: translateX(-7px); } 90% { transform: translateX(7px); } 92% { transform: translateX(-5px); } 94% { transform: translateX(4px); } 96% { transform: translateX(-2px); } }
+.app.vit-blur .screen.is-active { animation: vitblur 6s ease-in-out infinite; }
+.app.vit-blur2 .screen.is-active { animation: vitblur2 4s ease-in-out infinite; }
+.app.vit-shake .screen.is-active { animation: vitshake 5s linear infinite; }
+.app.vit-shake.vit-blur .screen.is-active { animation: vitshake 5s linear infinite, vitblur 6s ease-in-out infinite; }
+.app.vit-shake.vit-blur2 .screen.is-active { animation: vitshake 5s linear infinite, vitblur2 4s ease-in-out infinite; }
+.app.vit-shake2 .screen.is-active { animation-duration: 3s; }
+@media (prefers-reduced-motion: reduce) { .app .screen.is-active { animation: none !important; } }
