@@ -998,6 +998,35 @@ async fn claim_wage(cid: String) -> R {
     rethrow(commit(&b).await)?;
     Ok(out(amt, wage, due - hours, pay - amt, next))
 }
+/* ----- 채굴 보상 (코인 탭) ----- */
+/// 채굴을 (다시) 시작해요: 기록 시각을 지금으로
+async fn mine_start() -> R {
+    rethrow(set_doc(d(&["mining", &uid_of()?]), o(&[("at", ts())])).await)
+}
+/// 100초마다 1 토큰을 받아요 (한 번에 3개까지). 5분 넘게 못 받았으면 다시 시작해요. 받은 토큰 수와 다음까지 남은 ms를 돌려줘요
+async fn mine_claim() -> R {
+    let uid = uid_of()?;
+    let sn = rethrow(get_doc(d(&["mining", &uid])).await)?;
+    if !exists(&sn) {
+        mine_start().await?;
+        return Ok(o(&[("amt", n(0.0)), ("next", n(100000.0))]));
+    }
+    let at = ms(&get(&data(&sn), "at"));
+    let edge = now() - 3000.0;
+    if edge - at > 290000.0 {
+        mine_start().await?;
+        return Ok(o(&[("amt", n(0.0)), ("next", n(100000.0)), ("restart", true.into())]));
+    }
+    let k = ((edge - at) / 100000.0).floor().min(3.0);
+    if k < 1.0 {
+        return Ok(o(&[("amt", n(0.0)), ("next", n((at + 100000.0 - edge).max(0.0)))]));
+    }
+    let b = batch();
+    m(&b, "update", &[d(&["mining", &uid]), o(&[("at", from_millis(at + k * 100000.0))])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(k)), ("wt", ts()), ("op", o(&[("kind", s("mine")), ("amt", n(k))]))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(o(&[("amt", n(k)), ("next", n((at + (k + 1.0) * 100000.0 - edge).max(0.0)))]))
+}
 /// 사장: 급여 금고 채우기 (지갑 토큰 → 급여 금고)
 async fn fund_pay(cid: String, amt: JsValue) -> R {
     let a = num(&amt);
@@ -2203,6 +2232,8 @@ fn build() -> js_sys::Object {
     am!(api, "loadMyJob", |_a| load_my_job().await);
     am!(api, "applyJob", |a| apply_job(sa(&a[0]), a[1].clone()).await);
     am!(api, "quitJob", |a| quit_job(sa(&a[0])).await);
+    am!(api, "mineStart", |_a| mine_start().await);
+    am!(api, "mineClaim", |_a| mine_claim().await);
     am!(api, "listStaff", |a| list_staff(sa(&a[0])).await);
     am!(api, "setWage", |a| rethrow(update_doc(d(&["jobs", &sa(&a[0])]), o(&[("wage", a[1].clone())])).await));
     am!(api, "fireStaff", |a| fire_staff(sa(&a[0]), sa(&a[1])).await);

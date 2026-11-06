@@ -1513,6 +1513,35 @@ await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청
   await assertFails(msg({ type: "request", to: gid, amount: 5, done: false })); // 요청은 못 해요
 });
 
+console.log("\n[채굴]");
+await t("채굴: 계정 하나에 100초마다 1 토큰, 시각과 지갑이 같은 묶음에서, 5분 안에, 미래 시각은 안 돼요", async () => {
+  const at0 = Date.now() - 250000;
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(at0) }); await setDoc(doc(d, "wallets/uA"), { bal: 10, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }); });
+  const a = pw("uA", "alice");
+  const claim = (n, { amt = n, shift = n * 100000 } = {}) => {
+    const b = writeBatch(a);
+    b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + shift) });
+    b.update(doc(a, "wallets/uA"), { bal: increment(amt), wt: serverTimestamp(), op: { kind: "mine", amt } });
+    return b;
+  };
+  await assertFails(claim(3).commit()); // 300초는 아직 안 지났어요 (250초)
+  await assertFails(claim(2, { amt: 3 }).commit()); // 개수가 안 맞아요
+  await assertFails(claim(2, { shift: 150000 }).commit()); // 100초 단위가 아니에요
+  await assertFails(updateDoc(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + 200000) })); // 지갑 없이 시각만
+  await assertSucceeds(claim(2).commit());
+  same((await getDoc(doc(a, "wallets/uA"))).data().bal, 12);
+  await assertFails(getDoc(doc(pw("uB", "bob"), "mining/uA")));
+  await assertFails(setDoc(doc(pw("uB", "bob"), "mining/uA"), { at: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp() })); // 다시 시작
+  // 5분이 넘게 쉬었으면 그동안은 못 받아요
+  const old = Date.now() - 600000;
+  await seed((d) => setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(old) }));
+  await sleep(2100);
+  const b = writeBatch(a);
+  b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(old + 300000) });
+  b.update(doc(a, "wallets/uA"), { bal: increment(3), wt: serverTimestamp(), op: { kind: "mine", amt: 3 } });
+  await assertFails(b.commit());
+});
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));
 await env.cleanup();

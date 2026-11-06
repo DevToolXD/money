@@ -1,0 +1,10 @@
+{
+  "name": "money-miner-proxy",
+  "private": true,
+  "description": "코인 탭 채굴: 브라우저(WebSocket)와 모네로 풀(stratum TCP)을 이어 줘요",
+  "type": "module",
+  "main": "index.js",
+  "scripts": { "start": "node index.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "ws": "^8.18.0" }
+}

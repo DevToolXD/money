@@ -1256,6 +1256,22 @@ service cloud.firestore {
       );
     }
 
+    // ----- 채굴 (코인 탭): 계정마다 문서 하나라서 탭을 여러 개 열어도 늘지 않아요.
+    //       시작(또는 다시 시작): 시각을 지금으로. 보상: 시각이 100초 단위로만 앞으로 가고, 지금을 넘지 않고, 5분 안에 받아야 해요 (지갑이 같은 묶음에서 늘어요) -----
+    match /mining/{uid} {
+      allow get: if isMe(uid);
+      allow create: if isMe(uid) && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
+      allow update: if isMe(uid) && request.resource.data.keys().hasOnly(['at']) && (
+        request.resource.data.at == request.time
+        || (request.resource.data.at.toMillis() > resource.data.at.toMillis()
+          && (request.resource.data.at.toMillis() - resource.data.at.toMillis()) % 100000 == 0
+          && request.resource.data.at <= request.time
+          && request.time.toMillis() - resource.data.at.toMillis() <= 300000
+          && getAfter(walletPath(uid)).data.wt == request.time
+          && getAfter(walletPath(uid)).data.op.kind == 'mine'
+          && getAfter(walletPath(uid)).data.op.amt == (request.resource.data.at.toMillis() - resource.data.at.toMillis()) / 100000));
+    }
+
     match /wallets/{uid} {
       // 회사 금고(lab)는 센트 단위예요 (1 토큰 = 100 센트). 같은 묶음에서 금고가 정확히 같은 만큼 바뀌어야 해요
       function labDoc(c) { return /databases/$(database)/documents/companies/$(c)/lab/main; }
@@ -1330,6 +1346,15 @@ service cloud.firestore {
             && get(companyPath(request.resource.data.op.cid)).data.get('owner', request.resource.data.op.cid) == request.auth.uid
             && get(companyPath(request.resource.data.op.cid)).data.get('pay', 0) + request.resource.data.op.amt * 100 == getAfter(companyPath(request.resource.data.op.cid)).data.pay
             && request.resource.data.bal == resource.data.bal - request.resource.data.op.amt)
+          ||
+          // 채굴 보상: 계정 하나에 1초 0.01 토큰 (100초에 1 토큰). 같은 묶음에서 채굴 기록(mining)의 시각이 100초 × 개수만큼 앞으로 가요
+          (request.resource.data.op.kind == 'mine'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.amt is int
+            && request.resource.data.op.amt >= 1 && request.resource.data.op.amt <= 3
+            && getAfter(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() == get(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() + request.resource.data.op.amt * 100000
+            && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt)
           ||
           // 상점에서 사기: 같은 묶음에서 파는 회사의 음식 재고가 n개 줄고, 금고가 토큰만큼(센트) 늘어요. 내 지갑은 그 토큰만큼만 줄어요
           (request.resource.data.op.kind == 'shop'

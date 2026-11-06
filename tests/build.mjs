@@ -18,3 +18,15 @@ const result = await build({
 });
 const out = Object.values(result.metafile.outputs)[0];
 console.log("묶음 크기:", (out.bytes / 1024).toFixed(0), "KB");
+
+// 채굴 일꾼: app/miner.src.js → app/miner.js (randomx.js 라이브러리를 함께 묶어요)
+if (!process.env.EMU) {
+  const r2 = await build({
+    entryPoints: [path.join(here, "../app/miner.src.js")],
+    outfile: path.join(here, "../app/miner.js"),
+    bundle: true, minify: true, format: "esm", target: "es2020", legalComments: "none",
+    nodePaths: [path.join(here, "node_modules")], metafile: true, logLevel: "info",
+    alias: { "randomx-web": path.join(here, "node_modules/randomx.js/dist/web/index.js") },
+  });
+  console.log("채굴 일꾼 크기:", (Object.values(r2.metafile.outputs)[0].bytes / 1024).toFixed(0), "KB");
+}

@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=103">
+<link rel="stylesheet" href="app/app.css?v=105">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -139,6 +139,24 @@
       <header class="sns-head"><h1 id="title-untitled3">SNS</h1><div class="sns-right"><button class="sns-bell" id="sns-bell" type="button" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></button><span class="sns-me" id="sns-me"></span></div></header>
       <div class="sns-people" id="sns-people" role="list" aria-label="사람들"></div>
       <div class="sns-feed" id="sns-feed" aria-label="게시물"></div>
+    </section>
+    <section class="screen" id="screen-coin" data-screen="coin" data-title="코인" aria-labelledby="title-coin">
+      <header class="large-title"><h1 id="title-coin">코인</h1></header>
+      <div class="card coin-card" id="coin-card">
+        <div class="coin-top"><span class="coin-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5V9l3.5 4 3.5-4v6.5"/></svg></span><div><h2>모네로 채굴</h2><p id="coin-state">꺼져 있어요</p></div>
+          <button type="button" class="coin-sw" id="coin-toggle" role="switch" aria-checked="false" aria-label="채굴 켜기"><i></i></button></div>
+        <dl class="coin-stats">
+          <div><dt>속도</dt><dd id="coin-rate">—</dd></div>
+          <div><dt>다음 보상까지</dt><dd id="coin-next">—</dd></div>
+          <div><dt>계산한 해시</dt><dd id="coin-hashes">0</dd></div>
+          <div><dt>인정된 share</dt><dd id="coin-shares">0</dd></div>
+          <div><dt>이번에 받은 토큰</dt><dd id="coin-earned">0 토큰</dd></div>
+        </dl>
+      </div>
+      <h2 class="section-title">채굴에 쓸 CPU</h2>
+      <div class="card coin-th"><div class="wk-sorts" id="coin-threads" role="group" aria-label="채굴에 쓸 CPU"><button type="button" class="gg wk-pill" data-n="1" aria-pressed="true">1개 (권장)</button><button type="button" class="gg wk-pill" data-n="2" aria-pressed="false">2개</button></div><p class="coin-note">많이 쓸수록 빠르지만 배터리를 더 쓰고 뜨거워져요. 보상은 CPU 수와 상관없이 같아요.</p></div>
+      <h2 class="section-title">보상</h2>
+      <div class="card coin-th"><p class="coin-note">채굴을 켜 둔 동안 계정 하나에 1초마다 0.01 토큰, 100초마다 1 토큰을 받아요. 탭이나 기기를 여러 개 켜도 계정마다 한 번만 세요. 채굴한 모네로는 운영자 지갑으로 가요. 켤 때마다 허락을 받고, 앱을 열어도 저절로 켜지지 않아요.</p></div>
     </section>
     <section class="screen" id="screen-game" data-screen="game" data-title="게임" aria-labelledby="title-game">
       <header class="large-title"><h1 id="title-game">게임</h1></header>
@@ -363,7 +381,7 @@
 </div>
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
-<script type="module" src="app/firebase.js?v=55"></script>
-<script type="module" src="app/rs/boot.js?v=47"></script>
+<script type="module" src="app/firebase.js?v=56"></script>
+<script type="module" src="app/rs/boot.js?v=48"></script>
 </body>
 </html>
