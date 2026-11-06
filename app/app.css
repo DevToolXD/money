@@ -2099,3 +2099,5 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .card.beta-card { padding: 18px 20px; display: grid; gap: 12px; }
 .beta-x { margin: 0; font-size: 14px; line-height: 20px; color: var(--text-secondary); word-break: keep-all; }
 .beta-btn { color: #fff !important; background: #ff3b30 !important; }
+.coach-hint { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: #0a7cff; }
+.coach-tip { pointer-events: none; }

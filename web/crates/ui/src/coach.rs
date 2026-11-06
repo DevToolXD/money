@@ -25,32 +25,34 @@ const fn st(sel: &'static str, title: &'static str, text: &'static str, click: b
 const INTRO: &[Step] = &[
     st(".tabbar .tab[data-tab=\"money\"]", "돈 탭", "여기를 눌러 보세요. 내 토큰과 이자 상품을 볼 수 있어요.", true),
     st(".tabbar .tab[data-tab=\"work\"]", "일 탭", "여기를 눌러 보세요. 회사에 지원하거나 내 회사에서 일해요.", true),
-    st("#status-bubble", "내 상태", "배고픔·목마름·에너지예요. 눌러서 자세히 보고, 끌어서 옮길 수 있어요.", false),
+    st("#status-bubble", "내 상태", "여기를 눌러 보세요. 배고픔·목마름·에너지를 볼 수 있어요.", true),
     st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 코인, 친구 초대, 설정이 나와요.", true),
 ];
+// 사업 안내: 누르면 다른 화면이 열리는 곳(팔 상품 정하기)은 맨 끝에 둬요
 const FOOD: &[Step] = &[
-    st("#biz-pick", "팔 음식 정하기", "먼저 팔 음식을 정해요. 모양·색·가격을 고르면 상점에 올라가요.", false),
-    st("#cash-amt", "회사 금고", "음식을 만드는 재료값은 금고에서 나가요. 토큰 수를 적고 넣기를 눌러 채워 두세요.", false),
-    st("#fac-start", "식품 공장", "만들 개수를 정하고 돌리면 한 개씩 바로 재고에 들어가요. 걸리는 시간과 이익도 미리 보여 줘요.", false),
-    st("#biz-hire", "직원 채용", "모집 인원을 정하면 다른 사람이 지원해서 함께 일해요.", false),
-    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+    st("#cash-amt", "회사 금고", "여기를 눌러 보세요. 재료값이 나갈 금고에 넣을 토큰 수를 적는 곳이에요.", true),
+    st("#fac-n", "식품 공장", "여기를 눌러 보세요. 만들 개수를 정하면 시간·재료값·이익이 바로 나와요.", true),
+    st("#hire-plus", "직원 채용", "여기를 눌러 보세요. 모집 인원을 늘리면 다른 사람이 지원해요.", true),
+    st("#stf-fund-n", "급여 금고", "여기를 눌러 보세요. 직원 임금으로 쓸 토큰을 넣는 곳이에요.", true),
+    st("#biz-pick", "팔 음식 정하기", "마지막이에요. 여기를 눌러 팔 음식을 정해 보세요.", true),
 ];
 const PC: &[Step] = &[
-    st("#biz-lab", "컴퓨터 연구실", "용량·속도·전기값을 올리고 출시하면 인공지능 회사에 팔 수 있어요. 숫자는 일 탭의 부품 검사로 올라요.", false),
-    st("#biz-pick", "팔 상품 정하기", "상점에 올릴 컴퓨터 상품도 정할 수 있어요.", false),
-    st("#biz-hire", "직원 채용", "직원이 많을수록 연구가 빨라져요.", false),
-    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+    st("#biz-lab", "컴퓨터 연구실", "여기를 눌러 보세요. 용량·속도·전기값을 올려 출시하는 곳이에요. 숫자는 일 탭의 부품 검사로 올라요.", true),
+    st("#hire-plus", "직원 채용", "여기를 눌러 보세요. 직원이 많을수록 연구가 빨라져요.", true),
+    st("#stf-fund-n", "급여 금고", "여기를 눌러 보세요. 직원 임금으로 쓸 토큰을 넣는 곳이에요.", true),
+    st("#biz-pick", "팔 상품 정하기", "마지막이에요. 여기를 눌러 상점에 올릴 상품을 정해 보세요.", true),
 ];
 const AI: &[Step] = &[
-    st("#biz-lab", "인공지능 연구실", "데이터를 모아 학습하고 출시해요. 전기와 컴퓨터는 다른 회사에서 사요. 데이터는 일 탭에서 받아요.", false),
-    st("#biz-pick", "팔 상품 정하기", "출시한 인공지능을 상점에 올릴 수 있어요.", false),
-    st("#biz-hire", "직원 채용", "직원이 많을수록 데이터가 빨리 모여요.", false),
-    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+    st("#biz-lab", "인공지능 연구실", "여기를 눌러 보세요. 데이터로 학습하고 출시하는 곳이에요. 전기와 컴퓨터는 다른 회사에서 사요.", true),
+    st("#hire-plus", "직원 채용", "여기를 눌러 보세요. 직원이 많을수록 데이터가 빨리 모여요.", true),
+    st("#stf-fund-n", "급여 금고", "여기를 눌러 보세요. 직원 임금으로 쓸 토큰을 넣는 곳이에요.", true),
+    st("#biz-pick", "팔 상품 정하기", "마지막이에요. 여기를 눌러 상점에 올릴 상품을 정해 보세요.", true),
 ];
 const NUCLEAR: &[Step] = &[
-    st("#biz-lab", "원자력 발전소", "핵연료 성능을 올리고 전기를 만들어 인공지능 회사에 팔아요. 성능은 일 탭의 핵연료 배합으로 올라요.", false),
-    st("#biz-hire", "직원 채용", "직원이 많을수록 성능이 빨리 올라요.", false),
-    st("#biz-staff", "직원 관리", "시급을 정하고 급여 금고를 채워 두면 직원이 임금을 받아 가요.", false),
+    st("#biz-lab", "원자력 발전소", "여기를 눌러 보세요. 전기를 만들어 파는 곳이에요. 성능은 일 탭의 핵연료 배합으로 올라요.", true),
+    st("#cash-amt", "회사 금고", "여기를 눌러 보세요. 발전 비용이 나갈 금고에 넣을 토큰 수를 적는 곳이에요.", true),
+    st("#hire-plus", "직원 채용", "여기를 눌러 보세요. 직원이 많을수록 성능이 빨리 올라요.", true),
+    st("#stf-fund-n", "급여 금고", "여기를 눌러 보세요. 직원 임금으로 쓸 토큰을 넣는 곳이에요.", true),
 ];
 
 thread_local! {
@@ -83,7 +85,7 @@ fn root() -> Option<web_sys::HtmlElement> {
     el.set_id("coach");
     el.set_class_name("coach");
     el.set_hidden(true);
-    el.set_inner_html(r#"<i class="cb t"></i><i class="cb r"></i><i class="cb b"></i><i class="cb l"></i><span class="coach-ring" aria-hidden="true"></span><div class="coach-tip" role="dialog" aria-live="polite"><p class="coach-n"></p><b class="coach-t"></b><p class="coach-x"></p><div class="coach-btns"><button type="button" class="coach-skip">건너뛰기</button><button type="button" class="coach-next">다음</button></div></div>"#);
+    el.set_inner_html(r#"<i class="cb t"></i><i class="cb r"></i><i class="cb b"></i><i class="cb l"></i><span class="coach-ring" aria-hidden="true"></span><div class="coach-tip" role="dialog" aria-live="polite"><p class="coach-n"></p><b class="coach-t"></b><p class="coach-x"></p><p class="coach-hint">빛나는 곳을 눌러 주세요</p></div>"#);
     let _ = app.append_child(&el);
     dom::on(&el, "click", |e| {
         if dom::closest(&e, ".coach-skip").is_some() {
@@ -166,10 +168,6 @@ fn show() {
     }
     if let Some(n) = q(".coach-x") {
         n.set_inner_html(&esc(step.text));
-    }
-    if let Some(b) = q(".coach-next") {
-        b.set_text_content(Some(if i + 1 == steps.len() { "알겠어요" } else { "다음" }));
-        let _ = b.set_attribute("style", if step.click { "display:none" } else { "" });
     }
     dom::toggle(&el, "tap", step.click);
     el.set_hidden(false);

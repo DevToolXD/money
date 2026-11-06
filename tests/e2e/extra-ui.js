@@ -50,8 +50,17 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   await A.screenshot({ path: path.join(__dirname, 'shots', 'coach.png') });
   await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="money"]').click()); await A.waitForTimeout(900);
   ok('눌러 보라는 곳을 누르면 다음 단계 (2 / 4)', (await A.textContent('#coach .coach-n')).includes('2 / 4'));
-  await A.click('#coach .coach-skip'); await A.waitForTimeout(400);
-  ok('건너뛰면 닫혀요', !(await A.isVisible('#coach .coach-tip')));
+  ok('다음·건너뛰기 버튼이 없어요', (await A.$$('#coach button')).length === 0);
+  const before = await A.evaluate(() => document.querySelector('.app').dataset.screen);
+  await A.mouse.click(350, 785); await A.waitForTimeout(600); // 다른 곳(상점 근처)을 눌러요
+  ok('다른 곳은 눌리지 않아요', (await A.textContent('#coach .coach-n')).includes('2 / 4') && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
+  const box = async (sel) => (await A.$(sel)).boundingBox();
+  let bb = await box('.tabbar .tab[data-tab="work"]'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
+  ok('일 탭을 누르면 3 / 4', (await A.textContent('#coach .coach-n')).includes('3 / 4'));
+  bb = await box('#status-bubble'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
+  ok('상태를 누르면 4 / 4', (await A.textContent('#coach .coach-n')).includes('4 / 4'));
+  bb = await box('.tabbar .tab-account'); await A.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await A.waitForTimeout(900);
+  ok('메뉴를 누르면 끝나요', !(await A.isVisible('#coach .coach-tip')) && (await A.isVisible('#qm .qm')));
   // 베타 종료 (관리자): 다른 화면은 닫아요
   const aErr = A.errs.length + B.errs.length; await A.context().close(); await B.context().close();
   const O = await open();
