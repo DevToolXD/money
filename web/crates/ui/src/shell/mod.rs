@@ -123,7 +123,7 @@ fn scroll_to_top(name: &str) {
     }
 }
 /// 관리·공지 화면처럼 탭 바에 없는 화면으로 가요
-fn go_screen(name: &str) {
+pub(crate) fn go_screen(name: &str) {
     show_screen(name);
     if name == "manage" {
         crate::manage::refresh();
@@ -344,6 +344,7 @@ fn setup_tabbar(first: &str) {
         crate::backdrop::create(app(), scr, busy, upd)
     };
     BACKDROP.with(|b| *b.borrow_mut() = bd.clone());
+    crate::quickmenu::init(&nav);
     let tb = crate::tabbar::create(nav.clone(), bd.clone(), app(), !gl_off);
     TABBAR.with(|t| *t.borrow_mut() = tb.clone());
     set_global("tabbar", &tb);

@@ -38,13 +38,13 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   await M.page.screenshot({ path: S + '/ui-notice-2-picked.png' });
   await M.page.click('.notice-ok'); await M.page.waitForTimeout(800);
   ok('투표하고 닫으면 화면에 아무것도 안 남아요', !(await M.page.evaluate(() => !!document.querySelector('.notice-full'))));
-  await M.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await M.page.waitForTimeout(900);
+  await M.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await M.page.waitForTimeout(500); await M.page.click('.qm-row[data-go=\"account\"]'); await M.page.waitForTimeout(900);
   await M.page.evaluate(() => document.getElementById('open-notices').click()); await M.page.waitForTimeout(1200);
   await M.page.evaluate(() => document.querySelector('.notice-head').click()); await M.page.waitForTimeout(500);
   const listed = await M.page.textContent('#notices-root');
   ok('설정의 공지 화면에 두 공지가 있어요', listed.includes('서버 점검') && listed.includes('저녁 메뉴'));
   await M.page.screenshot({ path: S + '/ui-notice-4-screen.png' });
-  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
+  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(500); await O.page.click('.qm-row[data-go=\"account\"]'); await O.page.waitForTimeout(900);
   await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
   await O.page.screenshot({ path: S + '/ui-notice-5-manage.png', fullPage: true });
   await O.page.waitForSelector('#mg-people .mg-person', { timeout: 8000 });

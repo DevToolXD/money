@@ -24,7 +24,7 @@ const wallet = async (uid) => { const d = await (await fetch(`${DB}/wallets/${ui
   await T.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '김민준'), 'mj' + sfx);
   await T.page.reload(); await T.page.waitForTimeout(6000);
   const uT = await T.page.evaluate(() => window.cloud.uid);
-  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(900);
+  await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(500); await O.page.click('.qm-row[data-go=\"account\"]'); await O.page.waitForTimeout(900);
   await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
   await O.page.fill('#mg-search', '김민'); await O.page.waitForTimeout(2000);
   ok('이름 앞부분으로 사람 목록이 떠요', (await O.page.textContent('#mg-people')).includes('김민'));

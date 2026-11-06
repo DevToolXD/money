@@ -19,6 +19,7 @@ const setBal = (uid, v) => fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal
 const text = async (p, sel) => ((await p.textContent(sel).catch(() => '')) || '');
 const toastHas = async (p, t) => { for (let i = 0; i < 30; i++) { if ((await text(p, '.toast')).includes(t)) return true; await p.waitForTimeout(250); } return false; };
 const tab = async (p, t) => {
+  if (t === 'account') { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(450); await p.click('.qm-row[data-go="account"]'); return; }
   for (let i = 0; i < 2; i++) {
     if (await p.evaluate((t) => { const b = document.querySelector(`.tabbar .tab[data-tab="${t}"]`); if (b) b.click(); return !!b; }, t)) return;
     await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(600);

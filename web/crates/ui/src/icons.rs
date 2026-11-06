@@ -61,10 +61,18 @@ const BUSINESS: &[Part] = &[
     Part { d: "M2.500 24.500h23", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
+#[allow(dead_code)]
 const ACCOUNT: &[Part] = &[
     Part { d: "M14 0.8A13.2 13.2 0 1 1 14 27.2 13.2 13.2 0 0 1 14 0.8Z", stroke: 0.0, fill: true, alpha: 0.13, evenodd: false, transform: None },
     Part { d: "M14 4.6A5.6 5.6 0 1 1 14 15.8 5.6 5.6 0 0 1 14 4.6Z", stroke: 0.0, fill: true, alpha: 0.42, evenodd: false, transform: None },
     Part { d: "M3.6 23.2C4.8 18.6 9 16.6 14 16.6S23.2 18.6 24.4 23.2A13.1 13.1 0 0 1 3.6 23.2Z", stroke: 0.0, fill: true, alpha: 0.42, evenodd: false, transform: None },
+];
+
+// 메뉴: 줄 세 개 (누르면 코인·게임·프로필·설정·유튜브 창이 버튼에서 자라나요)
+const MENU: &[Part] = &[
+    Part { d: "M6.5 8.5H21.5", stroke: 2.0, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M6.5 14H21.5", stroke: 2.0, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M6.5 19.5H21.5", stroke: 2.0, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
 
 /// 탭 이름 → 아이콘
@@ -88,7 +96,7 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "ranking" => RANKING,
         "manage" => MANAGE,
         "business" => BUSINESS,
-        "account" => ACCOUNT,
+        "account" => MENU,
         _ => return None,
     })
 }

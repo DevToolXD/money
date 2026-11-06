@@ -1414,6 +1414,10 @@ function __wbg_get_imports() {
         __wbg_revokeObjectURL_52940372bc4245cf: function() { return handleError(function (arg0, arg1) {
             URL.revokeObjectURL(getStringFromWasm0(arg0, arg1));
         }, arguments); },
+        __wbg_right_87f14139bda7986d: function(arg0) {
+            const ret = arg0.right;
+            return ret;
+        },
         __wbg_save_1375b4c2f3596b8b: function(arg0) {
             arg0.save();
         },
@@ -1535,6 +1539,9 @@ function __wbg_get_imports() {
         __wbg_set_hidden_7efdf3958dc524e5: function(arg0, arg1) {
             arg0.hidden = arg1 !== 0;
         },
+        __wbg_set_id_861bcd7afe9f86ad: function(arg0, arg1, arg2) {
+            arg0.id = getStringFromWasm0(arg1, arg2);
+        },
         __wbg_set_imageSmoothingEnabled_80eb6ec9c323bf88: function(arg0, arg1) {
             arg0.imageSmoothingEnabled = arg1 !== 0;
         },
@@ -1631,6 +1638,9 @@ function __wbg_get_imports() {
         __wbg_static_accessor_WINDOW_b5e0810bfecb7feb: function() {
             const ret = typeof window === 'undefined' ? undefined : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_stopImmediatePropagation_25ea563dea9c329f: function(arg0) {
+            arg0.stopImmediatePropagation();
         },
         __wbg_stopPropagation_e4181c041abda4c3: function(arg0) {
             arg0.stopPropagation();
@@ -1908,7 +1918,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000d: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 231, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 232, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },
