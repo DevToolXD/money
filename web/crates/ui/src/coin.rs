@@ -12,7 +12,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::dom::{self, by_id};
 
 /// 채굴 프록시 주소 (server/miner-proxy를 올린 뒤 wss://… 로 넣어요). 비어 있으면 켤 수 없어요
-const PROXY_DEFAULT: &str = "wss://money-miner.zerodayseverside.workers.dev";
+const PROXY_DEFAULT: &str = "wss://money-miner.zerodayseverside-7ea.workers.dev";
 /// 기기에 따로 적은 주소(시험·운영자용)가 있으면 그것을 써요
 fn proxy() -> String {
     let p = dom::store_get("coin-proxy", "");
