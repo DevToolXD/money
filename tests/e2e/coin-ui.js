@@ -46,10 +46,10 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('찾은 share를 풀로 보내고 인정받아요', submits > 0 && Number(await p.textContent('#coin-shares')) > 0);
   ok('채굴 기록이 생겨요', !!(await raw(`mining/${uid}`)).fields);
   // 보상: 250초 전에 시작한 것으로 바꾸고 두 탭에서 동시에 받아도 2 토큰만
+  const p2 = await open(); await p2.waitForTimeout(9000); // 두 번째 탭도 (허락을 기억해서) 켜져요
   const at0 = new Date(Date.now() - 250000).toISOString();
   await fetch(`${DB}/mining/${uid}?updateMask.fieldPaths=at`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { at: { timestampValue: at0 } } }) });
   const bal0 = Number((await raw(`wallets/${uid}`)).fields.bal.integerValue);
-  const p2 = await open(); await p2.waitForTimeout(3000);
   await Promise.all([p.evaluate(() => window.cloud.mineClaim()).catch(() => 0), p2.evaluate(() => window.cloud.mineClaim()).catch(() => 0)]);
   await p.waitForTimeout(1500);
   const bal1 = Number((await raw(`wallets/${uid}`)).fields.bal.integerValue);
@@ -66,6 +66,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   const st = await p.textContent('#coin-state');
   console.log('끊긴 뒤:', st);
   ok('끊겨도 켜져 있고 다시 연결한다고 알려요', (await p.getAttribute('#coin-toggle', 'aria-checked')) === 'true' && st.includes('다시 연결'));
+  ok('끊긴 동안은 보상 시간이 멈춰요', (await p.textContent('#coin-next')) === '멈춤');
   proxy = spawn('node', [path.join(__dirname, '../../server/miner-proxy/index.js')], { env: { ...process.env, PORT: '8090', POOL_HOST: '127.0.0.1', POOL_PORT: '3334' }, stdio: 'inherit' });
   await p.waitForTimeout(12000);
   console.log('다시 붙은 뒤:', await p.textContent('#coin-state'));

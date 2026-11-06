@@ -1259,17 +1259,21 @@ service cloud.firestore {
     // ----- 채굴 (코인 탭): 계정마다 문서 하나라서 탭을 여러 개 열어도 늘지 않아요.
     //       시작(또는 다시 시작): 시각을 지금으로. 보상: 시각이 100초 단위로만 앞으로 가고, 지금을 넘지 않고, 5분 안에 받아야 해요 (지갑이 같은 묶음에서 늘어요) -----
     match /mining/{uid} {
+      // k: 채굴에 쓰는 CPU 수 (1 또는 2). 2개면 보상이 1.5배예요 (1 토큰마다 100초 → 66.667초)
+      function step(k) { return k == 2 ? 66667 : 100000; }
       allow get: if isMe(uid);
-      allow create: if isMe(uid) && request.resource.data.keys().hasOnly(['at']) && request.resource.data.at == request.time;
-      allow update: if isMe(uid) && request.resource.data.keys().hasOnly(['at']) && (
-        request.resource.data.at == request.time
-        || (request.resource.data.at.toMillis() > resource.data.at.toMillis()
-          && (request.resource.data.at.toMillis() - resource.data.at.toMillis()) % 100000 == 0
+      allow create: if isMe(uid) && request.resource.data.keys().hasOnly(['at', 'k']) && request.resource.data.at == request.time
+        && request.resource.data.get('k', 1) in [1, 2];
+      allow update: if isMe(uid) && request.resource.data.keys().hasOnly(['at', 'k']) && (
+        (request.resource.data.at == request.time && request.resource.data.get('k', 1) in [1, 2])
+        || (request.resource.data.get('k', 1) == resource.data.get('k', 1)
+          && request.resource.data.at.toMillis() > resource.data.at.toMillis()
+          && (request.resource.data.at.toMillis() - resource.data.at.toMillis()) % step(resource.data.get('k', 1)) == 0
           && request.resource.data.at <= request.time
           && request.time.toMillis() - resource.data.at.toMillis() <= 300000
           && getAfter(walletPath(uid)).data.wt == request.time
           && getAfter(walletPath(uid)).data.op.kind == 'mine'
-          && getAfter(walletPath(uid)).data.op.amt == (request.resource.data.at.toMillis() - resource.data.at.toMillis()) / 100000));
+          && getAfter(walletPath(uid)).data.op.amt == (request.resource.data.at.toMillis() - resource.data.at.toMillis()) / step(resource.data.get('k', 1))));
     }
 
     match /wallets/{uid} {
@@ -1347,13 +1351,13 @@ service cloud.firestore {
             && get(companyPath(request.resource.data.op.cid)).data.get('pay', 0) + request.resource.data.op.amt * 100 == getAfter(companyPath(request.resource.data.op.cid)).data.pay
             && request.resource.data.bal == resource.data.bal - request.resource.data.op.amt)
           ||
-          // 채굴 보상: 계정 하나에 1초 0.01 토큰 (100초에 1 토큰). 같은 묶음에서 채굴 기록(mining)의 시각이 100초 × 개수만큼 앞으로 가요
+          // 채굴 보상: 계정 하나에 100초마다 1 토큰 (CPU 2개면 66.667초마다). 같은 묶음에서 채굴 기록(mining)의 시각이 그만큼 앞으로 가요
           (request.resource.data.op.kind == 'mine'
             && request.resource.data.rate == resource.data.rate
             && request.resource.data.t == resource.data.t
             && request.resource.data.op.amt is int
-            && request.resource.data.op.amt >= 1 && request.resource.data.op.amt <= 3
-            && getAfter(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() == get(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() + request.resource.data.op.amt * 100000
+            && request.resource.data.op.amt >= 1 && request.resource.data.op.amt <= 4
+            && getAfter(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() == get(/databases/$(database)/documents/mining/$(uid)).data.at.toMillis() + request.resource.data.op.amt * (get(/databases/$(database)/documents/mining/$(uid)).data.get('k', 1) == 2 ? 66667 : 100000)
             && request.resource.data.bal == resource.data.bal + request.resource.data.op.amt)
           ||
           // 상점에서 사기: 같은 묶음에서 파는 회사의 음식 재고가 n개 줄고, 금고가 토큰만큼(센트) 늘어요. 내 지갑은 그 토큰만큼만 줄어요

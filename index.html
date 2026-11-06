@@ -154,9 +154,9 @@
         </dl>
       </div>
       <h2 class="section-title">채굴에 쓸 CPU</h2>
-      <div class="card coin-th"><div class="wk-sorts" id="coin-threads" role="group" aria-label="채굴에 쓸 CPU"><button type="button" class="gg wk-pill" data-n="1" aria-pressed="true">1개 (권장)</button><button type="button" class="gg wk-pill" data-n="2" aria-pressed="false">2개</button></div><p class="coin-note">많이 쓸수록 빠르지만 배터리를 더 쓰고 뜨거워져요. 보상은 CPU 수와 상관없이 같아요.</p></div>
+      <div class="card coin-th"><div class="wk-sorts" id="coin-threads" role="group" aria-label="채굴에 쓸 CPU"><button type="button" class="gg wk-pill" data-n="1" aria-pressed="true">1개 (권장)</button><button type="button" class="gg wk-pill" data-n="2" aria-pressed="false">2개 · 보상 1.5배</button></div><p class="coin-note">2개로 채굴하면 토큰을 1.5배 빨리 받아요 (100초 → 약 67초마다 1 토큰). 대신 배터리를 더 쓰고 뜨거워져요.</p></div>
       <h2 class="section-title">보상</h2>
-      <div class="card coin-th"><p class="coin-note">채굴을 켜 둔 동안 계정 하나에 1초마다 0.01 토큰, 100초마다 1 토큰을 받아요. 탭이나 기기를 여러 개 켜도 계정마다 한 번만 세요. 채굴한 모네로는 운영자 지갑으로 가요. 처음 켤 때 허락을 받고, 끄기 전까지는 앱을 열면 다시 켜져요. 풀 연결이 끊기면 될 때까지 다시 연결해요.</p></div>
+      <div class="card coin-th"><p class="coin-note">채굴을 켜 둔 동안 계정 하나에 100초마다 1 토큰(CPU 2개면 약 67초마다)을 받아요. 풀 연결이 끊긴 동안은 시간을 세지 않아요. 탭이나 기기를 여러 개 켜도 계정마다 한 번만 세요. 채굴한 모네로는 운영자 지갑으로 가요. 처음 켤 때 허락을 받고, 끄기 전까지는 앱을 열면 다시 켜져요. 풀 연결이 끊기면 될 때까지 다시 연결해요.</p></div>
     </section>
     <section class="screen" id="screen-game" data-screen="game" data-title="게임" aria-labelledby="title-game">
       <header class="large-title"><h1 id="title-game">게임</h1></header>
@@ -382,6 +382,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=56"></script>
-<script type="module" src="app/rs/boot.js?v=53"></script>
+<script type="module" src="app/rs/boot.js?v=54"></script>
 </body>
 </html>

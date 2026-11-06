@@ -1542,6 +1542,17 @@ await t("채굴: 계정 하나에 100초마다 1 토큰, 시각과 지갑이 같
   b.update(doc(a, "wallets/uA"), { bal: increment(3), wt: serverTimestamp(), op: { kind: "mine", amt: 3 } });
   await assertFails(b.commit());
 });
+await t("채굴: CPU 2개면 66.667초마다 1 토큰 (1.5배), CPU 수는 다시 시작할 때만 바뀌어요", async () => {
+  const at0 = Date.now() - 140000;
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(at0), k: 2 }); await setDoc(doc(d, "wallets/uA"), { bal: 0, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }); });
+  const a = pw("uA", "alice");
+  const claim = (n, step, k = 2) => { const b = writeBatch(a); b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + n * step), k }); b.update(doc(a, "wallets/uA"), { bal: increment(n), wt: serverTimestamp(), op: { kind: "mine", amt: n } }); return b; };
+  await assertFails(claim(1, 100000).commit()); // 2개인데 100초 단위
+  await assertFails(claim(2, 66667, 1).commit()); // 받으면서 CPU 수를 바꿔요
+  await assertSucceeds(claim(2, 66667).commit()); // 133초 → 2 토큰
+  await assertSucceeds(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp(), k: 1 })); // 다시 시작하면서 바꾸기
+  await assertFails(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp(), k: 3 }));
+});
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));
 await env.cleanup();

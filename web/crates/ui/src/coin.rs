@@ -39,6 +39,10 @@ thread_local! {
     static RETRY: Cell<u32> = const { Cell::new(0) };
 }
 
+/// 1 토큰마다 걸리는 시간: CPU 1개 100초, 2개 66.667초 (1.5배)
+fn step_ms() -> f64 {
+    if THREADS.get() >= 2 { 66667.0 } else { 100000.0 }
+}
 fn set_state(t: &str) {
     STATE.with(|s| *s.borrow_mut() = t.to_string());
     paint();
@@ -60,7 +64,7 @@ fn paint() {
     dom::set_text("coin-shares", &SHARES.get().to_string());
     dom::set_text("coin-earned", &format!("{} 토큰", cloud::fmt_num(EARNED.get(), 0)));
     let left = ((NEXT_AT.get() - js_sys::Date::now()) / 1000.0).ceil();
-    dom::set_text("coin-next", &if on && NEXT_AT.get() > 0.0 { format!("{}초", left.max(0.0) as i64) } else { "—".into() });
+    dom::set_text("coin-next", &if on && NEXT_AT.get() > 0.0 { format!("{}초", left.max(0.0) as i64) } else if on { "멈춤".into() } else { "—".into() });
     for b in dom::qsa(&dom::doc().document_element().expect("html"), "#coin-threads [data-n]") {
         let _ = b.set_attribute("aria-pressed", &(dom::data(&b, "n") == THREADS.get().to_string()).to_string());
     }
@@ -75,8 +79,10 @@ fn claim() {
         match cloud::call("mineClaim", &[]).await {
             Ok(r) => {
                 let amt = cloud::get(&r, "amt").as_f64().unwrap_or(0.0);
-                let next = cloud::get(&r, "next").as_f64().unwrap_or(100000.0);
-                NEXT_AT.set(js_sys::Date::now() + next);
+                let next = cloud::get(&r, "next").as_f64().unwrap_or_else(step_ms);
+                if LIVE.get() {
+                    NEXT_AT.set(js_sys::Date::now() + next);
+                }
                 if amt > 0.0 {
                     EARNED.set(EARNED.get() + amt);
                     crate::shell::toast(&format!("채굴 보상 {} 토큰을 받았어요", amt as i64));
@@ -161,8 +167,12 @@ fn connect() {
             "job" => {
                 if !LIVE.replace(true) {
                     RETRY.set(0);
-                    // 다시 붙으면 보상 시계를 맞춰요 (오래 끊겼으면 새로 시작, 아니면 이어서. 다른 탭이 켜져 있어도 시계를 지우지 않아요)
-                    claim();
+                    // 연결된 때부터 새로 세요 (끊긴 동안은 보상 시간을 세지 않아요). CPU 수도 같이 적어요
+                    spawn_local(async {
+                        let _ = cloud::call("mineStart", &[JsValue::from(THREADS.get())]).await;
+                        NEXT_AT.set(js_sys::Date::now() + step_ms());
+                        paint();
+                    });
                 }
                 post_all(&d)
             }
@@ -201,6 +211,7 @@ fn connect() {
 /// 끊기면 끄지 않고 될 때까지 다시 붙어요 (2초, 4초, 8초… 최대 30초 간격). 그동안 일꾼은 쉬어요
 fn retry(why: String) {
     LIVE.set(false);
+    NEXT_AT.set(0.0); // 끊긴 동안은 보상까지 남은 시간이 멈춰요
     post_all(&dom::obj(&[("type", "stop".into())]));
     RATE.with(|r| r.borrow_mut().iter_mut().for_each(|x| *x = 0.0));
     WS.with(|w| {
@@ -241,12 +252,12 @@ fn start() {
     set_state("채굴을 시작하는 중이에요");
     start_workers();
     connect();
-    NEXT_AT.set(js_sys::Date::now() + 100000.0);
+    NEXT_AT.set(0.0); // 풀에 이어져서 일을 받으면 세기 시작해요
     if let Some(w) = web_sys::window() {
         let cb = Closure::<dyn FnMut()>::new(|| {
             paint();
-            if NEXT_AT.get() > 0.0 && js_sys::Date::now() >= NEXT_AT.get() {
-                NEXT_AT.set(js_sys::Date::now() + 100000.0);
+            if LIVE.get() && NEXT_AT.get() > 0.0 && js_sys::Date::now() >= NEXT_AT.get() {
+                NEXT_AT.set(js_sys::Date::now() + step_ms());
                 claim();
             }
         })
@@ -302,7 +313,7 @@ async fn ask_and_start() {
     let ok = crate::chat::ctx()
         .ask(
             "채굴을 시작할까요?",
-            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 1초마다 0.01 토큰(100초에 1 토큰)을 받아요. 한 번 허락하면 끄기 전까지 앱을 열 때마다 켜져요. 코인 탭에서 언제든 끌 수 있어요.",
+            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 100초마다 1 토큰(CPU 2개면 1.5배)을 받아요. 한 번 허락하면 끄기 전까지 앱을 열 때마다 켜져요. 코인 탭에서 언제든 끌 수 있어요.",
             "허락하고 시작",
             "취소",
         )
@@ -335,6 +346,7 @@ pub fn open() {
     paint();
 }
 fn bind() {
+    THREADS.set(dom::store_get("coin-threads", "1").parse().unwrap_or(1).clamp(1, 2));
     if !BOUND.replace(true) {
         if let Some(b) = by_id("coin-toggle") {
             dom::on(&b, "click", |_| {
@@ -352,6 +364,7 @@ fn bind() {
                     return crate::shell::toast("채굴을 끈 뒤에 바꿀 수 있어요");
                 }
                 THREADS.set(dom::data(&b, "n").parse().unwrap_or(1));
+                dom::store_set("coin-threads", &THREADS.get().to_string());
                 paint();
             });
         }
