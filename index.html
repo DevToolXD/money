@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' wss://money-miner.zerodayseverside-7ea.workers.dev https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://www.google.com wss://money-miner.zerodayseverside-7ea.workers.dev https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob: https://www.google.com https://recaptcha.google.com https://money-sim-36ed8.firebaseapp.com; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=105">
+<link rel="stylesheet" href="app/app.css?v=106">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -315,11 +315,13 @@
       <p class="login-sub" id="login-sub">아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p></div>
       <form id="login-form" class="lg-card" novalidate>
         <div class="extra" id="name-row"><div><label><span>이름 (실명)</span><input id="login-name" type="text" autocomplete="name" placeholder="실명을 입력해 주세요"></label></div></div>
+        <div class="extra" id="phone-row"><div><label class="phone-l"><span>휴대폰 번호</span><input id="login-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="010-1234-5678"><button type="button" class="phone-send" id="phone-send">인증번호 받기</button></label><label><span>인증번호</span><input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="문자로 받은 6자리"></label></div></div>
         <label><span>아이디</span><input id="login-email" type="text" inputmode="latin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="영문, 숫자, _ 3~20자"></label>
         <label><span>비밀번호</span><input id="login-pw" type="password" autocomplete="current-password" placeholder="6자 이상"></label>
         <div class="extra" id="pw2-row"><div><label><span>비밀번호 확인</span><input id="login-pw2" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label></div></div>
       </form>
       <p class="login-error" id="login-error" role="alert"></p>
+      <div id="phone-captcha"></div>
       <button class="lg-btn primary" id="login-submit" type="submit" form="login-form">로그인</button>
       <button class="login-switch" id="login-switch" type="button">계정이 없나요? <b>계정 만들기</b></button>
     </div>
@@ -381,7 +383,7 @@
 </div>
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
-<script type="module" src="app/firebase.js?v=56"></script>
-<script type="module" src="app/rs/boot.js?v=55"></script>
+<script type="module" src="app/firebase.js?v=57"></script>
+<script type="module" src="app/rs/boot.js?v=56"></script>
 </body>
 </html>

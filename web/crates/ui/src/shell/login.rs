@@ -254,8 +254,38 @@ async fn submit() {
         }
         return;
     }
+    let code = dom::input_value("login-code").trim().to_string();
+    if code.is_empty() {
+        return dom::set_text("login-error", "휴대폰 번호로 인증번호를 받아 입력해 주세요");
+    }
     let photo = safe_img(&dom::store_get("profile-photo", ""), 40000).to_string();
-    run(move |_| cloud::call_now("signUp", &[JsValue::from_str(&id), JsValue::from_str(&pw), JsValue::from_str(&name), JsValue::from_str(&photo)]), false).await;
+    run(move |_| cloud::call_now("signUp", &[JsValue::from_str(&id), JsValue::from_str(&pw), JsValue::from_str(&name), JsValue::from_str(&photo), JsValue::from_str(&code)]), false).await;
+}
+/// 인증번호 받기 (가입). 60초 안에는 다시 못 보내요
+async fn send_code() {
+    let phone = dom::input_value("login-phone");
+    let Some(b) = by_id("phone-send") else { return };
+    if b.has_attribute("disabled") {
+        return;
+    }
+    let _ = b.set_attribute("disabled", "");
+    b.set_text_content(Some("보내는 중…"));
+    dom::set_text("login-error", "");
+    match cloud::call("phoneSend", &[JsValue::from_str(&phone)]).await {
+        Ok(_) => {
+            dom::set_text("login-error", "인증번호를 문자로 보냈어요");
+            if let Some(c) = by_id("login-code") {
+                let _ = c.focus();
+            }
+            for left in (1..=60).rev() {
+                b.set_text_content(Some(&format!("{left}초 뒤 다시")));
+                dom::sleep(1000).await;
+            }
+        }
+        Err(e) => dom::set_text("login-error", &e.message),
+    }
+    b.set_text_content(Some("인증번호 받기"));
+    let _ = b.remove_attribute("disabled");
 }
 
 /// 로그인했는지에 따라 화면을 나눠요. 로그인한 적이 있으면 연결이 끝나기 전에도 로그인된 화면을 바로 보여줘요 (깜빡임 없이)
@@ -346,6 +376,9 @@ pub fn init() {
     }
     if let Some(b) = by_id("login-submit") {
         dom::on(&b, "click", |_| leptos::task::spawn_local(submit()));
+    }
+    if let Some(b) = by_id("phone-send") {
+        dom::on(&b, "click", |_| leptos::task::spawn_local(send_code()));
     }
     if let Some(b) = by_id("logout") {
         dom::on(&b, "click", |_| leptos::task::spawn_local(logout()));

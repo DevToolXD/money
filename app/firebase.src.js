@@ -6,6 +6,7 @@ import { initializeApp } from "firebase/app";
 import {
   initializeAuth, connectAuthEmulator, indexedDBLocalPersistence, browserLocalPersistence, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser,
+  RecaptchaVerifier, signInWithPhoneNumber, EmailAuthProvider, linkWithCredential,
 } from "firebase/auth";
 import {
   initializeFirestore, connectFirestoreEmulator, memoryLocalCache, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy,
@@ -17,6 +18,7 @@ window.fb = {
   emu: __EMU__,
   initializeApp, initializeAuth, connectAuthEmulator, indexedDBLocalPersistence, browserLocalPersistence, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, deleteUser,
+  RecaptchaVerifier, signInWithPhoneNumber, EmailAuthProvider, linkWithCredential,
   initializeFirestore, connectFirestoreEmulator, memoryLocalCache, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy,
   limit, startAfter, onSnapshot, getDocs, getCountFromServer, documentId, writeBatch, runTransaction, serverTimestamp, increment, Timestamp, deleteField, deleteDoc,
 };

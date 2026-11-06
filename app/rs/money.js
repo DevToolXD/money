@@ -404,6 +404,10 @@ function __wbg_get_imports() {
             const ret = arg0.composedPath();
             return ret;
         },
+        __wbg_construct_8670bb4c2b062969: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.construct(arg0, arg1);
+            return ret;
+        }, arguments); },
         __wbg_contains_743aa7c94499c269: function(arg0, arg1) {
             const ret = arg0.contains(arg1);
             return ret;
@@ -525,6 +529,10 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_entries_7bb1459bd9b5c2b9: function(arg0) {
             const ret = Object.entries(arg0);
+            return ret;
+        },
+        __wbg_fetch_c30fc2ed77d76a76: function(arg0, arg1, arg2) {
+            const ret = arg0.fetch(getStringFromWasm0(arg1, arg2));
             return ret;
         },
         __wbg_files_d7e65f35a3acc89f: function(arg0) {

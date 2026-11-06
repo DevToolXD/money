@@ -5,7 +5,8 @@ import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebas
 import { doc, setDoc, getDoc, getDocs, updateDoc, collection, query, where, limit, orderBy, writeBatch, deleteDoc, serverTimestamp, Timestamp, increment, collectionGroup, deleteField } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({ projectId: "demo-money", firestore: { rules: readFileSync(process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url), "utf8") } });
-const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
+const pw = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, phone_number: "+8210" + String(uid.charCodeAt(1) || 0).padStart(8, "0"), firebase: { sign_in_provider: "password" } }).firestore();
+const nophone = (uid, id) => env.authenticatedContext(uid, { email: `${id}@money-sim.app`, firebase: { sign_in_provider: "password" } }).firestore();
 const anon = () => env.authenticatedContext("anon1", { firebase: { sign_in_provider: "anonymous" } }).firestore();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
@@ -1513,6 +1514,13 @@ await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청
   await assertFails(msg({ type: "request", to: gid, amount: 5, done: false })); // 요청은 못 해요
 });
 
+console.log("\n[휴대폰 인증]");
+await t("휴대폰 번호 인증을 안 한 계정은 프로필과 지갑을 만들 수 없어요", async () => {
+  await assertFails(setDoc(doc(nophone("uZ", "zed"), "profiles/uZ"), { id: "zed", name: "김제드", photo: "" }));
+  await assertSucceeds(setDoc(doc(pw("uZ", "zed"), "profiles/uZ"), { id: "zed", name: "김제드", photo: "" }));
+  await assertFails(setDoc(doc(nophone("uZ", "zed"), "wallets/uZ"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }));
+  await assertSucceeds(setDoc(doc(pw("uZ", "zed"), "wallets/uZ"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }));
+});
 console.log("\n[채굴]");
 await t("채굴: 계정 하나에 100초마다 1 토큰, 시각과 지갑이 같은 묶음에서, 5분 안에, 미래 시각은 안 돼요", async () => {
   const at0 = Date.now() - 250000;

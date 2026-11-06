@@ -147,6 +147,17 @@ fn messages(code: &str) -> Option<&'static str> {
         "auth/too-many-requests" => "시도가 너무 많아요. 잠시 뒤 다시 해 주세요",
         "auth/operation-not-allowed" => "이 로그인 방법이 아직 켜지지 않았어요",
         "auth/network-request-failed" => "인터넷 연결을 확인해 주세요",
+        "auth/invalid-verification-code" => "인증번호가 맞지 않아요",
+        "phone-used" => "이미 이 휴대폰 번호로 가입한 계정이 있어요. 그 계정으로 로그인해 주세요",
+        "no-phone" => "휴대폰 인증번호를 먼저 받아 주세요",
+        "no-code" => "문자로 받은 인증번호를 입력해 주세요",
+        "bad-phone" => "휴대폰 번호를 확인해 주세요 (예: 010-1234-5678)",
+        "auth/code-expired" => "인증번호가 만료됐어요. 다시 받아 주세요",
+        "auth/invalid-phone-number" => "휴대폰 번호를 확인해 주세요",
+        "auth/quota-exceeded" => "오늘 보낼 수 있는 문자를 다 썼어요. 내일 다시 해 주세요",
+        "auth/captcha-check-failed" => "자동 가입 방지 확인에 실패했어요. 다시 해 주세요",
+        "auth/credential-already-in-use" => "이미 다른 계정에 쓰인 정보예요",
+        "auth/provider-already-linked" => "이미 가입한 계정이에요",
         _ => return None,
     })
 }
@@ -571,22 +582,97 @@ fn wrapped(e: JsValue) -> JsValue {
     set(&err, "code", &get(&e, "code"));
     err.into()
 }
-async fn sign_up(id: String, pw: String, name: String, photo: String) -> R {
+thread_local! {
+    /// 휴대폰 인증: reCAPTCHA(보이지 않음)와 문자를 보낸 뒤의 확인 객체
+    static VERIFIER: RefCell<JsValue> = const { RefCell::new(JsValue::UNDEFINED) };
+    static CONFIRM: RefCell<JsValue> = const { RefCell::new(JsValue::UNDEFINED) };
+    static PHONE: RefCell<String> = const { RefCell::new(String::new()) };
+}
+/// "010-1234-5678" → "+821012345678" (이미 +로 시작하면 그대로)
+fn e164(p: &str) -> Option<String> {
+    let d: String = p.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect();
+    if let Some(r) = d.strip_prefix('+') {
+        return (r.len() >= 8 && r.len() <= 15 && r.chars().all(|c| c.is_ascii_digit())).then(|| format!("+{r}"));
+    }
+    let r = d.strip_prefix('0')?;
+    (r.len() >= 9 && r.len() <= 10 && r.starts_with('1')).then(|| format!("+82{r}"))
+}
+/// 인증번호 보내기 (가입 화면). 같은 번호로 이미 가입했는지는 확인할 때 알려 줘요
+async fn phone_send(phone: String) -> R {
+    let Some(num) = e164(&phone) else { return Err(fail("bad-phone", "휴대폰 번호를 확인해 주세요 (예: 010-1234-5678)")) };
+    let emu = get(&fbo(), "emu").is_truthy();
+    if emu {
+        set(&get(&auth(), "settings"), "appVerificationDisabledForTesting", &true.into());
+    }
+    let v = VERIFIER.with(|x| x.borrow().clone());
+    let v = if v.is_undefined() {
+        let ctor: js_sys::Function = get(&fbo(), "RecaptchaVerifier").dyn_into()?;
+        let nv = js_sys::Reflect::construct(&ctor, &arr(&[auth(), s("phone-captcha"), o(&[("size", s("invisible"))])]).into())?;
+        VERIFIER.with(|x| *x.borrow_mut() = nv.clone());
+        nv
+    } else {
+        v
+    };
+    let conf = aw(f("signInWithPhoneNumber", &[auth(), s(&num), v])).await.map_err(|e| {
+        // 실패하면 reCAPTCHA를 새로 만들어요
+        VERIFIER.with(|x| *x.borrow_mut() = JsValue::UNDEFINED);
+        wrapped(e)
+    })?;
+    CONFIRM.with(|x| *x.borrow_mut() = conf);
+    PHONE.with(|x| *x.borrow_mut() = num.clone());
+    Ok(s(&num))
+}
+/// 시험(에뮬레이터)에서만: 가짜 번호로 문자를 보내고 에뮬레이터에서 인증번호를 읽어요
+async fn emu_code() -> Result<String, JsValue> {
+    let num = format!("+1555{:07}", (js_sys::Math::random() * 9_999_999.0) as u64);
+    phone_send(num.clone()).await?;
+    let pid = st(&get(&get(&fbo(), "config"), "projectId"));
+    let resp = JsFuture::from(web_sys::window().ok_or("no window")?.fetch_with_str(&format!("http://127.0.0.1:9099/emulator/v1/projects/{pid}/verificationCodes"))).await?;
+    let j = JsFuture::from(m(&resp, "json", &[])?.dyn_into::<js_sys::Promise>()?).await?;
+    let list = js_sys::Array::from(&get(&j, "verificationCodes"));
+    let code = list.iter().filter(|c| st(&get(c, "phoneNumber")) == num).last().map(|c| st(&get(&c, "code"))).unwrap_or_default();
+    Ok(code)
+}
+/// 가입: 휴대폰 인증번호로 먼저 로그인하고(번호 하나에 계정 하나), 그 계정에 아이디·비밀번호를 붙인 뒤 아이디로 다시 로그인해요
+async fn sign_up(id: String, pw: String, name: String, photo: String, code: String) -> R {
     let r: R = async {
-        let cred = aw(f("createUserWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await?;
-        let user = get(&cred, "user");
+        let code = if code.trim().is_empty() && get(&fbo(), "emu").is_truthy() { emu_code().await? } else { code.trim().to_string() };
+        let conf = CONFIRM.with(|x| x.borrow().clone());
+        if conf.is_undefined() {
+            return Err(fail("no-phone", "휴대폰 인증번호를 먼저 받아 주세요"));
+        }
+        if code.is_empty() {
+            return Err(fail("no-code", "문자로 받은 인증번호를 입력해 주세요"));
+        }
+        let pc = aw(m(&conf, "confirm", &[s(&code)])).await?;
+        let user = get(&pc, "user");
+        let uid = st(&get(&user, "uid"));
+        // 이 번호로 이미 가입한 계정이 있으면 막아요
+        let has_pw = js_sys::Array::from(&get(&user, "providerData")).iter().any(|p| st(&get(&p, "providerId")) == "password");
+        let has_profile = get_doc(d(&["profiles", &uid])).await.map(|sn| exists(&sn)).unwrap_or(false);
+        if has_pw || has_profile {
+            let _ = aw(f("signOut", &[auth()])).await;
+            return Err(fail("phone-used", "이미 이 휴대폰 번호로 가입한 계정이 있어요. 그 계정으로 로그인해 주세요"));
+        }
         let rest: R = async {
+            let ep: JsValue = get(&fbo(), "EmailAuthProvider");
+            let cred = m(&ep, "credential", &[s(&to_email(&id)), s(&pw)])?;
+            aw(f("linkWithCredential", &[user.clone(), cred])).await?;
             aw(f("updateProfile", &[user.clone(), o(&[("displayName", s(&name))])])).await?;
+            // 아이디·비밀번호로 다시 로그인해야 서버가 아이디 로그인으로 알아봐요 (휴대폰 번호도 함께 들어 있어요)
+            aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await?;
             let ph = if photo.encode_utf16().count() <= 40000 { photo.clone() } else { String::new() };
-            set_doc(d(&["profiles", &st(&get(&user, "uid"))]), o(&[("id", s(&id.trim().to_lowercase())), ("name", s(&name)), ("photo", s(&ph))])).await?;
+            set_doc(d(&["profiles", &uid]), o(&[("id", s(&id.trim().to_lowercase())), ("name", s(&name)), ("photo", s(&ph))])).await?;
             make_wallet().await
         }
         .await;
         if let Err(e) = rest {
-            // 반쪽짜리 계정이 남지 않게 지워요
+            // 반쪽짜리 계정이 남지 않게 지워요 (번호도 다시 쓸 수 있게)
+            let _ = aw(f("deleteUser", &[get(&auth(), "currentUser")])).await;
             let _ = aw(f("deleteUser", &[user])).await;
             return Err(e);
         }
+        CONFIRM.with(|x| *x.borrow_mut() = JsValue::UNDEFINED);
         Ok(JsValue::UNDEFINED)
     }
     .await;
@@ -2204,7 +2290,8 @@ fn build() -> js_sys::Object {
         o(&[("id", s(&my_id())), ("name", if dn.is_truthy() { dn } else { s("") })])
     });
     /* ----- 계정 ----- */
-    am!(api, "signUp", |a| sign_up(sa(&a[0]), sa(&a[1]), sa(&a[2]), opt_s(&a[3])).await);
+    am!(api, "signUp", |a| sign_up(sa(&a[0]), sa(&a[1]), sa(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
+    am!(api, "phoneSend", |a| phone_send(sa(&a[0])).await);
     am!(api, "signIn", |a| aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&sa(&a[0]))), a[1].clone()])).await.map_err(wrapped));
     am!(api, "signOut", |_a| aw(f("signOut", &[auth()])).await);
     am!(api, "ensureAccount", |_a| ensure_account().await);

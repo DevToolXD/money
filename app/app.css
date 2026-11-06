@@ -2037,3 +2037,11 @@ html[data-theme="dark"] .qm { background: rgba(44, 44, 50, 0.3); box-shadow: ins
 .card.coin-th { padding: 16px 18px; display: grid; gap: 10px; }
 .coin-note { margin: 0; font-size: 14px; line-height: 20px; color: var(--text-secondary); }
 .coin-th .wk-sorts { margin: 0; padding: 0; }
+
+/* 가입: 휴대폰 번호 인증 */
+.phone-l { position: relative; }
+.phone-l input { padding-right: 116px !important; }
+.phone-send { position: absolute; right: 10px; bottom: 9px; height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.22); }
+.phone-send[disabled] { opacity: 0.6; }
+#phone-captcha { height: 0; overflow: hidden; }
+#phone-row label + label { border-top: 0.5px solid rgba(255, 255, 255, 0.22); }

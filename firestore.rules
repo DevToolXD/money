@@ -22,7 +22,9 @@ service cloud.firestore {
     match /profiles/{uid} {
       allow get: if signedIn();
       allow list: if signedIn() && request.query.limit <= 20;
+      // 새 계정은 휴대폰 번호 인증을 마쳐야 만들어요 (번호 하나에 계정 하나)
       allow create: if isMe(uid)
+        && request.auth.token.get('phone_number', null) is string
         && request.resource.data.keys().hasOnly(['id', 'name', 'photo'])
         && request.resource.data.id == myId()
         && request.resource.data.id.matches('^[a-z0-9_]{3,20}$')
@@ -1290,6 +1292,7 @@ service cloud.firestore {
 
       // 처음 한 번만, 정해진 금액으로 만들어요 (실명 프로필이 있어야 해요)
       allow create: if isMe(uid)
+        && request.auth.token.get('phone_number', null) is string
         && exists(/databases/$(database)/documents/profiles/$(uid))
         && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
         && request.resource.data.bal == 0
