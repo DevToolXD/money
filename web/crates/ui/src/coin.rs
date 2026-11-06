@@ -160,7 +160,13 @@ fn connect() {
                 SHARES.set(SHARES.get() + 1);
                 paint();
             }
-            "error" => set_state("채굴 서버에 문제가 있어요. 잠시 뒤 다시 켜 주세요"),
+            "error" => {
+                // 어느 풀에서 왜 안 됐는지 남겨요 (원인 찾기용)
+                let tried: Vec<String> = js_sys::Array::from(&cloud::get(&d, "tried")).iter().filter_map(|v| v.as_string()).collect();
+                cloud::warn(&format!("채굴 풀 연결 실패: {}", tried.join(" / ")));
+                dom::store_set("coin-last-error", &tried.join(" / "));
+                set_state("채굴 서버에 문제가 있어요. 잠시 뒤 다시 켜 주세요");
+            }
             _ => {}
         }
     })
@@ -170,7 +176,7 @@ fn connect() {
         if ON.get() {
             let why = match e.reason().as_str() {
                 "origin" => "이 사이트 주소가 채굴 서버에 허락되지 않았어요".to_string(),
-                r if r.starts_with("pool") => format!("채굴 풀에 연결하지 못했어요 ({r})"),
+                r if r.starts_with("pool") => format!("채굴 풀에 연결하지 못했어요 · {}", dom::store_get("coin-last-error", r)),
                 "" => format!("채굴 서버에 연결하지 못했어요 (코드 {})", e.code()),
                 r => format!("채굴 서버와 연결이 끊겼어요 ({r})"),
             };

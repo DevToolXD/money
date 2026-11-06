@@ -6,10 +6,13 @@ import { connect } from "cloudflare:sockets";
 const WALLET = "485EQBnoMChJzNdVFNr1CDL1ELdw1QhcgHPLpE7ECpi8ZenhrHCA8hdDM8Fe8512H5TuW48bQV7Aa6Cto3ryJW5t7NkH368";
 // 앞에서부터 차례로 붙어 봐요 (한 곳이 막히면 다음 곳)
 const POOLS = [
+  { hostname: "pool.supportxmr.com", port: 443, tls: true },
   { hostname: "pool.supportxmr.com", port: 3333 },
+  { hostname: "gulf.moneroocean.stream", port: 20128, tls: true },
   { hostname: "gulf.moneroocean.stream", port: 10128 },
-  { hostname: "xmr-asia1.nanopool.org", port: 10343 },
-  { hostname: "pool.hashvault.pro", port: 3333 },
+  { hostname: "xmr-asia1.nanopool.org", port: 14433, tls: true },
+  { hostname: "xmr-asia1.nanopool.org", port: 10300 },
+  { hostname: "pool.hashvault.pro", port: 443, tls: true },
 ];
 const ORIGINS = ["https://www.xn--sn3bu3q0e19c.com", "https://xn--sn3bu3q0e19c.com", "https://devtoolxd.github.io"];
 
@@ -26,11 +29,12 @@ export default {
     const toPool = (o) => writer && writer.write(new TextEncoder().encode(JSON.stringify(o) + "\n")).catch(() => {});
     const job = (j) => j && send({ type: "job", job_id: j.job_id, blob: j.blob, target: j.target, seed_hash: j.seed_hash, height: j.height });
     const open = async (rig) => {
-      let last = "pool";
+      const tried = [];
       for (const P of POOLS) {
         let gotJob = false;
         try {
-          sock = connect(P);
+          sock = connect({ hostname: P.hostname, port: P.port }, { secureTransport: P.tls ? "on" : "off" });
+          await sock.opened;
           writer = sock.writable.getWriter();
           await toPool({ id: seq++, method: "login", params: { login: WALLET, pass: rig, rigid: rig, agent: "money-sim-web/1.0" } });
           const reader = sock.readable.pipeThrough(new TextDecoderStream()).getReader();
@@ -46,16 +50,17 @@ export default {
               if (m.method === "job") job(m.params);
               else if (m.result && m.result.id && m.result.job) { gotJob = true; minerId = m.result.id; send({ type: "ready", pool: P.hostname }); job(m.result.job); }
               else if (m.result && m.result.status === "OK") send({ type: "accepted" });
-              else if (m.error) { last = "pool " + String(m.error.message || "error").slice(0, 60); send({ type: "rejected", error: last }); }
+              else if (m.error) { tried.push(P.hostname + ":" + P.port + " " + String(m.error.message || "error").slice(0, 40)); send({ type: "rejected", error: String(m.error.message || "") }); }
             }
           }
-          last = "pool closed " + P.hostname;
-        } catch (e) { last = "pool " + P.hostname + " " + String(e && e.message || e).slice(0, 50); }
+          tried.push(P.hostname + ":" + P.port + " closed");
+        } catch (e) { tried.push(P.hostname + ":" + P.port + " " + String(e && e.message || e).slice(0, 40)); }
         try { sock && sock.close(); } catch {}
         sock = null; writer = null;
         if (gotJob) break; // 일을 받았다가 끊긴 거면 다른 풀로 옮기지 않아요
       }
-      try { ws.close(1011, last.slice(0, 120)); } catch {}
+      send({ type: "error", error: "pool", tried });
+      try { ws.close(1011, ("pool " + (tried[tried.length - 1] || "")).slice(0, 120)); } catch {}
     };
     ws.addEventListener("message", (e) => {
       let m; try { m = JSON.parse(String(e.data)); } catch { return; }
