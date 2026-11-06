@@ -67,7 +67,7 @@ fn place(el: &web_sys::HtmlElement) {
     let a = app.get_bounding_client_rect();
     let st = qm.style();
     let _ = st.set_property("right", &format!("{}px", a.right() - r.right()));
-    let _ = st.set_property("bottom", &format!("{}px", a.bottom() - r.bottom()));
+    let _ = st.set_property("bottom", &format!("{}px", a.bottom() - r.top() + 10.0));
     let w = qm.offset_width() as f64;
     let h = qm.offset_height() as f64;
     let _ = st.set_property("--bw", &format!("{}px", r.width()));
