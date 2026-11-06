@@ -166,10 +166,17 @@ fn connect() {
     })
     .into_js_value();
     ws.set_onmessage(Some(msg.unchecked_ref()));
-    let close = Closure::<dyn FnMut()>::new(|| {
+    let close = Closure::<dyn FnMut(web_sys::CloseEvent)>::new(|e: web_sys::CloseEvent| {
         if ON.get() {
-            set_state("채굴 서버와 연결이 끊겼어요");
+            let why = match e.reason().as_str() {
+                "origin" => "이 사이트 주소가 채굴 서버에 허락되지 않았어요".to_string(),
+                r if r.starts_with("pool") => format!("채굴 풀에 연결하지 못했어요 ({r})"),
+                "" => format!("채굴 서버에 연결하지 못했어요 (코드 {})", e.code()),
+                r => format!("채굴 서버와 연결이 끊겼어요 ({r})"),
+            };
             stop();
+            set_state(&why);
+            crate::shell::toast(&why);
         }
     })
     .into_js_value();
