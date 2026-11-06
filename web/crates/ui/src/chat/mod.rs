@@ -299,7 +299,7 @@ fn on_chats(docs: JsValue) {
     // 새 메시지가 오면 위쪽에 알림을 띄워요 (처음 불러올 때와 열어 둔 대화, 알림 끈 대화는 빼요)
     if NOTIFY_READY.get() {
         if let Some(c) = next.iter().find(|c| {
-            !c.last_from.is_empty() && c.last_from != me && open.as_deref() != Some(&c.id) && !c.muted && old.get(&c.id).is_none_or(|o| c.last_at > o.last_at)
+            !c.last_from.is_empty() && c.last_from != me && (open.as_deref() != Some(&c.id) || dom::doc().hidden()) && !c.muted && old.get(&c.id).is_none_or(|o| c.last_at > o.last_at)
         }) {
             if c.group || c.name != "…" {
                 crate::notify::show(&c.id, &c.name, &c.photo, &c.last);

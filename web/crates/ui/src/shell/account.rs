@@ -84,10 +84,28 @@ pub fn init() {
         });
     }
     if let Some(n) = by_id("toggle-notify") {
+        // 켜 두었고 권한도 있으면 켜진 채로 보여요
+        let on0 = dom::store_get("notify-on", "") == "1" && crate::notify::permission() == "granted";
+        let _ = n.set_attribute("aria-checked", &on0.to_string());
         let n2 = n.clone();
         dom::on(&n, "click", move |_| {
-            let on = n2.get_attribute("aria-checked").as_deref() != Some("true");
-            let _ = n2.set_attribute("aria-checked", &on.to_string());
+            let want = n2.get_attribute("aria-checked").as_deref() != Some("true");
+            let n3 = n2.clone();
+            if !want {
+                dom::store_set("notify-on", "");
+                let _ = n3.set_attribute("aria-checked", "false");
+                return;
+            }
+            leptos::task::spawn_local(async move {
+                if crate::notify::ask_permission().await {
+                    dom::store_set("notify-on", "1");
+                    let _ = n3.set_attribute("aria-checked", "true");
+                    toast("새 메시지 알림을 켰어요");
+                } else {
+                    let _ = n3.set_attribute("aria-checked", "false");
+                    toast(if crate::notify::permission() == "denied" { "알림이 막혀 있어요. 휴대폰 설정에서 이 사이트 알림을 허용해 주세요" } else { "이 브라우저는 알림을 지원하지 않아요. 아이폰은 홈 화면에 추가한 앱에서만 돼요" });
+                }
+            });
         });
     }
     let segs = dom::qsa(&dom::doc().document_element().expect("html"), ".segment button");

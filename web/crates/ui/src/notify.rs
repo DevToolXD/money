@@ -66,6 +66,7 @@ pub fn show(chat_id: &str, name: &str, photo: &str, text: &str) {
     let _ = e.offset_width();
     let _ = e.class_list().add_1("in");
     dom::vibrate(12);
+    system(chat_id, name, text);
     win().clear_timeout_with_handle(TIMER.get());
     let cb = Closure::once_into_js(hide);
     TIMER.set(win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 4000).unwrap_or(0));
@@ -85,4 +86,78 @@ pub fn hide() {
         }
     });
     let _ = win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 420);
+}
+
+/* ---------- 휴대폰 알림 (앱이 뒤에 있거나 다른 화면일 때) ---------- */
+
+use js_sys::Reflect;
+
+fn get(o: &JsValue, k: &str) -> JsValue {
+    Reflect::get(o, &JsValue::from_str(k)).unwrap_or(JsValue::UNDEFINED)
+}
+fn call(o: &JsValue, f: &str, args: &[JsValue]) -> JsValue {
+    let Ok(func) = get(o, f).dyn_into::<js_sys::Function>() else { return JsValue::UNDEFINED };
+    func.apply(o, &args.iter().cloned().collect::<js_sys::Array>()).unwrap_or(JsValue::UNDEFINED)
+}
+/// 알림 권한 ("granted", "denied", "default", 없으면 "")
+pub fn permission() -> String {
+    get(&get(&js_sys::global(), "Notification"), "permission").as_string().unwrap_or_default()
+}
+fn sw() -> JsValue {
+    get(&win().navigator().into(), "serviceWorker")
+}
+/// 서비스 워커를 등록하고, 알림을 누르면 그 대화를 열어요
+pub fn init_system() {
+    let c = sw();
+    if c.is_undefined() {
+        return;
+    }
+    let _ = call(&c, "register", &[JsValue::from_str("sw.js")]);
+    let cb = Closure::<dyn FnMut(JsValue)>::new(|e: JsValue| {
+        let d = get(&e, "data");
+        if get(&d, "type").as_string().as_deref() == Some("open-chat") {
+            if let Some(id) = get(&d, "chat").as_string().filter(|s| !s.is_empty()) {
+                crate::chat::thread::open(&id);
+            }
+        }
+    })
+    .into_js_value();
+    let _ = call(&c, "addEventListener", &[JsValue::from_str("message"), cb]);
+}
+/// 켜기: 권한을 물어요 (버튼을 누른 순간에만 물을 수 있어요). 허락되면 true
+pub async fn ask_permission() -> bool {
+    let n = get(&js_sys::global(), "Notification");
+    if n.is_undefined() {
+        return false;
+    }
+    let p = call(&n, "requestPermission", &[]);
+    let r = match p.dyn_into::<js_sys::Promise>() {
+        Ok(p) => wasm_bindgen_futures::JsFuture::from(p).await.ok().and_then(|v| v.as_string()).unwrap_or_default(),
+        Err(_) => permission(),
+    };
+    r == "granted"
+}
+/// 알림을 켜 두었고, 앱이 안 보이고(뒤에 있음), 권한이 있으면 휴대폰 알림을 띄워요
+fn system(chat_id: &str, name: &str, text: &str) {
+    if dom::store_get("notify-on", "") != "1" || permission() != "granted" || !dom::doc().hidden() {
+        return;
+    }
+    let c = sw();
+    if c.is_undefined() {
+        return;
+    }
+    let (chat_id, title, body) = (chat_id.to_string(), name.to_string(), dom::cut(text, 120));
+    wasm_bindgen_futures::spawn_local(async move {
+        let ready = get(&c, "ready");
+        let Ok(p) = ready.dyn_into::<js_sys::Promise>() else { return };
+        let Ok(reg) = wasm_bindgen_futures::JsFuture::from(p).await else { return };
+        let opts = dom::obj(&[
+            ("body", JsValue::from_str(&body)),
+            ("icon", JsValue::from_str("assets/icons/icon-192.png")),
+            ("badge", JsValue::from_str("assets/icons/icon-192.png")),
+            ("tag", JsValue::from_str(&format!("chat-{chat_id}"))),
+            ("data", dom::obj(&[("chat", JsValue::from_str(&chat_id))])),
+        ]);
+        let _ = call(&reg, "showNotification", &[JsValue::from_str(&title), opts]);
+    });
 }

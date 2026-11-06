@@ -555,6 +555,7 @@ pub fn start() {
     crate::work::init(c.clone());
     crate::wage::init();
     crate::coin::init();
+    crate::notify::init_system();
     crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
     crate::notices::init();
