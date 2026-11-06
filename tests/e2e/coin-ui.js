@@ -16,7 +16,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
       if (m.method === 'login') s.write(JSON.stringify({ id: m.id, result: { id: 'm1', status: 'OK', job: { job_id: 'j1', blob: '0c0c' + 'ab'.repeat(74), target: 'ffffffff', seed_hash: '11'.repeat(32), height: 1 } } }) + '\n');
       if (m.method === 'submit') { submits++; s.write(JSON.stringify({ id: m.id, result: { status: 'OK' } }) + '\n'); } } });
   }).listen(3334);
-  const proxy = spawn('node', [path.join(__dirname, '../../server/miner-proxy/index.js')], { env: { ...process.env, PORT: '8090', POOL_HOST: '127.0.0.1', POOL_PORT: '3334' }, stdio: 'inherit' });
+  let proxy = spawn('node', [path.join(__dirname, '../../server/miner-proxy/index.js')], { env: { ...process.env, PORT: '8090', POOL_HOST: '127.0.0.1', POOL_PORT: '3334' }, stdio: 'inherit' });
   await new Promise((r) => setTimeout(r, 800));
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-web-security'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
@@ -55,8 +55,24 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   const bal1 = Number((await raw(`wallets/${uid}`)).fields.bal.integerValue);
   ok(`250초면 2 토큰, 두 탭이어도 한 번만 (${bal1 - bal0})`, bal1 - bal0 === 2);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'coin.png') });
+  // 허락을 기억해요: 다시 열면 묻지 않고 켜져요
+  await p2.close();
+  await p.reload(); await p.waitForTimeout(9000);
+  await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500);
+  await p.click('.qm-row[data-go="coin"]'); await p.waitForTimeout(800);
+  ok('다시 열면 묻지 않고 켜져 있어요', (await p.getAttribute('#coin-toggle', 'aria-checked')) === 'true' && !(await p.isVisible('#alert.is-open')));
+  // 풀이 끊기면 끄지 않고 다시 붙어요
+  proxy.kill(); await p.waitForTimeout(3000);
+  const st = await p.textContent('#coin-state');
+  console.log('끊긴 뒤:', st);
+  ok('끊겨도 켜져 있고 다시 연결한다고 알려요', (await p.getAttribute('#coin-toggle', 'aria-checked')) === 'true' && st.includes('다시 연결'));
+  proxy = spawn('node', [path.join(__dirname, '../../server/miner-proxy/index.js')], { env: { ...process.env, PORT: '8090', POOL_HOST: '127.0.0.1', POOL_PORT: '3334' }, stdio: 'inherit' });
+  await p.waitForTimeout(12000);
+  console.log('다시 붙은 뒤:', await p.textContent('#coin-state'));
+  ok('서버가 돌아오면 다시 채굴해요', (await p.textContent('#coin-state')).includes('채굴 중') || (await p.textContent('#coin-state')).includes('연결했어요'));
   await p.click('#coin-toggle'); await p.waitForTimeout(1500);
   ok('끄면 멈춰요', (await p.getAttribute('#coin-toggle', 'aria-checked')) === 'false' && (await p.textContent('#coin-rate')) === '—');
+  ok('끄면 허락도 잊어요', (await p.evaluate(() => localStorage.getItem('coin-on'))) === '');
   ok('화면 오류 없음', p.errs.length === 0); if (p.errs.length) console.log(p.errs.slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close(); proxy.kill(); pool.close(); process.exit(res.every(Boolean) ? 0 : 1);

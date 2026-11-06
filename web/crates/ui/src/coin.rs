@@ -33,6 +33,10 @@ thread_local! {
     static STATE: RefCell<String> = RefCell::new("꺼져 있어요".into());
     static TIMER: Cell<i32> = const { Cell::new(0) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
+    /// 풀과 이어져서 일을 하고 있는지 (끊긴 동안은 보상을 받지 않아요)
+    static LIVE: Cell<bool> = const { Cell::new(false) };
+    /// 끊긴 뒤 다시 붙은 횟수 (기다리는 시간을 조금씩 늘려요)
+    static RETRY: Cell<u32> = const { Cell::new(0) };
 }
 
 fn set_state(t: &str) {
@@ -64,7 +68,7 @@ fn paint() {
 
 /// 받을 보상을 받아요 (100초마다). 서버 규칙이 계정마다 한 번만 세요
 fn claim() {
-    if !ON.get() {
+    if !ON.get() || !LIVE.get() {
         return;
     }
     spawn_local(async {
@@ -139,8 +143,7 @@ fn start_workers() {
 
 fn connect() {
     let Ok(ws) = web_sys::WebSocket::new(&proxy()) else {
-        set_state("채굴 서버에 연결하지 못했어요");
-        return stop();
+        return retry("채굴 서버에 연결하지 못했어요".into());
     };
     let uid = cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default();
     let ws2 = ws.clone();
@@ -155,7 +158,14 @@ fn connect() {
         let Some(t) = e.data().as_string() else { return };
         let Ok(d) = js_sys::JSON::parse(&t) else { return };
         match cloud::get(&d, "type").as_string().unwrap_or_default().as_str() {
-            "job" => post_all(&d),
+            "job" => {
+                if !LIVE.replace(true) {
+                    RETRY.set(0);
+                    // 다시 붙으면 보상 시계를 맞춰요 (오래 끊겼으면 새로 시작, 아니면 이어서. 다른 탭이 켜져 있어도 시계를 지우지 않아요)
+                    claim();
+                }
+                post_all(&d)
+            }
             "accepted" => {
                 SHARES.set(SHARES.get() + 1);
                 paint();
@@ -165,7 +175,7 @@ fn connect() {
                 let tried: Vec<String> = js_sys::Array::from(&cloud::get(&d, "tried")).iter().filter_map(|v| v.as_string()).collect();
                 cloud::warn(&format!("채굴 풀 연결 실패: {}", tried.join(" / ")));
                 dom::store_set("coin-last-error", &tried.join(" / "));
-                set_state("채굴 서버에 문제가 있어요. 잠시 뒤 다시 켜 주세요");
+                set_state("채굴 풀에 연결하지 못했어요. 다시 시도해요");
             }
             _ => {}
         }
@@ -180,14 +190,36 @@ fn connect() {
                 "" => format!("채굴 서버에 연결하지 못했어요 (코드 {})", e.code()),
                 r => format!("채굴 서버와 연결이 끊겼어요 ({r})"),
             };
-            stop();
-            set_state(&why);
-            crate::shell::toast(&why);
+            retry(why);
         }
     })
     .into_js_value();
     ws.set_onclose(Some(close.unchecked_ref()));
     WS.with(|w| *w.borrow_mut() = Some(ws));
+}
+
+/// 끊기면 끄지 않고 될 때까지 다시 붙어요 (2초, 4초, 8초… 최대 30초 간격). 그동안 일꾼은 쉬어요
+fn retry(why: String) {
+    LIVE.set(false);
+    post_all(&dom::obj(&[("type", "stop".into())]));
+    RATE.with(|r| r.borrow_mut().iter_mut().for_each(|x| *x = 0.0));
+    WS.with(|w| {
+        if let Some(ws) = w.borrow_mut().take() {
+            ws.set_onclose(None);
+            let _ = ws.close();
+        }
+    });
+    let n = RETRY.get() + 1;
+    RETRY.set(n);
+    let wait = (2000.0 * 2f64.powi(n.min(4) as i32 - 1)).min(30000.0);
+    set_state(&format!("{why} · {}초 뒤 다시 연결해요 ({n}번째)", (wait / 1000.0) as i64));
+    spawn_local(async move {
+        dom::sleep(wait as i32).await;
+        if ON.get() && RETRY.get() == n && WS.with(|w| w.borrow().is_none()) {
+            set_state("다시 연결하는 중이에요");
+            connect();
+        }
+    });
 }
 
 fn start() {
@@ -203,14 +235,13 @@ fn start() {
         return crate::shell::toast("로그인하고 채굴할 수 있어요");
     }
     ON.set(true);
+    LIVE.set(false);
+    RETRY.set(0);
+    dom::store_set("coin-on", "1"); // 허락을 기억해요: 끄기 전까지 앱을 열면 켜져요
     set_state("채굴을 시작하는 중이에요");
     start_workers();
     connect();
-    spawn_local(async {
-        let _ = cloud::call("mineStart", &[]).await;
-        NEXT_AT.set(js_sys::Date::now() + 100000.0);
-        paint();
-    });
+    NEXT_AT.set(js_sys::Date::now() + 100000.0);
     if let Some(w) = web_sys::window() {
         let cb = Closure::<dyn FnMut()>::new(|| {
             paint();
@@ -224,10 +255,17 @@ fn start() {
     }
 }
 
+/// 사용자가 끌 때: 허락도 거둬요 (다음에 켤 때 다시 물어요)
 pub fn stop() {
+    dom::store_set("coin-on", "");
+    halt();
+}
+/// 멈추기만 해요 (창을 닫을 때는 허락을 그대로 둬요)
+fn halt() {
     if !ON.replace(false) {
         return;
     }
+    LIVE.set(false);
     claim_final();
     post_all(&dom::obj(&[("type", "stop".into())]));
     WORKERS.with(|w| w.borrow_mut().drain(..).for_each(|w| w.terminate()));
@@ -264,7 +302,7 @@ async fn ask_and_start() {
     let ok = crate::chat::ctx()
         .ask(
             "채굴을 시작할까요?",
-            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 1초마다 0.01 토큰(100초에 1 토큰)을 받아요. 언제든 끌 수 있어요.",
+            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 1초마다 0.01 토큰(100초에 1 토큰)을 받아요. 한 번 허락하면 끄기 전까지 앱을 열 때마다 켜져요. 코인 탭에서 언제든 끌 수 있어요.",
             "허락하고 시작",
             "취소",
         )
@@ -274,8 +312,29 @@ async fn ask_and_start() {
     }
 }
 
+/// 앱을 열 때: 전에 허락하고 끄지 않았으면 로그인되는 대로 다시 켜요 (다시 묻지 않아요)
+pub fn init() {
+    if dom::store_get("coin-on", "") != "1" {
+        return;
+    }
+    spawn_local(async {
+        for _ in 0..120 {
+            if cloud::signed_in() && crate::chat::live() {
+                bind();
+                start();
+                return;
+            }
+            dom::sleep(1000).await;
+        }
+    });
+}
+
 /// 코인 탭을 열 때
 pub fn open() {
+    bind();
+    paint();
+}
+fn bind() {
     if !BOUND.replace(true) {
         if let Some(b) = by_id("coin-toggle") {
             dom::on(&b, "click", |_| {
@@ -298,9 +357,8 @@ pub fn open() {
         }
         // 창을 닫으면 멈춰요
         if let Some(w) = web_sys::window() {
-            let cb = Closure::<dyn FnMut()>::new(stop).into_js_value();
+            let cb = Closure::<dyn FnMut()>::new(halt).into_js_value();
             let _ = w.add_event_listener_with_callback("pagehide", cb.unchecked_ref());
         }
     }
-    paint();
 }
