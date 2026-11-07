@@ -143,7 +143,12 @@ fn start() {
     c.forget();
 }
 /// 로그인한 뒤: 서버에서 상태를 읽어요
+const OFF: bool = true;
 pub fn load() {
+    // 새로 만드는 동안은 몸 상태(배고픔·목마름·에너지)를 쉬어요: 상태 버튼과 화면 효과가 나오지 않아요
+    if OFF {
+        return;
+    }
     leptos::task::spawn_local(async {
         match cloud::call("loadVitals", &[]).await {
             Ok(v) => {

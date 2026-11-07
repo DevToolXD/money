@@ -78,43 +78,17 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.click('#notices-back'); await p.waitForTimeout(600);
   ok('뒤로 가면 계정', (await active(p)) === 'account');
 
-  // 상태 버튼
-  for (let i = 0; i < 20; i++) { if (!(await p.isHidden('#status-fab'))) break; await p.waitForTimeout(250); }
-  ok('상태 버튼이 보여요', !(await p.isHidden('#status-fab')));
-  await p.click('#status-bubble'); await p.waitForTimeout(900);
-  ok('누르면 세 칸이 나와요', (await p.getAttribute('#status-bubble', 'aria-expanded')) === 'true' && (await p.$$('#fab-tiles .fab-tile.show')).length === 3);
-  ok('퍼센트가 보여요', /\d+%/.test(await text(p, '#fab-tiles [data-k="h"]')));
-  await p.click('#status-bubble'); await p.waitForTimeout(600);
-  ok('다시 누르면 닫혀요', (await p.getAttribute('#status-bubble', 'aria-expanded')) === 'false');
-
-  // 창업
-  await setBal(uid, 100); await p.waitForTimeout(2500);
-  await tab(p, 'business'); await p.waitForTimeout(1500);
-  ok('사업 탭: 창업 카드', !(await p.isHidden('#biz-none')));
-  await p.click('#biz-start'); await p.waitForTimeout(600);
-  ok('창업 시트: 내 토큰 100', (await text(p, '#found-cost')).includes('100 토큰'));
-  await p.click('#found-go'); await p.waitForTimeout(200);
-  ok('이름이 없으면 안내', (await text(p, '#found-err')) === '회사 이름을 적어 주세요');
-  await p.click('#found-kinds [data-kind="nuclear"]');
-  await p.fill('#found-name', '셸 발전');
-  await p.click('#found-go'); await p.waitForTimeout(600);
-  ok('창업: 업종을 한 번 물어봐요', (await text(p, '.alert-card')).includes('원자력 발전 회사로 정할까요'));
-  await p.click('#alert-ok'); await p.waitForTimeout(900);
-  ok('창업: 한 번 더 물어봐요', (await text(p, '.alert-card')).includes('정말 정할까요'));
-  await p.click('#alert-ok');
-  ok('창업 알림', await toastHas(p, '셸 발전을(를) 창업했어요'));
-  await p.waitForTimeout(2500);
-  ok('사업 화면: 회사 이름과 종류', (await text(p, '#biz-name')) === '셸 발전' && (await text(p, '#biz-since')).includes('원자력 발전 회사'));
-  // 회사 프로필: 업종 바꾸기
-  await p.click('#biz-logo'); await p.waitForTimeout(600);
-  ok('회사 프로필 시트', (await text(p, '#co-name')) === '셸 발전');
-  ok('회사 프로필에 업종 바꾸기는 없어요', !(await p.$('#co-save')) && !(await p.$('#co-kinds')));
-  await p.click('#company-sheet [data-close]'); await p.waitForTimeout(700);
-
-  // 랭킹
-  await tab(p, 'ranking'); await p.waitForTimeout(3000);
-  ok('랭킹: 1등 자리에 내 이름', (await text(p, '#rk-podium')).includes('홍길동'));
-  ok('랭킹: 내 줄', (await text(p, '#rk-me')).includes('홍길동'));
+  // 새로 만드는 동안: 상태 버튼은 쉬고, 메시지·SNS 말고는 무제 탭이에요
+  await p.waitForTimeout(2000);
+  ok('상태 버튼은 숨어 있어요', await p.isHidden('#status-fab'));
+  const labels = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
+  ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,무제,무제,무제');
+  await tab(p, 'blank2'); await p.waitForTimeout(1200);
+  ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank2' && (await text(p, '#screen-blank2')).includes('empty'));
+  await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
+  const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
+  ok('둘째 쪽: 무제 3개 + SNS', labels2.join(',') === '무제,무제,무제,SNS');
+  await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
 
   // 위쪽 바: 내리면 작은 제목이 나와요
   await tab(p, 'account'); await p.waitForTimeout(600);

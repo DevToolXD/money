@@ -89,7 +89,7 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "messages" => MESSAGES,
         "money" => MONEY,
         "work" => WORK,
-        "untitled" => UNTITLED,
+        "untitled" | "blank1" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
         "inventory" => INVENTORY,
         "untitled3" => SNS,
         "shop" => SHOP,
