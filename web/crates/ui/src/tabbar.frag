@@ -226,7 +226,7 @@ void main() {
 
   // ====== 1. 막대 유리
   vec4 outside = vec4(0.0);
-  float scA = 1.0 + 16.0 / max(uBarA.z * 2.0, 1.0) * pr;   // 누르면 16px 만큼 커져요
+  float scA = 1.0;   // 눌러도 막대는 커지지 않아요
   vec4 barA = vec4(uBarA.xy, uBarA.zw * scA);
   vec4 barB = vec4(uBarB.xy, uBarB.zw * (1.0 + 0.02 * uPress.y));
   float dA = sdRound(p - barA.xy, barA.zw, barA.w);
@@ -239,7 +239,8 @@ void main() {
   float sdS = max(min(dsA, dsB), 0.0);
   float shadow = 0.1 * exp(-(sdS * sdS) / (2.0 * 10.0 * 10.0));
   // 뒤 화면 사진이 없으면 막대는 CSS 판(.platter)이 그려요
-  if (uGlass > 0.5) outside = vec4(0.0, 0.0, 0.0, shadow * uGlassMix);
+  // 그림자는 없앴어요 (막대 아래가 깨끗하게)
+  shadow = 0.0;
 
   if (uGlass > 0.5 && dMin < 1.5) {
     bool useA = dA < dB;
@@ -267,7 +268,7 @@ void main() {
   vec2 gs;
   float ds = seDist(q - vec2(0.0, 4.0), hb, uExp, gs);
   float dsx = max(ds, 0.0);
-  float sh = 0.1 * pr * exp(-(dsx * dsx) / (2.0 * 10.0 * 10.0));
+  float sh = 0.0; // 알약 그림자도 없앴어요
   outside = outside * (1.0 - sh) + vec4(0.0, 0.0, 0.0, sh);
 
   if (d > 1.5) {

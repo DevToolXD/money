@@ -289,6 +289,8 @@ struct Bar {
     out: Vec<Out>,
     want_frame: bool,
     plain_px: [u8; 4],
+    // 바탕색을 읽은 화면 (매 프레임 계산된 스타일을 읽으면 렌즈가 버벅여요)
+    plain_for: Option<String>,
 }
 
 fn with<R>(f: impl FnOnce(&mut Bar) -> R) -> Option<R> {
@@ -723,7 +725,8 @@ impl Bar {
         let _ = self.nav.class_list().add_1("is-pressed");
         self.releasing = false;
         self.grab.target = 1.0;
-        self.lift.target = if self.reduced() { 0.0 } else { 1.0 };
+        // 누르기만 하면 알약이 그대로 미끄러져요. 렌즈(확대경)는 손가락으로 끌 때만 떠요
+        self.lift.target = 0.0;
         self.x.use_(MOVE);
         self.x.target = self.geo[index].cx;
         if self.reduced() {
@@ -734,6 +737,7 @@ impl Bar {
 
     fn on_move(&mut self, e: &web_sys::PointerEvent) {
         let n = self.geo.len();
+        let reduced = self.reduced();
         let Some(p) = self.press.as_mut() else { return };
         if e.pointer_id() != p.id {
             return;
@@ -756,6 +760,10 @@ impl Bar {
         if !p.dragging && dx.abs() > 6.0 {
             p.dragging = true;
             self.x.use_(TRAIL);
+            // 손가락으로 끌 때만 렌즈(확대경)가 떠요
+            if !reduced {
+                self.lift.target = 1.0;
+            }
         }
         if p.dragging {
             // 첫 탭과 마지막 칸 밖으로는 끌려가지 않아요
@@ -908,9 +916,6 @@ impl Bar {
         self.x.target = self.geo[index].cx;
         if self.reduced() {
             self.x.snap(self.geo[index].cx);
-        } else {
-            self.lift.target = 1.0;
-            self.releasing = true;
         }
         self.select(index);
         self.request_render();
@@ -1026,8 +1031,10 @@ impl Bar {
         let lift = clamp(self.lift.x, 0.0, 1.0);
         let bulge = 1.0 + 0.03 * clamp(self.grab.x, 0.0, 1.0);
         let s = clamp(self.stretch.x, 0.0, 1.0);
-        let mut hw = lerp(pill_hw, lens_hw, lift) * bulge * (1.0 + 0.38 * s); // 움직이는 동안 옆으로 넓은 둥근 사각형이 됐다가 멈추면 동그랗게 돌아와요
-        let mut hh = lerp(pill_hh, lens_hh, lift) * bulge * (1.0 - 0.08 * s);
+        // 옮길 때 알약이 커지거나 늘어나지 않아요. 크기는 알약 그대로, 렌즈 효과(uLift)만 켜졌다 꺼져요
+        let _ = (lens_hw, lens_hh, bulge, s);
+        let mut hw = pill_hw;
+        let mut hh = pill_hh;
         hw = hw.min(pill_hw.max(self.reach(x) + 14.0 * lift));
         let mut cx = x;
         if self.current < 4 {
@@ -1038,7 +1045,8 @@ impl Bar {
             hw *= vis;
             hh *= vis;
         }
-        (cx, cy - 0.5 * lift, hw.max(0.5), hh.max(0.5), lerp(pill_exp, lens_exp, lift) + 1.4 * s, lift)
+        let _ = lens_exp;
+        (cx, cy, hw.max(0.5), hh.max(0.5), pill_exp, lift)
     }
 
     fn render(&mut self) {
@@ -1054,7 +1062,8 @@ impl Bar {
         let entry = active.as_ref().and_then(|a| self.shots.iter().position(|(k, _)| k == a));
         // 사진이 하나도 없을 때(처음 켤 때, 테마가 바뀌어 버렸을 때, 그래픽 메모리를 되찾은 뒤)도 일반 판으로 돌아가지 않고 바탕색으로 유리를 그려요
         let plain = entry.is_none();
-        if plain {
+        if plain && self.plain_for.as_deref() != active.as_deref() {
+            self.plain_for = active.clone();
             let el = js_sys::Reflect::get(&self.backdrop, &"activeEl".into()).ok().and_then(|e| e.dyn_into::<web_sys::Element>().ok());
             let mut bg = el.and_then(|e| win().get_computed_style(&e).ok().flatten()).and_then(|c| c.get_property_value("background-color").ok()).unwrap_or_default();
             let c = parse_color(&bg);
@@ -1228,6 +1237,7 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
         out: Vec::new(),
         want_frame: false,
         plain_px: [0; 4],
+        plain_for: None,
     };
     let rc = Rc::new(RefCell::new(bar));
     BAR.with(|b| *b.borrow_mut() = Some(rc.clone()));
@@ -1304,6 +1314,7 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
     let refresh = || {
         with(|b| {
             b.read_theme();
+            b.plain_for = None;
             b.request_render();
         });
     };
