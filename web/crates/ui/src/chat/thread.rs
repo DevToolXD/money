@@ -64,15 +64,19 @@ fn card_html(m: &JsValue, me: bool, i: usize) -> String {
             let amount = js_sys::Number::from(cloud::get(m, "amount")).value_of();
             let amount = if amount.is_finite() { amount.floor().max(0.0) } else { 0.0 };
             let done = cloud::get(m, "done").is_truthy();
-            let btn = if done {
+            let btn = if done && gift && cloud::get(m, "cancel").is_truthy() {
+                format!(r#"<span class="cash-state">{}</span>"#, if me { "선물을 취소했어요" } else { "상대가 취소했어요" })
+            } else if done {
                 format!(r#"<span class="cash-state">{}</span>"#, match (gift, me) {
                     (true, true) => "상대가 받았어요",
                     (true, false) => "받았어요",
                     (false, true) => "상대가 보냈어요",
                     (false, false) => "보냈어요",
                 })
+            } else if me && gift {
+                format!(r#"<span class="cash-state">상대가 받으면 완료돼요</span><button class="cash-btn ghost" data-act="cancel" data-i="{i}" type="button">선물 취소</button>"#)
             } else if me {
-                format!(r#"<span class="cash-state">{}</span>"#, if gift { "상대가 받으면 완료돼요" } else { "요청했어요" })
+                r#"<span class="cash-state">요청했어요</span>"#.to_string()
             } else {
                 format!(r#"<button class="cash-btn" data-act="{}" data-i="{i}" type="button">{}</button>"#, if gift { "accept" } else { "pay" }, if gift { "받기" } else { "보내기" })
             };

@@ -68,7 +68,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
 
   // 소개 고치기
   await p.evaluate(() => document.querySelector('.js-edit-profile').click()); await p.waitForTimeout(500);
-  ok('편집 시트: 이름은 못 바꿔요', await p.isDisabled('#edit-name') && (await p.inputValue('#edit-name')) === '홍길동');
+  ok('편집 시트: 이름을 바꿀 수 있어요', !(await p.isDisabled('#edit-name')) && (await p.inputValue('#edit-name')) === '홍길동');
   await p.fill('#edit-bio', '시험 소개');
   await p.click('#sheet-save'); await p.waitForTimeout(500);
   ok('소개가 바뀌어요', (await text(p, '#profile-bio')) === '시험 소개');
@@ -114,7 +114,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   // 랭킹
   await tab(p, 'ranking'); await p.waitForTimeout(3000);
   ok('랭킹: 1등 자리에 내 이름', (await text(p, '#rk-podium')).includes('홍길동'));
-  ok('랭킹: 내 줄', (await text(p, '#rk-me')).includes('나'));
+  ok('랭킹: 내 줄', (await text(p, '#rk-me')).includes('홍길동'));
 
   // 위쪽 바: 내리면 작은 제목이 나와요
   await tab(p, 'account'); await p.waitForTimeout(600);

@@ -15,6 +15,12 @@ thread_local! {
     static WHO: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
+/// 관리자가 준 파란 인증 표시 (사람 정보 캐시에 blue가 있으면)
+pub fn blue(uid: &str) -> &'static str {
+    let p = cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::NULL);
+    if cloud::get(&p, "blue").is_truthy() { BLUE } else { "" }
+}
+pub const BLUE: &str = r##"<svg class="bluechk" viewBox="0 0 24 24" aria-label="인증됨" role="img"><path fill="#0a7cff" d="M12 2l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 22l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2z"/><path d="M8.2 12.2l2.6 2.6 5-5.2" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
 fn info(uid: &str) -> (String, String, String) {
     let p = cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::NULL);
     let g = |k: &str| cloud::get(&p, k).as_string().unwrap_or_default();
@@ -26,8 +32,9 @@ fn paint(el: &web_sys::HtmlElement, uid: &str, name: &str, rank: Option<usize>) 
     let name = if n.is_empty() { name.to_string() } else { n };
     let me = cloud::cloud().map(|c| cloud::get(&c, "uid").as_string().unwrap_or_default()).unwrap_or_default() == uid;
     el.set_inner_html(&format!(
-        r#"<div class="pf-card lg-card" role="dialog" aria-modal="true" aria-label="{n}"><span class="pf-grab"></span><button type="button" class="pf-x glass-btn" data-act="close" aria-label="닫기">{X}</button><div class="pf-av">{av}</div><h2 class="pf-name">{n}</h2><p class="pf-sub">{id}{rk}</p>{btn}</div>"#,
+        r#"<div class="pf-card lg-card" role="dialog" aria-modal="true" aria-label="{n}"><span class="pf-grab"></span><button type="button" class="pf-x glass-btn" data-act="close" aria-label="닫기">{X}</button><div class="pf-av">{av}</div><h2 class="pf-name">{n}{bl}</h2><p class="pf-sub">{id}{rk}</p>{btn}</div>"#,
         n = esc(&name),
+        bl = blue(uid),
         av = dom::avatar_html(&name, &photo, "avatar contact pf-avatar"),
         id = if id.is_empty() { String::new() } else { format!("@{}", esc(&id)) },
         rk = rank.map(|r| format!(r#"<span class="pf-rank">{r}위</span>"#)).unwrap_or_default(),

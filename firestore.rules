@@ -30,9 +30,18 @@ service cloud.firestore {
         && (request.resource.data.name.matches('^[가-힣]{2,6}$') || request.resource.data.name.matches('^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$')
             || request.resource.data.name == request.resource.data.id) // 이름이 없던 옛 계정은 아이디를 이름으로 써요
         && photoOk(request.resource.data.photo);
-      allow update: if isMe(uid)
+      allow update: if (isMe(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])
-        && photoOk(request.resource.data.photo);
+        && photoOk(request.resource.data.photo))
+        // 이름 바꾸기: 가입할 때와 같은 규칙 (한글 2~6자 또는 영어)
+        || (isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        && request.resource.data.name is string
+        && (request.resource.data.name.matches('^[가-힣]{2,6}$') || request.resource.data.name.matches('^[A-Za-z][A-Za-z ]{1,38}[A-Za-z]$')))
+        // 파란 인증 표시: 관리자만 주고 뺄 수 있어요
+        || (isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blue'])
+        && request.resource.data.blue is bool);
       allow delete: if isOwner() && adminDelOk();
     }
 
@@ -960,6 +969,16 @@ service cloud.firestore {
             && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == true
             && request.resource.data.bal == resource.data.bal + get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
           ||
+          // 선물 취소: 보낸 사람이 아직 안 받은 선물을 취소로 바꾸는 묶음에서만, 그 금액만큼 돌아와요
+          (request.resource.data.op.kind == 'ungift'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.type == 'gift'
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.from == request.auth.uid
+            && get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.done == false
+            && getAfter(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.get('cancel', false) == true
+            && request.resource.data.bal == resource.data.bal + get(msgPath(request.resource.data.op.cid, request.resource.data.op.mid)).data.amount)
+          ||
           // 창업: 같은 묶음에서 새 회사 문서(op.cid)가 만들어지고, 딱 10 토큰만 빠져요. 회사는 여러 개 만들 수 있어요
           (request.resource.data.op.kind == 'found'
             && request.resource.data.rate == resource.data.rate
@@ -1222,6 +1241,16 @@ service cloud.firestore {
             && resource.data.to == request.auth.uid
             && resource.data.done == false
             && request.resource.data.done == true)
+          ||
+          // 선물 취소: 보낸 사람만, 받기 전에 한 번만 (같은 묶음에서 지갑이 그만큼 돌아와요)
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'cancel'])
+            && resource.data.type == 'gift'
+            && resource.data.from == request.auth.uid
+            && resource.data.done == false
+            && request.resource.data.done == true
+            && request.resource.data.cancel == true
+            && getAfter(walletPath(request.auth.uid)).data.op.kind == 'ungift'
+            && getAfter(walletPath(request.auth.uid)).data.op.mid == mid)
           ||
           // 투표: 내 표만, 선택지 안에서
           (resource.data.type == 'poll'

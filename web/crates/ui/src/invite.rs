@@ -41,17 +41,9 @@ fn share() {
     }
     let link = format!("{SITE}?ref={}", my_uid());
     let Some(w) = web_sys::window() else { return };
-    let nav = w.navigator();
-    // 휴대폰이면 공유 창을 열고, 안 되면 링크를 복사해요
-    let data = dom::obj(&[("title", JsValue::from_str("자본주의 시뮬레이터")), ("text", JsValue::from_str("이 링크로 가입하고 같이 해요")), ("url", JsValue::from_str(&link))]);
-    let shared = js_sys::Reflect::get(&nav, &JsValue::from_str("share"))
-        .ok()
-        .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
-        .and_then(|f| f.call1(&nav, &data).ok());
-    if shared.is_none() {
-        let _ = nav.clipboard().write_text(&link);
-        crate::shell::toast("초대 링크를 복사했어요. 친구에게 보내 주세요");
-    }
+    // 보내는 창 없이 링크만 복사해요
+    let _ = w.navigator().clipboard().write_text(&link);
+    crate::shell::toast("초대 링크를 복사했어요");
 }
 
 /// 친구 초대 화면을 열 때: 내가 초대한 친구 목록을 읽어요

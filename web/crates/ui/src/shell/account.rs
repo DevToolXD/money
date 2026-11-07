@@ -62,7 +62,7 @@ pub fn init() {
         dom::on(&b, "click", |_| {
             if let Some(n) = by_id("edit-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
                 n.set_value(&by_id("profile-name").and_then(|p| p.text_content()).unwrap_or_default());
-                n.set_disabled(true); // 이름은 가입할 때 정한 것이라 바꿀 수 없어요
+                n.set_disabled(false);
             }
             if let Some(b) = by_id("edit-bio").and_then(|e| e.dyn_into::<web_sys::HtmlTextAreaElement>().ok()) {
                 b.set_value(&dom::store_get("profile-bio", ""));
@@ -78,6 +78,28 @@ pub fn init() {
             let bio = by_id("edit-bio").and_then(|e| e.dyn_into::<web_sys::HtmlTextAreaElement>().ok()).map(|t| t.value()).unwrap_or_default();
             let bio = bio.trim();
             dom::store_set("profile-bio", if bio.is_empty() { "소개를 추가해 보세요" } else { bio });
+            let name = by_id("edit-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()).map(|t| t.value()).unwrap_or_default();
+            let name = name.trim().to_string();
+            let old = dom::store_get("profile-name", "내 계정");
+            if !name.is_empty() && name != old {
+                let ko = name.chars().count() >= 2 && name.chars().count() <= 6 && name.chars().all(|c| ('가'..='힣').contains(&c));
+                let en = name.len() >= 3 && name.len() <= 40 && name.chars().all(|c| c.is_ascii_alphabetic() || c == ' ') && !name.starts_with(' ') && !name.ends_with(' ');
+                if !(ko || en) {
+                    return toast("이름은 한글 2~6자나 영어로 적어 주세요");
+                }
+                leptos::task::spawn_local(async move {
+                    match cloud::call("setName", &[JsValue::from_str(&name)]).await {
+                        Ok(_) => {
+                            dom::store_set("profile-name", &name);
+                            apply_profile();
+                            save_settings();
+                            super::ranking::load(true);
+                            toast("이름을 바꿨어요");
+                        }
+                        Err(e) => toast(&format!("이름을 바꾸지 못했어요. {}", cloud::why(&e.code))),
+                    }
+                });
+            }
             apply_profile();
             save_settings();
             sheet_open(false, None);

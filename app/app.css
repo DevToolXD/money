@@ -2133,3 +2133,7 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .app.vit-shake.vit-blur2 .screen.is-active { animation: vitshake 5s linear infinite, vitblur2 4s ease-in-out infinite; }
 .app.vit-shake2 .screen.is-active { animation-duration: 3s; }
 @media (prefers-reduced-motion: reduce) { .app .screen.is-active { animation: none !important; } }
+
+/* 파란 인증 표시 (관리자가 줘요) */
+.bluechk { display: inline-block; width: 1em; height: 1em; margin-left: 0.22em; vertical-align: -0.12em; flex: 0 0 auto; }
+.cash-btn.ghost { margin-top: 8px; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 15px; height: 40px; }

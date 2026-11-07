@@ -28,14 +28,26 @@ const fn swipe(sel: &'static str, title: &'static str, text: &'static str, until
 }
 
 const INTRO: &[Step] = &[
-    st(".tabbar .tab[data-tab=\"money\"]", "돈 탭", "여기를 눌러 보세요. 내 토큰과 이자 상품을 볼 수 있어요.", true),
-    st(".tabbar .tab[data-tab=\"work\"]", "일 탭", "여기를 눌러 보세요. 회사에 지원하거나 내 회사에서 일해요.", true),
+    st(".tabbar .tab[data-tab=\"messages\"]", "메시지", "여기를 눌러 보세요. 친구와 대화하고, 토큰을 선물하거나 요청해요. 보낸 선물은 상대가 받기 전에 취소할 수 있어요.", true),
+    st(".tabbar .tab[data-tab=\"money\"]", "돈 탭", "여기를 눌러 보세요. 내 토큰과 이자 상품을 볼 수 있어요. 이율이 높을수록 토큰이 빨리 불어나요.", true),
+    st(".tabbar .tab[data-tab=\"work\"]", "일 탭", "여기를 눌러 보세요. 회사에 지원하거나 내 회사에서 일해요. 일하면 에너지가 줄어요.", true),
+    st(".tabbar .tab[data-tab=\"shop\"]", "상점", "여기를 눌러 보세요. 음식과 물, 다른 회사가 만든 상품을 사요.", true),
     st("#status-bubble", "내 상태", "여기를 눌러 보세요. 배고픔·목마름·에너지를 볼 수 있어요.", true),
+    st("#fab-tiles [data-k=\"h\"]", "배고픔", "여기를 눌러 보세요. 배고픔이 20% 밑으로 내려가면 몇 초마다 화면이 양옆으로 떨려요. 상점에서 음식을 사 먹으면 돌아와요.", true),
+    st("#fab-tiles [data-k=\"t\"]", "목마름", "여기를 눌러 보세요. 목마름이 20% 밑으로 내려가면 화면 가장자리가 빨갛게 물들어요. 낮을수록 더 진해져요. 물을 마시면 돌아와요.", true),
+    st("#fab-tiles [data-k=\"e\"]", "에너지", "여기를 눌러 보세요. 에너지가 20% 밑으로 내려가면 몇 초마다 초점이 풀렸다 돌아와요. 에너지가 없어도 일은 할 수 있어요.", true),
+    st("#status-bubble", "상태 닫기", "여기를 눌러 상태를 닫아요. 이 동그라미는 늘 화면에 있어요.", true),
     swipe(".tabbar", "핫바 넘기기", "탭 바를 손가락으로 옆으로 쓱 밀어 보세요. 랭킹·인벤토리·사업·SNS 탭이 나와요.", ".tabbar .tab[data-tab=\"business\"]"),
-    st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 코인, 친구 초대, 설정이 나와요.", true),
+    st(".tabbar .tab[data-tab=\"ranking\"]", "랭킹", "여기를 눌러 보세요. 토큰을 가장 많이 가진 사람들이에요. 사람을 누르면 프로필이 나와요.", true),
+    st(".tabbar .tab[data-tab=\"inventory\"]", "인벤토리", "여기를 눌러 보세요. 산 물건과 만든 물건이 모여 있어요.", true),
+    st(".tabbar .tab[data-tab=\"business\"]", "사업", "여기를 눌러 보세요. 10 토큰으로 회사를 만들고, 업종을 정해 상품을 만들어 팔아요.", true),
+    st(".tabbar .tab[data-tab=\"untitled3\"]", "SNS", "여기를 눌러 보세요. 사진과 글을 올리고 좋아요와 댓글을 달아요.", true),
+    st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 코인, 프로필, 친구 초대, 설정, 피드백이 나와요.", true),
     st(".qm-row[data-go=\"coin\"]", "코인", "여기를 눌러 보세요. 허락하면 채굴을 켜서 100초마다 토큰을 받아요.", true),
     st(".tabbar .tab-account", "메뉴", "메뉴를 한 번 더 눌러 보세요.", true),
-    st(".qm-row[data-go=\"invite\"]", "친구 초대", "여기를 눌러 보세요. 친구를 초대하면 한 명마다 50 토큰을 받아요.", true),
+    st(".qm-row[data-go=\"invite\"]", "친구 초대", "여기를 눌러 보세요. 초대 링크를 복사해 친구에게 주면, 친구 한 명마다 50 토큰을 받아요.", true),
+    st(".tabbar .tab-account", "메뉴", "마지막으로 메뉴를 한 번 더 눌러 보세요.", true),
+    st(".qm-row[data-go=\"settings\"]", "설정", "여기를 눌러 보세요. 테마, 알림, 진동, 튜토리얼 다시 보기가 있어요.", true),
 ];
 // 사업 안내: 누르면 다른 화면이 열리는 곳(팔 상품 정하기)은 맨 끝에 둬요
 const FOOD: &[Step] = &[
@@ -220,7 +232,7 @@ fn finish() {
     let name = RUN.with(|r| r.borrow_mut().take().map(|(n, _, _)| n));
     if let Some(n) = name {
         dom::store_set(&done_key(&n), "1");
-        if n == "intro" {
+        if n == "intro2" {
             crate::shell::toast("준비 끝! 사업 탭에서 회사를 만들어 보세요");
         }
     }
@@ -248,14 +260,14 @@ fn run(name: &str, steps: &[Step], force: bool) {
 
 /// 앱을 열 때: 로그인되면 처음 한 번 기본 사용법을 보여 줘요
 pub fn init() {
-    if !auto_ok() || dom::store_get(&done_key("intro"), "") == "1" {
+    if !auto_ok() || dom::store_get(&done_key("intro2"), "") == "1" {
         return;
     }
     spawn_local(async {
         for _ in 0..120 {
             if cloud::signed_in() && crate::chat::live() {
                 dom::sleep(1500).await;
-                run("intro", INTRO, false);
+                run("intro2", INTRO, false);
                 return;
             }
             dom::sleep(1000).await;
@@ -288,8 +300,8 @@ pub fn business(kind: &str) {
 
 /// 설정 → 튜토리얼 다시 보기: 본 기록을 지우고 기본 사용법부터 다시 보여 줘요 (사업 탭 사용법은 사업 탭을 열면 다시 나와요)
 pub fn replay() {
-    for k in ["intro", "biz-food", "biz-pc", "biz-ai", "biz-nuclear"] {
+    for k in ["intro", "intro2", "biz-food", "biz-pc", "biz-ai", "biz-nuclear"] {
         dom::store_set(&done_key(k), "");
     }
-    run("intro", INTRO, true);
+    run("intro2", INTRO, true);
 }

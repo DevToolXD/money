@@ -119,11 +119,12 @@ fn card(p: &Post) -> String {
         format!(r#"<div class="sns-cm{}">{text}{reply}</div>"#, if img.is_empty() && place.is_empty() { " flat" } else { "" })
     };
     format!(
-        r#"<article class="sns-card" data-id="{id}"><header class="sns-ch"><button type="button" class="sns-who" data-uid="{by}">{av}<span><b>{name}</b><small>{ago}</small></span></button>{more}</header>{media}{cm}<footer class="sns-act"><button type="button" class="sns-like{on}" data-act="like" aria-label="{ll}" aria-pressed="{pr}">{heart}<span>{likes}</span></button><button type="button" data-act="replies" aria-label="댓글 {rc}개">{bubble}<span>{rc}</span></button><button type="button" data-act="share" aria-label="공유">{share}</button></footer></article>"#,
+        r#"<article class="sns-card" data-id="{id}"><header class="sns-ch"><button type="button" class="sns-who" data-uid="{by}">{av}<span><b>{name}{bl}</b><small>{ago}</small></span></button>{more}</header>{media}{cm}<footer class="sns-act"><button type="button" class="sns-like{on}" data-act="like" aria-label="{ll}" aria-pressed="{pr}">{heart}<span>{likes}</span></button><button type="button" data-act="replies" aria-label="댓글 {rc}개">{bubble}<span>{rc}</span></button><button type="button" data-act="share" aria-label="공유">{share}</button></footer></article>"#,
         id = esc(&p.id),
         by = esc(&p.by),
         av = dom::avatar_html(&name, &photo, "avatar contact sns-cav"),
         name = esc(&name),
+        bl = crate::profile::blue(&p.by),
         ago = ago(p.at),
         more = if p.by == my_uid() { format!(r#"<button type="button" class="sns-more" data-act="more" aria-label="더 보기">{}</button>"#, svg(MORE)) } else { String::new() },
         cm = cm,
@@ -284,7 +285,7 @@ async fn load_replies(id: String) {
         .iter()
         .map(|r| {
             let (n, ph) = person(&r.by);
-            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), dom::avatar_html(&n, &ph, "avatar contact sns-cav"), esc(&n), ago(r.at), esc(&r.text))
+            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), dom::avatar_html(&n, &ph, "avatar contact sns-cav"), esc(&n), crate::profile::blue(&r.by), ago(r.at), esc(&r.text))
         })
         .collect();
     if let Some(l) = by_id("sns-rl") {

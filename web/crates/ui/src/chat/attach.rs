@@ -97,7 +97,20 @@ async fn on_card(e: web_sys::Event) {
         let mid = cloud::get(&m, "id").as_string().unwrap_or_default();
         let ko = cloud::fmt_num(amount, 3);
         let cx = ctx();
-        if dom::data(&act, "act") == "accept" {
+        if dom::data(&act, "act") == "cancel" {
+            if !cx.ask(&format!("토큰 {ko} 선물을 취소할까요?"), "상대가 아직 받지 않아서 토큰이 그대로 돌아와요.", "선물 취소", "닫기").await {
+                return;
+            }
+            let (cid, mid2) = (c.id.clone(), mid.clone());
+            let f = Closure::once_into_js(move || cloud::call_now("cancelGift", &[JsValue::from_str(&cid), JsValue::from_str(&mid2)]).unwrap_or(JsValue::UNDEFINED));
+            match JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {
+                Ok(_) => {
+                    crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{}님에게 보낸 선물 취소", c.name))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", amount.into())]));
+                    toast(&format!("선물을 취소했어요. 토큰 {ko}이 돌아왔어요"));
+                }
+                Err(_) => toast("취소하지 못했어요. 상대가 이미 받았을 수 있어요"),
+            }
+        } else if dom::data(&act, "act") == "accept" {
             let (cid, mid2) = (c.id.clone(), mid.clone());
             let f = Closure::once_into_js(move || cloud::call_now("claimGift", &[JsValue::from_str(&cid), JsValue::from_str(&mid2), amount.into()]).unwrap_or(JsValue::UNDEFINED));
             match JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {

@@ -4,7 +4,7 @@
 mod account;
 pub(crate) mod company;
 mod login;
-mod ranking;
+pub(crate) mod ranking;
 
 use std::cell::{Cell, RefCell};
 

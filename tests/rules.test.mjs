@@ -86,11 +86,18 @@ await t("이름이 없던 옛 계정은 아이디를 이름으로 쓸 수 있어
   const db2 = pw("uB", "bob");
   await assertFails(setDoc(doc(db2, "profiles/uB"), { id: "bob", name: "alice9", photo: "" }));
 });
-await t("이름·아이디는 바꿀 수 없고 사진만 바꿀 수 있어요", async () => {
+await t("아이디는 바꿀 수 없고 이름(규칙 안에서)·사진은 바꿀 수 있어요, 인증 표시는 관리자만", async () => {
   await seed(seedBase);
   const db = pw("uA", "alice");
-  await assertFails(updateDoc(doc(db, "profiles/uA"), { name: "박지민" }));
+  await assertFails(updateDoc(doc(db, "profiles/uA"), { name: "<b>x</b>" }));
+  await assertFails(updateDoc(doc(db, "profiles/uA"), { name: "박지민", id: "evil" }));
+  await assertSucceeds(updateDoc(doc(db, "profiles/uA"), { name: "박지민" }));
+  await assertFails(updateDoc(doc(db, "profiles/uB"), { name: "박지민" }));
   await assertFails(updateDoc(doc(db, "profiles/uA"), { id: "evil" }));
+  await assertFails(updateDoc(doc(db, "profiles/uA"), { blue: true }));
+  const owner = env.authenticatedContext("uO", { email: "owner@money-sim.app", firebase: { sign_in_provider: "password" } }).firestore();
+  await assertSucceeds(updateDoc(doc(owner, "profiles/uA"), { blue: true }));
+  await assertFails(updateDoc(doc(owner, "profiles/uA"), { blue: "yes" }));
   await assertSucceeds(updateDoc(doc(db, "profiles/uA"), { photo: JPEG }));
 });
 await t("사진 자리에 자바스크립트·큰 값·다른 모양은 못 넣어요", async () => {
@@ -244,6 +251,28 @@ await t("선물 받기: 받는 사람이 한 번만, 선물 금액만큼만 받�
   await assertSucceeds(claim(bob, 1250000 + 300).commit());
   await sleep(2100);
   await assertFails(claim(bob, 1250000 + 600).commit()); // 두 번 받기
+});
+await t("선물 취소: 보낸 사람만, 받기 전에 한 번, 금액만큼만 돌아와요", async () => {
+  await seed(async (s) => {
+    await seedBase(s);
+    await setDoc(doc(s, "chats/uA_uB/messages/g1"), { type: "gift", amount: 300, from: "uA", to: "uB", at: Timestamp.now(), done: false });
+  });
+  const un = (db, uid, bal) => {
+    const b = writeBatch(db);
+    b.update(doc(db, "chats/uA_uB/messages/g1"), { done: true, cancel: true });
+    b.update(doc(db, `wallets/${uid}`), { bal, wt: serverTimestamp(), op: { kind: "ungift", cid: "uA_uB", mid: "g1" } });
+    return b;
+  };
+  const alice = pw("uA", "alice");
+  await assertFails(un(alice, "uA", 1250000 + 5000).commit()); // 더 돌려받기
+  await assertFails(un(pw("uB", "bob"), "uB", 1250000 + 300).commit()); // 받는 사람이 취소
+  await assertSucceeds(un(alice, "uA", 1250000 + 300).commit());
+  await sleep(2100);
+  await assertFails(un(alice, "uA", 1250000 + 600).commit()); // 두 번 취소
+  const bobDb = pw("uB", "bob");
+  const b = writeBatch(bobDb);
+  b.update(doc(bobDb, "chats/uA_uB/messages/g1"), { done: true });
+  await assertFails(b.commit()); // 취소된 선물 받기
 });
 await t("선물 받기: 선물 메시지를 거치지 않고 지갑만 늘릴 수 없어요", async () => {
   await seed(async (s) => {

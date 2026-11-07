@@ -125,6 +125,8 @@ async fn load_people(text: String) -> Vec<Person> {
             })
             .collect()
     };
+    let all: js_sys::Array = raw.iter().map(|h| cloud::get(h, "uid")).collect();
+    let _ = cloud::call("fetchProfiles", &[all.into()]).await; // 인증 표시를 알려고요
     raw.iter()
         .map(|v| {
             let uid = js_s(v, "uid");
@@ -233,6 +235,17 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
             }),
         );
     };
+    let tick = RwSignal::new(0u32);
+    let blue_toggle = move |_| {
+        let Some(p) = sel.get_untracked() else { return ctx().toast("목록에서 사람을 골라 주세요") };
+        let on = crate::profile::blue(&p.uid).is_empty();
+        let uid = p.uid.clone();
+        act(
+            Box::pin(async move { cloud::call("setBlue", &[wasm_bindgen::JsValue::from_str(&uid), on.into()]).await.map(|_| ()) }),
+            if on { format!("{} 님에게 인증 표시를 줬어요", p.name) } else { format!("{} 님의 인증 표시를 뺐어요", p.name) },
+            Box::new(move || tick.update(|t| *t += 1)),
+        );
+    };
     let delete = move |_| {
         let Some(p) = sel.get_untracked() else { return ctx().toast("목록에서 사람을 골라 주세요") };
         spawn_local(async move {
@@ -281,6 +294,7 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
                                 <label class="lab-field"><span>"줄 토큰"</span><input node_ref=grant_amt id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"/></label>
                                 <div class="mg-act-row">
                                     <button type="button" class="btn primary" id="mg-grant" class:busy=move || busy.get() on:click=grant>"토큰 주기"</button>
+                                    <button type="button" class="btn" id="mg-blue" class:busy=move || busy.get() on:click=blue_toggle>{move || { let _ = tick.get(); if sel.with(|s| s.as_ref().map(|x| !crate::profile::blue(&x.uid).is_empty()).unwrap_or(false)) { "인증 빼기" } else { "인증 주기" } }}</button>
                                     <button type="button" class="btn mg-danger" id="mg-del" class:busy=move || busy.get() on:click=delete>"데이터 지우기"</button>
                                 </div>
                             </div>

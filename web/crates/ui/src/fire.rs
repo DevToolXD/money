@@ -2011,6 +2011,32 @@ async fn die(deaths: JsValue) -> R {
     rethrow(update_doc(d(&["vitals", &uid_of()?]), v.clone()).await)?;
     Ok(v)
 }
+async fn set_name(name: String) -> R {
+    let uid = uid_of()?;
+    update_doc(d(&["profiles", &uid]), o(&[("name", s(&name))])).await?;
+    let cc = read_cache(&uid);
+    let base = get(&cc, "d");
+    if base.is_truthy() {
+        write_cache(&uid, &ext(&base, &[("name", s(&name))]));
+    }
+    // 랭킹에도 새 이름이 올라가게 다음 순위 갱신 때 다시 써요
+    with(|x| {
+        x.rank.sent = Some(-1.0);
+        x.rank.me = JsValue::NULL;
+        x.rank.at = 0.0;
+        x.rank.top_at = 0.0;
+    });
+    Ok(JsValue::UNDEFINED)
+}
+async fn set_blue(uid: String, on: bool) -> R {
+    update_doc(d(&["profiles", &uid]), o(&[("blue", on.into())])).await?;
+    let cc = read_cache(&uid);
+    let base = get(&cc, "d");
+    if base.is_truthy() {
+        write_cache(&uid, &ext(&base, &[("blue", on.into())]));
+    }
+    Ok(JsValue::UNDEFINED)
+}
 async fn set_photo(photo: JsValue) -> R {
     let uid = uid_of()?;
     update_doc(d(&["profiles", &uid]), o(&[("photo", photo.clone())])).await?;
@@ -2184,6 +2210,16 @@ async fn claim_gift(cid: String, mid: String, amount: JsValue) -> R {
     let b = batch();
     m(&b, "update", &[d(&["chats", &cid, "messages", &mid]), o(&[("done", true.into())])])?;
     m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(num(&amount))), ("wt", ts()), ("op", o(&[("kind", s("claim")), ("cid", s(&cid)), ("mid", s(&mid))]))])])?;
+    commit(&b).await?;
+    Ok(JsValue::UNDEFINED)
+}
+async fn cancel_gift(cid: String, mid: String) -> R {
+    let mr = d(&["chats", &cid, "messages", &mid]);
+    let ms = get_doc(mr.clone()).await?;
+    let amount = num(&get(&data(&ms), "amount"));
+    let b = batch();
+    m(&b, "update", &[mr, o(&[("done", true.into()), ("cancel", true.into())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(amount)), ("wt", ts()), ("op", o(&[("kind", s("ungift")), ("cid", s(&cid)), ("mid", s(&mid))]))])])?;
     commit(&b).await?;
     Ok(JsValue::UNDEFINED)
 }
@@ -2416,6 +2452,8 @@ fn build() -> js_sys::Object {
         let v = get(&cc, "d");
         Ok(if v.is_truthy() { v } else { JsValue::NULL })
     });
+    am!(api, "setName", |a| set_name(sa(&a[0])).await);
+    am!(api, "setBlue", |a| set_blue(sa(&a[0]), a[1].is_truthy()).await);
     am!(api, "fetchProfiles", |a| fetch_profiles(a[0].clone()).await);
     am!(api, "searchUsers", |a| search_users(sa(&a[0])).await);
     am!(api, "listUsers", |a| list_users(a[0].is_truthy()).await);
@@ -2521,6 +2559,7 @@ fn build() -> js_sys::Object {
         let amt = num(&a[2]);
         send(sa(&a[0]), a[1].clone(), o(&[("type", s("gift")), ("amount", a[2].clone()), ("done", false.into())]), s(&format!("토큰 {} 선물", ko(amt))), Some(amt)).await
     });
+    am!(api, "cancelGift", |a| cancel_gift(sa(&a[0]), sa(&a[1])).await);
     am!(api, "claimGift", |a| claim_gift(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
     am!(api, "payRequest", |a| pay_request(sa(&a[0]), a[1].clone(), sa(&a[2]), a[3].clone()).await);
     am!(api, "vote", |a| {
