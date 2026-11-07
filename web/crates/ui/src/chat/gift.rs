@@ -120,9 +120,8 @@ async fn send() {
     if g.amt < 1.0 {
         return toast("보낼 토큰을 정해 주세요");
     }
-    let bal = crate::money::balance();
-    if bal.is_none_or(|b| g.amt > b) {
-        ctx().ask("토큰이 부족해요", &format!("내 토큰은 {}이에요.", ko(bal.unwrap_or(0.0))), "확인", "").await;
+    if let Err(m) = crate::money::ensure(g.amt).await {
+        ctx().ask("토큰을 보낼 수 없어요", &m, "확인", "").await;
         return;
     }
     BUSY.set(true);

@@ -121,9 +121,8 @@ async fn on_card(e: web_sys::Event) {
                 Err(_) => toast("받지 못했어요. 잠시 뒤 다시 해 주세요"),
             }
         } else {
-            let bal = crate::money::balance();
-            if bal.is_none_or(|b| b < amount) {
-                cx.ask("토큰이 부족해요", &format!("내 토큰은 {}이에요.", cloud::fmt_num(bal.unwrap_or(0.0), 3)), "확인", "").await;
+            if let Err(m) = crate::money::ensure(amount).await {
+                cx.ask("토큰을 보낼 수 없어요", &m, "확인", "").await;
                 return;
             }
             if !cx.ask(&format!("토큰 {ko}을 보낼까요?"), &format!("{}님의 요청이에요.", c.name), "보내기", "취소").await {

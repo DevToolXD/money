@@ -237,7 +237,13 @@ fn open_founding() {
     }
     let bal = crate::money::balance();
     if bal.is_none_or(|b| b < 10.0) {
-        return toast("토큰이 부족해요. 창업에는 10 토큰이 필요해요");
+        leptos::task::spawn_local(async {
+            match crate::money::ensure(10.0).await {
+                Ok(_) => open_founding(),
+                Err(m) => toast(&format!("창업에는 10 토큰이 필요해요. {m}")),
+            }
+        });
+        return;
     }
     if let Some(i) = by_id("found-name").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()) {
         i.set_value("");
@@ -261,8 +267,8 @@ async fn found() {
     if name.chars().count() > 20 || name.contains(['<', '>']) {
         return dom::set_text("found-err", "이름은 20자 이하로, < > 없이 적어 주세요");
     }
-    if crate::money::balance().unwrap_or(0.0) < 10.0 {
-        return dom::set_text("found-err", "토큰이 부족해요");
+    if let Err(m) = crate::money::ensure(10.0).await {
+        return dom::set_text("found-err", &m);
     }
     // 업종은 한 번 정하면 바꿀 수 없어서 두 번 물어요
     let kind0 = FOUND_KIND.with(|k| k.borrow().clone());

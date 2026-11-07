@@ -2122,17 +2122,14 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 /* 튜토리얼: 핫바 넘기기는 손가락이 옆으로 미는 모습이 보여요 */
 .coach.swipe .coach-ring { border-radius: 40px; }
 
-/* 몸 상태 화면 효과: 에너지 낮음 = 몇 초마다 초점 풀림, 배고픔 낮음 = 몇 초마다 양옆 떨림 */
-@keyframes vitblur { 0%, 70%, 100% { filter: none; } 80% { filter: blur(2.5px); } 90% { filter: blur(1px); } }
-@keyframes vitblur2 { 0%, 55%, 100% { filter: none; } 68% { filter: blur(5px); } 85% { filter: blur(2px); } }
-@keyframes vitshake { 0%, 86%, 100% { transform: none; } 88% { transform: translateX(-7px); } 90% { transform: translateX(7px); } 92% { transform: translateX(-5px); } 94% { transform: translateX(4px); } 96% { transform: translateX(-2px); } }
-.app.vit-blur .screen.is-active { animation: vitblur 6s ease-in-out infinite; }
-.app.vit-blur2 .screen.is-active { animation: vitblur2 4s ease-in-out infinite; }
-.app.vit-shake .screen.is-active { animation: vitshake 5s linear infinite; }
-.app.vit-shake.vit-blur .screen.is-active { animation: vitshake 5s linear infinite, vitblur 6s ease-in-out infinite; }
-.app.vit-shake.vit-blur2 .screen.is-active { animation: vitshake 5s linear infinite, vitblur2 4s ease-in-out infinite; }
-.app.vit-shake2 .screen.is-active { animation-duration: 3s; }
-@media (prefers-reduced-motion: reduce) { .app .screen.is-active { animation: none !important; } }
+/* 몸 상태 화면 효과: 늘 움직이게 두면 아이폰에서 화면이 깎여 보여서, 몇 초마다 잠깐만 켜요 (vitals.rs가 켜고 꺼요)
+   에너지 낮음 = 흐린 막이 잠깐 덮였다 걷혀요, 배고픔 낮음 = 화면이 양옆으로 잠깐 떨려요 */
+.vit-fx { position: absolute; inset: 0; z-index: 117; pointer-events: none; opacity: 0; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); transition: opacity 0.5s ease-in-out; }
+.vit-fx.strong { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vit-fx.on { opacity: 1; }
+@keyframes vitshake { 0%, 100% { transform: none; } 15% { transform: translateX(-7px); } 35% { transform: translateX(7px); } 55% { transform: translateX(-5px); } 75% { transform: translateX(3px); } }
+.screen.is-active.vit-shaking { animation: vitshake 0.5s linear; }
+@media (prefers-reduced-motion: reduce) { .screen.is-active.vit-shaking { animation: none; } .vit-fx { display: none; } }
 
 /* 파란 인증 표시 (관리자가 줘요) */
 .bluechk { display: inline-block; width: 1em; height: 1em; margin-left: 0.22em; vertical-align: -0.12em; flex: 0 0 auto; }
@@ -2145,3 +2142,5 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .coach.moving .coach-tip { transition: left 0.3s var(--ease), top 0.3s var(--ease), bottom 0.3s var(--ease), opacity 0.2s; }
 .coach.wait .coach-ring, .coach.wait .coach-tip { opacity: 0; transform: scale(0.97); }
 .coach.wait .cb { pointer-events: auto; }
+.wk-nums { flex-wrap: wrap; row-gap: 4px; }
+.wk-nums > span { white-space: nowrap; }

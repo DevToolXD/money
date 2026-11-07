@@ -593,6 +593,31 @@ pub fn init(c: Ctx) {
     });
 }
 
+/// 토큰을 쓰기 전에: 지갑이 아직 안 왔으면 기다리고, 모자라 보이면 쌓인 이자를 먼저 받아서 다시 봐요.
+/// 화면에 보이는 토큰(이자 포함)이 있는데 "모자라요"가 뜨지 않게 해요. 안 되면 사람이 읽을 이유를 돌려줘요
+pub async fn ensure(amt: f64) -> Result<f64, String> {
+    for _ in 0..20 {
+        if bank().ready {
+            break;
+        }
+        dom::sleep(150).await;
+    }
+    let b = bank();
+    if !b.ready {
+        return Err("지갑을 불러오는 중이에요. 잠시 뒤 다시 해 주세요".into());
+    }
+    if b.bal >= amt {
+        return Ok(b.bal);
+    }
+    claim_now().await;
+    for _ in 0..12 {
+        if bank().bal >= amt {
+            return Ok(bank().bal);
+        }
+        dom::sleep(150).await;
+    }
+    Err(format!("토큰이 모자라요. 내 토큰은 {}이에요", w(bank().bal)))
+}
 /// 지금 지갑 (다른 러스트 화면이 읽어요)
 pub fn balance() -> Option<f64> {
     let b = bank();

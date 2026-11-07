@@ -110,15 +110,7 @@ fn paint() {
     // 목마름이 낮으면 붉은 가장자리, 배고픔이 낮으면 화면이 양옆으로 떨리고, 에너지가 낮으면 초점이 풀렸다 돌아와요
     let t = vals[1];
     vig.set_class_name(if t <= 5.0 { "vignette v5" } else if t <= 10.0 { "vignette v10" } else if t <= 20.0 { "vignette v20" } else { "vignette" });
-    if let Some(app) = dom::doc().query_selector(".app").ok().flatten() {
-        let cl = app.class_list();
-        let h = vals[0];
-        let e = vals[2];
-        let _ = cl.toggle_with_force("vit-shake", h <= 20.0);
-        let _ = cl.toggle_with_force("vit-shake2", h <= 5.0);
-        let _ = cl.toggle_with_force("vit-blur", e <= 20.0);
-        let _ = cl.toggle_with_force("vit-blur2", e <= 3.0);
-    }
+    fx(vals[0], vals[2]);
     if dead && !DYING.get() {
         DYING.set(true);
         let deaths = n(&v, "deaths") + 1.0;
@@ -323,4 +315,49 @@ pub fn init() {
     let _ = Reflect::set(&api, &JsValue::from_str("get"), &Closure::<dyn Fn() -> JsValue>::new(get).into_js_value());
     let _ = Reflect::set(&api, &JsValue::from_str("set"), &Closure::<dyn Fn(JsValue)>::new(set).into_js_value());
     let _ = Reflect::set(&js_sys::global(), &JsValue::from_str("__vitals"), &api);
+}
+
+thread_local! {
+    static FX_T: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+/// 1초마다 불려요. 배고프면 5초(아주 배고프면 3초)마다 0.5초 떨리고, 지치면 6초(바닥이면 4초)마다 1.2초 흐려져요
+fn fx(h: f64, e: f64) {
+    if dom::reduce_motion() {
+        return;
+    }
+    let t = FX_T.with(|c| {
+        let v = c.get().wrapping_add(1);
+        c.set(v);
+        v
+    });
+    let later = |ms: i32, f: Box<dyn FnOnce()>| {
+        let cb = Closure::once_into_js(f);
+        let _ = win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms);
+    };
+    if h <= 20.0 && t % (if h <= 5.0 { 3 } else { 5 }) == 0 {
+        if let Some(sc) = dom::doc().query_selector(".screen.is-active").ok().flatten() {
+            let _ = sc.class_list().add_1("vit-shaking");
+            later(520, Box::new(move || {
+                let _ = sc.class_list().remove_1("vit-shaking");
+            }));
+        }
+    }
+    if e <= 20.0 && t % (if e <= 3.0 { 4 } else { 6 }) == 0 {
+        let fx = by_id("vit-fx").or_else(|| {
+            let app = dom::app_el()?;
+            let d = dom::doc().create_element("div").ok()?;
+            d.set_id("vit-fx");
+            d.set_class_name("vit-fx");
+            let _ = d.set_attribute("aria-hidden", "true");
+            let _ = app.append_child(&d);
+            d.dyn_into::<web_sys::HtmlElement>().ok()
+        });
+        if let Some(fx) = fx {
+            let _ = fx.class_list().toggle_with_force("strong", e <= 3.0);
+            let _ = fx.class_list().add_1("on");
+            later(1200, Box::new(move || {
+                let _ = fx.class_list().remove_1("on");
+            }));
+        }
+    }
 }

@@ -240,14 +240,16 @@ fn fund() {
     if !(amt >= 1.0) || amt > 100_000_000.0 {
         return ctx().toast("넣을 토큰을 1 이상 정수로 적어 주세요");
     }
-    if crate::money::balance().is_none_or(|b| b < amt) {
-        return ctx().toast("지갑 토큰이 모자라요");
-    }
     if BUSY.replace(true) {
         return;
     }
     let cid = co_str(&co, "id");
     spawn_local(async move {
+        if let Err(m) = crate::money::ensure(amt).await {
+            ctx().toast(&m);
+            BUSY.set(false);
+            return;
+        }
         match cloud::call("fundPay", &[JsValue::from_str(&cid), JsValue::from(amt)]).await {
             Ok(_) => {
                 let cur = company().map(|c| num(&c, "pay")).unwrap_or(0.0);

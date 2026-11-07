@@ -476,7 +476,7 @@ fn cash(ev: web_sys::MouseEvent, dir: f64) {
             .await;
         match r {
             Ok(_) => c.toast(&if dir > 0.0 { format!("{} 토큰을 금고에 넣었어요", fmt_lab(v)) } else { format!("{} 토큰을 지갑으로 뺐어요", fmt_lab(v)) }),
-            Err(e) => c.toast(&if e.code == "insufficient" { "토큰이 부족해요".to_string() } else { format!("처리하지 못했어요. {}", cloud::why(&e.code)) }),
+            Err(e) => c.toast(&if e.code == "insufficient" { if dir > 0.0 { format!("지갑 토큰이 모자라요. 내 토큰은 {}이에요", crate::money::w(crate::money::balance().unwrap_or(0.0))) } else { "회사 금고에 토큰이 모자라요".to_string() } } else { format!("처리하지 못했어요. {}", cloud::why(&e.code)) }),
         }
         btn.set_text_content(Some(&label));
         btn.set_disabled(false);

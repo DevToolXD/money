@@ -202,7 +202,7 @@ async fn load_products(s: FacSig) {
                 .or_else(|| all.first().cloned());
             s.note.set(match &first {
                 Some(_) => "만들 상품을 고르세요 · 만든 음식은 한 개씩 바로 재고에 들어가요".into(),
-                None => "아직 파는 상품이 없어요. 사장님이 상품을 정하면 여기서 만들어요".into(),
+                None => "아직 파는 상품이 없어요. 사업 탭 맨 아래 \"팔 음식 정하기\"에서 상품을 정하면 여기서 만들 수 있어요".into(),
             });
             s.all.set(all);
             s.prod.set(Some(first));
@@ -347,13 +347,16 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
         }
         m
     });
+    // 팔 상품이 하나도 없으면 숫자·개수·시작 버튼을 숨기고 안내만 보여요
+    let none = move || s.prod.with(|p| matches!(p, Some(None)));
     let stock = move || match s.prod.get() {
         Some(Some(p)) => {
             // 돌고 있는 상품이면 정산 전에 나온 개수도 더해서 보여요
             let extra = if run().is_some_and(|r| r.pid == p.id) { due_now() } else { 0.0 };
             fmt_num(p.stock + extra, 0)
         }
-        _ => "…".into(),
+        Some(None) => "0".into(),
+        None => "…".into(),
     };
     let running = move || run().is_some();
     // 시작하기 전: 개수를 정하면 시간·재료값·판매액·이익이 바로 나와요
@@ -484,17 +487,17 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
                     }
                 </For>
             </div>
-            <div class="wk-nums">
+            <div class="wk-nums" class:hide=none>
                 <span class="fac-stock">"재고 "<b id="wk-stock">{stock}</b>"개"</span>
                 <span>"공장 "<b id="fac-count">{move || if s.lab.with(|l| l.is_some()) { (plv() as i64).to_string() } else { "…".into() }}</b>"대"</span>
                 <span>"개당 재료값 "<b id="wk-unit">{move || fmt_num(unit(), 2)}</b>" 토큰"</span>
             </div>
-            <label class="lab-field" class:hide=running>
+            <label class="lab-field" class:hide=move || running() || none()>
                 <span>"만들 개수"</span>
                 <input id="fac-n" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="6" aria-label="만들 개수" prop:value=move || s.n.get() on:input=on_input/>
             </label>
-            <div id="fac-est" class="fac-est" class:hide=running>{est}</div>
-            <button class="btn primary fac-go" type="button" id="fac-start" class:running=running disabled=start_off on:click=start>
+            <div id="fac-est" class="fac-est" class:hide=move || running() || none()>{est}</div>
+            <button class="btn primary fac-go" type="button" id="fac-start" class:hide=none class:running=running disabled=start_off on:click=start>
                 <span class="fac-spin" aria-hidden="true"></span>{start_label}
             </button>
             <div id="fac-left" class="fac-leftbox">{live}</div>
