@@ -80,6 +80,11 @@ thread_local! {
     static RUN: RefCell<Option<(String, Vec<Step>, usize)>> = const { RefCell::new(None) };
     static TICK: Cell<i32> = const { Cell::new(0) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
+    // 다음 단계로 넘어가는 중 (두 번 눌러도 한 번만 넘어가요)
+    static PENDING: Cell<bool> = const { Cell::new(false) };
+    // 다음 칸이 자리 잡을 때까지 기다린 횟수와 지난 자리
+    static TRIES: Cell<u32> = const { Cell::new(0) };
+    static PREV: Cell<(f64, f64, f64, f64)> = const { Cell::new((0.0, 0.0, 0.0, 0.0)) };
 }
 
 fn done_key(name: &str) -> String {
@@ -129,8 +134,15 @@ fn bind() {
             return;
         }
         let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::Node>().ok()) else { return };
-        if target(step.sel).is_some_and(|el| el.contains(Some(&t))) {
-            let cb2 = Closure::once_into_js(next);
+        if !PENDING.get() && target(step.sel).is_some_and(|el| el.contains(Some(&t))) {
+            PENDING.set(true);
+            if let Some(el) = by_id("coach") {
+                let _ = el.class_list().add_1("wait"); // 눌렀으면 고리와 말풍선을 잠깐 숨겨요 (화면이 바뀌는 동안 흔들리지 않게)
+            }
+            let cb2 = Closure::once_into_js(|| {
+                PENDING.set(false);
+                next();
+            });
             let _ = web_sys::window().map(|w| w.set_timeout_with_callback_and_timeout_and_arguments_0(cb2.unchecked_ref(), 350));
         }
     })
@@ -146,7 +158,18 @@ fn place() {
     let (Some(el), Some(app)) = (root(), dom::app_el()) else { return };
     let step = steps[i];
     if !step.until.is_empty() && target(step.until).is_some() {
-        return next();
+        if !PENDING.replace(true) {
+            let _ = el.class_list().add_1("wait");
+            let cb = Closure::once_into_js(|| {
+                PENDING.set(false);
+                next();
+            });
+            let _ = web_sys::window().map(|w| w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 350));
+        }
+        return;
+    }
+    if el.class_list().contains("wait") {
+        return;
     }
     let Some(t) = target(step.sel) else { return };
     let a = app.get_bounding_client_rect();
@@ -175,14 +198,39 @@ fn show() {
     let Some(el) = root() else { return };
     // 없는 곳(숨어 있거나 아직 안 그려진 칸)은 건너뛰어요
     let step = steps[i];
+    // 그곳이 나타나고 움직임(열리는 메뉴·도는 상태 칸)이 멈출 때까지 잠깐 기다려요. 끝내 없으면 건너뛰어요
+    let later = || {
+        let cb = Closure::once_into_js(show);
+        let _ = web_sys::window().map(|w| w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 90));
+    };
+    let tries = TRIES.get();
     let Some(t) = target(step.sel) else {
+        if tries < 25 {
+            TRIES.set(tries + 1);
+            let _ = el.class_list().add_1("wait");
+            return later();
+        }
+        TRIES.set(0);
         return next();
     };
-    t.scroll_into_view_with_scroll_into_view_options(&{
-        let o = web_sys::ScrollIntoViewOptions::new();
-        o.set_block(web_sys::ScrollLogicalPosition::Center);
-        o
-    });
+    let r = t.get_bounding_client_rect();
+    let now = (r.left(), r.top(), r.width(), r.height());
+    let p = PREV.replace(now);
+    let still = (now.0 - p.0).abs() < 0.5 && (now.1 - p.1).abs() < 0.5 && (now.2 - p.2).abs() < 0.5 && (now.3 - p.3).abs() < 0.5;
+    if !still && tries < 25 {
+        TRIES.set(tries + 1);
+        let _ = el.class_list().add_1("wait");
+        return later();
+    }
+    TRIES.set(0);
+    let vh = web_sys::window().and_then(|w| w.inner_height().ok()).and_then(|v| v.as_f64()).unwrap_or(800.0);
+    if r.top() < 60.0 || r.bottom() > vh - 20.0 {
+        t.scroll_into_view_with_scroll_into_view_options(&{
+            let o = web_sys::ScrollIntoViewOptions::new();
+            o.set_block(web_sys::ScrollLogicalPosition::Center);
+            o
+        });
+    }
     let q = |s: &str| el.query_selector(s).ok().flatten();
     if let Some(n) = q(".coach-n") {
         n.set_text_content(Some(&format!("{} / {}", i + 1, steps.len())));
@@ -202,7 +250,15 @@ fn show() {
     let _ = el.offset_width();
     let _ = el.class_list().add_1("on");
     let _ = name;
+    // 새 자리로 부드럽게 옮겨 가고, 그 뒤로는 화면을 바로 따라가요 (늦게 따라오며 흔들리지 않게)
+    let _ = el.class_list().add_1("moving");
     place();
+    let _ = el.class_list().remove_1("wait");
+    let el2 = el.clone();
+    let cb = Closure::once_into_js(move || {
+        let _ = el2.class_list().remove_1("moving");
+    });
+    let _ = web_sys::window().map(|w| w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 340));
     // 고리가 한 번 톡 튀어요 (단계마다)
     if let Some(r) = q(".coach-ring") {
         let _ = r.class_list().remove_1("pop");
@@ -253,8 +309,10 @@ fn run(name: &str, steps: &[Step], force: bool) {
     RUN.with(|r| *r.borrow_mut() = Some((name.to_string(), steps.to_vec(), 0)));
     if let Some(w) = web_sys::window() {
         let cb = Closure::<dyn FnMut()>::new(place).into_js_value();
-        TICK.set(w.set_interval_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 250).unwrap_or(0));
+        TICK.set(w.set_interval_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 16).unwrap_or(0));
     }
+    PENDING.set(false);
+    TRIES.set(0);
     show();
 }
 

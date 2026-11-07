@@ -60,6 +60,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('다른 곳은 눌리지 않아요', await at(2) && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
   for (const t of ['money', 'work', 'shop']) await tapC(`.tabbar .tab[data-tab="${t}"]`);
   await tapC('#status-bubble');
+  await A.screenshot({ path: path.join(__dirname, 'shots', 'coach-6.png') });
   ok('배고픔 안내 (6)', await at(6) && (await A.textContent('#coach .coach-x')).includes('양옆으로 떨려요'));
   for (const k of ['h', 't', 'e']) await tapC(`#fab-tiles [data-k="${k}"]`);
   ok('목마름·에너지 안내 뒤 상태 닫기 (9)', await at(9));
@@ -70,7 +71,9 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('탭 바를 밀어 넘기면 11', await at(11));
   for (const t of ['ranking', 'inventory', 'business', 'untitled3']) await tapC(`.tabbar .tab[data-tab="${t}"]`);
   ok('SNS까지 누르면 메뉴 (15)', await at(15));
-  await tapC('.tabbar .tab-account'); await tapC('.qm-row[data-go="coin"]');
+  await tapC('.tabbar .tab-account');
+  await A.screenshot({ path: path.join(__dirname, 'shots', 'coach-16.png') });
+  await tapC('.qm-row[data-go="coin"]');
   ok('코인 화면 (17)', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'coin' && await at(17));
   await tapC('.tabbar .tab-account'); await tapC('.qm-row[data-go="invite"]');
   ok('친구 초대 화면 (19)', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'invite' && await at(19));

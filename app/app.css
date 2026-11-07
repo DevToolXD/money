@@ -2137,3 +2137,11 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 /* 파란 인증 표시 (관리자가 줘요) */
 .bluechk { display: inline-block; width: 1em; height: 1em; margin-left: 0.22em; vertical-align: -0.12em; flex: 0 0 auto; }
 .cash-btn.ghost { margin-top: 8px; background: rgba(255, 255, 255, 0.22); color: #fff; font-size: 15px; height: 40px; }
+
+/* 튜토리얼: 새 자리로 옮길 때만 부드럽게, 그 뒤로는 화면을 바로 따라가요. 넘어가는 동안은 고리·말풍선을 숨겨요 */
+.coach .cb, .coach-ring { transition: none; }
+.coach.moving .cb, .coach.moving .coach-ring { transition: left 0.3s var(--ease), top 0.3s var(--ease), width 0.3s var(--ease), height 0.3s var(--ease); }
+.coach-tip { transition: opacity 0.2s, transform 0.2s; }
+.coach.moving .coach-tip { transition: left 0.3s var(--ease), top 0.3s var(--ease), bottom 0.3s var(--ease), opacity 0.2s; }
+.coach.wait .coach-ring, .coach.wait .coach-tip { opacity: 0; transform: scale(0.97); }
+.coach.wait .cb { pointer-events: auto; }
