@@ -47,6 +47,12 @@ const open = async (b) => {
   await B.evaluate(() => document.querySelector('#chat-list [data-id^="g_"]').click()); await B.waitForTimeout(2500);
   const bub = (await B.textContent('#bubbles')) || '';
   ok('보낸 사람 이름 가나다가 보여요', bub.includes('가나다') && bub.includes('단톡 안녕'));
+  await B.evaluate(() => document.getElementById('thread-name-btn').click()); await B.waitForTimeout(2500);
+  const mem = (await B.textContent('#grp-mem')) || '';
+  ok('단톡방 설정에서 대화 상대가 보여요', mem.includes('가나다') && mem.includes('나') && (await B.textContent('#grp-mem-h')).includes('명'));
+  await B.screenshot({ path: require('path').join(__dirname, 'shots', 'group-members.png') });
+  await B.evaluate(() => document.querySelector('#grp-mem .grp-mrow:not(:first-child)')?.click() || document.querySelectorAll('#grp-mem .grp-mrow')[1]?.click()); await B.waitForTimeout(1200);
+  ok('대화 상대를 누르면 프로필이 떠요', await B.isVisible('.pf-card'));
   // A가 D를 초대
   await A.evaluate(() => document.getElementById('thread-invite').click()); await A.waitForTimeout(1500);
   const rows2 = await A.$$('#new-results .res-row');

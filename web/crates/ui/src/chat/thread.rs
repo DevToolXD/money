@@ -513,7 +513,52 @@ fn open_group_sheet(c: &Chat) {
     if let Some(i) = by_id("grp-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
         i.set_value(&c.name);
     }
+    paint_members(c);
     super::sheet_open(true, "group-sheet");
+    // 아직 모르는 사람 정보(이름·사진)를 모아 읽고 다시 그려요
+    let (mem, id) = (c.members.clone(), c.id.clone());
+    leptos::task::spawn_local(async move {
+        let arr: js_sys::Array = mem.iter().map(|u| JsValue::from_str(u)).collect();
+        let _ = cloud::call("fetchProfiles", &[arr.into()]).await;
+        if let Some(c) = open_chat().filter(|c| c.id == id) {
+            paint_members(&c);
+        }
+    });
+}
+/// 단톡방에 누가 있는지: 나를 맨 위에, 나머지는 이름 순. 누르면 프로필이 떠요
+fn paint_members(c: &Chat) {
+    let me = cloud::cloud().map(|v| cloud::get(&v, "uid").as_string().unwrap_or_default()).unwrap_or_default();
+    let mut rows: Vec<(bool, String, String, String)> = c
+        .members
+        .iter()
+        .map(|u| {
+            let p = cloud::call_now("peek", &[JsValue::from_str(u)]).unwrap_or(JsValue::NULL);
+            let g = |k: &str| cloud::get(&p, k).as_string().unwrap_or_default();
+            let name = if *u == me { dom::store_get("profile-name", "나") } else { Some(g("name")).filter(|n| !n.is_empty()).unwrap_or_else(|| "알 수 없음".into()) };
+            let photo = if *u == me { dom::store_get("profile-photo", "") } else { g("photo") };
+            (*u == me, u.clone(), name, photo)
+        })
+        .collect();
+    rows.sort_by(|a, b| b.0.cmp(&a.0).then(a.2.cmp(&b.2)));
+    dom::set_text("grp-mem-h", &format!("대화 상대 {}명", rows.len()));
+    if let Some(l) = by_id("grp-mem") {
+        l.set_inner_html(
+            &rows
+                .iter()
+                .map(|(mine, uid, name, photo)| {
+                    format!(
+                        r#"<li><button type="button" class="grp-mrow" data-uid="{}" data-name="{}">{}<b>{}{}</b>{}</button></li>"#,
+                        dom::esc(uid),
+                        dom::esc(name),
+                        dom::avatar_html(name, photo, "avatar contact"),
+                        dom::esc(name),
+                        crate::profile::blue(uid),
+                        if *mine { r#"<span class="grp-me">나</span>"# } else { "" }
+                    )
+                })
+                .collect::<String>(),
+        );
+    }
 }
 fn save_group_name() {
     let Some(c) = open_chat() else { return };
@@ -538,6 +583,13 @@ fn save_group_name() {
     });
 }
 fn bind_group() {
+    if let Some(l) = by_id("grp-mem") {
+        dom::on(&l, "click", |e| {
+            if let Some(b) = dom::closest(&e, ".grp-mrow") {
+                crate::profile::show(&dom::data(&b, "uid"), &dom::data(&b, "name"), None);
+            }
+        });
+    }
     if let Some(i) = by_id("grp-name") {
         dom::on(&i, "change", |_| save_group_name());
         dom::on(&i, "keydown", |e| {
