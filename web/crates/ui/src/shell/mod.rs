@@ -377,6 +377,9 @@ fn setup_tabbar(first: &str) {
         let name = tab_of(&e);
         show_screen(&name);
         crate::chat::leave(&name);
+        if name != "home" {
+            crate::home::leave();
+        }
         set_title(&name);
         if let Some(sc) = screen(&name) {
             update_chrome(&sc);
@@ -389,6 +392,7 @@ fn setup_tabbar(first: &str) {
             "inventory" => crate::inventory::refresh(),
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
+            "home" => crate::home::open(),
             _ => {}
         }
         invoke(&backdrop(), "setActive", &[JsValue::from_str(&name)]);

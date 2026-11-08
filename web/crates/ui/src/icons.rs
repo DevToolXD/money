@@ -30,6 +30,12 @@ const UNTITLED: &[Part] = &[
     Part { d: "M9.2 10.3A4.8 4.8 0 1 1 15.7 14.7C14.5 15.5 14 16.3 14 17.9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M14 23.2h.01", stroke: 2.3, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
+// 홈: 집 (지붕과 문)
+const HOME: &[Part] = &[
+    Part { d: "M3.5 13.2 14 4.2l10.5 9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M6 11.5V23a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V11.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M11.5 24v-6.2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V24", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+];
 const INVENTORY: &[Part] = &[
     Part { d: "M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M11 5.700V4.500a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.200", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
@@ -89,7 +95,8 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "messages" => MESSAGES,
         "money" => MONEY,
         "work" => WORK,
-        "untitled" | "blank1" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
+        "home" => HOME,
+        "untitled" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
         "inventory" => INVENTORY,
         "untitled3" => SNS,
         "shop" => SHOP,

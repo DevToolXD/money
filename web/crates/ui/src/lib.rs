@@ -14,6 +14,7 @@ pub mod factory;
 pub mod feedback;
 pub mod fire;
 pub mod glass;
+pub mod home;
 pub mod inventory;
 pub mod invite;
 pub mod coach;

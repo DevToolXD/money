@@ -58,7 +58,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('다른 곳은 눌리지 않아요', await at(1) && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
   await tapC('.tabbar .tab[data-tab="messages"]');
   ok('메시지를 누르면 핫바 넘기기 (2)', await at(2) && (await A.textContent('#coach .coach-hint')).includes('옆으로'));
-  let bb = await box('.tabbar .tab[data-tab="blank1"]');
+  let bb = await box('.tabbar .tab[data-tab="home"]');
   await A.mouse.move(bb.x + bb.width / 2 + 60, bb.y + bb.height / 2); await A.mouse.down(); await A.mouse.move(bb.x - 40, bb.y + bb.height / 2, { steps: 4 }); await A.mouse.up(); await A.waitForTimeout(1200);
   ok('탭 바를 밀어 넘기면 SNS (3)', await at(3));
   await tapC('.tabbar .tab[data-tab="untitled3"]');

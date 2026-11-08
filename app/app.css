@@ -2151,3 +2151,18 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .grp-mrow b { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grp-mem li + li .grp-mrow { border-top: 0.5px solid rgba(60, 60, 67, 0.12); }
 .grp-me { font-size: 13px; font-weight: 700; color: #0a7cff; }
+
+/* 홈: 실제 지도 (OpenStreetMap 타일을 직접 깔아요) */
+.map-card { position: relative; margin: 0 var(--gutter) 16px; height: calc(100dvh - 190px); min-height: 360px; border-radius: 10px; overflow: hidden; background: #e8e6df; }
+.map-view { position: absolute; inset: 0; touch-action: none; cursor: grab; overflow: hidden; -webkit-user-select: none; user-select: none; }
+.map-tiles { position: absolute; inset: 0; }
+.map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; pointer-events: none; -webkit-user-drag: none; }
+.map-me { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.map-me::before { content: ""; position: absolute; left: calc(var(--acc, 40px) / -2); top: calc(var(--acc, 40px) / -2); width: var(--acc, 40px); height: var(--acc, 40px); border-radius: 50%; background: rgba(10, 124, 255, 0.16); border: 1px solid rgba(10, 124, 255, 0.35); }
+.map-me i { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #0a7cff; border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3); box-sizing: border-box; }
+.map-status { position: absolute; left: 12px; right: 12px; top: 12px; margin: 0; padding: 10px 14px; border-radius: 16px; font-size: 14px; font-weight: 600; text-align: center; color: var(--text-primary); background: rgba(255, 255, 255, 0.82); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none; }
+.map-status[hidden] { display: none; }
+.map-ctl { position: absolute; right: 10px; bottom: 28px; display: grid; gap: 8px; }
+.map-ctl .glass-btn { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
+.map-ctl svg { width: 22px; height: 22px; }
+.map-attr { position: absolute; left: 6px; bottom: 4px; padding: 1px 6px; border-radius: 6px; font-size: 11px; color: #333; background: rgba(255, 255, 255, 0.75); text-decoration: none; }
