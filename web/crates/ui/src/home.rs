@@ -11,11 +11,12 @@ use wasm_bindgen::JsCast;
 use crate::dom::{self, by_id};
 
 const TILE: f64 = 256.0;
-const MIN_Z: i32 = 14; // 더 줄이면 육각형이 너무 많아져 렉이 걸려요
+const MIN_Z: i32 = 15; // 더 줄이면 육각형이 너무 많아져 렉이 걸려요
 const MAX_Z: i32 = 18;
-// 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 45px (약 65m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
+// 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 24px (약 35m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
 const HZ: i32 = 16;
-const HS: f64 = 45.0;
+const PADC: f64 = 240.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
+const HS: f64 = 24.0;
 
 thread_local! {
     static Z: Cell<i32> = const { Cell::new(17) };
@@ -85,7 +86,7 @@ fn render() {
                 keep.push(key.clone());
                 let el = t.entry(key).or_insert_with(|| {
                     let img: web_sys::HtmlElement = dom::doc().create_element("img").unwrap().unchecked_into();
-                    let _ = img.set_attribute("src", &format!("https://tile.openstreetmap.org/{z}/{wx}/{ty}.png"));
+                    let _ = img.set_attribute("src", &format!("https://{}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{wx}/{ty}.png", ["a", "b", "c", "d"][((wx + ty) % 4) as usize]));
                     let _ = img.set_attribute("alt", "");
                     let _ = img.set_attribute("draggable", "false");
                     let _ = img.set_attribute("decoding", "async");
@@ -145,6 +146,7 @@ fn draw_hex() {
     let (Some(v), Some(c)) = (view(), by_id("map-hex")) else { return };
     let cv: web_sys::HtmlCanvasElement = c.unchecked_into();
     let (w, h) = size(&v);
+    let (w, h) = (w + PADC * 2.0, h + PADC * 2.0);
     let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(2.0);
     let (pw, ph) = ((w * dpr) as u32, (h * dpr) as u32);
     if cv.width() != pw || cv.height() != ph {
@@ -155,9 +157,8 @@ fn draw_hex() {
     let _ = ctx.set_transform(dpr, 0.0, 0.0, dpr, 0.0, 0.0);
     ctx.clear_rect(0.0, 0.0, w, h);
     let z = Z.get();
-    let (lat, lon) = CENTER.get();
-    let (cx, cy) = world(lat, lon, z);
-    let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
+    let (ox, oy) = ORIGIN.get();
+    let (ox, oy) = (ox - PADC, oy - PADC);
     let k = 2f64.powi(z - HZ);
     let s = HS * k; // 지금 확대에서의 한 변 길이
     let (w3, step_y) = (3f64.sqrt() * s, 1.5 * s);
@@ -172,6 +173,7 @@ fn draw_hex() {
     let (r0, r1) = (((oy - s) / step_y).floor() as i64, ((oy + h + s) / step_y).ceil() as i64);
     let mine = ME.get().map(|(la, lo, _)| { let (x, y) = world(la, lo, z); cell_of(x, y, z) });
     let sel = SEL.get();
+    let mut fills: Vec<([(f64, f64); 6], bool)> = Vec::new();
     ctx.begin_path();
     for r in r0..=r1 {
         let q0 = ((ox - w3) / w3 - r as f64 / 2.0).floor() as i64;
@@ -179,19 +181,8 @@ fn draw_hex() {
         for q in q0..=q1 {
             let (x, y) = (w3 * (q as f64 + r as f64 / 2.0), step_y * r as f64);
             let p = corners(x, y);
-            let fill = Some((q, r)) == mine || Some((q, r)) == sel;
-            if fill {
-                ctx.save();
-                ctx.begin_path();
-                ctx.move_to(p[0].0, p[0].1);
-                for pt in &p[1..] {
-                    ctx.line_to(pt.0, pt.1);
-                }
-                ctx.close_path();
-                ctx.set_fill_style_str(if Some((q, r)) == mine { "rgba(10,124,255,0.28)" } else { "rgba(255,159,10,0.30)" });
-                ctx.fill();
-                ctx.restore();
-                ctx.begin_path();
+            if Some((q, r)) == mine || Some((q, r)) == sel {
+                fills.push((p, Some((q, r)) == mine));
             }
             ctx.move_to(p[0].0, p[0].1);
             for pt in &p[1..] {
@@ -203,6 +194,16 @@ fn draw_hex() {
     ctx.set_stroke_style_str("rgba(20,40,80,0.45)");
     ctx.set_line_width(1.2);
     ctx.stroke();
+    for (p, is_me) in fills {
+        ctx.begin_path();
+        ctx.move_to(p[0].0, p[0].1);
+        for pt in &p[1..] {
+            ctx.line_to(pt.0, pt.1);
+        }
+        ctx.close_path();
+        ctx.set_fill_style_str(if is_me { "rgba(10,124,255,0.28)" } else { "rgba(255,159,10,0.30)" });
+        ctx.fill();
+    }
 }
 
 fn schedule() {
@@ -297,13 +298,12 @@ fn pan_view() {
         let (cx, cy) = world(lat, lon, Z.get());
         let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
         let (px, py) = ORIGIN.get();
-        if (px - ox).abs() > 200.0 || (py - oy).abs() > 200.0 {
+        if (px - ox).abs() > 180.0 || (py - oy).abs() > 180.0 {
             return render();
         }
         if let Some(wd) = by_id("map-world") {
             let _ = wd.style().set_property("transform", &format!("translate3d({}px,{}px,0)", px - ox, py - oy));
         }
-        draw_hex();
     });
     let _ = dom::doc().default_view().map(|w| w.request_animation_frame(cb.unchecked_ref()));
 }
