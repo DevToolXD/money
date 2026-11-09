@@ -2182,3 +2182,6 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .map-hex { inset: auto; left: -320px; top: -320px; width: calc(100% + 640px); height: calc(100% + 640px); }
 .map-card { background: #f2efe9; }
 .map-tile { background: #f2efe9; }
+/* 지도 위에 연한 막을 덮어 글자·가게 점·도로 선을 흐리게 해요 (필터가 아니라 반투명 한 장이라 가벼워요). 육각형이 또렷하게 보여요 */
+.map-wash { position: absolute; left: -320px; top: -320px; right: -320px; bottom: -320px; background: rgba(246, 244, 238, 0.8); pointer-events: none; }
+.map-card, .map-tile { background: #f2efe9; }

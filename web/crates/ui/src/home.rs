@@ -90,7 +90,7 @@ fn render() {
                 keep.push(key.clone());
                 let el = t.entry(key).or_insert_with(|| {
                     let img: web_sys::HtmlElement = dom::doc().create_element("img").unwrap().unchecked_into();
-                    let _ = img.set_attribute("src", &format!("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{ty}/{wx}"));
+                    let _ = img.set_attribute("src", &format!("https://tile.openstreetmap.org/{z}/{wx}/{ty}.png"));
                     let _ = img.set_attribute("alt", "");
                     let _ = img.set_attribute("draggable", "false");
                     let _ = img.set_attribute("decoding", "async");

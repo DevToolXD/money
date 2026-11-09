@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com; font-src 'self'; connect-src 'self' wss://money-miner.zerodayseverside-7ea.workers.dev https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' wss://money-miner.zerodayseverside-7ea.workers.dev https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=124">
+<link rel="stylesheet" href="app/app.css?v=126">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -52,6 +52,7 @@
         <div class="map-view" id="map-view" aria-label="지도" role="application">
           <div class="map-world" id="map-world">
             <div class="map-tiles" id="map-tiles"></div>
+            <div class="map-wash" aria-hidden="true"></div>
             <canvas class="map-hex" id="map-hex" aria-hidden="true"></canvas>
             <span class="map-me" id="map-me" hidden><i></i></span>
           </div>
@@ -63,7 +64,7 @@
           <button type="button" class="glass-btn round" id="map-zout" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
           <button type="button" class="glass-btn round" id="map-me-btn" aria-label="내 위치로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
         </div>
-        <a class="map-attr" href="https://www.esri.com/en-us/legal/terms/full-master-agreement" target="_blank" rel="noopener">© Esri, HERE, Garmin, OpenStreetMap</a>
+        <a class="map-attr" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a>
       </div>
     </section>
     <section class="screen" id="screen-blank3" data-screen="blank3" data-title="무제" aria-labelledby="title-blank3">
@@ -447,6 +448,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=72"></script>
+<script type="module" src="app/rs/boot.js?v=73"></script>
 </body>
 </html>
