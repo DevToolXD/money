@@ -384,6 +384,9 @@ function __wbg_get_imports() {
             const ret = arg0.cloneNode(arg1 !== 0);
             return ret;
         }, arguments); },
+        __wbg_closePath_e9e11e034c5d75a3: function(arg0) {
+            arg0.closePath();
+        },
         __wbg_close_294d3f727cb7a844: function() { return handleError(function (arg0) {
             arg0.close();
         }, arguments); },
@@ -2018,7 +2021,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000e: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 263, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 264, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

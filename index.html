@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=119">
+<link rel="stylesheet" href="app/app.css?v=121">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -47,13 +47,17 @@
       <div id="work-root"><p class="biz-loading">불러오는 중이에요</p></div>
     </section>
     <section class="screen" id="screen-home" data-screen="home" data-title="홈" aria-labelledby="title-home">
-      <header class="large-title"><h1 id="title-home">홈</h1></header>
+      <header class="large-title map-title"><h1 id="title-home">홈</h1></header>
       <div class="map-card" id="map-card">
         <div class="map-view" id="map-view" aria-label="지도" role="application">
-          <div class="map-tiles" id="map-tiles"></div>
-          <span class="map-me" id="map-me" hidden><i></i></span>
+          <div class="map-world" id="map-world">
+            <div class="map-tiles" id="map-tiles"></div>
+            <span class="map-me" id="map-me" hidden><i></i></span>
+          </div>
+          <canvas class="map-hex" id="map-hex" aria-hidden="true"></canvas>
         </div>
         <p class="map-status" id="map-status" role="status"></p>
+        <p class="map-cell" id="map-cell" hidden></p>
         <div class="map-ctl">
           <button type="button" class="glass-btn round" id="map-zin" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
           <button type="button" class="glass-btn round" id="map-zout" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -447,6 +451,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=68"></script>
+<script type="module" src="app/rs/boot.js?v=69"></script>
 </body>
 </html>

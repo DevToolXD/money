@@ -11,8 +11,11 @@ use wasm_bindgen::JsCast;
 use crate::dom::{self, by_id};
 
 const TILE: f64 = 256.0;
-const MIN_Z: i32 = 3;
-const MAX_Z: i32 = 19;
+const MIN_Z: i32 = 14; // 더 줄이면 육각형이 너무 많아져 렉이 걸려요
+const MAX_Z: i32 = 18;
+// 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 45px (약 65m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
+const HZ: i32 = 16;
+const HS: f64 = 45.0;
 
 thread_local! {
     static Z: Cell<i32> = const { Cell::new(17) };
@@ -25,6 +28,8 @@ thread_local! {
     static PAN: Cell<Option<(f64, f64, f64, f64, i32)>> = const { Cell::new(None) }; // 시작 x, y, 시작 중심 world x, y, 포인터 id
     static PENDING: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
+    static ORIGIN: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) }; // 마지막으로 타일을 깐 화면 왼쪽 위의 지도 좌표
+    static SEL: Cell<Option<(i64, i64)>> = const { Cell::new(None) }; // 눌러서 고른 칸
 }
 
 fn world(lat: f64, lon: f64, z: i32) -> (f64, f64) {
@@ -59,6 +64,10 @@ fn render() {
     let (lat, lon) = CENTER.get();
     let (cx, cy) = world(lat, lon, z);
     let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
+    ORIGIN.set((ox, oy));
+    if let Some(wd) = by_id("map-world") {
+        let _ = wd.style().remove_property("transform");
+    }
     let n = 2f64.powi(z) as i64;
     let (x0, x1) = ((ox / TILE).floor() as i64, ((ox + w) / TILE).floor() as i64);
     let (y0, y1) = ((oy / TILE).floor() as i64, ((oy + h) / TILE).floor() as i64);
@@ -95,6 +104,7 @@ fn render() {
             ok
         });
     });
+    draw_hex();
     // 내 위치 점과 오차 원
     if let Some(dot) = by_id("map-me") {
         match ME.get() {
@@ -110,6 +120,91 @@ fn render() {
         }
     }
 }
+/// 육각형 칸 번호 (위치 → q, r)
+fn cell_of(wx: f64, wy: f64, z: i32) -> (i64, i64) {
+    let k = 2f64.powi(z - HZ);
+    let (x, y) = (wx / k, wy / k);
+    let q = (3f64.sqrt() / 3.0 * x - y / 3.0) / HS;
+    let r = (2.0 / 3.0 * y) / HS;
+    let (cx, cz, cy) = (q, r, -q - r);
+    let (mut rx, mut ry, mut rz) = (cx.round(), cy.round(), cz.round());
+    let (dx, dy, dz) = ((rx - cx).abs(), (ry - cy).abs(), (rz - cz).abs());
+    if dx > dy && dx > dz {
+        rx = -ry - rz;
+    } else if dy > dz {
+        ry = -rx - rz;
+    } else {
+        rz = -rx - ry;
+    }
+    let _ = ry;
+    (rx as i64, rz as i64)
+}
+
+/// 육각형 칸 선을 캔버스에 한 번에 그려요 (선 하나로 모아서 그리고, 내 칸·고른 칸만 색을 칠해요)
+fn draw_hex() {
+    let (Some(v), Some(c)) = (view(), by_id("map-hex")) else { return };
+    let cv: web_sys::HtmlCanvasElement = c.unchecked_into();
+    let (w, h) = size(&v);
+    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(2.0);
+    let (pw, ph) = ((w * dpr) as u32, (h * dpr) as u32);
+    if cv.width() != pw || cv.height() != ph {
+        cv.set_width(pw);
+        cv.set_height(ph);
+    }
+    let Some(ctx) = cv.get_context("2d").ok().flatten().and_then(|c| c.dyn_into::<web_sys::CanvasRenderingContext2d>().ok()) else { return };
+    let _ = ctx.set_transform(dpr, 0.0, 0.0, dpr, 0.0, 0.0);
+    ctx.clear_rect(0.0, 0.0, w, h);
+    let z = Z.get();
+    let (lat, lon) = CENTER.get();
+    let (cx, cy) = world(lat, lon, z);
+    let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
+    let k = 2f64.powi(z - HZ);
+    let s = HS * k; // 지금 확대에서의 한 변 길이
+    let (w3, step_y) = (3f64.sqrt() * s, 1.5 * s);
+    let corners = |x: f64, y: f64| -> [(f64, f64); 6] {
+        let mut a = [(0.0, 0.0); 6];
+        for (i, p) in a.iter_mut().enumerate() {
+            let t = (60.0 * i as f64 - 30.0).to_radians();
+            *p = (x - ox + s * t.cos(), y - oy + s * t.sin());
+        }
+        a
+    };
+    let (r0, r1) = (((oy - s) / step_y).floor() as i64, ((oy + h + s) / step_y).ceil() as i64);
+    let mine = ME.get().map(|(la, lo, _)| { let (x, y) = world(la, lo, z); cell_of(x, y, z) });
+    let sel = SEL.get();
+    ctx.begin_path();
+    for r in r0..=r1 {
+        let q0 = ((ox - w3) / w3 - r as f64 / 2.0).floor() as i64;
+        let q1 = ((ox + w + w3) / w3 - r as f64 / 2.0).ceil() as i64;
+        for q in q0..=q1 {
+            let (x, y) = (w3 * (q as f64 + r as f64 / 2.0), step_y * r as f64);
+            let p = corners(x, y);
+            let fill = Some((q, r)) == mine || Some((q, r)) == sel;
+            if fill {
+                ctx.save();
+                ctx.begin_path();
+                ctx.move_to(p[0].0, p[0].1);
+                for pt in &p[1..] {
+                    ctx.line_to(pt.0, pt.1);
+                }
+                ctx.close_path();
+                ctx.set_fill_style_str(if Some((q, r)) == mine { "rgba(10,124,255,0.28)" } else { "rgba(255,159,10,0.30)" });
+                ctx.fill();
+                ctx.restore();
+                ctx.begin_path();
+            }
+            ctx.move_to(p[0].0, p[0].1);
+            for pt in &p[1..] {
+                ctx.line_to(pt.0, pt.1);
+            }
+            ctx.close_path();
+        }
+    }
+    ctx.set_stroke_style_str("rgba(20,40,80,0.45)");
+    ctx.set_line_width(1.2);
+    ctx.stroke();
+}
+
 fn schedule() {
     if PENDING.replace(true) {
         return;
@@ -118,6 +213,16 @@ fn schedule() {
     let _ = dom::doc().default_view().map(|w| w.request_animation_frame(cb.unchecked_ref()));
 }
 
+fn set_cell_label(c: Option<(i64, i64)>) {
+    let Some(e) = by_id("map-cell") else { return };
+    match c {
+        Some((q, r)) => {
+            e.set_hidden(false);
+            e.set_text_content(Some(&format!("칸 {q}, {r}")));
+        }
+        None => e.set_hidden(true),
+    }
+}
 fn set_status(t: &str) {
     dom::set_text("map-status", t);
     if let Some(e) = by_id("map-status") {
@@ -179,6 +284,29 @@ fn stop_watch() {
     }
 }
 
+/// 끄는 동안: 타일은 다시 깔지 않고 덩어리째 옮기고, 육각형 선만 다시 그려요 (많이 벗어났을 때만 타일을 새로 깔아요)
+fn pan_view() {
+    if PENDING.replace(true) {
+        return;
+    }
+    let cb = Closure::once_into_js(|| {
+        PENDING.set(false);
+        let Some(v) = view() else { return };
+        let (w, h) = size(&v);
+        let (lat, lon) = CENTER.get();
+        let (cx, cy) = world(lat, lon, Z.get());
+        let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
+        let (px, py) = ORIGIN.get();
+        if (px - ox).abs() > 200.0 || (py - oy).abs() > 200.0 {
+            return render();
+        }
+        if let Some(wd) = by_id("map-world") {
+            let _ = wd.style().set_property("transform", &format!("translate3d({}px,{}px,0)", px - ox, py - oy));
+        }
+        draw_hex();
+    });
+    let _ = dom::doc().default_view().map(|w| w.request_animation_frame(cb.unchecked_ref()));
+}
 fn zoom(d: i32) {
     let z = (Z.get() + d).clamp(MIN_Z, MAX_Z);
     if z != Z.get() {
@@ -226,11 +354,32 @@ fn bind() {
         }
         let (la, lo) = unworld(s.2 - dx, s.3 - dy, Z.get());
         CENTER.set((la.clamp(-85.0, 85.0), lo));
-        schedule();
+        pan_view();
     });
-    for ev in ["pointerup", "pointercancel"] {
-        dom::on(&v, ev, |_| PAN.set(None));
-    }
+    dom::on(&v, "pointerup", |e| {
+        let (Some(p), Some(s)) = (e.dyn_ref::<web_sys::PointerEvent>(), PAN.get()) else { return };
+        PAN.set(None);
+        let moved = (p.client_x() as f64 - s.0).abs() + (p.client_y() as f64 - s.1).abs();
+        if moved <= 6.0 {
+            // 톡 눌렀으면 그 자리의 칸을 골라요
+            if let Some(v) = view() {
+                let r = v.get_bounding_client_rect();
+                let (w, h) = size(&v);
+                let (lat, lon) = CENTER.get();
+                let z = Z.get();
+                let (cx, cy) = world(lat, lon, z);
+                let (wx, wy) = (cx - w / 2.0 + p.client_x() as f64 - r.left(), cy - h / 2.0 + p.client_y() as f64 - r.top());
+                let c = cell_of(wx, wy, z);
+                SEL.set(if SEL.get() == Some(c) { None } else { Some(c) });
+                set_cell_label(SEL.get());
+            }
+        }
+        render();
+    });
+    dom::on(&v, "pointercancel", |_| {
+        PAN.set(None);
+        render();
+    });
     dom::on(&v, "wheel", |e| {
         e.prevent_default();
         let d = e.dyn_ref::<web_sys::WheelEvent>().map(|w| w.delta_y()).unwrap_or(0.0);
