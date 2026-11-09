@@ -82,11 +82,11 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.waitForTimeout(2000);
   ok('상태 버튼은 숨어 있어요', await p.isHidden('#status-fab'));
   const labels = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
-  ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,홈,무제,무제');
+  ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,홈,랭킹,무제');
   await tab(p, 'home'); await p.waitForTimeout(1500);
   ok('홈 탭: 지도가 떠요', (await active(p)) === 'home' && await p.isVisible('#map-view') && await p.isVisible('#map-zin'));
-  await tab(p, 'blank2'); await p.waitForTimeout(1200);
-  ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank2' && (await text(p, '#screen-blank2')).includes('empty'));
+  await tab(p, 'blank3'); await p.waitForTimeout(1200);
+  ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank3' && (await text(p, '#screen-blank3')).includes('empty'));
   await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
   const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
   ok('둘째 쪽: 무제 3개 + SNS', labels2.join(',') === '무제,무제,무제,SNS');

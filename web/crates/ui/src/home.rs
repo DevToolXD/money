@@ -15,7 +15,7 @@ const MIN_Z: i32 = 15; // 더 줄이면 육각형이 너무 많아져 렉이 걸
 const MAX_Z: i32 = 18;
 // 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 24px (약 35m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
 const HZ: i32 = 16;
-const PADC: f64 = 240.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
+const PADC: f64 = 320.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
 const HS: f64 = 24.0;
 
 thread_local! {
@@ -26,7 +26,6 @@ thread_local! {
     static FOLLOW: Cell<bool> = const { Cell::new(true) };
     static WATCH: Cell<Option<i32>> = const { Cell::new(None) };
     static TILES: RefCell<HashMap<String, web_sys::HtmlElement>> = RefCell::new(HashMap::new());
-    static PAN: Cell<Option<(f64, f64, f64, f64, i32)>> = const { Cell::new(None) }; // 시작 x, y, 시작 중심 world x, y, 포인터 id
     static PENDING: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
     static ORIGIN: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) }; // 마지막으로 타일을 깐 화면 왼쪽 위의 지도 좌표
@@ -69,9 +68,14 @@ fn render() {
     if let Some(wd) = by_id("map-world") {
         let _ = wd.style().remove_property("transform");
     }
+    G.with(|g| {
+        let mut g = g.borrow_mut();
+        g.cur = Tf { s: 1.0, ..Tf::default() };
+        g.base = g.cur;
+    });
     let n = 2f64.powi(z) as i64;
-    let (x0, x1) = ((ox / TILE).floor() as i64, ((ox + w) / TILE).floor() as i64);
-    let (y0, y1) = ((oy / TILE).floor() as i64, ((oy + h) / TILE).floor() as i64);
+    let (x0, x1) = (((ox - 256.0) / TILE).floor() as i64, ((ox + w + 256.0) / TILE).floor() as i64);
+    let (y0, y1) = (((oy - 256.0) / TILE).floor() as i64, ((oy + h + 256.0) / TILE).floor() as i64);
     let Some(layer) = by_id("map-tiles") else { return };
     TILES.with(|t| {
         let mut t = t.borrow_mut();
@@ -285,36 +289,6 @@ fn stop_watch() {
     }
 }
 
-/// 끄는 동안: 타일은 다시 깔지 않고 덩어리째 옮기고, 육각형 선만 다시 그려요 (많이 벗어났을 때만 타일을 새로 깔아요)
-fn pan_view() {
-    if PENDING.replace(true) {
-        return;
-    }
-    let cb = Closure::once_into_js(|| {
-        PENDING.set(false);
-        let Some(v) = view() else { return };
-        let (w, h) = size(&v);
-        let (lat, lon) = CENTER.get();
-        let (cx, cy) = world(lat, lon, Z.get());
-        let (ox, oy) = (cx - w / 2.0, cy - h / 2.0);
-        let (px, py) = ORIGIN.get();
-        if (px - ox).abs() > 180.0 || (py - oy).abs() > 180.0 {
-            return render();
-        }
-        if let Some(wd) = by_id("map-world") {
-            let _ = wd.style().set_property("transform", &format!("translate3d({}px,{}px,0)", px - ox, py - oy));
-        }
-    });
-    let _ = dom::doc().default_view().map(|w| w.request_animation_frame(cb.unchecked_ref()));
-}
-fn zoom(d: i32) {
-    let z = (Z.get() + d).clamp(MIN_Z, MAX_Z);
-    if z != Z.get() {
-        Z.set(z);
-        // 확대 단계가 바뀌면 타일 주소가 모두 달라지니 새로 깔아요
-        schedule();
-    }
-}
 fn recenter() {
     FOLLOW.set(true);
     match ME.get() {
@@ -329,6 +303,92 @@ fn recenter() {
     }
 }
 
+/// 손가락 하나는 끌기, 둘은 확대·축소(핀치), 두 번 톡은 확대. 모든 움직임은 지도 덩어리(타일+육각형+내 위치)에 한 번에 거는
+/// transform 하나로만 해서, 육각형이 지도에 붙어서 움직이고 JS가 할 일은 숫자 몇 개뿐이에요. 손을 떼면 한 번만 다시 깔아요.
+#[derive(Default, Clone, Copy)]
+struct Tf {
+    tx: f64,
+    ty: f64,
+    s: f64,
+}
+#[derive(Default)]
+struct Gst {
+    ptrs: Vec<(i32, f64, f64)>, // id, x, y (지도 안 좌표)
+    base: Tf,                   // 지금 손가락 모양이 시작될 때의 변환
+    cur: Tf,
+    m0: (f64, f64),             // 시작 때 손가락(들)의 가운데
+    d0: f64,                    // 시작 때 두 손가락 사이 거리
+    moved: bool,
+    t0: f64,                    // 처음 닿은 시각
+    last_tap: (f64, f64, f64),  // 지난 탭 시각, x, y
+}
+thread_local! {
+    static G: RefCell<Gst> = RefCell::new(Gst { base: Tf { s: 1.0, ..Tf::default() }, cur: Tf { s: 1.0, ..Tf::default() }, ..Gst::default() });
+}
+fn apply(t: Tf) {
+    if let Some(wd) = by_id("map-world") {
+        let _ = wd.style().set_property("transform", &format!("translate3d({}px,{}px,0) scale({})", t.tx, t.ty, t.s));
+    }
+}
+fn mid_dist(g: &Gst) -> ((f64, f64), f64) {
+    match g.ptrs.as_slice() {
+        [a] => ((a.1, a.2), 0.0),
+        [a, b, ..] => (((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0), ((a.1 - b.1).hypot(a.2 - b.2)).max(1.0)),
+        _ => ((0.0, 0.0), 0.0),
+    }
+}
+/// 손가락 모양이 바뀔 때(닿음·뗌): 지금 변환을 기준으로 다시 시작해요
+fn rebase(g: &mut Gst) {
+    g.base = g.cur;
+    let (m, d) = mid_dist(g);
+    g.m0 = m;
+    g.d0 = d;
+}
+/// 지금 변환을 실제 중심·확대 단계로 바꾸고 지도를 한 번 새로 깔아요
+fn commit() {
+    let Some(v) = view() else { return };
+    let (w, h) = size(&v);
+    let t = G.with(|g| g.borrow().cur);
+    let z0 = Z.get();
+    let (ox, oy) = ORIGIN.get();
+    let (u, vv) = ((w / 2.0 - t.tx) / t.s, (h / 2.0 - t.ty) / t.s);
+    let z2 = ((z0 as f64 + t.s.log2()).round() as i32).clamp(MIN_Z, MAX_Z);
+    let f = 2f64.powi(z2 - z0);
+    let (la, lo) = unworld((ox + u) * f, (oy + vv) * f, z2);
+    Z.set(z2);
+    CENTER.set((la.clamp(-85.0, 85.0), lo));
+    G.with(|g| {
+        let mut g = g.borrow_mut();
+        g.cur = Tf { s: 1.0, ..Tf::default() };
+        g.base = g.cur;
+    });
+    render();
+}
+fn tap_at(x: f64, y: f64) {
+    let Some(v) = view() else { return };
+    let (w, h) = size(&v);
+    let z = Z.get();
+    let (lat, lon) = CENTER.get();
+    let (cx, cy) = world(lat, lon, z);
+    let c = cell_of(cx - w / 2.0 + x, cy - h / 2.0 + y, z);
+    SEL.set(if SEL.get() == Some(c) { None } else { Some(c) });
+    set_cell_label(SEL.get());
+    render();
+}
+/// 확대 단계를 하나 바꿔요 (버튼·휠·두 번 톡). 화면 가운데(또는 fx, fy)를 기준으로 해요
+fn zoom_by(d: i32, fx: f64, fy: f64) {
+    let z = Z.get();
+    if !(MIN_Z..=MAX_Z).contains(&(z + d)) {
+        return;
+    }
+    let s = 2f64.powi(d);
+    G.with(|g| g.borrow_mut().cur = Tf { tx: fx - s * fx, ty: fy - s * fy, s });
+    commit();
+}
+fn local(e: &web_sys::PointerEvent) -> (f64, f64) {
+    view().map(|v| { let r = v.get_bounding_client_rect(); (e.client_x() as f64 - r.left(), e.client_y() as f64 - r.top()) }).unwrap_or((0.0, 0.0))
+}
+
 fn bind() {
     if BOUND.replace(true) {
         return;
@@ -336,59 +396,100 @@ fn bind() {
     let Some(v) = view() else { return };
     dom::on(&v, "pointerdown", |e| {
         let Some(p) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
-        let (la, lo) = CENTER.get();
-        let (wx, wy) = world(la, lo, Z.get());
-        PAN.set(Some((p.client_x() as f64, p.client_y() as f64, wx, wy, p.pointer_id())));
         if let Some(v) = view() {
             let _ = v.set_pointer_capture(p.pointer_id());
         }
+        let (x, y) = local(p);
+        G.with(|g| {
+            let mut g = g.borrow_mut();
+            if g.ptrs.is_empty() {
+                g.moved = false;
+                g.t0 = js_sys::Date::now();
+            } else {
+                g.moved = true; // 손가락이 둘이면 탭이 아니에요
+            }
+            g.ptrs.retain(|q| q.0 != p.pointer_id());
+            g.ptrs.push((p.pointer_id(), x, y));
+            rebase(&mut g);
+        });
     });
     dom::on(&v, "pointermove", |e| {
-        let (Some(p), Some(s)) = (e.dyn_ref::<web_sys::PointerEvent>(), PAN.get()) else { return };
-        if p.pointer_id() != s.4 {
-            return;
-        }
-        let (dx, dy) = (p.client_x() as f64 - s.0, p.client_y() as f64 - s.1);
-        if dx.abs() + dy.abs() > 3.0 {
-            FOLLOW.set(false);
-        }
-        let (la, lo) = unworld(s.2 - dx, s.3 - dy, Z.get());
-        CENTER.set((la.clamp(-85.0, 85.0), lo));
-        pan_view();
-    });
-    dom::on(&v, "pointerup", |e| {
-        let (Some(p), Some(s)) = (e.dyn_ref::<web_sys::PointerEvent>(), PAN.get()) else { return };
-        PAN.set(None);
-        let moved = (p.client_x() as f64 - s.0).abs() + (p.client_y() as f64 - s.1).abs();
-        if moved <= 6.0 {
-            // 톡 눌렀으면 그 자리의 칸을 골라요
-            if let Some(v) = view() {
-                let r = v.get_bounding_client_rect();
-                let (w, h) = size(&v);
-                let (lat, lon) = CENTER.get();
-                let z = Z.get();
-                let (cx, cy) = world(lat, lon, z);
-                let (wx, wy) = (cx - w / 2.0 + p.client_x() as f64 - r.left(), cy - h / 2.0 + p.client_y() as f64 - r.top());
-                let c = cell_of(wx, wy, z);
-                SEL.set(if SEL.get() == Some(c) { None } else { Some(c) });
-                set_cell_label(SEL.get());
+        let Some(p) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
+        let (x, y) = local(p);
+        let big = G.with(|g| {
+            let mut g = g.borrow_mut();
+            let Some(q) = g.ptrs.iter_mut().find(|q| q.0 == p.pointer_id()) else { return false };
+            q.1 = x;
+            q.2 = y;
+            let (m, d) = mid_dist(&g);
+            let b = g.base;
+            let mut s = if g.ptrs.len() >= 2 && g.d0 > 0.0 { b.s * d / g.d0 } else { b.s };
+            // 확대 단계 바깥으로 너무 나가지 않게 (조금은 여유를 둬요)
+            let z = Z.get() as f64;
+            s = s.clamp(2f64.powf(MIN_Z as f64 - 0.4 - z), 2f64.powf(MAX_Z as f64 + 0.4 - z));
+            let k = s / b.s;
+            let t = Tf { tx: m.0 - k * (g.m0.0 - b.tx), ty: m.1 - k * (g.m0.1 - b.ty), s };
+            if (m.0 - g.m0.0).abs() + (m.1 - g.m0.1).abs() > 6.0 || (s - b.s).abs() > 0.01 {
+                g.moved = true;
             }
+            g.cur = t;
+            apply(t);
+            if g.moved {
+                FOLLOW.set(false);
+            }
+            // 너무 멀리 끌면(그려 둔 범위 끝) 새로 깔고 이어서 끌어요
+            t.tx.abs() > 230.0 || t.ty.abs() > 230.0
+        });
+        if big {
+            commit();
+            G.with(|g| rebase(&mut g.borrow_mut()));
         }
-        render();
     });
-    dom::on(&v, "pointercancel", |_| {
-        PAN.set(None);
-        render();
-    });
+    for ev in ["pointerup", "pointercancel"] {
+        dom::on(&v, ev, |e| {
+            let Some(p) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
+            let (x, y) = local(p);
+            let (done, tap, dbl) = G.with(|g| {
+                let mut g = g.borrow_mut();
+                g.ptrs.retain(|q| q.0 != p.pointer_id());
+                if !g.ptrs.is_empty() {
+                    rebase(&mut g);
+                    return (false, false, false);
+                }
+                let now = js_sys::Date::now();
+                let tap = !g.moved && now - g.t0 < 400.0 && e.type_() == "pointerup";
+                let dbl = tap && now - g.last_tap.0 < 320.0 && (x - g.last_tap.1).abs() + (y - g.last_tap.2).abs() < 30.0;
+                g.last_tap = if tap { (now, x, y) } else { (0.0, 0.0, 0.0) };
+                (true, tap, dbl)
+            });
+            if !done {
+                return;
+            }
+            if dbl {
+                zoom_by(1, x, y);
+            } else if tap {
+                tap_at(x, y);
+            } else {
+                commit();
+            }
+        });
+    }
     dom::on(&v, "wheel", |e| {
         e.prevent_default();
         let d = e.dyn_ref::<web_sys::WheelEvent>().map(|w| w.delta_y()).unwrap_or(0.0);
-        zoom(if d < 0.0 { 1 } else { -1 });
+        let (w, h) = view().map(|v| size(&v)).unwrap_or((0.0, 0.0));
+        zoom_by(if d < 0.0 { 1 } else { -1 }, w / 2.0, h / 2.0);
     });
-    for (id, f) in [("map-zin", (|| zoom(1)) as fn()), ("map-zout", || zoom(-1)), ("map-me-btn", recenter)] {
+    for (id, d) in [("map-zin", 1), ("map-zout", -1)] {
         if let Some(b) = by_id(id) {
-            dom::on(&b, "click", move |_| f());
+            dom::on(&b, "click", move |_| {
+                let (w, h) = view().map(|v| size(&v)).unwrap_or((0.0, 0.0));
+                zoom_by(d, w / 2.0, h / 2.0);
+            });
         }
+    }
+    if let Some(b) = by_id("map-me-btn") {
+        dom::on(&b, "click", |_| recenter());
     }
 }
 
