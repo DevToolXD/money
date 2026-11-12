@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=126">
+<link rel="stylesheet" href="app/app.css?v=128">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -58,7 +58,8 @@
           </div>
         </div>
         <p class="map-status" id="map-status" role="status"></p>
-        <p class="map-cell" id="map-cell" hidden></p>
+        <p class="map-hud" id="map-hud" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9 9.5h6M12 9.5v6"/></svg><b id="map-hud-n">0</b><span>토큰</span></p>
+        <div class="land-sheet" id="land-sheet" role="dialog" aria-label="땅 정보"></div>
         <div class="map-ctl">
           <button type="button" class="glass-btn round" id="map-zin" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
           <button type="button" class="glass-btn round" id="map-zout" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -448,6 +449,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=73"></script>
+<script type="module" src="app/rs/boot.js?v=74"></script>
 </body>
 </html>

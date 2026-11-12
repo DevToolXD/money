@@ -2185,3 +2185,31 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 /* 지도 위에 연한 막을 덮어 글자·가게 점·도로 선을 흐리게 해요 (필터가 아니라 반투명 한 장이라 가벼워요). 육각형이 또렷하게 보여요 */
 .map-wash { position: absolute; left: -320px; top: -320px; right: -320px; bottom: -320px; background: rgba(246, 244, 238, 0.8); pointer-events: none; }
 .map-card, .map-tile { background: #f2efe9; }
+
+/* 홈 지도 게임: 내 토큰 알약, 땅 카드(유리), 내 위치 고리 */
+.map-hud { position: absolute; left: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); margin: 0; height: 40px; padding: 0 16px 0 12px; display: flex; align-items: center; gap: 6px; border-radius: 20px; font-size: 15px; color: var(--text-primary); background: rgba(255, 255, 255, 0.72); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.9), 0 6px 20px rgba(30, 40, 80, 0.14); pointer-events: none; }
+.map-hud[hidden] { display: none; }
+.map-hud svg { width: 20px; height: 20px; color: #0a7cff; }
+.map-hud b { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.map-hud span { color: var(--text-secondary); font-weight: 600; }
+.land-sheet { position: absolute; left: 10px; right: 10px; bottom: 104px; padding: 10px 18px 16px; border-radius: 28px; color: var(--text-primary); background: rgba(255, 255, 255, 0.78); -webkit-backdrop-filter: blur(26px) saturate(190%); backdrop-filter: blur(26px) saturate(190%); box-shadow: inset 0 0 0 0.6px rgba(255, 255, 255, 0.9), inset 0 1.5px 1px rgba(255, 255, 255, 0.9), 0 16px 40px rgba(30, 40, 90, 0.2); transform: translate3d(0, calc(100% + 130px), 0) scale(0.96); opacity: 0; transition: transform 0.42s cubic-bezier(0.22, 1.15, 0.36, 1), opacity 0.2s; pointer-events: none; }
+.land-sheet.on { transform: none; opacity: 1; pointer-events: auto; }
+html[data-theme="dark"] .land-sheet, html[data-theme="dark"] .map-hud { background: rgba(40, 40, 46, 0.78); box-shadow: inset 0 0 0 0.6px rgba(255, 255, 255, 0.2), 0 16px 40px rgba(0, 0, 0, 0.5); }
+.ld-grab { display: block; width: 36px; height: 5px; margin: 0 auto 10px; border-radius: 3px; background: rgba(120, 120, 128, 0.35); }
+.ld-eyebrow { margin: 0; font-size: 13px; font-weight: 700; color: #0a7cff; }
+.ld-title { margin: 2px 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.ld-sub { margin: 0 0 12px; font-size: 14px; line-height: 20px; color: var(--text-secondary); word-break: keep-all; }
+.ld-sub b { color: var(--text-primary); }
+.ld-note { margin: 0; padding: 12px; border-radius: 14px; text-align: center; font-size: 14px; font-weight: 600; color: var(--text-secondary); background: rgba(120, 120, 128, 0.1); }
+.ld-row { display: flex; gap: 8px; }
+.ld-row:empty { display: none; }
+.ld-btn { flex: 1; height: 48px; border-radius: 24px; font-size: 16px; font-weight: 700; margin: 0; width: 100%; }
+.ld-name { display: flex; gap: 8px; margin: 6px 0 8px; }
+.ld-name input { flex: 1; min-width: 0; height: 44px; border: 0; border-radius: 14px; padding: 0 14px; font: inherit; font-size: 18px; font-weight: 700; color: var(--text-primary); background: rgba(120, 120, 128, 0.12); outline: none; -webkit-user-select: text; user-select: text; }
+.ld-save { flex: none; width: auto; height: 44px; padding: 0 16px; margin: 0; border-radius: 14px; font-size: 15px; font-weight: 700; }
+.ld-sell { display: block; width: 100%; margin-top: 10px; height: 36px; background: none; font-size: 14px; font-weight: 600; color: #d70015; }
+.map-ctl { bottom: 300px; }
+.map-me i { animation: mePulse 2.2s ease-out infinite; }
+@keyframes mePulse { 0% { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(10, 124, 255, 0.5); } 100% { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3), 0 0 0 16px rgba(10, 124, 255, 0); } }
+@media (prefers-reduced-motion: reduce) { .map-me i { animation: none; } .land-sheet { transition: opacity 0.2s; } }
+.map-ctl { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 66px); right: 12px; }

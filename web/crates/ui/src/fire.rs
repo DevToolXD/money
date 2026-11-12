@@ -2213,6 +2213,78 @@ async fn claim_gift(cid: String, mid: String, amount: JsValue) -> R {
     commit(&b).await?;
     Ok(JsValue::UNDEFINED)
 }
+/* ---------- 땅 (현실 지도의 육각형 칸) ---------- */
+fn land_row(dd: &JsValue) -> JsValue {
+    let v = data(dd);
+    o(&[("id", get(dd, "id")), ("owner", get(&v, "owner")), ("name", get(&v, "name")), ("lv", get(&v, "lv")), ("pot", get(&v, "pot")), ("q", get(&v, "q")), ("r", get(&v, "r"))])
+}
+/// 보이는 구역(ch)들의 땅을 한 번에 읽어요 (구역은 한 번에 30개까지)
+async fn lands_in(chunks: JsValue) -> R {
+    let a: js_sys::Array = chunks.dyn_into().unwrap_or_default();
+    let out = js_sys::Array::new();
+    if a.length() == 0 {
+        return Ok(out.into());
+    }
+    let snap = get_docs(q(c(&["lands"]), vec![w(s("ch"), "in", a.slice(0, 30).into()), lim(300.0)])).await?;
+    for dd in docs(&snap) {
+        out.push(&land_row(&dd));
+    }
+    Ok(out.into())
+}
+fn land_wallet(b: &JsValue, delta: f64, kind: &str, id: &str) -> Result<(), JsValue> {
+    m(b, "update", &[wallet_ref()?, o(&[("bal", inc(delta)), ("wt", ts()), ("op", o(&[("kind", s(kind)), ("cid", s(id))]))])])?;
+    Ok(())
+}
+async fn land_buy(qv: f64, rv: f64, name: String) -> R {
+    let id = format!("{}_{}", qv as i64, rv as i64);
+    let ch = format!("{}_{}", (qv / 16.0).floor() as i64, (rv / 16.0).floor() as i64);
+    let b = batch();
+    m(&b, "set", &[d(&["lands", &id]), o(&[("owner", s(&uid_of()?)), ("name", s(&name)), ("lv", n(0.0)), ("pot", n(0.0)), ("q", n(qv)), ("r", n(rv)), ("ch", s(&ch)), ("at", ts())])])?;
+    land_wallet(&b, -10.0, "land", &id)?;
+    commit(&b).await?;
+    Ok(JsValue::UNDEFINED)
+}
+async fn land_name(id: String, name: String) -> R {
+    update_doc(d(&["lands", &id]), o(&[("name", s(&name))])).await?;
+    Ok(JsValue::UNDEFINED)
+}
+async fn land_act(id: String, kind: String) -> R {
+    let lr = d(&["lands", &id]);
+    let ls = get_doc(lr.clone()).await?;
+    if !exists(&ls) {
+        return Err(fail("noland", "주인이 없는 땅이에요"));
+    }
+    let v = data(&ls);
+    let (lv, pot) = (num(&get(&v, "lv")), num(&get(&v, "pot")));
+    let toll = [1.0, 2.0, 4.0, 8.0, 16.0][(lv as usize).min(4)];
+    let b = batch();
+    let moved = match kind.as_str() {
+        "build" => {
+            let cost = [20.0, 40.0, 80.0, 160.0][(lv as usize).min(3)];
+            m(&b, "update", &[lr, o(&[("lv", n(lv + 1.0))])])?;
+            land_wallet(&b, -cost, "build", &id)?;
+            cost
+        }
+        "toll" => {
+            m(&b, "update", &[lr, o(&[("pot", n(pot + toll))])])?;
+            land_wallet(&b, -toll, "toll", &id)?;
+            toll
+        }
+        "rent" => {
+            m(&b, "update", &[lr, o(&[("pot", n(0.0))])])?;
+            land_wallet(&b, pot, "rent", &id)?;
+            pot
+        }
+        _ => {
+            let back = [5.0, 15.0, 35.0, 75.0, 155.0][(lv as usize).min(4)] + pot;
+            m(&b, "delete", &[lr])?;
+            land_wallet(&b, back, "sell", &id)?;
+            back
+        }
+    };
+    commit(&b).await?;
+    Ok(n(moved))
+}
 async fn cancel_gift(cid: String, mid: String) -> R {
     let mr = d(&["chats", &cid, "messages", &mid]);
     let ms = get_doc(mr.clone()).await?;
@@ -2559,6 +2631,10 @@ fn build() -> js_sys::Object {
         let amt = num(&a[2]);
         send(sa(&a[0]), a[1].clone(), o(&[("type", s("gift")), ("amount", a[2].clone()), ("done", false.into())]), s(&format!("토큰 {} 선물", ko(amt))), Some(amt)).await
     });
+    am!(api, "landsIn", |a| lands_in(a[0].clone()).await);
+    am!(api, "landBuy", |a| land_buy(num(&a[0]), num(&a[1]), sa(&a[2])).await);
+    am!(api, "landName", |a| land_name(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "landAct", |a| land_act(sa(&a[0]), sa(&a[1])).await);
     am!(api, "cancelGift", |a| cancel_gift(sa(&a[0]), sa(&a[1])).await);
     am!(api, "claimGift", |a| claim_gift(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
     am!(api, "payRequest", |a| pay_request(sa(&a[0]), a[1].clone(), sa(&a[2]), a[3].clone()).await);

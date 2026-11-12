@@ -252,6 +252,46 @@ await t("선물 받기: 받는 사람이 한 번만, 선물 금액만큼만 받�
   await sleep(2100);
   await assertFails(claim(bob, 1250000 + 600).commit()); // 두 번 받기
 });
+await t("땅: 사기(10 토큰)·이름·건물·통행료·받기·팔기가 지갑과 한 묶음으로만 돼요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice"), B = pw("uB", "bob");
+  const land = { owner: "uA", name: "", lv: 0, pot: 0, q: 5, r: -3, ch: "0_-1", at: serverTimestamp() };
+  const W = (db, uid, bal, kind) => [doc(db, `wallets/${uid}`), { bal, wt: serverTimestamp(), op: { kind, cid: "5_-3" } }];
+  // 지갑 없이 땅만 만들기, 값 덜 내기, 남의 이름으로 사기
+  await assertFails(setDoc(doc(A, "lands/5_-3"), land));
+  let b = writeBatch(A); b.set(doc(A, "lands/5_-3"), land); b.update(...W(A, "uA", 1250000 - 1, "land")); await assertFails(b.commit());
+  b = writeBatch(A); b.set(doc(A, "lands/5_-3"), { ...land, owner: "uB" }); b.update(...W(A, "uA", 1250000 - 10, "land")); await assertFails(b.commit());
+  b = writeBatch(A); b.set(doc(A, "lands/6_-3"), land); b.update(doc(A, "wallets/uA"), { bal: 1250000 - 10, wt: serverTimestamp(), op: { kind: "land", cid: "6_-3" } }); await assertFails(b.commit()); // 칸 번호와 문서 이름이 달라요
+  b = writeBatch(A); b.set(doc(A, "lands/5_-3"), land); b.update(...W(A, "uA", 1250000 - 10, "land")); await assertSucceeds(b.commit());
+  await sleep(2100);
+  // 이미 주인이 있는 땅은 못 사요
+  b = writeBatch(B); b.set(doc(B, "lands/5_-3"), { ...land, owner: "uB" }); b.update(...W(B, "uB", 1250000 - 10, "land")); await assertFails(b.commit());
+  // 이름: 주인만
+  await assertFails(updateDoc(doc(B, "lands/5_-3"), { name: "뺏기" }));
+  await assertSucceeds(updateDoc(doc(A, "lands/5_-3"), { name: "우리집" }));
+  await assertFails(updateDoc(doc(A, "lands/5_-3"), { lv: 4 }));
+  // 건물: 한 단계씩, 20 토큰
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { lv: 2 }); b.update(...W(A, "uA", 1250000 - 30, "build")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { lv: 1 }); b.update(...W(A, "uA", 1250000 - 11, "build")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { lv: 1 }); b.update(...W(A, "uA", 1250000 - 30, "build")); await assertSucceeds(b.commit());
+  await sleep(2100);
+  // 통행료: 남이 2 토큰(1단계), 주인은 못 내요, 모인 돈만 늘리기는 안 돼요
+  await assertFails(updateDoc(doc(B, "lands/5_-3"), { pot: 2 }));
+  b = writeBatch(B); b.update(doc(B, "lands/5_-3"), { pot: 100 }); b.update(...W(B, "uB", 1250000 - 2, "toll")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { pot: 2 }); b.update(...W(A, "uA", 1250000 - 32, "toll")); await assertFails(b.commit());
+  b = writeBatch(B); b.update(doc(B, "lands/5_-3"), { pot: 2 }); b.update(...W(B, "uB", 1250000 - 2, "toll")); await assertSucceeds(b.commit());
+  await sleep(2100);
+  // 받기: 주인만, 모인 만큼만
+  b = writeBatch(B); b.update(doc(B, "lands/5_-3"), { pot: 0 }); b.update(...W(B, "uB", 1250000, "rent")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { pot: 0 }); b.update(...W(A, "uA", 1250000 - 30 + 50, "rent")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(doc(A, "lands/5_-3"), { pot: 0 }); b.update(...W(A, "uA", 1250000 - 30 + 2, "rent")); await assertSucceeds(b.commit());
+  await sleep(2100);
+  // 팔기: 주인만, 15 토큰(1단계)이 돌아와요
+  b = writeBatch(B); b.delete(doc(B, "lands/5_-3")); b.update(...W(B, "uB", 1250000 - 2 + 15, "sell")); await assertFails(b.commit());
+  b = writeBatch(A); b.delete(doc(A, "lands/5_-3")); b.update(...W(A, "uA", 1250000 - 28 + 999, "sell")); await assertFails(b.commit());
+  b = writeBatch(A); b.update(...W(A, "uA", 1250000 - 28 + 15, "sell")); await assertFails(b.commit()); // 땅은 그대로 두고 돈만
+  b = writeBatch(A); b.delete(doc(A, "lands/5_-3")); b.update(...W(A, "uA", 1250000 - 28 + 15, "sell")); await assertSucceeds(b.commit());
+});
 await t("선물 취소: 보낸 사람만, 받기 전에 한 번, 금액만큼만 돌아와요", async () => {
   await seed(async (s) => {
     await seedBase(s);

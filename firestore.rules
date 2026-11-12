@@ -77,6 +77,53 @@ service cloud.firestore {
     function msgPath(cid, mid) { return /databases/$(database)/documents/chats/$(cid)/messages/$(mid); }
     function companyPath(uid) { return /databases/$(database)/documents/companies/$(uid); }
     function jobPath(uid) { return /databases/$(database)/documents/jobs/$(uid); }
+    // ----- 땅: 문서 이름은 칸 번호 "q_r". lv 0(빈 땅)~4(호텔), pot은 모인 통행료 -----
+    function landPath(id) { return /databases/$(database)/documents/lands/$(id); }
+    function buildCost(lv) { return lv == 1 ? 20 : (lv == 2 ? 40 : (lv == 3 ? 80 : 160)); }
+    function tollOf(lv) { return lv == 0 ? 1 : (lv == 1 ? 2 : (lv == 2 ? 4 : (lv == 3 ? 8 : 16))); }
+    function refundOf(lv) { return lv == 0 ? 5 : (lv == 1 ? 15 : (lv == 2 ? 35 : (lv == 3 ? 75 : 155))); }
+    function landOp(kind, id) {
+      return getAfter(walletPath(request.auth.uid)).data.op.kind == kind
+        && getAfter(walletPath(request.auth.uid)).data.op.cid == id
+        && getAfter(walletPath(request.auth.uid)).data.wt == request.time;
+    }
+    match /lands/{id} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 300;
+      allow create: if signedIn()
+        && id.matches('^-?[0-9]{1,8}_-?[0-9]{1,8}$')
+        && request.resource.data.keys().hasOnly(['owner', 'name', 'lv', 'pot', 'q', 'r', 'ch', 'at'])
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.lv == 0 && request.resource.data.pot == 0
+        && request.resource.data.q is int && request.resource.data.r is int
+        && id == string(request.resource.data.q) + '_' + string(request.resource.data.r)
+        && request.resource.data.ch is string && request.resource.data.ch.size() <= 20
+        && request.resource.data.name is string && request.resource.data.name.size() <= 12
+        && request.resource.data.at == request.time
+        && landOp('land', id);
+      allow update: if signedIn() && (
+        // 이름 바꾸기: 주인만
+        (resource.data.owner == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 12)
+        // 건물 올리기: 주인만, 한 단계씩 4까지
+        || (resource.data.owner == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lv'])
+          && request.resource.data.lv == resource.data.lv + 1 && request.resource.data.lv <= 4
+          && landOp('build', id))
+        // 통행료 내기: 남이, 정해진 값만큼만 모인 돈을 늘려요
+        || (resource.data.owner != request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pot'])
+          && request.resource.data.pot == resource.data.pot + tollOf(resource.data.lv)
+          && landOp('toll', id))
+        // 통행료 받기: 주인이 모인 돈을 비워요
+        || (resource.data.owner == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pot'])
+          && request.resource.data.pot == 0 && resource.data.pot > 0
+          && landOp('rent', id))
+      );
+      allow delete: if signedIn() && resource.data.owner == request.auth.uid && landOp('sell', id);
+    }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
     function isOwner() { return signedIn() && request.auth.token.email == 'owner@money-sim.app'; }
@@ -988,6 +1035,57 @@ service cloud.firestore {
             && existsAfter(companyPath(request.resource.data.op.cid))
             && request.resource.data.bal == resource.data.bal - 10)
 
+        );
+
+      // 땅 거래 (따로 둔 까닭: 위 줄에 더하면 규칙 계산 한도를 넘어요)
+      allow update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
+        && request.resource.data.wt == request.time
+        && request.time >= resource.data.wt + duration.value(2, 's')
+        && request.resource.data.bal is int
+        && request.resource.data.bal >= 0
+        && request.resource.data.op.cid is string
+        && (
+          // ----- 땅 (현실 지도의 육각형 칸). 모든 값은 같은 묶음의 땅 문서와 맞아야 해요 -----
+          // 땅 사기: 주인 없는 칸을 10 토큰에
+          (request.resource.data.op.kind == 'land'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && !exists(landPath(request.resource.data.op.cid))
+            && getAfter(landPath(request.resource.data.op.cid)).data.owner == request.auth.uid
+            && request.resource.data.bal == resource.data.bal - 10)
+          ||
+          // 건물 올리기: 내 땅의 단계가 하나 오르고, 그 단계 값만큼 빠져요
+          (request.resource.data.op.kind == 'build'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(landPath(request.resource.data.op.cid)).data.owner == request.auth.uid
+            && getAfter(landPath(request.resource.data.op.cid)).data.lv == get(landPath(request.resource.data.op.cid)).data.lv + 1
+            && request.resource.data.bal == resource.data.bal - buildCost(getAfter(landPath(request.resource.data.op.cid)).data.lv))
+          ||
+          // 통행료: 남의 땅을 지나면 그 땅의 단계에 맞는 값이 내 지갑에서 그 땅의 모인 돈으로 가요
+          (request.resource.data.op.kind == 'toll'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(landPath(request.resource.data.op.cid)).data.owner != request.auth.uid
+            && getAfter(landPath(request.resource.data.op.cid)).data.pot == get(landPath(request.resource.data.op.cid)).data.pot + tollOf(get(landPath(request.resource.data.op.cid)).data.lv)
+            && request.resource.data.bal == resource.data.bal - tollOf(get(landPath(request.resource.data.op.cid)).data.lv))
+          ||
+          // 통행료 받기: 내 땅에 모인 돈을 지갑으로, 땅의 모인 돈은 0으로
+          (request.resource.data.op.kind == 'rent'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(landPath(request.resource.data.op.cid)).data.owner == request.auth.uid
+            && getAfter(landPath(request.resource.data.op.cid)).data.pot == 0
+            && request.resource.data.bal == resource.data.bal + get(landPath(request.resource.data.op.cid)).data.pot)
+          ||
+          // 땅 팔기: 내 땅이 사라지고, 들인 값의 절반과 모인 돈이 돌아와요
+          (request.resource.data.op.kind == 'sell'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && get(landPath(request.resource.data.op.cid)).data.owner == request.auth.uid
+            && !existsAfter(landPath(request.resource.data.op.cid))
+            && request.resource.data.bal == resource.data.bal + refundOf(get(landPath(request.resource.data.op.cid)).data.lv) + get(landPath(request.resource.data.op.cid)).data.pot)
         );
 
       // 관리자 토큰 지급: 인증토큰이 맞을 때만, 대상 지갑에 지급한 만큼만 늘어요 (이자 시계와 등급은 그대로예요)
