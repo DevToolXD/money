@@ -2213,3 +2213,53 @@ html[data-theme="dark"] .land-sheet, html[data-theme="dark"] .map-hud { backgrou
 @keyframes mePulse { 0% { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(10, 124, 255, 0.5); } 100% { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3), 0 0 0 16px rgba(10, 124, 255, 0); } }
 @media (prefers-reduced-motion: reduce) { .map-me i { animation: none; } .land-sheet { transition: opacity 0.2s; } }
 .map-ctl { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 66px); right: 12px; }
+
+/* ===== 메시지: 전체를 작게, 대화 위쪽은 떠 있게 (아이폰 메시지처럼) =====
+   위쪽 줄(뒤로·사진·이름)이 자리를 차지하지 않고 말풍선 위에 떠 있어서, 글이 그 밑으로 지나가요. 바탕을 가리는 판이 없어요 */
+.thread-head { position: absolute; left: 0; right: 0; top: 0; z-index: 3; padding: calc(var(--safe-top) + 4px) 12px 0; background: none; pointer-events: none; }
+.thread-head > *, .thread-head button, .thread-head .avatar { pointer-events: auto; }
+.thread-head .t-center, .thread-head .t-right { pointer-events: none; }
+.t-glass { height: 40px; padding: 0 13px; gap: 6px; }
+.t-glass svg { width: 11px; height: 18px; }
+.t-glass .badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 12px; }
+.t-glass.round { width: 40px; }
+.t-glass.round svg { width: 21px; height: 18px; }
+.t-center { gap: 0; }
+.t-center .avatar { width: 54px; height: 54px; font-size: 20px; position: relative; z-index: 1; }
+.t-name { height: 26px; max-width: 180px; padding: 0 10px; margin-top: -6px; font-size: 13px; font-weight: 600; gap: 3px; }
+.t-name svg { width: 6px; height: 10px; }
+.bubbles { gap: 3px; padding: calc(var(--safe-top) + 104px) 14px 10px; }
+.bubble { max-width: 72%; padding: 7px 13px; border-radius: 18px; font-size: 16px; line-height: 21px; font-weight: 400; }
+.stamp { margin: 10px 0 4px; font-size: 12px; }
+.media { max-width: 60%; border-radius: 16px; }
+.media img { max-height: 280px; }
+.cash { width: 196px; padding: 14px 14px 12px; border-radius: 20px; }
+.cash-amt b { font-size: 28px; }
+.cash-btn, .cash-state { height: 38px; border-radius: 19px; font-size: 15px; }
+.cash-btn.ghost { height: 34px; font-size: 13px; }
+.composer { gap: 8px; padding: 6px 12px calc(env(safe-area-inset-bottom, 0px) + 10px); }
+.plus { width: 40px; height: 40px; }
+.plus svg { width: 18px; height: 18px; }
+.field-glass { height: 40px; padding: 0 5px 0 15px; }
+.field-glass input { font-size: 16px; }
+.field-glass .send { width: 30px; height: 30px; }
+.field-glass .send svg { width: 17px; height: 17px; }
+/* 대화 목록도 한 단계 작게 */
+.pin { gap: 6px; font-size: 13px; }
+.pin .avatar { width: 62px; height: 62px; font-size: 23px; }
+.chat-row { gap: 12px; padding: 10px 16px 10px 22px; }
+.chat-row .avatar { width: 46px; height: 46px; font-size: 17px; }
+.chat-row::after { left: 80px; }
+.chat-row .dot { top: 27px; }
+.chat-top b { font-size: 16px; line-height: 21px; }
+.chat-top .meta { font-size: 14px; }
+.chat-prev { font-size: 14px; line-height: 19px; }
+#screen-messages .large-title h1 { font-size: 30px; line-height: 36px; }
+.cash-amt b { line-height: 34px; }
+/* 단톡방 설정: 대화 상대를 큰 동그라미 3줄로 (아이폰 메시지의 그룹 정보처럼) */
+.grp-mem { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 6px; padding: 6px 0 4px; background: none; max-height: 300px; }
+.grp-mem li + li .grp-mrow { border-top: 0; }
+.grp-mrow { flex-direction: column; gap: 6px; min-height: 0; padding: 0; text-align: center; font-size: 13px; position: relative; }
+.grp-mrow .avatar { width: 72px; height: 72px; font-size: 26px; }
+.grp-mrow b { flex: none; max-width: 100%; font-weight: 500; }
+.grp-me { position: absolute; top: 0; right: 14px; padding: 1px 6px; border-radius: 9px; background: #0a7cff; color: #fff; font-size: 11px; }
