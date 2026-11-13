@@ -1329,6 +1329,14 @@ function __wbg_get_imports() {
             const ret = arg0.offsetWidth;
             return ret;
         },
+        __wbg_offsetX_b3f88f70dc639385: function(arg0) {
+            const ret = arg0.offsetX;
+            return ret;
+        },
+        __wbg_offsetY_8037bf2718ef7393: function(arg0) {
+            const ret = arg0.offsetY;
+            return ret;
+        },
         __wbg_parentElement_300cdd39ce1d95f8: function(arg0) {
             const ret = arg0.parentElement;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);

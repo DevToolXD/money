@@ -2263,3 +2263,17 @@ html[data-theme="dark"] .land-sheet, html[data-theme="dark"] .map-hud { backgrou
 .grp-mrow .avatar { width: 72px; height: 72px; font-size: 26px; }
 .grp-mrow b { flex: none; max-width: 100%; font-weight: 500; }
 .grp-me { position: absolute; top: 0; right: 14px; padding: 1px 6px; border-radius: 9px; background: #0a7cff; color: #fff; font-size: 11px; }
+
+/* 지도를 뒤로 기울여 입체로 보여요. 기울어진 판(.map-tilt)은 화면보다 커서 먼 곳까지 덮고, 손가락은 판 위의 투명한 막(.map-hit)이 받아요 */
+.map-view { perspective: 1100px; perspective-origin: 50% 50%; }
+.map-tilt { position: absolute; left: -40%; top: -60%; width: 180%; height: 220%; transform: rotateX(38deg) scale(1.18); transform-origin: 50% 50%; will-change: transform; }
+.map-plane { position: absolute; left: 22.2222%; top: 27.2727%; width: 55.5556%; height: 45.4545%; }
+.map-hit { position: absolute; inset: 0; touch-action: none; }
+.map-fog { position: absolute; left: 0; right: 0; top: 0; height: 30%; pointer-events: none; background: linear-gradient(#eef0f4 0%, rgba(238, 240, 244, 0.85) 35%, rgba(238, 240, 244, 0) 100%); }
+html[data-theme="dark"] .map-fog { background: linear-gradient(#1c1c1e 0%, rgba(28, 28, 30, 0.85) 35%, rgba(28, 28, 30, 0) 100%); }
+.map-card { background: #eef0f4; }
+.map-hex { left: -520px; top: -520px; width: calc(100% + 1040px); height: calc(100% + 1040px); }
+.map-wash { left: -520px; top: -520px; right: -520px; bottom: -520px; }
+/* 땅 카드: 더 맑은 유리 (뒤 지도가 비쳐요) */
+.land-sheet { background: rgba(255, 255, 255, 0.5); -webkit-backdrop-filter: blur(22px) saturate(200%); backdrop-filter: blur(22px) saturate(200%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.75), inset 0 2px 2px rgba(255, 255, 255, 0.95), inset 0 -8px 16px rgba(255, 255, 255, 0.25), 0 18px 44px rgba(30, 40, 90, 0.22); border-radius: 32px; }
+.map-hud { background: rgba(255, 255, 255, 0.5); }

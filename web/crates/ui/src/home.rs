@@ -15,7 +15,7 @@ const MIN_Z: i32 = 15; // 더 줄이면 육각형이 너무 많아져 렉이 걸
 const MAX_Z: i32 = 18;
 // 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 24px (약 35m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
 const HZ: i32 = 16;
-const PADC: f64 = 320.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
+const PADC: f64 = 520.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
 const HS: f64 = 24.0;
 
 thread_local! {
@@ -74,8 +74,8 @@ fn render() {
         g.base = g.cur;
     });
     let n = 2f64.powi(z) as i64;
-    let (x0, x1) = (((ox - 256.0) / TILE).floor() as i64, ((ox + w + 256.0) / TILE).floor() as i64);
-    let (y0, y1) = (((oy - 256.0) / TILE).floor() as i64, ((oy + h + 256.0) / TILE).floor() as i64);
+    let (x0, x1) = (((ox - 512.0) / TILE).floor() as i64, ((ox + w + 512.0) / TILE).floor() as i64);
+    let (y0, y1) = (((oy - 512.0) / TILE).floor() as i64, ((oy + h + 512.0) / TILE).floor() as i64);
     let Some(layer) = by_id("map-tiles") else { return };
     TILES.with(|t| {
         let mut t = t.borrow_mut();
@@ -186,7 +186,26 @@ fn poly(ctx: &web_sys::CanvasRenderingContext2d, pts: &[(f64, f64)], fill: &str)
     ctx.set_fill_style_str(fill);
     ctx.fill();
 }
+/// 세모 지붕 집 (모노폴리 말). kind 0 = 초록 집, 1 = 빨간 호텔. 지도가 기울어져 눌려 보이는 만큼 키를 키워 그려요
+fn gable(ctx: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, w: f64, hgt: f64, kind: usize) {
+    let (wall, end, roof, edge) = [("#1c9a55", "#15803f", "#3ccf80", "#8ff0b8"), ("#e0393f", "#bb2a30", "#ff6b70", "#ffb3b6")][kind];
+    let (d, hgt, rh) = (w * 0.5, hgt * 1.35, w * 0.95);
+    let near = (x + w * 0.5, y - hgt + d * 0.5 - rh);
+    let far = (x - w * 0.5, y - hgt - d * 0.5 - rh);
+    // 바닥 그림자
+    poly(ctx, &[(x - w, y + d * 0.4), (x, y + d * 1.4), (x + w * 1.3, y + d * 0.7), (x + w * 0.3, y - d * 0.3)], "rgba(10,30,20,0.22)");
+    poly(ctx, &[(x - w, y - hgt), (x, y - hgt + d), (x, y + d), (x - w, y)], wall);
+    poly(ctx, &[(x, y - hgt + d), near, (x + w, y - hgt), (x + w, y), (x, y + d)], end);
+    poly(ctx, &[(x - w, y - hgt), (x, y - hgt + d), near, far], roof);
+    ctx.begin_path();
+    ctx.move_to(far.0, far.1);
+    ctx.line_to(near.0, near.1);
+    ctx.set_stroke_style_str(edge);
+    ctx.set_line_width((w * 0.12).max(1.0));
+    ctx.stroke();
+}
 /// 작은 입체 상자 (건물): 왼쪽 벽·오른쪽 벽·지붕
+#[allow(dead_code)]
 fn boxy(ctx: &web_sys::CanvasRenderingContext2d, x: f64, y: f64, w: f64, hgt: f64, wall: (&str, &str), roof: &str) {
     let d = w * 0.5;
     poly(ctx, &[(x - w, y - hgt), (x, y - hgt + d), (x, y + d), (x - w, y)], wall.0);
@@ -200,7 +219,7 @@ fn draw_hex() {
     let cv: web_sys::HtmlCanvasElement = c.unchecked_into();
     let (w, h) = size(&v);
     let (w, h) = (w + PADC * 2.0, h + PADC * 2.0);
-    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(2.0);
+    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(1.5);
     let (pw, ph) = ((w * dpr) as u32, (h * dpr) as u32);
     if cv.width() != pw || cv.height() != ph {
         cv.set_width(pw);
@@ -246,8 +265,12 @@ fn draw_hex() {
             ctx.close_path();
         }
     }
-    ctx.set_stroke_style_str("rgba(40,60,100,0.28)");
-    ctx.set_line_width(1.0);
+    // 유리 타일 느낌: 굵은 흰 테두리 위에 가는 어두운 선
+    ctx.set_stroke_style_str("rgba(255,255,255,0.9)");
+    ctx.set_line_width(3.4);
+    ctx.stroke();
+    ctx.set_stroke_style_str("rgba(70,90,130,0.30)");
+    ctx.set_line_width(0.9);
     ctx.stroke();
     // 2) 내가 서 있는 칸 (주인 없을 때): 옅은 파랑
     let cell_xy = |c: (i64, i64)| (w3 * (c.0 as f64 + c.1 as f64 / 2.0), step_y * c.1 as f64);
@@ -267,13 +290,13 @@ fn draw_hex() {
         // 옆면 (오른쪽 → 앞 → 왼쪽, 빛은 왼쪽 위에서)
         for (i, lum) in [(0usize, 36), (1, 42), (2, 50), (3, 46)] {
             let j = (i + 1) % 6;
-            poly(&ctx, &[p[i], p[j], t[j], t[i]], &format!("hsl({hue},62%,{lum}%)"));
+            poly(&ctx, &[p[i], p[j], t[j], t[i]], &format!("hsla({hue},62%,{lum}%,0.86)"));
         }
         // 윗면과 윤기
-        poly(&ctx, &t, &format!("hsl({hue},78%,62%)"));
+        poly(&ctx, &t, &format!("hsla({hue},78%,60%,0.62)"));
         let g = corners(*x, *y, 0.7);
         let g: Vec<(f64, f64)> = g.iter().map(|a| (a.0, a.1 - th)).collect();
-        poly(&ctx, &g, &format!("hsla({hue},90%,74%,0.6)"));
+        poly(&ctx, &g, &format!("hsla({hue},90%,80%,0.35)"));
         ctx.begin_path();
         ctx.move_to(t[3].0, t[3].1);
         for i in [4, 5, 0] {
@@ -284,8 +307,9 @@ fn draw_hex() {
         ctx.stroke();
         // 건물
         let (bx, by) = (x - ox, y - oy - th);
+        // 모노폴리 말처럼: 초록 집, 빨간 호텔 (세모 지붕이 있는 플라스틱 조각)
         let u = s * 0.2;
-        let house = |dx: f64, dy: f64| boxy(&ctx, bx + dx, by + dy, u, u * 1.1, ("#f4f1ea", "#d9d4c8"), "#e5484d");
+        let house = |dx: f64, dy: f64| gable(&ctx, bx + dx, by + dy, u, u, 0);
         match l.lv {
             1 => house(0.0, 0.0),
             2 => {
@@ -297,10 +321,7 @@ fn draw_hex() {
                 house(-u * 1.4, u * 0.3);
                 house(u * 1.4, u * 0.3);
             }
-            4 => {
-                boxy(&ctx, bx, by + u * 0.3, u * 1.6, u * 4.2, ("#ffd9a8", "#f2b56b"), "#fff3df");
-                boxy(&ctx, bx, by + u * 0.3 - u * 4.2, u * 0.8, u * 0.9, ("#e5484d", "#c93a3f"), "#ff7a7f");
-            }
+            4 => gable(&ctx, bx, by + u * 0.2, u * 1.9, u * 1.5, 1),
             _ => {}
         }
         // 이름 (충분히 클 때만)
@@ -725,17 +746,20 @@ fn zoom_by(d: i32, fx: f64, fy: f64) {
     commit();
 }
 fn local(e: &web_sys::PointerEvent) -> (f64, f64) {
-    view().map(|v| { let r = v.get_bounding_client_rect(); (e.client_x() as f64 - r.left(), e.client_y() as f64 - r.top()) }).unwrap_or((0.0, 0.0))
+    // 지도는 뒤로 기울어져 있어요. 손가락 자리는 기울어진 판 위의 좌표로 받아요 (브라우저가 기울기를 거꾸로 풀어 줘요).
+    // 판(#map-hit)은 화면보다 사방으로 커서, 화면 왼쪽 위에 해당하는 만큼을 빼요
+    let (w, h) = view().map(|v| size(&v)).unwrap_or((0.0, 0.0));
+    (e.offset_x() as f64 - w * 0.4, e.offset_y() as f64 - h * 0.6)
 }
 
 fn bind() {
     if BOUND.replace(true) {
         return;
     }
-    let Some(v) = view() else { return };
+    let Some(v) = by_id("map-hit") else { return };
     dom::on(&v, "pointerdown", |e| {
         let Some(p) = e.dyn_ref::<web_sys::PointerEvent>() else { return };
-        if let Some(v) = view() {
+        if let Some(v) = by_id("map-hit") {
             let _ = v.set_pointer_capture(p.pointer_id());
         }
         let (x, y) = local(p);
