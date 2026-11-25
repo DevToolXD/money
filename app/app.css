@@ -2468,3 +2468,39 @@ html[data-theme="dark"] .hm-wallet { background: linear-gradient(160deg, #2a2a35
 /* 자판이 올라오면 앱 틀을 실제로 보이는 크기에 맞춰요 (viewport.rs). 입력창이 자판 바로 위에 붙어요 */
 html.kb-open .app { height: var(--vvh, 100dvh); transform: translate3d(0, var(--vvt, 0px), 0); }
 html.kb-open .composer { padding-bottom: 8px; }
+
+/* ===== 애플식 리퀴드 모션: 모든 곳에 같은 스프링 =====
+   눌렀을 때: 살짝 작아졌다가, 떼면 스프링으로 튕기듯 돌아와요. 올라오는 판·대화·알림도 같은 스프링을 써요.
+   움직이는 건 scale·transform·opacity뿐이라 GPU가 처리해서 가벼워요 */
+:root {
+  --liquid: cubic-bezier(0.2, 1.25, 0.32, 1);        /* 살짝 넘쳤다가 자리 잡는 스프링 */
+  --liquid-soft: cubic-bezier(0.25, 1.1, 0.35, 1);   /* 큰 판에 쓰는 부드러운 스프링 */
+}
+button, .row, .chat-row, .sns-card, .pl-card, .tr-card, .sns-p, .rk-row, .rk-col, .res-row, .qm-row, .mg-person, .grp-mrow, .pl-pp, .wk-pill, .gg {
+  transition: scale 0.5s var(--liquid), background-color 0.2s, opacity 0.2s, color 0.2s;
+}
+button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk-col:active, .res-row:active, .qm-row:active, .mg-person:active, .grp-mrow:active, .pl-pp:active, .wk-pill:active, .gg:active { scale: 0.95; transition: scale 0.12s ease-out; }
+.sns-card:active, .pl-card:active, .tr-card:active { scale: 0.985; transition: scale 0.15s ease-out; }
+/* 카드 안 버튼을 누를 때 카드 전체가 같이 눌리지 않게 */
+.sns-card:has(button:active), .pl-card:has(button:active), .tr-card:has(button:active) { scale: 1; }
+/* 아래에서 올라오는 판들: 넘치듯 올라와서 자리 잡아요 */
+.sheet { transition: transform 0.55s var(--liquid-soft), visibility 0s 0.55s; }
+.sheet.is-open { transition: transform 0.55s var(--liquid-soft); }
+.sns-panel { transition: transform 0.55s var(--liquid-soft); }
+.land-sheet { transition: transform 0.55s var(--liquid-soft), opacity 0.2s; }
+/* 대화 화면: 옆에서 미끄러져 들어와요 */
+.thread { transition: transform 0.5s var(--liquid-soft), visibility 0s 0.5s; }
+/* 알림 창: 작게 시작해서 톡 튀듯 커져요 */
+.alert-card { transform: scale(0.88); transition: transform 0.5s var(--liquid); }
+.alert.is-open .alert-card { transform: none; }
+/* 화면 아래 알림: 아래에서 튀어 오르듯 */
+.toast { transition: transform 0.5s var(--liquid), opacity 0.25s !important; }
+/* 좋아요·참여 같은 켜짐 표시: 톡 튀어요 */
+@keyframes liquidPop { 0% { scale: 1; } 35% { scale: 1.22; } 70% { scale: 0.94; } 100% { scale: 1; } }
+.sns-like.on svg, .pl-go.on, .tr-go.on { animation: liquidPop 0.55s var(--liquid); }
+@media (prefers-reduced-motion: reduce) {
+  button, .row, .chat-row, .sns-card, .pl-card, .tr-card { transition: none !important; }
+  button:active, .row:active, .chat-row:active, .sns-card:active, .pl-card:active, .tr-card:active { scale: 1; }
+  .sns-like.on svg, .pl-go.on, .tr-go.on { animation: none; }
+}
+.thread.is-open { transition: transform 0.5s var(--liquid-soft); }

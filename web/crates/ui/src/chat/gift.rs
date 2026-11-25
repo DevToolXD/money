@@ -206,7 +206,7 @@ pub fn init() {
         dom::on(&k, "click", |e| {
             let Some(b) = dom::closest(&e, "[data-k]") else { return };
             let key = dom::data(&b, "k");
-            let mut s = if FRESH.get() { String::new() } else { goods::shapes::num(amt()) };
+            let mut s = if FRESH.get() { String::new() } else { { let a = amt(); if a.fract() == 0.0 { format!("{}", a as i64) } else { format!("{a}") } } };
             FRESH.set(false);
             s = if key == "back" {
                 s.chars().take(s.chars().count().saturating_sub(1)).collect()

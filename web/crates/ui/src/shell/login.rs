@@ -238,7 +238,7 @@ async fn submit() {
     if !signup {
         return run(move |_| cloud::call_now("signIn", &[JsValue::from_str(&id), JsValue::from_str(&pw)]), true).await;
     }
-    let name = crate::biz::clean_name(&dom::input_value("login-name"));
+    let name: String = dom::input_value("login-name").trim().chars().filter(|c| !c.is_control()).take(20).collect();
     if !valid_name(&name) {
         return dom::set_text("login-error", "이름을 1~20자로 적어 주세요");
     }

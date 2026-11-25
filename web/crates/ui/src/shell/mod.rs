@@ -2,7 +2,6 @@
 //! 탭 바와 뒤 화면 사진(backdrop) 연결, 로그인한 뒤 시작 흐름. 다른 화면(러스트 모듈)에 넘기는 도움 묶음(ctx)도 여기서 만들어요.
 
 mod account;
-pub(crate) mod company;
 mod login;
 pub(crate) mod ranking;
 
@@ -242,9 +241,6 @@ pub(crate) fn sheet_open(on: bool, el: Option<web_sys::Element>) {
     }
     dom::toggle(&app(), "sheet-open", on);
 }
-pub(crate) fn sheet_by_id(on: bool, id: &str) {
-    sheet_open(on, by_id(id).map(Into::into));
-}
 
 /* ---------- 내 설정 저장: 프로필 글과 대화 배경만, 바뀐 뒤 3초 모아서 한 번에 ---------- */
 
@@ -307,17 +303,12 @@ fn make_ctx() -> Ctx {
         sheet_open(on.is_truthy(), el.dyn_into::<web_sys::Element>().ok());
         JsValue::UNDEFINED
     }));
-    set("company", f0(company::current));
     set("mark", f3(|n, l, c| JsValue::from_str(&dom::avatar_html(&s(&n), &s(&l), &{ let c = s(&c); if c.is_empty() { "avatar contact".into() } else { c } }))));
     set("safeImg", f2(|v, max| JsValue::from_str(safe_img(&s(&v), max.as_f64().unwrap_or(140000.0) as usize))));
     set("walletOp", f1(|f| f.dyn_into::<Function>().map(|f| crate::money::wallet_op(f).into()).unwrap_or(JsValue::UNDEFINED)));
     set("settle", f0(|| crate::money::claim().into()));
     set("log", f1(|e| {
         crate::money::log(&e);
-        JsValue::UNDEFINED
-    }));
-    set("patchCompany", f1(|p| {
-        company::patch(&p);
         JsValue::UNDEFINED
     }));
     set("saveSettings", f0(|| {
@@ -328,14 +319,6 @@ fn make_ctx() -> Ctx {
         login::show_login(on.is_truthy());
         JsValue::UNDEFINED
     }));
-    set("pkv", f3(|p, mini, co| JsValue::from_str(&crate::biz::pkv(&p, mini.is_truthy(), &co))));
-    let vit = Object::new();
-    let _ = Reflect::set(&vit, &JsValue::from_str("get"), &f0(crate::vitals::get));
-    let _ = Reflect::set(&vit, &JsValue::from_str("set"), &f1(|v| {
-        crate::vitals::set(v);
-        JsValue::UNDEFINED
-    }));
-    set("vitals", vit.into());
     CTX_OBJ.with(|c| *c.borrow_mut() = o.clone().into());
     Ctx(o.into())
 }
@@ -390,10 +373,6 @@ fn setup_tabbar(first: &str) {
         match name.as_str() {
             "money" => crate::money::render(),
             "ranking" => ranking::load(false),
-            "work" => crate::work::refresh(false),
-            "shop" => crate::shop::refresh(),
-            "inventory" => crate::inventory::refresh(),
-            "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
             "trade" => crate::trade::open(),
             "play" => crate::play::open(),
@@ -466,8 +445,6 @@ pub(crate) fn boot(cloud_v: JsValue) {
         }
         crate::money::start_wallet();
         crate::notices::check();
-        company::load();
-        crate::vitals::load();
         crate::chat::start();
         crate::presence::start();
         preload();
@@ -582,20 +559,13 @@ pub fn start() {
     }
     // 다른 화면들 (모두 러스트)
     let c = make_ctx();
-    crate::biz::init(c.clone());
     crate::chat::init(c.clone());
     crate::money::init(c.clone());
-    crate::work::init(c.clone());
-    crate::wage::init();
     crate::notify::init_system();
     crate::invite::init();
     crate::feedback::init();
-    crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
     crate::notices::init();
-    crate::shop::init(c.clone());
-    crate::vitals::init();
-    company::init();
     ranking::init();
     crate::beta::beta_init();
     crate::viewport::init();
@@ -672,6 +642,5 @@ fn preload() {
         crate::trade::open();
         dom::sleep(700).await;
         crate::money::render();
-        crate::inventory::refresh();
     });
 }

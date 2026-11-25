@@ -807,6 +807,10 @@ impl Bar {
         if commit && self.is_selected(index) && !p.dragging && p.was_current {
             self.out.push(Out::Reselect(self.tabs[index].clone()));
         }
+        // 다른 탭으로 옮겨 가는 동안 유리 렌즈가 살짝 떠올라 흐르듯 미끄러지고, 도착하면 내려앉아요
+        if commit && !self.is_selected(index) && !self.reduced() {
+            self.lift.target = 1.0;
+        }
         if commit {
             self.select(index);
         }
@@ -917,6 +921,9 @@ impl Bar {
         self.x.target = self.geo[index].cx;
         if self.reduced() {
             self.x.snap(self.geo[index].cx);
+        } else {
+            self.lift.target = 1.0;
+            self.releasing = true;
         }
         self.select(index);
         self.request_render();
@@ -1032,10 +1039,10 @@ impl Bar {
         let lift = clamp(self.lift.x, 0.0, 1.0);
         let bulge = 1.0 + 0.03 * clamp(self.grab.x, 0.0, 1.0);
         let s = clamp(self.stretch.x, 0.0, 1.0);
-        // 옮길 때 알약이 커지거나 늘어나지 않아요. 크기는 알약 그대로, 렌즈 효과(uLift)만 켜졌다 꺼져요
-        let _ = (lens_hw, lens_hh, bulge, s);
-        let mut hw = pill_hw;
-        let mut hh = pill_hh;
+        // 옮기는 동안 유리 렌즈가 살짝만 커지고(렌즈 크기의 35%까지), 빠를수록 옆으로 조금 늘어나요 (물방울처럼)
+        let g = 0.35 * lift;
+        let mut hw = lerp(pill_hw, lens_hw, g) * bulge * (1.0 + 0.18 * s);
+        let mut hh = lerp(pill_hh, lens_hh, g) * bulge * (1.0 - 0.05 * s);
         hw = hw.min(pill_hw.max(self.reach(x) + 14.0 * lift));
         let mut cx = x;
         if self.current < 4 {

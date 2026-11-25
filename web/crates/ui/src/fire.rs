@@ -17,7 +17,6 @@ type R = Result<JsValue, JsValue>;
 type Fut = Pin<Box<dyn Future<Output = R>>>;
 
 const PROFILE_TTL: f64 = 30.0 * 60.0 * 1000.0;
-const KINDS: [&str; 4] = ["food", "pc", "ai", "nuclear"];
 const HI: &str = "\u{f8ff}";
 
 /* ---------- JS 도움 ---------- */
@@ -386,43 +385,6 @@ fn notice_of(snap: &JsValue) -> JsValue {
 /* ---------- 모양 바꾸기 ---------- */
 
 // 회사 문서를 화면에서 쓰는 모양으로 바꿔요. 예전 회사는 종류·모집·직원 값이 없어서 기본값(식품, 0명)으로 봐요
-fn company_of(id: &str, dd: &JsValue) -> JsValue {
-    let or_s = |k: &str| {
-        let v = get(dd, k);
-        if v.is_truthy() {
-            v
-        } else {
-            s("")
-        }
-    };
-    let kind = get(dd, "kind");
-    let int_or0 = |k: &str| {
-        let v = get(dd, k);
-        if is_int(&v) {
-            v
-        } else {
-            n(0.0)
-        }
-    };
-    let owner = get(dd, "owner");
-    let products = get(dd, "products");
-    o(&[
-        ("id", s(id)),
-        ("name", or_s("name")),
-        ("logo", or_s("logo")),
-        ("kind", if kind.as_string().is_some_and(|k| KINDS.contains(&k.as_str())) { kind } else { s("food") }),
-        ("open", int_or0("open")),
-        ("staff", int_or0("staff")),
-        ("owner", if owner.is_string() { owner } else { s(id) }), // 예전 회사는 문서 번호가 사장이에요
-        ("products", if js_sys::Array::is_array(&products) { products } else { js_sys::Array::new().into() }),
-        ("at", n(ms(&get(dd, "at")))),
-        ("kindSet", (get(dd, "kindSet") == JsValue::TRUE).into()),
-        ("pay", int_or0("pay")),
-    ])
-}
-fn int3(v: &JsValue, keys: &[&str]) -> bool {
-    v.is_truthy() && keys.iter().all(|k| is_int(&get(v, k)))
-}
 fn nn(v: JsValue) -> JsValue {
     if v.is_undefined() || v.is_null() {
         JsValue::NULL
@@ -431,74 +393,7 @@ fn nn(v: JsValue) -> JsValue {
     }
 }
 // 연구실 숫자 기본값
-fn lab_of(dd: &JsValue) -> JsValue {
-    let ni = |k: &str, dflt: f64| {
-        let v = get(dd, k);
-        if is_int(&v) {
-            v
-        } else {
-            n(dflt)
-        }
-    };
-    let g = get(dd, "gen");
-    let r = get(dd, "rel");
-    let pcm = get(dd, "pcM");
-    let trn = get(dd, "trn");
-    o(&[
-        ("nperf", ni("nperf", 100.0)),
-        ("elec", ni("elec", 0.0)),
-        ("gen", if int3(&g, &["amt", "secs"]) && get(&g, "started").is_truthy() { o(&[("amt", get(&g, "amt")), ("secs", get(&g, "secs")), ("started", get(&g, "started"))]) } else { JsValue::NULL }),
-        ("cap", ni("cap", 0.0)),
-        ("spd", ni("spd", 0.0)),
-        ("pow", ni("pow", 0.0)),
-        ("rel", if int3(&r, &["cap", "spd", "pow"]) { o(&[("cap", get(&r, "cap")), ("spd", get(&r, "spd")), ("pow", get(&r, "pow"))]) } else { JsValue::NULL }),
-        ("aiData", ni("aiData", 0.0)),
-        ("aiScore", ni("aiScore", -1.0)),
-        ("cash", ni("cash", 0.0)),
-        ("price", ni("price", 0.0)),
-        ("sold", nn(get(dd, "sold"))),
-        ("bought", nn(get(dd, "bought"))),
-        ("pcN", ni("pcN", 0.0)),
-        ("pcM", if int3(&pcm, &["cap", "spd", "pow"]) { o(&[("cap", get(&pcm, "cap")), ("spd", get(&pcm, "spd")), ("pow", get(&pcm, "pow"))]) } else { JsValue::NULL }),
-        ("aiH", ni("aiH", 0.0)),
-        ("aiDev", ni("aiDev", 0.0)),
-        (
-            "trn",
-            if int3(&trn, &["d", "secs", "score"]) && get(&trn, "started").is_truthy() {
-                o(&[("d", get(&trn, "d")), ("secs", get(&trn, "secs")), ("score", get(&trn, "score")), ("started", get(&trn, "started"))])
-            } else {
-                JsValue::NULL
-            },
-        ),
-        ("food", nn(get(dd, "food"))),
-        ("fperf", ni("fperf", 100.0)),
-        ("plv", ni("plv", 1.0)),
-        ("prod", nn(get(dd, "prod"))),
-    ])
-}
 // 문서에 쓸 모양: 기본값인 칸(등급 1, 성능 100, 공장 비움, 판매 기록 없음)은 적지 않아요
-fn lab_write(l: &JsValue) -> JsValue {
-    let x = ext(l, &[]);
-    let del = |k: &str| {
-        let _ = js_sys::Reflect::delete_property(x.unchecked_ref::<js_sys::Object>(), &s(k));
-    };
-    if num(&get(&x, "plv")) == 1.0 {
-        del("plv");
-    }
-    if num(&get(&x, "fperf")) == 100.0 {
-        del("fperf");
-    }
-    if get(&x, "prod").is_null() {
-        del("prod");
-    }
-    if get(&x, "food").is_null() {
-        del("food");
-    }
-    x
-}
-fn lab_data(snap: &JsValue) -> JsValue {
-    lab_of(&if exists(snap) { data(snap) } else { JsValue::NULL })
-}
 fn sorted(a: &str, b: &str) -> [String; 2] {
     if a < b {
         [a.into(), b.into()]
@@ -1043,577 +938,21 @@ async fn count_of(qq: JsValue) -> R {
     let r = aw(f("getCountFromServer", &[qq])).await?;
     Ok(get(&data(&r), "count"))
 }
-async fn load_ranks_of(uids: JsValue) -> R {
-    let a: js_sys::Array = uids.dyn_into().unwrap_or_default();
-    let out = js_sys::Array::new();
-    let mut i = 0;
-    while i < a.length() && i < 30 {
-        let part = a.slice(i, i + 10);
-        let snap = get_docs(q(c(&["ranks"]), vec![w(f("documentId", &[])?, "in", part.into()), lim(10.0)])).await?;
-        for dd in docs(&snap) {
-            out.push(&rank_row(&dd));
-        }
-        i += 10;
-    }
-    Ok(out.into())
-}
 
 /* ---------- 회사 ---------- */
 
-async fn list_my_companies() -> R {
-    let uid = uid_of()?;
-    let a = get_docs(q(c(&["companies"]), vec![w(s("owner"), "==", s(&uid)), lim(50.0)]));
-    let b = get_doc(d(&["companies", &uid]));
-    let rs = join_all(vec![Box::pin(a) as Fut, Box::pin(b) as Fut]).await;
-    let mut it = rs.into_iter();
-    let snap = rethrow(it.next().unwrap())?;
-    let legacy = rethrow(it.next().unwrap())?;
-    let mut out: Vec<JsValue> = docs(&snap).iter().map(|dd| company_of(&st(&get(dd, "id")), &data_est(dd))).collect();
-    if exists(&legacy) && get(&data(&legacy), "owner").is_undefined() {
-        out.push(company_of(&uid, &data_est(&legacy)));
-    }
-    out.sort_by(|x, y| num(&get(x, "at")).partial_cmp(&num(&get(y, "at"))).unwrap_or(std::cmp::Ordering::Equal));
-    Ok(out.into_iter().collect::<js_sys::Array>().into())
-}
-async fn get_company(cid: String) -> R {
-    let sn = rethrow(get_doc(d(&["companies", &cid])).await)?;
-    Ok(if exists(&sn) { company_of(&cid, &data(&sn)) } else { JsValue::NULL })
-}
-async fn list_companies(qs: JsValue) -> R {
-    let raw = if qs.is_undefined() { String::new() } else { jstr(&qs) };
-    let term: String = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-    // JS: trim 뒤 공백 줄이기, 20자까지
-    let term = u16take(&term, 20);
-    let r = c(&["companies"]);
-    let snap = rethrow(
-        if term.is_empty() {
-            get_docs(q(r, vec![order("at", Some("desc")), lim(50.0)])).await
-        } else {
-            get_docs(q(r, vec![order("name", None), w(s("name"), ">=", s(&term)), w(s("name"), "<=", s(&format!("{term}{HI}"))), lim(20.0)])).await
-        },
-    )?;
-    Ok(docs(&snap).iter().map(|dd| company_of(&st(&get(dd, "id")), &data_est(dd))).collect::<js_sys::Array>().into())
-}
 
-async fn load_my_job() -> R {
-    let sn = rethrow(get_doc(d(&["jobs", &uid_of()?])).await)?;
-    if !exists(&sn) {
-        return Ok(JsValue::NULL);
-    }
-    let dd = data_est(&sn);
-    let num_or0 = |k: &str| {
-        let v = get(&dd, k);
-        if is_int(&v) { v } else { n(0.0) }
-    };
-    Ok(o(&[
-        ("cid", get(&dd, "cid")),
-        ("kind", get(&dd, "kind")),
-        ("at", n(ms(&get(&dd, "at")))),
-        ("wage", num_or0("wage")),
-        ("n", num_or0("n")),
-        ("paidAt", n(if get(&dd, "paidAt").is_object() { ms(&get(&dd, "paidAt")) } else { ms(&get(&dd, "at")) })),
-    ]))
-}
 /* ----- 직원 관리 ----- */
-/// 사장: 내 회사 직원 목록 (일자리 기록)
-async fn list_staff(cid: String) -> R {
-    let snap = rethrow(get_docs(q(c(&["jobs"]), vec![w(s("cid"), "==", s(&cid)), lim(50.0)])).await)?;
-    let mut out: Vec<JsValue> = docs(&snap)
-        .iter()
-        .map(|dd| {
-            let v = data_est(dd);
-            let int = |k: &str| {
-                let x = get(&v, k);
-                if is_int(&x) { x } else { n(0.0) }
-            };
-            o(&[
-                ("uid", get(dd, "id")),
-                ("kind", get(&v, "kind")),
-                ("at", n(ms(&get(&v, "at")))),
-                ("wage", int("wage")),
-                ("n", int("n")),
-                ("seen", n(if get(&v, "seen").is_object() { ms(&get(&v, "seen")) } else { 0.0 })),
-                ("paidAt", n(if get(&v, "paidAt").is_object() { ms(&get(&v, "paidAt")) } else { ms(&get(&v, "at")) })),
-            ])
-        })
-        .collect();
-    out.sort_by(|a, b| num(&get(a, "at")).partial_cmp(&num(&get(b, "at"))).unwrap_or(std::cmp::Ordering::Equal));
-    Ok(out.into_iter().collect::<js_sys::Array>().into())
-}
-async fn fire_staff(cid: String, uid: String) -> R {
-    let b = batch();
-    m(&b, "delete", &[d(&["jobs", &uid])])?;
-    m(&b, "update", &[d(&["companies", &cid]), o(&[("staff", inc(-1.0)), ("fired", s(&uid))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
-}
-/// 내가 일한 횟수 올리기 (총합으로 적어요)
-async fn track_work(total: JsValue) -> R {
-    rethrow(update_doc(d(&["jobs", &uid_of()?]), o(&[("n", total), ("seen", ts())])).await)
-}
-/// 임금 받기: 받을 수 있는 정수 시간만큼. 급여 금고에 있는 만큼만 받아요.
-/// 돌려주는 값: amt(받은 멸공), wage(시급), due(받을 시간 수), pay(급여 금고 멸공), next(다음 한 시간까지 남은 밀리초)
-async fn claim_wage(cid: String) -> R {
-    let uid = uid_of()?;
-    let (js, cs) = (get_doc(d(&["jobs", &uid])), get_doc(d(&["companies", &cid])));
-    let rs = join_all(vec![Box::pin(js) as Fut, Box::pin(cs) as Fut]).await;
-    let mut it = rs.into_iter();
-    let job = rethrow(it.next().unwrap())?;
-    let co = rethrow(it.next().unwrap())?;
-    let out = |amt: f64, wage: f64, due: f64, pay: f64, next: f64| o(&[("amt", n(amt)), ("wage", n(wage)), ("due", n(due)), ("pay", n(pay)), ("next", n(next))]);
-    if !exists(&job) || !exists(&co) {
-        return Ok(out(0.0, 0.0, 0.0, 0.0, 0.0));
-    }
-    let jd = data(&job);
-    let wage = num(&get(&jd, "wage"));
-    let paid = if get(&jd, "paidAt").is_object() { ms(&get(&jd, "paidAt")) } else { ms(&get(&jd, "at")) };
-    let pay = num(&get(&data(&co), "pay")) / 100.0;
-    if !(wage >= 1.0 && paid > 0.0) {
-        return Ok(out(0.0, wage, 0.0, pay, 0.0));
-    }
-    // 시계가 조금 빨라도 서버 시각을 넘지 않게 2분 여유를 둬요
-    let edge = now() - 120000.0;
-    let due = ((edge - paid) / 3600000.0).floor().max(0.0);
-    let next = (paid + (due + 1.0) * 3600000.0 - edge).max(0.0);
-    let hours = due.min((pay / wage).floor());
-    if !(hours >= 1.0) {
-        return Ok(out(0.0, wage, due, pay, next));
-    }
-    let amt = wage * hours;
-    let b = batch();
-    m(&b, "update", &[d(&["jobs", &uid]), o(&[("paidAt", from_millis(paid + hours * 3600000.0))])])?;
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(amt)), ("wt", ts()), ("op", o(&[("kind", s("wage")), ("cid", s(&cid)), ("amt", n(amt))]))])])?;
-    m(&b, "update", &[d(&["companies", &cid]), o(&[("pay", inc(-amt * 100.0))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(out(amt, wage, due - hours, pay - amt, next))
-}
-/// 사장: 급여 금고 채우기 (지갑 멸공 → 급여 금고)
-async fn fund_pay(cid: String, amt: JsValue) -> R {
-    let a = num(&amt);
-    let b = batch();
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-a)), ("wt", ts()), ("op", o(&[("kind", s("payfund")), ("cid", s(&cid)), ("amt", amt)]))])])?;
-    m(&b, "update", &[d(&["companies", &cid]), o(&[("pay", inc(a * 100.0))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn apply_job(cid: String, kind: JsValue) -> R {
-    let b = batch();
-    m(&b, "set", &[d(&["jobs", &uid_of()?]), o(&[("cid", s(&cid)), ("kind", kind), ("at", ts())])])?;
-    m(&b, "update", &[d(&["companies", &cid]), o(&[("open", inc(-1.0)), ("staff", inc(1.0))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn quit_job(cid: String) -> R {
-    let b = batch();
-    m(&b, "delete", &[d(&["jobs", &uid_of()?])])?;
-    m(&b, "update", &[d(&["companies", &cid]), o(&[("staff", inc(-1.0))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn found_company(name: JsValue, logo: JsValue, kind: JsValue) -> R {
-    // 업종을 함께 주면 바로 정해져요. 안 주면(화면에서 창업할 때) 식품으로 두고, 이어서 업종을 정해요
-    let chosen = !kind.is_undefined();
-    let kind = if kind.is_undefined() { s("food") } else { kind };
-    let r = new_id(c(&["companies"]));
-    let id = get(&r, "id");
-    let b = batch();
-    let co = o(&[("name", name), ("logo", logo), ("kind", kind), ("owner", s(&uid_of()?)), ("products", js_sys::Array::new().into()), ("open", n(0.0)), ("staff", n(0.0)), ("at", ts())]);
-    if chosen {
-        set(&co, "kindSet", &true.into());
-    }
-    m(&b, "set", &[r, co])?;
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0)), ("wt", ts()), ("op", o(&[("kind", s("found")), ("cid", id.clone())]))])])?;
-    commit(&b).await?;
-    Ok(id)
-}
 
 /* ---------- 연구실·공장 ---------- */
 
 fn lab_ref(cid: &str) -> JsValue {
     d(&["companies", cid, "lab", "main"])
 }
-async fn lab_get(cid: String) -> R {
-    let sn = rethrow(get_doc(lab_ref(&cid)).await)?;
-    Ok(lab_data(&sn))
-}
 // 연구실 숫자 한 묶음: 읽고, fun이 새 숫자를 주면 저장해요 (없으면 아무 일도 안 해요)
-async fn lab_tx(cid: String, fun: Rc<dyn Fn(JsValue) -> Option<JsValue>>) -> R {
-    rethrow(
-        run_tx(move |tx| {
-            let cid = cid.clone();
-            let fun = fun.clone();
-            Box::pin(async move {
-                let r = lab_ref(&cid);
-                let sn = tx_get(&tx, &r).await?;
-                let Some(next) = fun(lab_data(&sn)) else { return Ok(JsValue::NULL) };
-                let clean = lab_write(&lab_of(&next));
-                m(&tx, "set", &[r, clean.clone()])?;
-                Ok(clean)
-            })
-        })
-        .await,
-    )
-}
-fn started_ms(v: &JsValue) -> f64 {
-    m(&get(v, "started"), "toMillis", &[]).map(|x| num(&x)).unwrap_or(f64::NAN)
-}
-async fn lab_gen_start(cid: String, amt: JsValue) -> R {
-    let why = Rc::new(RefCell::new("ok"));
-    let wy = why.clone();
-    let r = lab_tx(
-        cid,
-        Rc::new(move |l: JsValue| {
-            let nperf = num(&get(&l, "nperf"));
-            let a = num(&amt);
-            if !(is_int(&amt) && a >= 1.0 && a <= 100000f64.min(nperf * 10.0)) {
-                *wy.borrow_mut() = "max";
-                return None;
-            }
-            if get(&l, "gen").is_truthy() {
-                *wy.borrow_mut() = "busy";
-                return None;
-            }
-            let secs = (a * 100.0 / nperf).ceil();
-            if num(&get(&l, "cash")) < secs * 100.0 {
-                *wy.borrow_mut() = "poor";
-                return None;
-            }
-            Some(ext(&l, &[("cash", n(num(&get(&l, "cash")) - secs * 100.0)), ("gen", o(&[("amt", amt.clone()), ("secs", n(secs)), ("started", ts())]))]))
-        }),
-    )
-    .await?;
-    Ok(s(if r.is_truthy() { "ok" } else { *why.borrow() }))
-}
-async fn lab_gen_claim(cid: String) -> R {
-    let got = Rc::new(RefCell::new(0.0));
-    let g2 = got.clone();
-    let r = lab_tx(
-        cid,
-        Rc::new(move |l: JsValue| {
-            let g = get(&l, "gen");
-            if !g.is_truthy() || now() < started_ms(&g) + num(&get(&g, "secs")) * 1000.0 {
-                return None;
-            }
-            *g2.borrow_mut() = num(&get(&g, "amt"));
-            Some(ext(&l, &[("elec", n(num(&get(&l, "elec")) + num(&get(&g, "amt")))), ("gen", JsValue::NULL)]))
-        }),
-    )
-    .await?;
-    Ok(n(if r.is_truthy() { *got.borrow() } else { 0.0 }))
-}
-async fn lab_train_start(cid: String, dv: JsValue) -> R {
-    let why = Rc::new(RefCell::new("ok"));
-    let wy = why.clone();
-    let r = lab_tx(
-        cid,
-        Rc::new(move |l: JsValue| {
-            if get(&l, "trn").is_truthy() {
-                *wy.borrow_mut() = "busy";
-                return None;
-            }
-            let pcm = get(&l, "pcM");
-            if !(num(&get(&l, "pcN")) >= 1.0 && pcm.is_truthy() && num(&get(&pcm, "cap")) >= 1.0 && num(&get(&pcm, "spd")) >= 1.0) {
-                *wy.borrow_mut() = "nocomp";
-                return None;
-            }
-            let dd = num(&dv);
-            if !(is_int(&dv) && dd >= 1.0 && dd <= num(&get(&l, "aiData"))) {
-                *wy.borrow_mut() = "nodata";
-                return None;
-            }
-            let (cap, spd, pow) = (num(&get(&pcm, "cap")), num(&get(&pcm, "spd")), num(&get(&pcm, "pow")));
-            let batches = (dd / cap).ceil();
-            let used = batches * pow;
-            if num(&get(&l, "elec")) < used {
-                *wy.borrow_mut() = "poor";
-                return None;
-            }
-            let secs = (batches / spd).ceil();
-            let score = (dd * (cap + spd) / 100.0).floor();
-            Some(ext(&l, &[("elec", n(num(&get(&l, "elec")) - used)), ("trn", o(&[("d", dv.clone()), ("secs", n(secs)), ("score", n(score)), ("started", ts())]))]))
-        }),
-    )
-    .await?;
-    Ok(s(if r.is_truthy() { "ok" } else { *why.borrow() }))
-}
-async fn lab_train_claim(cid: String) -> R {
-    let got = Rc::new(RefCell::new(-1.0));
-    let g2 = got.clone();
-    let r = lab_tx(
-        cid,
-        Rc::new(move |l: JsValue| {
-            let t = get(&l, "trn");
-            if !t.is_truthy() || now() < started_ms(&t) + num(&get(&t, "secs")) * 1000.0 {
-                return None;
-            }
-            *g2.borrow_mut() = num(&get(&t, "score"));
-            Some(ext(&l, &[("aiDev", get(&t, "score")), ("trn", JsValue::NULL)]))
-        }),
-    )
-    .await?;
-    Ok(n(if r.is_truthy() { *got.borrow() } else { -1.0 }))
-}
-async fn lab_cash(cid: String, tokens: JsValue, dir: JsValue) -> R {
-    rethrow(
-        run_tx(move |tx| {
-            let (cid, tokens, dir) = (cid.clone(), tokens.clone(), dir.clone());
-            Box::pin(async move {
-                let wref = wallet_ref()?;
-                let lref = lab_ref(&cid);
-                let ws = tx_get(&tx, &wref).await?;
-                let ls = tx_get(&tx, &lref).await?;
-                let bal = num(&get(&data(&ws), "bal"));
-                let l = lab_data(&ls);
-                let (tk, dr) = (num(&tokens), num(&dir));
-                if dr > 0.0 && bal < tk {
-                    return Err(fail("insufficient", "잔액이 부족해요"));
-                }
-                if dr < 0.0 && num(&get(&l, "cash")) < tk * 100.0 {
-                    return Err(fail("insufficient", "금고가 부족해요"));
-                }
-                m(&tx, "update", &[wref, o(&[("bal", n(bal - dr * tk)), ("wt", ts()), ("op", o(&[("kind", s(if dr > 0.0 { "deposit" } else { "withdraw" })), ("cid", s(&cid)), ("amt", tokens.clone())]))])])?;
-                let cash = num(&get(&l, "cash")) + dr * tk * 100.0;
-                m(&tx, "set", &[lref, lab_write(&lab_of(&ext(&l, &[("cash", n(cash))])))])?;
-                Ok(n(cash))
-            })
-        })
-        .await,
-    )
-}
-async fn lab_buy(buyer: String, seller: String, kind: String, k: JsValue) -> R {
-    rethrow(
-        run_tx(move |tx| {
-            let (buyer, seller, kind, k) = (buyer.clone(), seller.clone(), kind.clone(), k.clone());
-            Box::pin(async move {
-                let bref = lab_ref(&buyer);
-                let sref = lab_ref(&seller);
-                let bs = tx_get(&tx, &bref).await?;
-                let ss = tx_get(&tx, &sref).await?;
-                let b = lab_data(&bs);
-                let sl = lab_data(&ss);
-                let kn = num(&k);
-                if !(is_int(&k) && kn >= 1.0) {
-                    return Err(fail("bad", "수량을 확인해 주세요"));
-                }
-                let total = kn * num(&get(&sl, "price"));
-                if num(&get(&b, "cash")) < total {
-                    return Err(fail("insufficient", "금고가 부족해요"));
-                }
-                if kind == "e" && num(&get(&sl, "elec")) < kn {
-                    return Err(fail("stock", "재고가 부족해요"));
-                }
-                if kind == "p" && !get(&sl, "rel").is_truthy() {
-                    return Err(fail("unreleased", "아직 출시하지 않은 컴퓨터예요"));
-                }
-                if kind == "h" && num(&get(&sl, "aiScore")) < 0.0 {
-                    return Err(fail("unreleased", "아직 출시하지 않은 인공지능이에요"));
-                }
-                let at = ts();
-                let sold = o(&[("to", s(&buyer)), ("kind", s(&kind)), ("n", k.clone()), ("total", n(total)), ("at", at.clone())]);
-                let bought = o(&[("from", s(&seller)), ("kind", s(&kind)), ("n", k.clone()), ("total", n(total)), ("at", at)]);
-                let s_next = ext(&sl, &[("cash", n(num(&get(&sl, "cash")) + total)), ("sold", sold.clone())]);
-                let b_next = ext(&b, &[("cash", n(num(&get(&b, "cash")) - total)), ("bought", bought.clone())]);
-                if kind == "e" {
-                    set(&s_next, "elec", &n(num(&get(&sl, "elec")) - kn));
-                    set(&b_next, "elec", &n(num(&get(&b, "elec")) + kn));
-                }
-                if kind == "p" {
-                    let rel = get(&sl, "rel");
-                    let mm = o(&[("cap", get(&rel, "cap")), ("spd", get(&rel, "spd")), ("pow", get(&rel, "pow"))]);
-                    for key in ["cap", "spd", "pow"] {
-                        set(&sold, key, &get(&mm, key));
-                        set(&bought, key, &get(&mm, key));
-                    }
-                    let pm = get(&b, "pcM");
-                    let same = pm.is_truthy() && ["cap", "spd", "pow"].iter().all(|key| num(&get(&pm, key)) == num(&get(&mm, key)));
-                    set(&b_next, "pcM", &mm);
-                    set(&b_next, "pcN", &n(if same { num(&get(&b, "pcN")) } else { 0.0 } + kn)); // 같은 모델이면 더하고, 다른 모델이면 새 모델로 바꿔요
-                }
-                if kind == "h" {
-                    set(&b_next, "aiH", &n(num(&get(&b, "aiH")) + kn));
-                }
-                m(&tx, "set", &[sref, lab_write(&lab_of(&s_next))])?;
-                m(&tx, "set", &[bref, lab_write(&lab_of(&b_next))])?;
-                Ok(n(total))
-            })
-        })
-        .await,
-    )
-}
 // 공장·일하기 전에 연구실 문서가 없으면 기본값으로 먼저 만들어요
-async fn ensure_lab(cid: String) -> R {
-    let lref = lab_ref(&cid);
-    let sn = rethrow(get_doc(lref.clone()).await)?;
-    if !exists(&sn) {
-        let _ = set_doc(lref, lab_write(&lab_of(&JsValue::NULL))).await;
-    }
-    Ok(JsValue::UNDEFINED)
-}
-async fn lab_start_factory(cid: String, pid: String, k: JsValue) -> R {
-    ensure_lab(cid.clone()).await?;
-    rethrow(
-        run_tx(move |tx| {
-            let (cid, pid, k) = (cid.clone(), pid.clone(), k.clone());
-            Box::pin(async move {
-                let lref = lab_ref(&cid);
-                let pref = d(&["companies", &cid, "products", &pid]);
-                let ls = tx_get(&tx, &lref).await?;
-                let ps = tx_get(&tx, &pref).await?;
-                if !exists(&ls) {
-                    return Err(fail("nolab", "공장을 아직 만들지 않았어요"));
-                }
-                let p = if exists(&ps) { data(&ps) } else { JsValue::NULL };
-                if !p.is_truthy() || get(&p, "active") != JsValue::TRUE {
-                    return Err(fail("unsellable", "지금은 만들 수 없는 상품이에요"));
-                }
-                let kn = num(&k);
-                if !(is_int(&k) && kn >= 1.0 && kn <= 100000.0) {
-                    return Err(fail("bad", "개수를 확인해 주세요"));
-                }
-                let l = lab_of(&data(&ls));
-                if get(&l, "prod").is_truthy() {
-                    return Err(fail("busy", "공장이 이미 돌고 있어요. 다 만들 때까지 기다려 주세요"));
-                }
-                m(&tx, "update", &[lref, o(&[("prod", o(&[("pid", s(&pid)), ("left", k.clone()), ("at", ts()), ("total", k.clone())]))])])?;
-                Ok(k)
-            })
-        })
-        .await,
-    )
-}
 // 정산 (사장): 지금까지 만든 개수만큼 재료값이 금고에서 나가고 재고가 늘어요. 서버 시각을 쓰니 3초 덜 세요
-async fn lab_settle_factory(cid: String) -> R {
-    rethrow(
-        run_tx(move |tx| {
-            let cid = cid.clone();
-            Box::pin(async move {
-                let zero = |left: f64| o(&[("units", n(0.0)), ("left", n(left))]);
-                let lref = lab_ref(&cid);
-                let ls = tx_get(&tx, &lref).await?;
-                if !exists(&ls) {
-                    return Ok(zero(0.0));
-                }
-                let l = lab_of(&data(&ls));
-                let prod = get(&l, "prod");
-                if !prod.is_truthy() {
-                    return Ok(zero(0.0));
-                }
-                let pid = jstr(&get(&prod, "pid"));
-                let pref = d(&["companies", &cid, "products", &pid]);
-                let ps = tx_get(&tx, &pref).await?;
-                let p = if exists(&ps) { data(&ps) } else { JsValue::NULL };
-                if !p.is_truthy() {
-                    return Err(fail("unsellable", "상품이 없어요"));
-                }
-                let each = if is_int(&get(&p, "costCents")) { num(&get(&p, "costCents")) } else { 0.0 };
-                let pat = m(&get(&prod, "at"), "toMillis", &[]).map(|x| num(&x))?;
-                let plv = num(&get(&l, "plv"));
-                let pleft = num(&get(&prod, "left"));
-                let total = if is_int(&get(&prod, "total")) { num(&get(&prod, "total")) } else { pleft };
-                let elapsed = (now() - 3000.0 - pat).max(0.0).floor();
-                // 한 개마다 60초 ÷ 공장 대수가 걸려요 (공장이 늘어도 전체 속도는 같고, 하나씩 고르게 나와요)
-                let mut u = pleft.min((elapsed * plv / 60000.0).floor());
-                if each > 0.0 {
-                    u = u.min((num(&get(&l, "cash")) / each).floor());
-                }
-                if u < 1.0 {
-                    return Ok(zero(pleft));
-                }
-                let cash = num(&get(&l, "cash")) - u * each;
-                let stock = if is_int(&get(&p, "stock")) { num(&get(&p, "stock")) } else { 0.0 };
-                let left = pleft - u;
-                if left == 0.0 {
-                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", f("deleteField", &[])?)])])?;
-                } else {
-                    m(&tx, "update", &[lref, o(&[("cash", n(cash)), ("prod", o(&[("pid", s(&pid)), ("left", n(left)), ("at", from_millis(pat + ((u * 60000.0 + plv - 1.0) / plv).floor())), ("total", n(total))]))])])?;
-                }
-                m(&tx, "update", &[pref, o(&[("stock", n(stock + u))])])?;
-                Ok(o(&[("units", n(u)), ("left", n(left))]))
-            })
-        })
-        .await,
-    )
-}
-async fn lab_buy_factory(cid: String) -> R {
-    ensure_lab(cid.clone()).await?;
-    rethrow(
-        run_tx(move |tx| {
-            let cid = cid.clone();
-            Box::pin(async move {
-                let lref = lab_ref(&cid);
-                let ls = tx_get(&tx, &lref).await?;
-                if !exists(&ls) {
-                    return Err(fail("nolab", "공장을 아직 만들지 않았어요"));
-                }
-                let l = lab_of(&data(&ls));
-                if get(&l, "prod").is_truthy() {
-                    return Err(fail("busy", "공장이 돌고 있어요. 다 만든 뒤에 더 살 수 있어요"));
-                }
-                let plv = num(&get(&l, "plv"));
-                if plv >= 1000.0 {
-                    return Err(fail("max", "공장을 더 살 수 없어요"));
-                }
-                if num(&get(&l, "cash")) < 50000.0 {
-                    return Err(fail("poor", "회사 금고에 500 멸공이 부족해요. 먼저 금고에 넣어 주세요"));
-                }
-                m(&tx, "update", &[lref, o(&[("cash", n(num(&get(&l, "cash")) - 50000.0)), ("plv", n(plv + 1.0))])])?;
-                Ok(n(plv + 1.0))
-            })
-        })
-        .await,
-    )
-}
-const FULL_H: f64 = 86400000.0;
-const FULL_T: f64 = 64800000.0;
-const FULL_E: f64 = 2592000000.0;
 // 일하기 (직원·사장): 일한 만큼 에너지가 내려가고 회사 식품 성능이 올라요. 배고픔·목마름이 0이어도 일할 수 있어요
-async fn staff_work(cid: String, k: JsValue) -> R {
-    let k = if k.is_undefined() { n(1.0) } else { k };
-    ensure_lab(cid.clone()).await?;
-    rethrow(
-        run_tx(move |tx| {
-            let (cid, k) = (cid.clone(), k.clone());
-            Box::pin(async move {
-                let vref = d(&["vitals", &uid_of()?]);
-                let lref = lab_ref(&cid);
-                let vs = tx_get(&tx, &vref).await?;
-                let ls = tx_get(&tx, &lref).await?;
-                if !exists(&vs) {
-                    return Err(fail("novit", "상태를 아직 만들지 않았어요"));
-                }
-                if !exists(&ls) {
-                    return Err(fail("nolab", "회사를 아직 정하지 않았어요"));
-                }
-                let v = data(&vs);
-                let t_now = now();
-                let tt = (t_now - num(&get(&v, "at"))).max(0.0);
-                let eff = tt; // 베타: 에너지가 0이어도 두 배로 닳지 않아요 (서버 규칙과 같아요)
-                let h = (num(&get(&v, "h")) - eff * 100.0 / FULL_H).max(0.0);
-                let t = (num(&get(&v, "t")) - eff * 100.0 / FULL_T).max(0.0);
-                let e = num(&get(&v, "e")) - tt * 100.0 / FULL_E;
-                let kn = num(&k);
-                // 에너지가 모자라도 일할 수 있어요 (0 밑으로는 안 내려가요)
-                let next = o(&[("h", n(h)), ("t", n(t)), ("e", n((e - kn).max(0.0))), ("at", n(t_now)), ("wk", k.clone())]);
-                m(&tx, "update", &[vref, next.clone()])?;
-                m(&tx, "update", &[lref, o(&[("fperf", n(num(&get(&lab_of(&data(&ls)), "fperf")) + kn))])])?;
-                let out = ext(&v, &[]);
-                js_sys::Object::assign(out.unchecked_ref::<js_sys::Object>(), next.unchecked_ref::<js_sys::Object>());
-                Ok(out)
-            })
-        })
-        .await,
-    )
-}
-async fn lab_food_make(cid: String, pid: String, k: JsValue) -> R {
-    lab_start_factory(cid.clone(), pid, k).await?;
-    loop {
-        crate::dom::sleep(2000).await;
-        let r = lab_settle_factory(cid.clone()).await?;
-        if num(&get(&r, "left")) == 0.0 {
-            return Ok(JsValue::UNDEFINED);
-        }
-    }
-}
 
 /* ---------- 상점·인벤토리 ---------- */
 
@@ -1663,149 +1002,6 @@ async fn shop_buy(cid: String, pid: String, k: JsValue, co_name: String) -> R {
         })
         .await,
     )
-}
-async fn take_out(cid: String, p: JsValue, k: JsValue, co_name: String) -> R {
-    let pid = jstr(&get(&p, "id"));
-    let iref = inv_ref(&cid, &pid)?;
-    let is = rethrow(get_doc(iref.clone()).await)?;
-    let kn = num(&k);
-    let b = batch();
-    m(&b, "update", &[d(&["companies", &cid, "products", &pid]), o(&[("stock", inc(-kn))])])?;
-    if exists(&is) {
-        m(&b, "update", &[iref, o(&[("n", inc(kn))])])?;
-    } else {
-        m(&b, "set", &[iref, inv_data(&p, &cid, &pid, kn, &co_name)])?;
-    }
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn list_inventory() -> R {
-    let snap = rethrow(get_docs(q(c(&["inventory", &uid_of()?, "items"]), vec![w(s("n"), ">", n(0.0)), lim(100.0)])).await)?;
-    Ok(docs(&snap).iter().map(|dd| ext(&data_est(dd), &[("id", get(dd, "id"))])).collect::<js_sys::Array>().into())
-}
-async fn food_gain(cid: String) -> R {
-    let l = rethrow(get_doc(lab_ref(&cid)).await)?;
-    let fp = if exists(&l) { get(&data(&l), "fperf") } else { JsValue::UNDEFINED };
-    let perf = if exists(&l) && is_int(&fp) { num(&fp) } else { 100.0 };
-    Ok(n(20.0 * perf / 100.0))
-}
-async fn eat_from_inventory(cid: String, pid: String, group: String, v: JsValue) -> R {
-    let qv = num(&food_gain(cid.clone()).await?);
-    let stat = match group.as_str() {
-        "water" => "t",
-        "snack" | "meal" => "h",
-        "energy" => "e",
-        _ => return Err(fail("bad", "먹을 수 없는 음식이에요")),
-    };
-    let t_now = now();
-    let tt = (t_now - num(&get(&v, "at"))).max(0.0);
-    let eff = tt; // 베타: 두 배로 닳지 않아요
-    let left = [("h", (num(&get(&v, "h")) - eff * 100.0 / FULL_H).max(0.0)), ("t", (num(&get(&v, "t")) - eff * 100.0 / FULL_T).max(0.0)), ("e", (num(&get(&v, "e")) - tt * 100.0 / FULL_E).max(0.0))];
-    let next: Vec<(&str, f64)> = left.iter().map(|(k, x)| (*k, if *k == stat { 100f64.min(x + qv) } else { *x })).collect();
-    let (h, t, e) = (next[0].1, next[1].1, next[2].1);
-    let eat = o(&[("cid", s(&cid)), ("pid", s(&pid))]);
-    let b = batch();
-    m(&b, "update", &[inv_ref(&cid, &pid)?, o(&[("n", inc(-1.0))])])?;
-    m(&b, "update", &[d(&["vitals", &uid_of()?]), o(&[("h", n(h)), ("t", n(t)), ("e", n(e)), ("at", n(t_now)), ("eat", eat.clone()), ("wk", n(0.0))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(o(&[("h", n(h)), ("t", n(t)), ("e", n(e)), ("at", n(t_now)), ("deaths", get(&v, "deaths")), ("eat", eat), ("gained", n(qv)), ("stat", s(stat))]))
-}
-async fn list_offers(kind: String) -> R {
-    let all = list_companies(s("")).await?;
-    let cos: Vec<JsValue> = all.dyn_into::<js_sys::Array>().map(|a| a.iter().filter(|cc| st(&get(cc, "kind")) == kind).take(20).collect()).unwrap_or_default();
-    let labs = join_all(cos.iter().map(|cc| lab_get(st(&get(cc, "id")))).collect()).await;
-    let out = js_sys::Array::new();
-    for (cc, l) in cos.into_iter().zip(labs) {
-        let l = l.unwrap_or(JsValue::NULL);
-        let ok = l.is_truthy() && num(&get(&l, "price")) > 0.0 && if kind == "nuclear" { num(&get(&l, "elec")) > 0.0 } else { get(&l, "rel").is_truthy() };
-        if ok {
-            out.push(&o(&[("co", cc), ("L", l)]));
-        }
-    }
-    Ok(out.into())
-}
-async fn list_shop() -> R {
-    let companies = rethrow(list_companies(JsValue::UNDEFINED).await)?;
-    let out = js_sys::Array::new();
-    for co in companies.dyn_into::<js_sys::Array>().unwrap_or_default().iter() {
-        let cid = st(&get(&co, "id"));
-        let snap = rethrow(get_docs(q(c(&["companies", &cid, "products"]), vec![w(s("active"), "==", true.into()), lim(50.0)])).await)?;
-        for dd in docs(&snap) {
-            let v = data_est(&dd);
-            let stock = get(&v, "stock");
-            if get(&v, "paused") == JsValue::TRUE || !is_int(&get(&v, "priceCents")) || !(is_int(&stock) && num(&stock) > 0.0) {
-                continue;
-            }
-            let or = |k: &str, dflt: &str| {
-                let x = get(&co, k);
-                if x.is_truthy() {
-                    x
-                } else {
-                    s(dflt)
-                }
-            };
-            out.push(&ext(
-                &v,
-                &[
-                    ("id", get(&dd, "id")),
-                    ("cid", s(&cid)),
-                    ("stock", stock.clone()),
-                    ("priceCents", get(&v, "priceCents")),
-                    ("at", n(ms(&get(&v, "at")))),
-                    ("co", o(&[("id", s(&cid)), ("name", or("name", "회사")), ("logo", or("logo", "")), ("kind", or("kind", "food"))])),
-                ],
-            ));
-        }
-    }
-    Ok(out.into())
-}
-fn js_round(v: f64) -> f64 {
-    (v + 0.5).floor()
-}
-async fn list_products(cid: String) -> R {
-    let snap = rethrow(get_docs(q(c(&["companies", &cid, "products"]), vec![w(s("active"), "==", true.into()), lim(50.0)])).await)?;
-    Ok(docs(&snap)
-        .iter()
-        .map(|dd| {
-            let v = data_est(dd);
-            // 예전 상품은 멸공 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
-            let cents = |ck: &str, tk: &str| {
-                let x = get(&v, ck);
-                if is_int(&x) {
-                    x
-                } else {
-                    let t = get(&v, tk);
-                    n(js_round(if t.is_truthy() { num(&t) } else { 0.0 } * 100.0))
-                }
-            };
-            let stock = get(&v, "stock");
-            ext(
-                &v,
-                &[
-                    ("id", get(dd, "id")),
-                    ("at", n(ms(&get(&v, "at")))),
-                    ("costCents", cents("costCents", "cost")),
-                    ("priceCents", cents("priceCents", "price")),
-                    ("paused", (get(&v, "paused") == JsValue::TRUE).into()),
-                    ("stock", if is_int(&stock) { stock } else { n(0.0) }),
-                ],
-            )
-        })
-        .collect::<js_sys::Array>()
-        .into())
-}
-async fn create_product(cid: String, p: JsValue) -> R {
-    let r = new_id(c(&["companies", &cid, "products"]));
-    let all = ext(&p, &[("owner", s(&uid_of()?)), ("active", true.into()), ("at", ts())]);
-    let clean = js_sys::Object::new();
-    for e in js_sys::Object::entries(all.unchecked_ref()).iter() {
-        let e: js_sys::Array = e.unchecked_into();
-        if !e.get(1).is_undefined() {
-            let _ = js_sys::Reflect::set(&clean, &e.get(0), &e.get(1));
-        }
-    }
-    rethrow(set_doc(r.clone(), clean.into()).await)?;
-    Ok(get(&r, "id"))
 }
 
 /* ---------- 관리·공지 ---------- */
@@ -1962,21 +1158,6 @@ async fn admin_delete(id: String) -> R {
 
 /* ---------- 상태·사진·지갑 ---------- */
 
-async fn load_vitals() -> R {
-    let r = d(&["vitals", &uid_of()?]);
-    let sn = rethrow(get_doc(r.clone()).await)?;
-    if exists(&sn) {
-        return Ok(data(&sn));
-    }
-    let v = o(&[("h", n(100.0)), ("t", n(100.0)), ("e", n(100.0)), ("at", n(now())), ("deaths", n(0.0))]);
-    rethrow(set_doc(r, v.clone()).await)?;
-    Ok(v)
-}
-async fn die(deaths: JsValue) -> R {
-    let v = o(&[("h", n(10.0)), ("t", n(10.0)), ("e", n(10.0)), ("at", n(now() + num(&deaths) * 3600000.0)), ("deaths", deaths), ("wk", n(0.0))]);
-    rethrow(update_doc(d(&["vitals", &uid_of()?]), v.clone()).await)?;
-    Ok(v)
-}
 async fn set_name(name: String) -> R {
     let uid = uid_of()?;
     update_doc(d(&["profiles", &uid]), o(&[("name", s(&name))])).await?;
@@ -2284,86 +1465,6 @@ async fn plan_delete(id: String) -> R {
 }
 
 /* ---------- 땅 (현실 지도의 육각형 칸) ---------- */
-fn land_row(dd: &JsValue) -> JsValue {
-    let v = data(dd);
-    o(&[("id", get(dd, "id")), ("owner", get(&v, "owner")), ("name", get(&v, "name")), ("lv", get(&v, "lv")), ("pot", get(&v, "pot")), ("q", get(&v, "q")), ("r", get(&v, "r"))])
-}
-/// 보이는 구역(ch)들의 땅을 한 번에 읽어요 (구역은 한 번에 30개까지)
-async fn lands_in(chunks: JsValue) -> R {
-    let a: js_sys::Array = chunks.dyn_into().unwrap_or_default();
-    let out = js_sys::Array::new();
-    if a.length() == 0 {
-        return Ok(out.into());
-    }
-    let snap = get_docs(q(c(&["lands"]), vec![w(s("ch"), "in", a.slice(0, 30).into()), lim(300.0)])).await?;
-    for dd in docs(&snap) {
-        out.push(&land_row(&dd));
-    }
-    Ok(out.into())
-}
-/// 내 땅 전부 (100곳까지)
-async fn lands_mine() -> R {
-    let snap = get_docs(q(c(&["lands"]), vec![w(s("owner"), "==", s(&uid_of()?)), lim(100.0)])).await?;
-    let out = js_sys::Array::new();
-    for dd in docs(&snap) {
-        out.push(&land_row(&dd));
-    }
-    Ok(out.into())
-}
-fn land_wallet(b: &JsValue, delta: f64, kind: &str, id: &str) -> Result<(), JsValue> {
-    m(b, "update", &[wallet_ref()?, o(&[("bal", inc(delta)), ("wt", ts()), ("op", o(&[("kind", s(kind)), ("cid", s(id))]))])])?;
-    Ok(())
-}
-async fn land_buy(qv: f64, rv: f64, name: String) -> R {
-    let id = format!("{}_{}", qv as i64, rv as i64);
-    let ch = format!("{}_{}", (qv / 16.0).floor() as i64, (rv / 16.0).floor() as i64);
-    let b = batch();
-    m(&b, "set", &[d(&["lands", &id]), o(&[("owner", s(&uid_of()?)), ("name", s(&name)), ("lv", n(0.0)), ("pot", n(0.0)), ("q", n(qv)), ("r", n(rv)), ("ch", s(&ch)), ("at", ts())])])?;
-    land_wallet(&b, -10.0, "land", &id)?;
-    commit(&b).await?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn land_name(id: String, name: String) -> R {
-    update_doc(d(&["lands", &id]), o(&[("name", s(&name))])).await?;
-    Ok(JsValue::UNDEFINED)
-}
-async fn land_act(id: String, kind: String) -> R {
-    let lr = d(&["lands", &id]);
-    let ls = get_doc(lr.clone()).await?;
-    if !exists(&ls) {
-        return Err(fail("noland", "주인이 없는 땅이에요"));
-    }
-    let v = data(&ls);
-    let (lv, pot) = (num(&get(&v, "lv")), num(&get(&v, "pot")));
-    let toll = [1.0, 2.0, 4.0, 8.0, 16.0][(lv as usize).min(4)];
-    let b = batch();
-    let moved = match kind.as_str() {
-        "build" => {
-            let cost = [20.0, 40.0, 80.0, 160.0][(lv as usize).min(3)];
-            m(&b, "update", &[lr, o(&[("lv", n(lv + 1.0))])])?;
-            land_wallet(&b, -cost, "build", &id)?;
-            cost
-        }
-        "toll" => {
-            m(&b, "update", &[lr, o(&[("pot", n(pot + toll))])])?;
-            land_wallet(&b, -toll, "toll", &id)?;
-            toll
-        }
-        "rent" => {
-            m(&b, "update", &[lr, o(&[("pot", n(0.0))])])?;
-            land_wallet(&b, pot, "rent", &id)?;
-            pot
-        }
-        _ => {
-            let back = [5.0, 15.0, 35.0, 75.0, 155.0][(lv as usize).min(4)] + pot;
-            m(&b, "delete", &[lr])?;
-            land_wallet(&b, back, "sell", &id)?;
-            back
-        }
-    };
-    commit(&b).await?;
-    Ok(n(moved))
-}
 async fn cancel_gift(cid: String, mid: String) -> R {
     let mr = d(&["chats", &cid, "messages", &mid]);
     let ms = get_doc(mr.clone()).await?;
@@ -2389,52 +1490,7 @@ async fn pay_request(cid: String, to: JsValue, req: String, amount: JsValue) -> 
 
 /* ---------- 통화 (연결 정보만 주고받아요) ---------- */
 
-async fn call_start(to: String, chat: String, offer: JsValue) -> R {
-    let r = new_id(c(&["calls"]));
-    rethrow(set_doc(r.clone(), o(&[("from", s(&uid_of()?)), ("to", s(&to)), ("chat", s(&chat)), ("offer", offer), ("state", s("ringing")), ("at", ts())])).await)?;
-    Ok(get(&r, "id"))
-}
-fn call_watch(id: String, cb: js_sys::Function) -> R {
-    let next = Closure::<dyn FnMut(JsValue)>::new(move |sn: JsValue| {
-        let v = if exists(&sn) { data_est(&sn) } else { JsValue::NULL };
-        let _ = cb.call1(&JsValue::NULL, &v);
-    })
-    .into_js_value();
-    f("onSnapshot", &[d(&["calls", &id]), next, report_fn()])
-}
 // 나에게 걸려 오는 전화 (울리는 것만)
-fn call_incoming(cb: js_sys::Function) -> R {
-    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
-        let list: js_sys::Array = docs(&snap)
-            .iter()
-            .map(|dd| {
-                let v = data_est(dd);
-                ext(&v, &[("id", get(dd, "id")), ("at", n(ms(&get(&v, "at"))))])
-            })
-            .collect();
-        let _ = cb.call1(&JsValue::NULL, &list);
-    })
-    .into_js_value();
-    f("onSnapshot", &[q(c(&["calls"]), vec![w(s("to"), "==", s(&uid_of()?)), w(s("state"), "==", s("ringing")), lim(5.0)]), next, report_fn()])
-}
-fn call_cands(id: String, cb: js_sys::Function) -> R {
-    let me_ = uid_of()?;
-    let next = Closure::<dyn FnMut(JsValue)>::new(move |snap: JsValue| {
-        let Ok(ch) = m(&snap, "docChanges", &[]).and_then(|v| v.dyn_into::<js_sys::Array>().map_err(|e| e)) else { return };
-        for x in ch.iter() {
-            if st(&get(&x, "type")) != "added" {
-                continue;
-            }
-            let v = data(&get(&x, "doc"));
-            if st(&get(&v, "by")) == me_ {
-                continue;
-            }
-            let _ = cb.call1(&JsValue::NULL, &get(&v, "c"));
-        }
-    })
-    .into_js_value();
-    f("onSnapshot", &[c(&["calls", &id, "c"]), next, report_fn()])
-}
 
 /* ---------- SNS (무제 탭) ---------- */
 
@@ -2612,62 +1668,12 @@ fn build() -> js_sys::Object {
     am!(api, "syncRank", |a| sync_rank(a[0].clone()).await);
     am!(api, "loadRanks", |a| load_ranks(a[0].is_truthy()).await);
     am!(api, "countAbove", |a| count_of(q(c(&["ranks"]), vec![w(s("bal"), ">", a[0].clone()), lim(50.0)])).await);
-    am!(api, "loadRanksOf", |a| load_ranks_of(a[0].clone()).await);
     /* ----- 회사 ----- */
-    am!(api, "listMyCompanies", |_a| list_my_companies().await);
-    am!(api, "getCompany", |a| get_company(sa(&a[0])).await);
-    am!(api, "listCompanies", |a| list_companies(a[0].clone()).await);
-    am!(api, "setOpenings", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("open", a[1].clone())])).await));
-    am!(api, "setCompanyKind", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("kind", a[1].clone()), ("kindSet", true.into())])).await));
-    am!(api, "loadMyJob", |_a| load_my_job().await);
-    am!(api, "applyJob", |a| apply_job(sa(&a[0]), a[1].clone()).await);
-    am!(api, "quitJob", |a| quit_job(sa(&a[0])).await);
-    am!(api, "listStaff", |a| list_staff(sa(&a[0])).await);
-    am!(api, "setWage", |a| rethrow(update_doc(d(&["jobs", &sa(&a[0])]), o(&[("wage", a[1].clone())])).await));
-    am!(api, "fireStaff", |a| fire_staff(sa(&a[0]), sa(&a[1])).await);
-    am!(api, "trackWork", |a| track_work(a[0].clone()).await);
-    am!(api, "claimWage", |a| claim_wage(sa(&a[0])).await);
-    am!(api, "fundPay", |a| fund_pay(sa(&a[0]), a[1].clone()).await);
-    am!(api, "setCompanyInfo", |a| rethrow(update_doc(d(&["companies", &sa(&a[0])]), o(&[("name", a[1].clone()), ("logo", a[2].clone())])).await));
-    am!(api, "foundCompany", |a| found_company(a[0].clone(), a[1].clone(), a[2].clone()).await);
     /* ----- 연구실·공장 ----- */
-    am!(api, "labGet", |a| lab_get(sa(&a[0])).await);
-    am!(api, "labChange", |a| {
-        let fun: js_sys::Function = a[1].clone().dyn_into()?;
-        lab_tx(
-            sa(&a[0]),
-            Rc::new(move |l| {
-                let v = fun.call1(&JsValue::NULL, &l).unwrap_or(JsValue::NULL);
-                if v.is_truthy() {
-                    Some(v)
-                } else {
-                    None
-                }
-            }),
-        )
-        .await
-    });
-    am!(api, "labGenStart", |a| lab_gen_start(sa(&a[0]), a[1].clone()).await);
-    am!(api, "labCash", |a| lab_cash(sa(&a[0]), a[1].clone(), a[2].clone()).await);
-    am!(api, "labBuy", |a| lab_buy(sa(&a[0]), sa(&a[1]), sa(&a[2]), a[3].clone()).await);
-    am!(api, "labTrainStart", |a| lab_train_start(sa(&a[0]), a[1].clone()).await);
-    am!(api, "labTrainClaim", |a| lab_train_claim(sa(&a[0])).await);
-    am!(api, "ensureLab", |a| ensure_lab(sa(&a[0])).await);
-    am!(api, "labStartFactory", |a| lab_start_factory(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
-    am!(api, "labSettleFactory", |a| lab_settle_factory(sa(&a[0])).await);
-    am!(api, "labBuyFactory", |a| lab_buy_factory(sa(&a[0])).await);
-    am!(api, "labGenClaim", |a| lab_gen_claim(sa(&a[0])).await);
-    am!(api, "staffWork", |a| staff_work(sa(&a[0]), a[1].clone()).await);
-    am!(api, "labFoodMake", |a| lab_food_make(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
     /* ----- 상점·인벤토리 ----- */
     am!(api, "shopBuy", |a| shop_buy(sa(&a[0]), sa(&a[1]), a[2].clone(), opt_s(&a[3])).await);
-    am!(api, "takeOut", |a| take_out(sa(&a[0]), a[1].clone(), a[2].clone(), opt_s(&a[3])).await);
-    am!(api, "listInventory", |_a| list_inventory().await);
-    am!(api, "foodGain", |a| food_gain(sa(&a[0])).await);
-    am!(api, "eatFromInventory", |a| eat_from_inventory(sa(&a[0]), sa(&a[1]), sa(&a[2]), a[3].clone()).await);
     /* ----- 관리·공지 ----- */
     am!(api, "searchProfiles", |a| search_profiles(sa(&a[0])).await);
-    am!(api, "listOffers", |a| list_offers(sa(&a[0])).await);
     am!(api, "adminGrant", |a| admin_grant(sa(&a[0]), a[1].clone()).await);
     am!(api, "adminNotice", |a| admin_notice(a[0].clone()).await);
     am!(api, "noticeIds", |_a| notice_ids().await);
@@ -2680,15 +1686,7 @@ fn build() -> js_sys::Object {
     });
     am!(api, "noticeTally", |a| notice_tally(a[0].clone()).await);
     am!(api, "adminDelete", |a| admin_delete(sa(&a[0])).await);
-    am!(api, "listShop", |_a| list_shop().await);
-    am!(api, "listProducts", |a| list_products(if a[0].is_undefined() { uid_of()? } else { sa(&a[0]) }).await);
-    am!(api, "createProduct", |a| create_product(sa(&a[0]), a[1].clone()).await);
-    am!(api, "renameProduct", |a| rethrow(update_doc(d(&["companies", &sa(&a[0]), "products", &sa(&a[1])]), o(&[("name", a[2].clone())])).await));
-    am!(api, "setProductPaused", |a| rethrow(update_doc(d(&["companies", &sa(&a[0]), "products", &sa(&a[1])]), o(&[("paused", (a[2] == JsValue::TRUE).into())])).await));
-    am!(api, "endProduct", |a| rethrow(update_doc(d(&["companies", &sa(&a[0]), "products", &sa(&a[1])]), o(&[("active", false.into())])).await));
     /* ----- 상태·지갑 ----- */
-    am!(api, "loadVitals", |_a| load_vitals().await);
-    am!(api, "die", |a| die(a[0].clone()).await);
     am!(api, "setPhoto", |a| set_photo(a[0].clone()).await);
     method_now(&api, "watchWallet", |a| watch_wallet(a[0].clone().dyn_into()?));
     am!(api, "claimInterest", |a| update_doc(wallet_ref()?, o(&[("bal", inc(num(&a[0]))), ("t", from_millis(num(&a[1]))), ("wt", ts()), ("op", o(&[("kind", s("interest"))]))])).await);
@@ -2718,11 +1716,6 @@ fn build() -> js_sys::Object {
     am!(api, "planCreate", |a| plan_create(a[0].clone()).await);
     am!(api, "planJoin", |a| plan_join(sa(&a[0]), a[1].is_truthy()).await);
     am!(api, "planDelete", |a| plan_delete(sa(&a[0])).await);
-    am!(api, "landsMine", |_a| lands_mine().await);
-    am!(api, "landsIn", |a| lands_in(a[0].clone()).await);
-    am!(api, "landBuy", |a| land_buy(num(&a[0]), num(&a[1]), sa(&a[2])).await);
-    am!(api, "landName", |a| land_name(sa(&a[0]), sa(&a[1])).await);
-    am!(api, "landAct", |a| land_act(sa(&a[0]), sa(&a[1])).await);
     am!(api, "cancelGift", |a| cancel_gift(sa(&a[0]), sa(&a[1])).await);
     am!(api, "claimGift", |a| claim_gift(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
     am!(api, "payRequest", |a| pay_request(sa(&a[0]), a[1].clone(), sa(&a[2]), a[3].clone()).await);
@@ -2733,32 +1726,14 @@ fn build() -> js_sys::Object {
         update_doc(d(&["chats", &sa(&a[0]), "messages", &sa(&a[1])]), x.into()).await
     });
     /* ----- 통화 ----- */
-    am!(api, "callStart", |a| call_start(sa(&a[0]), sa(&a[1]), a[2].clone()).await);
-    am!(api, "callAnswer", |a| update_doc(d(&["calls", &sa(&a[0])]), o(&[("answer", a[1].clone()), ("state", s("active"))])).await);
-    am!(api, "callEnd", |a| Ok(update_doc(d(&["calls", &sa(&a[0])]), o(&[("state", s("ended"))])).await.unwrap_or(JsValue::UNDEFINED)));
-    am!(api, "callCand", |a| set_doc(new_id(c(&["calls", &sa(&a[0]), "c"])), o(&[("by", s(&uid_of()?)), ("c", a[1].clone())])).await);
-    method_now(&api, "callWatch", |a| call_watch(sa(&a[0]), a[1].clone().dyn_into()?));
-    method_now(&api, "callIncoming", |a| call_incoming(a[0].clone().dyn_into()?));
-    method_now(&api, "callCands", |a| call_cands(sa(&a[0]), a[1].clone().dyn_into()?));
     /* ----- SNS ----- */
     am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3])).await);
     am!(api, "postShare", |a| rethrow(update_doc(d(&["posts", &sa(&a[0])]), o(&[("sh", inc(1.0))])).await));
     // 팔로우: 내 설정 문서의 follows (사람 번호 → true)
-    am!(api, "myFollows", |_a| {
-        let sn = get_doc(d(&["users", &uid_of()?])).await?;
-        let f_ = get(&data(&sn), "follows");
-        Ok(if f_.is_object() { js_sys::Object::keys(f_.unchecked_ref::<js_sys::Object>()).into() } else { js_sys::Array::new().into() })
-    });
-    am!(api, "follow", |a| {
-        let x = js_sys::Object::new();
-        set(&x, &sa(&a[0]), &if a[1].is_truthy() { JsValue::TRUE } else { f("deleteField", &[])? });
-        rethrow(set_merge(d(&["users", &uid_of()?]), o(&[("follows", x.into())])).await)
-    });
     method_now(&api, "postsWatch", |a| posts_watch(a[0].clone().dyn_into()?));
     am!(api, "postReplies", |a| post_replies(sa(&a[0])).await);
     am!(api, "postGet", |a| post_get(sa(&a[0])).await);
     am!(api, "postLike", |a| post_mark(sa(&a[0]), "likes", a[1].is_truthy()).await);
-    am!(api, "postRepost", |a| post_mark(sa(&a[0]), "reposts", a[1].is_truthy()).await);
     am!(api, "postDelete", |a| post_delete(sa(&a[0])).await);
     am!(api, "markRead", |a| {
         let k = format!("reads.{}", uid_of()?);

@@ -1,8 +1,6 @@
 //! 화면 부품. 한 화면씩 JS에서 옮겨 와요 (docs/rust-migration-plan.md 4).
 
 pub mod backdrop;
-pub mod balance;
-pub mod biz;
 pub mod beta;
 pub mod bounce;
 pub mod icons;
@@ -10,7 +8,6 @@ pub mod tabbar;
 pub mod chat;
 pub mod ctx;
 pub mod dom;
-pub mod factory;
 pub mod feedback;
 pub mod fire;
 pub mod glass;
@@ -18,19 +15,12 @@ pub mod play;
 pub mod trade;
 pub mod viewport;
 pub mod presence;
-pub mod inventory;
 pub mod invite;
 pub mod manage;
 pub mod money;
 pub mod notices;
 pub mod notify;
-pub mod parts;
-pub mod pay;
 pub mod profile;
 pub mod quickmenu;
 pub mod shell;
-pub mod shop;
 pub mod sns;
-pub mod vitals;
-pub mod wage;
-pub mod work;

@@ -95,13 +95,14 @@ pub async fn call(name: &str, args: &[JsValue]) -> Result<JsValue, CloudError> {
     }
 }
 
-pub fn shape<T: DeserializeOwned>(v: JsValue) -> Result<T, CloudError> {
-    serde_wasm_bindgen::from_value(v).map_err(|e| CloudError::new("shape", e.to_string()))
-}
 
 /* ---------- 공지 ---------- */
 
 /// 공지 한 개 (`firebase.src.js`의 `noticeOf`와 같은 모양)
+pub fn shape<T: DeserializeOwned>(v: JsValue) -> Result<T, CloudError> {
+    serde_wasm_bindgen::from_value(v).map_err(|e| CloudError::new("shape", e.to_string()))
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Notice {
     pub id: String,
@@ -174,10 +175,6 @@ pub struct ProfileHit {
     pub name: String,
 }
 
-/// 아이디나 이름 앞부분으로 찾아요 (최대 8명)
-pub async fn search_profiles(text: &str) -> Result<Vec<ProfileHit>, CloudError> {
-    shape(call("searchProfiles", &[JsValue::from_str(text)]).await?)
-}
 
 /// 멸공 지급 (아이디나 이름)
 pub async fn admin_grant(id: &str, amt: u32) -> Result<(), CloudError> {
@@ -222,79 +219,19 @@ impl Company {
     }
 }
 
-fn list_of(v: JsValue) -> Vec<JsValue> {
-    v.dyn_into::<Array>().map(|a| a.iter().collect()).unwrap_or_default()
-}
 
-/// 회사 목록 (이름으로 찾기)
-pub async fn list_companies(term: &str) -> Result<Vec<Company>, CloudError> {
-    Ok(list_of(call("listCompanies", &[JsValue::from_str(term)]).await?).iter().map(Company::from_js).collect())
-}
 
-/// 회사 한 곳 (없으면 None)
-pub async fn get_company(cid: &str) -> Result<Option<Company>, CloudError> {
-    let v = call("getCompany", &[JsValue::from_str(cid)]).await?;
-    Ok(if v.is_null() || v.is_undefined() { None } else { Some(Company::from_js(&v)) })
-}
 
-/// 내가 다니는 회사 기록 ({cid, kind, at}, 없으면 None)
-pub async fn load_my_job() -> Result<Option<JsValue>, CloudError> {
-    let v = call("loadMyJob", &[]).await?;
-    Ok(if v.is_null() || v.is_undefined() { None } else { Some(v) })
-}
 
-pub async fn apply_job(cid: &str, kind: &str) -> Result<(), CloudError> {
-    call("applyJob", &[JsValue::from_str(cid), JsValue::from_str(kind)]).await.map(|_| ())
-}
 
-pub async fn quit_job(cid: &str) -> Result<(), CloudError> {
-    call("quitJob", &[JsValue::from_str(cid)]).await.map(|_| ())
-}
 
-/// 연구실 숫자 (그대로의 값: nperf, cap, spd, pow, aiData, fperf, plv, cash, prod ...)
-pub async fn lab_get(cid: &str) -> Result<JsValue, CloudError> {
-    call("labGet", &[JsValue::from_str(cid)]).await
-}
 
-/// 연구실 숫자 바꾸기: f는 지금 숫자(L)를 받아 새 숫자를 돌려주는 JS 함수예요 (트랜잭션이 다시 부를 수 있어요)
-pub async fn lab_change(cid: &str, f: &JsValue) -> Result<(), CloudError> {
-    call("labChange", &[JsValue::from_str(cid), f.clone()]).await.map(|_| ())
-}
 
-/// 회사 상품 (그대로의 값)
-pub async fn list_products(cid: &str) -> Result<Vec<JsValue>, CloudError> {
-    Ok(list_of(call("listProducts", &[JsValue::from_str(cid)]).await?))
-}
 
-/// 일하기: 에너지가 내려가고 회사 식품 성능이 올라요. 바뀐 상태를 돌려줘요
-pub async fn staff_work(cid: &str, k: u32) -> Result<JsValue, CloudError> {
-    call("staffWork", &[JsValue::from_str(cid), JsValue::from(k)]).await
-}
 
-/// 공장 돌리기 (개수)
-pub async fn lab_start_factory(cid: &str, pid: &str, n: u32) -> Result<(), CloudError> {
-    call("labStartFactory", &[JsValue::from_str(cid), JsValue::from_str(pid), JsValue::from(n)]).await.map(|_| ())
-}
 
-/// 공장 추가 (500 멸공). 새 공장 대수를 돌려줘요
-pub async fn lab_buy_factory(cid: &str) -> Result<f64, CloudError> {
-    Ok(call("labBuyFactory", &[JsValue::from_str(cid)]).await?.as_f64().unwrap_or(0.0))
-}
 
-/// 공장 정산: 만든 만큼 재고가 늘어요. 이번에 만든 개수를 돌려줘요
-pub async fn lab_settle_factory(cid: &str) -> Result<f64, CloudError> {
-    let v = call("labSettleFactory", &[JsValue::from_str(cid)]).await?;
-    Ok(get(&v, "units").as_f64().unwrap_or(0.0))
-}
 
-/// 서버 시각 값(Timestamp)이나 숫자를 밀리초로
-pub fn ts_ms(v: &JsValue) -> f64 {
-    if let Some(n) = v.as_f64() {
-        return n;
-    }
-    let f = get(v, "toMillis");
-    f.dyn_ref::<Function>().and_then(|f| f.call0(v).ok()).and_then(|x| x.as_f64()).unwrap_or(0.0)
-}
 
 /* ---------- 상점 ---------- */
 
@@ -311,27 +248,6 @@ pub struct ShopItem {
     pub co_raw: JsValue,
 }
 
-/// 재고가 있는 음식 (회사별로 모아요)
-pub async fn list_shop() -> Result<Vec<ShopItem>, CloudError> {
-    let v = call("listShop", &[]).await?;
-    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
-    Ok(arr
-        .iter()
-        .map(|raw| {
-            let co_raw = get(&raw, "co");
-            ShopItem {
-                id: get(&raw, "id").as_string().unwrap_or_default(),
-                cid: get(&raw, "cid").as_string().unwrap_or_default(),
-                name: get(&raw, "name").as_string().unwrap_or_default(),
-                co_name: get(&co_raw, "name").as_string().unwrap_or_default(),
-                price_cents: get(&raw, "priceCents").as_f64().unwrap_or(0.0),
-                stock: get(&raw, "stock").as_f64().unwrap_or(0.0) as i64,
-                raw,
-                co_raw,
-            }
-        })
-        .collect())
-}
 
 /// 상점의 물건(컴퓨터)·자원(전기) 칸: 회사가 내놓은 단가와 재고
 #[derive(Debug, Clone, PartialEq)]
@@ -341,22 +257,6 @@ pub struct Offer {
     pub elec: f64,
 }
 
-/// kind: "pc"(물건) 또는 "nuclear"(자원)
-pub async fn list_offers(kind: &str) -> Result<Vec<Offer>, CloudError> {
-    let v = call("listOffers", &[JsValue::from_str(kind)]).await?;
-    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
-    Ok(arr
-        .iter()
-        .map(|o| {
-            let lab = get(&o, "L");
-            Offer {
-                co_name: get(&get(&o, "co"), "name").as_string().unwrap_or_default(),
-                price: get(&lab, "price").as_f64().unwrap_or(0.0),
-                elec: get(&lab, "elec").as_f64().unwrap_or(0.0),
-            }
-        })
-        .collect())
-}
 
 /* ---------- 인벤토리 ---------- */
 
@@ -373,44 +273,9 @@ pub struct InvItem {
     pub raw: JsValue,
 }
 
-#[derive(Deserialize)]
-struct InvShape {
-    id: String,
-    #[serde(default)]
-    cid: String,
-    #[serde(default)]
-    pid: String,
-    #[serde(default)]
-    group: String,
-    #[serde(default)]
-    name: String,
-    #[serde(default, rename = "coName")]
-    co_name: String,
-    #[serde(default)]
-    n: f64,
-}
 
-/// 내 인벤토리 (개수가 있는 칸만)
-pub async fn list_inventory() -> Result<Vec<InvItem>, CloudError> {
-    let v = call("listInventory", &[]).await?;
-    let arr: Array = v.dyn_into().map_err(|_| CloudError::new("shape", "목록이 아니에요"))?;
-    arr.iter()
-        .map(|raw| {
-            let s: InvShape = shape(raw.clone())?;
-            Ok(InvItem { id: s.id, cid: s.cid, pid: s.pid, group: s.group, name: s.name, co_name: s.co_name, n: s.n as i64, raw })
-        })
-        .collect()
-}
 
-/// 음식 한 개가 올리는 양 (회사 식품 성능으로 정해져요)
-pub async fn food_gain(cid: &str) -> Result<f64, CloudError> {
-    call("foodGain", &[JsValue::from_str(cid)]).await?.as_f64().ok_or_else(|| CloudError::new("shape", "숫자가 아니에요"))
-}
 
-/// 먹기: 칸이 한 개 줄고 상태가 올라가요. 돌아온 상태(`vit`)를 그대로 돌려줘요 (`gained`에 오른 양이 있어요)
-pub async fn eat_from_inventory(cid: &str, pid: &str, group: &str, vit: &JsValue) -> Result<JsValue, CloudError> {
-    call("eatFromInventory", &[JsValue::from_str(cid), JsValue::from_str(pid), JsValue::from_str(group), vit.clone()]).await
-}
 
 /* ---------- 도움 ---------- */
 
@@ -467,10 +332,6 @@ pub fn fmt_num(v: f64, max_frac: u32) -> String {
     out
 }
 
-/// 센트를 멸공 글자로 (80 → "0.8", 300 → "3")
-pub fn tok(cents: f64) -> String {
-    fmt_num(cents / 100.0, 2)
-}
 
 /// 콘솔에 경고를 남겨요
 pub fn warn(msg: &str) {

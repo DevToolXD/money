@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=141">
+<link rel="stylesheet" href="app/app.css?v=142">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -41,11 +41,6 @@
       <div id="money-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="money-root"></div>
     </section>
-    <section class="screen" id="screen-work" data-screen="work" data-title="일" aria-labelledby="title-work">
-      <header class="large-title"><h1 id="title-work">일</h1></header>
-      <div id="work-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
-      <div id="work-root"><p class="biz-loading">불러오는 중이에요</p></div>
-    </section>
     <section class="screen" id="screen-home" data-screen="home" data-title="홈" aria-labelledby="title-home">
       <header class="large-title"><h1 id="title-home">홈</h1></header>
       <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">soon</span></div><div class="hm-soon"><b>준비 중이에요</b><p>곧 새로운 홈을 보여 드릴게요</p></div></div>
@@ -67,26 +62,6 @@
       <header class="sns-head"><h1 id="title-play">놀기</h1></header>
       <p class="pl-lead">약속을 올리면 사람들이 참여해요. 고른 사람만 보게 할 수도 있어요.</p>
       <div class="sns-feed" id="play-feed" aria-label="약속"></div>
-    </section>
-    <section class="screen" id="screen-blank5" data-screen="blank5" data-title="무제" aria-labelledby="title-blank5">
-      <header class="large-title"><h1 id="title-blank5">무제</h1></header>
-      <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">empty</span></div><div class="inv-empty-glass"></div></div>
-    </section>
-    <section class="screen" id="screen-blank6" data-screen="blank6" data-title="무제" aria-labelledby="title-blank6">
-      <header class="large-title"><h1 id="title-blank6">무제</h1></header>
-      <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">empty</span></div><div class="inv-empty-glass"></div></div>
-    </section>
-    <section class="screen" id="screen-untitled" data-screen="untitled" data-title="무제" aria-labelledby="title-untitled">
-      <header class="large-title"><h1 id="title-untitled">무제</h1></header>
-      <p class="lead">아직 정해지지 않았어요.</p>
-      <div class="card"><div class="art warm"></div><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">이 탭에 무엇이 들어갈지 천천히 정해 가요.</p></div></div>
-      <h2 class="section-title">둘러보기</h2>
-      <div class="card skeletons" style="--rows: 4" aria-hidden="true"></div>
-    </section>
-    <section class="screen" id="screen-shop" data-screen="shop" data-title="상점" aria-labelledby="title-shop">
-      <header class="large-title"><h1 id="title-shop">상점</h1></header>
-      <p class="lead">필요한 것을 골라 보세요.</p>
-      <div id="shop-root" class="shop-root" aria-live="polite"><div class="card skeletons" style="--rows: 4" aria-hidden="true"></div></div>
     </section>
     <section class="screen" id="screen-ranking" data-screen="ranking" data-title="랭킹" aria-labelledby="title-ranking">
       <div id="rank-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
@@ -113,25 +88,6 @@
       <div id="notices-root" class="notices-root" aria-live="polite"></div>
     </section>
 
-    <section class="screen" id="screen-inventory" data-screen="inventory" data-title="인벤토리" aria-labelledby="title-inventory">
-      <header class="large-title"><h1 id="title-inventory">인벤토리</h1></header>
-      <div id="inv-root" class="inv-root" aria-live="polite"><div class="card skeletons" style="--rows: 4" aria-hidden="true"></div></div>
-    </section>
-    <section class="screen" id="screen-business" data-screen="business" data-title="사업" aria-labelledby="title-business">
-      <div id="biz-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
-      <div id="biz-root">
-        <header class="large-title"><h1 id="title-business">사업</h1><button class="biz-logo" id="biz-logo" type="button" aria-label="회사 마크" hidden></button></header>
-        <div class="card biz" id="biz-none" hidden><svg class="biz-tower" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 24.500V5.500a1 1 0 0 1 1-1h5.500a1 1 0 0 1 1 1V24.500M15.500 24.500V5.500a1 1 0 0 1 1-1H22a1 1 0 0 1 1 1V24.500M2.500 24.500h23M8.750 8.500V10M8.750 12.500V14M8.750 16.500V18M19.250 8.500V10M19.250 12.500V14M19.250 16.500V18"/></svg><h2 class="card-title">사업을 시작해 보세요</h2><p class="card-body">사업을 아직 시작하지 않았다면 시작해 보세요. 일반 직장보다 리스크는 크지만 훨씬 많은 돈을 벌 수도 있어요.</p><button class="btn primary" id="biz-start" type="button">10 멸공으로 창업하기</button></div>
-        <p class="biz-loading" id="biz-loading">불러오는 중이에요</p>
-        <div id="biz-dash" hidden>
-          <div class="card biz-hero"><span class="biz-mark" id="biz-mark"></span><div><h2 id="biz-name"></h2><p id="biz-since"></p></div></div>
-          <ul class="biz-log" id="biz-log" aria-live="polite" aria-label="방금 있었던 일" hidden></ul>
-          <div class="biz-switch" id="biz-switch" hidden></div>
-          <button class="btn" id="biz-more" type="button">회사 더 만들기 · 10 멸공</button>
-          <section class="biz-blk" data-blk="prod">
-          <h2 class="section-title" id="biz-prod-title">판매 중인 상품</h2>
-          <div class="card biz-prod"><ul class="biz-list" id="biz-list"></ul><p class="biz-empty" id="biz-empty" hidden>아직 파는 상품이 없어요</p><button class="btn primary" id="biz-pick" type="button">팔 상품 정하기</button></div>
-          </section>
           <section class="biz-blk" data-blk="lab">
           <div class="card biz-lab" id="biz-lab" hidden></div>
           </section>
@@ -179,10 +135,6 @@
       <div class="card inv-hero"><span class="inv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6"/><path d="M18 8v6M15 11h6"/></svg></span><h2>친구를 초대하고 50 멸공을 받으세요</h2><p>내 초대 링크로 친구가 가입하면, 친구 한 명마다 50 멸공을 받을 수 있어요. 받기는 아래에서 직접 눌러요.</p><button class="btn primary" id="invite-share" type="button">초대 링크 복사</button></div>
       <h2 class="section-title">초대한 친구</h2>
       <div class="card"><ul class="list" id="invite-list"><li class="inv-empty">아직 초대한 친구가 없어요</li></ul></div>
-    </section>
-    <section class="screen" id="screen-game" data-screen="game" data-title="게임" aria-labelledby="title-game">
-      <header class="large-title"><h1 id="title-game">게임</h1></header>
-      <div class="card"><div class="art-text"><p class="eyebrow">준비 중</p><h2 class="card-title">곧 만나요</h2><p class="card-body">게임 탭은 곧 열려요.</p></div></div>
     </section>
     <section class="screen" id="screen-feedback" data-screen="feedback" data-title="피드백" aria-labelledby="title-feedback">
       <header class="large-title"><h1 id="title-feedback">피드백</h1></header>
@@ -270,28 +222,6 @@
     <div class="sheet-foot"><button class="btn primary" id="new-go" type="button" hidden></button></div>
   </section>
 
-  <section class="sheet" id="company-sheet" aria-label="회사 프로필">
-    <div class="grabber"></div>
-    <div class="sheet-head"><button class="link" data-close type="button">닫기</button><h2>회사 프로필</h2><span style="width:36px"></span></div>
-    <div class="co-prof"><button type="button" class="co-photo" id="co-photo" aria-label="회사 마크 바꾸기"><span class="co-mark" id="co-mark"></span><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.500h3l1.600-2.500h6.800L17 8.500h3V19H4z"/><circle cx="12" cy="13.500" r="3.200"/></svg></i></button><input id="co-file" type="file" accept="image/*" hidden><h3 id="co-name" hidden></h3><label class="field co-edit">회사 이름<input id="co-name-in" type="text" maxlength="20" autocomplete="off" aria-label="회사 이름"></label><p id="co-since"></p><p class="login-error" id="co-edit-err" role="alert"></p><button class="btn primary" id="co-edit-save" type="button">저장</button></div>
-  </section>
-  <section class="sheet" id="found-sheet" aria-label="회사 만들기">
-    <div class="grabber"></div>
-    <div class="sheet-head"><button class="link" id="found-cancel" type="button">취소</button><h2>회사 만들기</h2><span style="width:36px"></span></div>
-    <p class="found-sub">회사 이름과 마크를 고르세요</p>
-    <button class="found-logo" id="found-logo" type="button" aria-label="회사 마크 고르기"><span class="found-logo-img" id="found-logo-img"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.500A2.500 2.500 0 0 1 6.500 6h1.200l1.300-2h6l1.300 2h1.200A2.500 2.500 0 0 1 20 8.500v8A2.500 2.500 0 0 1 17.500 19h-11A2.500 2.500 0 0 1 4 16.500z"/><circle cx="12" cy="12.500" r="3.200"/></svg></button>
-    <p class="field-l">업종</p>
-    <div class="found-kinds" id="found-kinds" role="group" aria-label="업종">
-      <button class="gg wk-pill" type="button" aria-pressed="true" data-kind="food">식품</button>
-      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="pc">컴퓨터</button>
-      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="ai">인공지능</button>
-      <button class="gg wk-pill" type="button" aria-pressed="false" data-kind="nuclear">원자력 발전</button>
-    </div>
-    <label class="field">회사 이름<input id="found-name" type="text" maxlength="20" placeholder="회사 이름을 적어 주세요" autocomplete="off"></label>
-    <p class="found-cost" id="found-cost"></p>
-    <p class="login-error" id="found-err" role="alert"></p>
-    <button class="btn primary found-go" id="found-go" type="button">10 멸공으로 창업하기</button>
-  </section>
 
   <section class="sheet dark" id="gift-sheet" aria-label="멸공 보내기">
     <div class="grabber"></div>
@@ -378,9 +308,6 @@
 
   <div class="ctx-back" id="ctx-back"><div class="ctx-menu" id="ctx-menu" role="menu"></div><div class="ctx-stack" id="ctx-stack"><div class="ctx-preview" id="ctx-preview"></div><div class="ctx-menu big" id="ctx-menu2" role="menu"></div></div></div>
 
-  <div class="vignette" id="vignette" aria-hidden="true"></div>
-  <div class="lock" id="lock" role="alert" hidden><div class="lock-card"><h2>쓰러졌어요</h2><p class="lock-n" id="lock-n"></p><p class="lock-t" id="lock-t"></p><p class="lock-sub">다시 일어나면 모든 상태가 10%예요</p></div></div>
-  <div class="status-fab" id="status-fab" hidden><div class="fab-tiles" id="fab-tiles"></div><button class="status-bubble" id="status-bubble" type="button" aria-label="상태 보기" aria-expanded="false"><svg class="fab-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.500M12 7.800h.01"/></svg><svg class="fab-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.800 8.800l6.400 6.400M15.200 8.800l-6.400 6.400"/></svg></button></div>
 
   <div class="sns-sheet" id="sns-compose" hidden><section class="sns-panel" role="dialog" aria-modal="true" aria-label="새 게시물"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>새 게시물</b><button type="button" class="sns-post" id="sns-post" disabled>올리기</button></header><div class="sns-cme" id="sns-cme"></div><textarea id="sns-text" class="sns-text" maxlength="500" rows="4" placeholder="무슨 일이 있었나요?" aria-label="게시물 글"></textarea><div id="sns-prev"></div><div class="sns-tools"><label class="sns-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-8 8"/></svg><span>사진</span><input id="sns-file" type="file" accept="image/*" hidden></label><label class="sns-tool sns-placebox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/></svg><input id="sns-place" maxlength="20" placeholder="장소" autocomplete="off" aria-label="장소"></label></div><p class="sns-pub">모두에게 보여요</p></section></div>
   <div class="sns-sheet" id="sns-share" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="보내기"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>보내기</b><button type="button" class="sns-post" id="sns-send" disabled>보내기</button></header><ul class="sns-sl" id="sns-sl"></ul></section></div>
@@ -424,6 +351,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=84"></script>
+<script type="module" src="app/rs/boot.js?v=85"></script>
 </body>
 </html>
