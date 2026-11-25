@@ -16,6 +16,7 @@ pub mod trade;
 pub mod viewport;
 pub mod presence;
 pub mod reels;
+pub mod reel_comments;
 pub mod invite;
 pub mod manage;
 pub mod map;

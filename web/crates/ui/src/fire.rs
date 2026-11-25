@@ -1375,6 +1375,41 @@ async fn presence_list() -> R {
     Ok(out.into())
 }
 
+/* ---------- 릴스 선물 ---------- */
+/// 글쓴이에게 멸공을 보내요: 선물 문서와 내 지갑을 같은 묶음으로 (규칙이 금액을 맞춰 봐요)
+async fn reel_gift(post: String, to: String, amount: f64) -> R {
+    let uid = uid_of()?;
+    let g = new_id(c(&["postGifts"]));
+    let b = batch();
+    m(&b, "set", &[g.clone(), o(&[("from", s(&uid)), ("to", s(&to)), ("post", s(&post)), ("amount", n(amount)), ("done", false.into()), ("at", ts())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-amount)), ("wt", ts()), ("op", o(&[("kind", s("rgift")), ("gid", get(&g, "id"))]))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(get(&g, "id"))
+}
+/// 나에게 온 릴스 선물 (최근 30개, 새것부터)
+async fn reel_gifts() -> R {
+    let snap = rethrow(get_docs(q(c(&["postGifts"]), vec![w(s("to"), "==", s(&uid_of()?)), lim(30.0)])).await)?;
+    let mut v: Vec<JsValue> = docs(&snap)
+        .iter()
+        .map(|dd| {
+            let x = data(dd);
+            o(&[("id", get(dd, "id")), ("from", get(&x, "from")), ("post", get(&x, "post")), ("amount", get(&x, "amount")), ("done", (get(&x, "done") == JsValue::TRUE).into()), ("at", n(ms(&get(&x, "at"))))])
+        })
+        .collect();
+    v.sort_by(|a, b| num(&get(b, "at")).partial_cmp(&num(&get(a, "at"))).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(v.into_iter().collect::<js_sys::Array>().into())
+}
+async fn reel_gift_claim(gid: String) -> R {
+    let gr = d(&["postGifts", &gid]);
+    let g = rethrow(get_doc(gr.clone()).await)?;
+    let amount = num(&get(&data(&g), "amount"));
+    let b = batch();
+    m(&b, "update", &[gr, o(&[("done", true.into())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(amount)), ("wt", ts()), ("op", o(&[("kind", s("rclaim")), ("gid", s(&gid))]))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(n(amount))
+}
+
 /* ---------- 게임 (독소전쟁 대항전) ---------- */
 /// 전체 점수 한 문서만 들어요 (r: 소련, b: 독일)
 fn game_watch(cb: js_sys::Function) -> R {
@@ -1542,6 +1577,7 @@ fn post_row(dd: &JsValue) -> JsValue {
         ("by", get(&v, "by")),
         ("text", get(&v, "text")),
         ("img", nn(get(&v, "img"))),
+        ("gif", nn(get(&v, "gif"))),
         ("at", n(ms(&get(&v, "at")))),
         ("parent", get(&v, "parent")),
         ("likes", n(count("likes"))),
@@ -1556,7 +1592,7 @@ fn post_row(dd: &JsValue) -> JsValue {
     ])
 }
 /// 새 글 (parent가 있으면 그 글의 댓글이에요)
-async fn post_create(text: String, img_: String, parent: String, topic: String) -> R {
+async fn post_create(text: String, img_: String, parent: String, topic: String, gif: String) -> R {
     // 처음 쓰는 글이면 "첫 스레드" 표시를 붙여요
     let me_ = uid_of()?;
     let mine = get_docs(q(c(&["posts"]), vec![w(s("by"), "==", s(&me_)), lim(1.0)])).await.map(|sn| docs(&sn).len()).unwrap_or(1);
@@ -1565,6 +1601,9 @@ async fn post_create(text: String, img_: String, parent: String, topic: String) 
     let data_ = o(&[("by", s(&uid_of()?)), ("text", s(&text)), ("at", ts()), ("likes", js_sys::Object::new().into()), ("reposts", js_sys::Object::new().into()), ("rc", n(0.0)), ("parent", s(&parent))]);
     if !img_.is_empty() {
         set(&data_, "img", &s(&img_));
+    }
+    if !gif.is_empty() {
+        set(&data_, "gif", &s(&gif));
     }
     let topic: String = topic.trim().chars().filter(|c| *c != '<' && *c != '>').take(20).collect();
     if !topic.is_empty() && parent.is_empty() {
@@ -1767,7 +1806,15 @@ fn build() -> js_sys::Object {
     });
     /* ----- 통화 ----- */
     /* ----- SNS ----- */
-    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3])).await);
+    am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
+    am!(api, "reelGift", |a| reel_gift(sa(&a[0]), sa(&a[1]), num(&a[2])).await);
+    am!(api, "reelGifts", |_a| reel_gifts().await);
+    am!(api, "giphyGet", |_a| {
+        let sn = get_doc(d(&["meta", "giphy"])).await?;
+        Ok(if exists(&sn) { get(&data(&sn), "key") } else { s("") })
+    });
+    am!(api, "giphySet", |a| rethrow(set_doc(d(&["meta", "giphy"]), o(&[("key", s(&sa(&a[0])))])).await));
+    am!(api, "reelGiftClaim", |a| reel_gift_claim(sa(&a[0])).await);
     am!(api, "postShare", |a| rethrow(update_doc(d(&["posts", &sa(&a[0])]), o(&[("sh", inc(1.0))])).await));
     // 팔로우: 내 설정 문서의 follows (사람 번호 → true)
     method_now(&api, "postsWatch", |a| posts_watch(a[0].clone().dyn_into()?));

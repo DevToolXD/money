@@ -21,12 +21,13 @@ struct Post {
     rc: f64,
     place: String,
     last: String,
+    gif: String,
 }
 impl Post {
     fn from_js(v: &JsValue) -> Post {
         let s = |k: &str| cloud::get(v, k).as_string().unwrap_or_default();
         let n = |k: &str| cloud::get(v, k).as_f64().unwrap_or(0.0);
-        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), liked: cloud::get(v, "liked") == JsValue::TRUE, rc: n("rc"), place: s("topic"), last: s("last") }
+        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), liked: cloud::get(v, "liked") == JsValue::TRUE, rc: n("rc"), place: s("topic"), last: s("last"), gif: s("gif") }
     }
 }
 
@@ -41,6 +42,10 @@ thread_local! {
     static LOADED: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
     static BUSY: Cell<bool> = const { Cell::new(false) };
+    /// 릴스로 받은 선물 (번호, 보낸 사람, 멸공, 받았는지, 시각)과 마지막으로 읽은 때
+    static GIFTS: RefCell<Vec<(String, String, f64, bool, f64)>> = const { RefCell::new(Vec::new()) };
+    static GIFT_AT: Cell<f64> = const { Cell::new(0.0) };
+    static CLAIMING: Cell<bool> = const { Cell::new(false) };
 }
 
 const HEART: &str = r#"<path d="M12 20.5s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.8c0 5.8-7.5 10.4-7.5 10.4z"/>"#;
@@ -67,6 +72,15 @@ fn me() -> (String, String) {
     let (n, p) = person(&my_uid());
     let n = if n.is_empty() { cloud::cloud().and_then(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string()).unwrap_or_default() } else { n };
     (n, p)
+}
+/// GIPHY 주소만 그대로 써요 (아니면 빈 글자)
+pub fn safe_gif(u: &str) -> &str {
+    let ok = u.strip_prefix("https://media.giphy.com/media/").and_then(|r| r.strip_suffix("/200w.webp")).is_some_and(|id| (5..=40).contains(&id.len()) && id.chars().all(|c| c.is_ascii_alphanumeric()));
+    if ok {
+        u
+    } else {
+        ""
+    }
 }
 /// 릴스 탭이 쓰는 게시물 목록 (번호, 쓴 사람, 글, 사진, 시각, 좋아요 수, 내가 좋아요, 댓글 수)
 pub fn reel_posts() -> Vec<(String, String, String, String, f64, f64, bool, f64)> {
@@ -197,6 +211,7 @@ fn load_last() {
                 if !v.is_null() {
                     let by = cloud::get(&v, "by").as_string().unwrap_or_default();
                     let t = cloud::get(&v, "text").as_string().unwrap_or_default();
+                    let t = if t.is_empty() && cloud::get(&v, "gif").is_truthy() { "GIF".to_string() } else { t };
                     let _ = cloud::call("fetchProfiles", &[js_sys::Array::of1(&JsValue::from_str(&by)).into()]).await;
                     LAST.with(|l| l.borrow_mut().insert(id, (by, t)));
                     paint_feed();
@@ -323,7 +338,7 @@ async fn load_replies(id: String) {
         .iter()
         .map(|r| {
             let (n, ph) = person(&r.by);
-            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), dom::avatar_html(&n, &ph, "avatar contact sns-cav"), esc(&n), crate::profile::blue(&r.by), ago(r.at), esc(&r.text))
+            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), dom::avatar_html(&n, &ph, "avatar contact sns-cav"), esc(&n), crate::profile::blue(&r.by), ago(r.at), if r.gif.is_empty() { esc(&r.text) } else { format!(r#"<img class="sns-gif" src="{}" alt="GIF" loading="lazy">"#, esc(safe_gif(&r.gif))) })
         })
         .collect();
     if let Some(l) = by_id("sns-rl") {
@@ -433,6 +448,100 @@ fn send_share() {
     });
 }
 
+/* ---------- 알림: 릴스로 받은 멸공 선물 (종을 누르면 받아요) ---------- */
+
+/// 받은 선물을 읽어요. 서버를 아끼려고 30초 안에는 다시 읽지 않아요 (force면 바로)
+pub fn gifts_refresh(force: bool) {
+    if !cloud::signed_in() || (!force && js_sys::Date::now() - GIFT_AT.get() < 30_000.0) {
+        return;
+    }
+    GIFT_AT.set(js_sys::Date::now());
+    spawn_local(async {
+        let Ok(v) = cloud::call("reelGifts", &[]).await else { return };
+        let list: Vec<(String, String, f64, bool, f64)> = js_sys::Array::from(&v)
+            .iter()
+            .map(|g| {
+                let st = |k: &str| cloud::get(&g, k).as_string().unwrap_or_default();
+                (st("id"), st("from"), cloud::get(&g, "amount").as_f64().unwrap_or(0.0), cloud::get(&g, "done") == JsValue::TRUE, cloud::get(&g, "at").as_f64().unwrap_or(0.0))
+            })
+            .collect();
+        let who: js_sys::Array = list.iter().map(|g| JsValue::from_str(&g.1)).collect();
+        GIFTS.with(|g| *g.borrow_mut() = list);
+        paint_noti();
+        let _ = cloud::call("fetchProfiles", &[who.into()]).await;
+        paint_noti();
+    });
+}
+fn paint_noti() {
+    let list = GIFTS.with(|g| g.borrow().clone());
+    if let Some(d) = by_id("sn-dot") {
+        d.set_hidden(!list.iter().any(|g| !g.3));
+    }
+    let Some(l) = by_id("sn-list") else { return };
+    let html: String = list
+        .iter()
+        .map(|(id, from, amt, done, at)| {
+            let (n, ph) = person(from);
+            let act = if *done { r#"<span class="sn-done">받음</span>"#.to_string() } else { format!(r#"<button type="button" class="sn-take" data-gid="{}">받기</button>"#, esc(id)) };
+            format!(
+                r#"<li class="sn-row"><button type="button" class="sns-who" data-uid="{}">{}</button><p><b>{}</b>님이 내 릴스에 <b>{} 멸공</b>을 선물했어요 <small>{}</small></p>{act}</li>"#,
+                esc(from),
+                dom::avatar_html(&n, &ph, "avatar contact sns-cav"),
+                esc(&n),
+                cloud::fmt_num(*amt, 0),
+                ago(*at)
+            )
+        })
+        .collect();
+    dom::set_html_if(&l, &if html.is_empty() { r#"<p class="sns-none">아직 알림이 없어요. 릴스로 멸공 선물을 받으면 여기서 받을 수 있어요</p>"#.into() } else { html });
+}
+fn open_noti() {
+    if !cloud::signed_in() {
+        return crate::shell::toast("로그인하면 알림을 볼 수 있어요");
+    }
+    paint_noti();
+    sheet(true, "sns-noti");
+    gifts_refresh(true);
+}
+fn on_noti_click(e: web_sys::Event) {
+    if let Some(b) = dom::closest(&e, "[data-uid]") {
+        let uid = dom::data(&b, "uid");
+        return crate::profile::show(&uid, &person(&uid).0, None);
+    }
+    let Some(b) = dom::closest(&e, "[data-gid]") else { return };
+    let gid = dom::data(&b, "gid");
+    if CLAIMING.replace(true) {
+        return;
+    }
+    let _ = b.set_attribute("disabled", "");
+    b.set_text_content(Some("받는 중"));
+    dom::vibrate(8);
+    spawn_local(async move {
+        let g2 = gid.clone();
+        let f = Closure::once_into_js(move || cloud::call_now("reelGiftClaim", &[JsValue::from_str(&g2)]).unwrap_or(JsValue::UNDEFINED));
+        let r = cloud::settle(crate::money::wallet_op(f.unchecked_into()).into()).await;
+        CLAIMING.set(false);
+        match r {
+            Ok(v) => {
+                let amt = v.as_f64().unwrap_or(0.0);
+                let from = GIFTS.with(|g| {
+                    let mut g = g.borrow_mut();
+                    let x = g.iter_mut().find(|x| x.0 == gid);
+                    x.map(|x| {
+                        x.3 = true;
+                        x.1.clone()
+                    })
+                });
+                let name = from.map(|f| person(&f).0).unwrap_or_default();
+                crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{name}님의 릴스 선물"))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", amt.into())]));
+                crate::shell::toast(&format!("멸공 {}을 받았어요", cloud::fmt_num(amt, 0)));
+            }
+            Err(e) => crate::shell::toast(&format!("받지 못했어요. {}", cloud::why(&e.code))),
+        }
+        paint_noti();
+    });
+}
+
 /* ---------- 새 게시물 ---------- */
 
 fn sheet(on: bool, id: &str) {
@@ -530,7 +639,7 @@ fn bind() {
         });
     }
     if let Some(b) = by_id("sns-bell") {
-        dom::on(&b, "click", |_| crate::shell::toast("새 알림이 없어요"));
+        dom::on(&b, "click", |_| open_noti());
     }
     if let Some(f) = by_id("sns-feed") {
         dom::on(&f, "click", on_feed_click);
@@ -547,7 +656,10 @@ fn bind() {
             }
         });
     }
-    for id in ["sns-compose", "sns-replies", "sns-share"] {
+    if let Some(l) = by_id("sn-list") {
+        dom::on(&l, "click", on_noti_click);
+    }
+    for id in ["sns-compose", "sns-replies", "sns-share", "sns-noti"] {
         if let Some(s) = by_id(id) {
             let id2 = id.to_string();
             dom::on(&s, "click", move |e| {
@@ -625,6 +737,7 @@ pub fn open() {
         return;
     }
     watch();
+    gifts_refresh(false);
     if LOADED.replace(true) {
         return;
     }

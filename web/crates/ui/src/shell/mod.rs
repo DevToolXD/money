@@ -144,6 +144,9 @@ fn scroll_to_top(name: &str) {
 pub(crate) fn go_screen(name: &str) {
     show_screen(name);
     if name == "manage" {
+        crate::reel_comments::bind_manage();
+    }
+    if name == "manage" {
         crate::manage::refresh();
     }
     if name == "notices" {
@@ -366,6 +369,7 @@ fn setup_tabbar(first: &str) {
             dom::reveal(&sc);
         }
         crate::chat::leave(&name);
+        crate::reel_comments::close();
 
         set_title(&name);
         if let Some(sc) = screen(&name) {

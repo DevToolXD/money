@@ -1008,6 +1008,32 @@ service cloud.firestore {
 
         );
 
+      // 릴스 선물 (따로 둔 까닭: 위 줄에 더하면 규칙 계산 한도를 넘어요)
+      function reelGiftPath(g) { return /databases/$(database)/documents/postGifts/$(g); }
+      allow update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
+        && request.resource.data.wt == request.time
+        && request.time >= resource.data.wt + duration.value(2, 's')
+        && request.resource.data.bal is int
+        && request.resource.data.bal >= 0
+        && request.resource.data.rate == resource.data.rate
+        && request.resource.data.t == resource.data.t
+        && request.resource.data.op.gid is string
+        && (
+          // 보내기: 같은 묶음에서 만든 선물 문서의 금액만큼만 줄어요
+          (request.resource.data.op.kind == 'rgift'
+            && !exists(reelGiftPath(request.resource.data.op.gid))
+            && getAfter(reelGiftPath(request.resource.data.op.gid)).data.from == uid
+            && request.resource.data.bal == resource.data.bal - getAfter(reelGiftPath(request.resource.data.op.gid)).data.amount)
+          ||
+          // 받기: 나에게 온, 아직 안 받은 선물을 받음으로 바꾸는 묶음에서만 그 금액만큼 늘어요
+          (request.resource.data.op.kind == 'rclaim'
+            && get(reelGiftPath(request.resource.data.op.gid)).data.to == uid
+            && get(reelGiftPath(request.resource.data.op.gid)).data.done == false
+            && getAfter(reelGiftPath(request.resource.data.op.gid)).data.done == true
+            && request.resource.data.bal == resource.data.bal + get(reelGiftPath(request.resource.data.op.gid)).data.amount)
+        );
+
       // 땅 거래 (따로 둔 까닭: 위 줄에 더하면 규칙 계산 한도를 넘어요)
       allow update: if isMe(uid)
         && request.resource.data.keys().hasOnly(['bal', 'rate', 't', 'wt', 'op'])
@@ -1148,6 +1174,12 @@ service cloud.firestore {
     }
 
     // ----- 공지 목록: 오너가 올린 공지 id를 최신순으로 적어요 (인증토큰 확인은 같은 묶음에서) -----
+    // GIF 검색 키 (GIPHY 공개 키): 누구나 읽고, 관리자만 바꿔요
+    match /meta/giphy {
+      allow get: if signedIn();
+      allow write: if isOwner() && request.resource.data.keys().hasOnly(['key'])
+        && request.resource.data.key is string && request.resource.data.key.matches('^[A-Za-z0-9]{10,64}$');
+    }
     match /meta/noticeIndex {
       allow get: if signedIn();
       allow write: if isOwner() && adminDelOk() && request.resource.data.keys().hasOnly(['ids'])
@@ -1446,16 +1478,41 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
 
+    // 릴스 선물: 보낸 사람 지갑이 같은 묶음에서 그만큼 줄어야 만들어지고, 받는 사람만 한 번 받을 수 있어요
+    match /postGifts/{gid} {
+      function walletAfter() { return getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data; }
+      allow get: if signedIn() && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow list: if signedIn() && request.query.limit <= 30 && resource.data.to == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'post', 'amount', 'done', 'at'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string && request.resource.data.to != request.auth.uid
+        && request.resource.data.post is string
+        && get(postPath(request.resource.data.post)).data.by == request.resource.data.to
+        && request.resource.data.amount is int && request.resource.data.amount >= 1 && request.resource.data.amount <= 99999999
+        && request.resource.data.done == false
+        && request.resource.data.at == request.time
+        && walletAfter().op.kind == 'rgift' && walletAfter().op.gid == gid && walletAfter().wt == request.time;
+      allow update: if signedIn()
+        && resource.data.to == request.auth.uid
+        && resource.data.done == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done'])
+        && request.resource.data.done == true
+        && walletAfter().op.kind == 'rclaim' && walletAfter().op.gid == gid && walletAfter().wt == request.time;
+    }
+
     match /posts/{id} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'at', 'likes', 'reposts', 'rc', 'parent', 'last', 'topic', 'first', 'sh'])
+        && request.resource.data.keys().hasOnly(['by', 'text', 'img', 'gif', 'at', 'likes', 'reposts', 'rc', 'parent', 'last', 'topic', 'first', 'sh'])
+        // GIF: GIPHY 그림 주소만 (번호와 크기 이름만 쓸 수 있어요)
+        && (!('gif' in request.resource.data) || (request.resource.data.gif is string && request.resource.data.gif.matches('^https://media[.]giphy[.]com/media/[A-Za-z0-9]{5,40}/200w[.]webp$')))
         && (!('topic' in request.resource.data) || (request.resource.data.topic is string && request.resource.data.topic.matches('^[^<>]{1,20}$')))
         && (!('first' in request.resource.data) || request.resource.data.first is bool)
         && request.resource.data.get('sh', 0) == 0
         && request.resource.data.by == request.auth.uid
         && request.resource.data.text is string && request.resource.data.text.size() <= 500
-        && (request.resource.data.text.size() >= 1 || request.resource.data.get('img', '') != '')
+        && (request.resource.data.text.size() >= 1 || request.resource.data.get('img', '') != '' || request.resource.data.get('gif', '') != '')
         && (request.resource.data.get('img', '') == '' || img(request.resource.data.img, 300000))
         && request.resource.data.at == request.time
         && request.resource.data.likes == {} && request.resource.data.reposts == {}

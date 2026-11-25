@@ -76,14 +76,7 @@ fn bind() {
         let id = dom::data(&s, "id");
         match dom::data(&b, "act").as_str() {
             "like" => crate::sns::toggle_like(&id),
-            _ => {
-                // 댓글은 SNS 탭에서 봐요
-                if let Some(t) = dom::doc().query_selector(".tabbar .tab[data-tab=\"untitled3\"]").ok().flatten() {
-                    if let Ok(t) = wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlElement>(t) {
-                        t.click();
-                    }
-                }
-            }
+            _ => crate::reel_comments::open(&id),
         }
     });
 }
@@ -123,5 +116,6 @@ pub fn open() {
         bind();
     }
     crate::sns::ensure_watch();
+    crate::sns::gifts_refresh(false);
     repaint();
 }

@@ -251,6 +251,66 @@ await t("선물 받기: 받는 사람이 한 번만, 선물 금액만큼만 받�
   await sleep(2100);
   await assertFails(claim(bob, 1250000 + 600).commit()); // 두 번 받기
 });
+await t("릴스 선물: 글쓴이에게 보낸 만큼만 지갑이 줄고, 받는 사람이 한 번만 받아요", async () => {
+  await seed(async (s) => {
+    await seedBase(s);
+    await setDoc(doc(s, "posts/p1"), { by: "uB", text: "릴스", at: Timestamp.now(), likes: {}, reposts: {}, rc: 0, parent: "" });
+  });
+  const A = pw("uA", "alice");
+  const give = (db, to, amount, bal) => {
+    const g = doc(collection(db, "postGifts"));
+    const b = writeBatch(db);
+    b.set(g, { from: "uA", to, post: "p1", amount, done: false, at: serverTimestamp() });
+    b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "rgift", gid: g.id } });
+    return { b, g };
+  };
+  await assertFails(give(A, "uB", 500, 1250000 - 100).b.commit()); // 덜 빼기
+  await assertFails(give(A, "uC", 500, 1250000 - 500).b.commit()); // 글쓴이가 아닌 사람에게
+  await assertFails(give(A, "uB", 2000000, 1250000 - 2000000).b.commit()); // 잔액보다 많이
+  await assertFails(setDoc(doc(A, "postGifts/x1"), { from: "uA", to: "uB", post: "p1", amount: 500, done: false, at: serverTimestamp() })); // 지갑 없이
+  const ok = give(A, "uB", 500, 1250000 - 500);
+  await assertSucceeds(ok.b.commit());
+  const B = pw("uB", "bob");
+  await assertSucceeds(getDocs(query(collection(B, "postGifts"), where("to", "==", "uB"), limit(30))));
+  await assertFails(getDocs(query(collection(B, "postGifts"), limit(30)))); // 남의 선물까지 보기
+  const claim = (db, uid, bal) => {
+    const b = writeBatch(db);
+    b.update(doc(db, `postGifts/${ok.g.id}`), { done: true });
+    b.update(doc(db, `wallets/${uid}`), { bal, wt: serverTimestamp(), op: { kind: "rclaim", gid: ok.g.id } });
+    return b;
+  };
+  await assertFails(claim(B, "uB", 1250000 + 5000).commit()); // 더 받기
+  await sleep(2100);
+  await assertFails(claim(A, "uA", 1250000 - 500 + 500).commit()); // 보낸 사람이 받기
+  await assertSucceeds(claim(B, "uB", 1250000 + 500).commit());
+  await sleep(2100);
+  await assertFails(claim(B, "uB", 1250000 + 1000).commit()); // 두 번 받기
+});
+await t("GIF 댓글: GIPHY 주소만", async () => {
+  await seed(async (s) => {
+    await seedBase(s);
+    await setDoc(doc(s, "posts/p1"), { by: "uB", text: "릴스", at: Timestamp.now(), likes: {}, reposts: {}, rc: 0, parent: "" });
+  });
+  const A = pw("uA", "alice");
+  const reply = (gif) => {
+    const r = doc(collection(A, "posts"));
+    const b = writeBatch(A);
+    b.set(r, { by: "uA", text: "", gif, at: serverTimestamp(), likes: {}, reposts: {}, rc: 0, parent: "p1" });
+    b.update(doc(A, "posts/p1"), { rc: increment(1), last: r.id });
+    return b.commit();
+  };
+  await assertFails(reply("https://evil.example/x.webp"));
+  await assertFails(reply("javascript:alert(1)"));
+  await assertSucceeds(reply("https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/200w.webp"));
+});
+await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  await assertFails(setDoc(doc(A, "meta/giphy"), { key: "abcdefghij12345" }));
+  await assertSucceeds(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "abcdefghij12345" }));
+  await assertFails(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "<script>" }));
+  await assertSucceeds(getDoc(doc(A, "meta/giphy")));
+});
 await t("접속 표시: 내 것만, 시각만", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");

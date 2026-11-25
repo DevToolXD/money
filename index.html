@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com; font-src 'self'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://media.giphy.com; font-src 'self'; connect-src 'self' https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=150">
+<link rel="stylesheet" href="app/app.css?v=153">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -84,6 +84,8 @@
       <div id="manage-root" class="manage-root" aria-live="polite"></div>
       <h2 class="section-title">받은 피드백</h2>
       <div class="card"><ul class="list fb-list" id="fb-list"><li class="inv-empty">불러오는 중이에요</li></ul></div>
+      <h2 class="section-title">GIF 검색 (GIPHY)</h2>
+      <div class="card gk-card"><p class="beta-x">릴스 댓글에서 GIF를 검색하려면 GIPHY 키가 필요해요. developers.giphy.com 에서 무료로 만든 키를 붙여 넣으세요. 키는 서버에 저장돼 모두가 같이 써요.</p><div class="gk-row"><input id="giphy-key" class="gk-in" maxlength="64" autocomplete="off" spellcheck="false" placeholder="GIPHY API 키" aria-label="GIPHY API 키"><button class="btn primary gk-save" id="giphy-save" type="button">저장</button></div></div>
       <h2 class="section-title">베타 종료</h2>
       <div class="card beta-card"><p class="beta-x" id="beta-text">모든 사람의 데이터(관리자 포함)를 한꺼번에 지워요. 딱 한 번만 할 수 있고 되돌릴 수 없어요. 끝나면 로그아웃되고, 관리자는 owner로 다시 로그인하면 새로 시작해요.</p><button class="btn beta-btn" id="beta-end" type="button">베타 종료하고 모두 초기화</button></div>
     </section>
@@ -92,7 +94,7 @@
       <div id="notices-root" class="notices-root" aria-live="polite"></div>
     </section>
     <section class="screen" id="screen-untitled3" data-screen="untitled3" data-title="SNS" data-notitle aria-labelledby="title-untitled3">
-      <header class="sns-head"><h1 id="title-untitled3">SNS</h1><div class="sns-right"><button class="sns-bell" id="sns-bell" type="button" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></button><span class="sns-me" id="sns-me"></span></div></header>
+      <header class="sns-head"><h1 id="title-untitled3">SNS</h1><div class="sns-right"><button class="sns-bell" id="sns-bell" type="button" aria-label="알림"><i class="sn-dot" id="sn-dot" hidden></i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></button><span class="sns-me" id="sns-me"></span></div></header>
       <div class="sns-people" id="sns-people" role="list" aria-label="사람들"></div>
       <div class="sns-feed" id="sns-feed" aria-label="게시물"></div>
     </section>
@@ -296,6 +298,19 @@
       <div class="pl-people" id="pl-people" hidden></div>
     </div>
   </section></div>
+  <!-- 릴스 댓글: 게시물은 위로 작게 줄고, 아래에서 어두운 판이 올라와요 (인스타 릴스처럼) -->
+  <div class="rc" id="rc" hidden>
+    <div class="rc-top" id="rc-top" aria-label="댓글 닫기"></div>
+    <section class="rc-sheet" id="rc-sheet" role="dialog" aria-modal="true" aria-label="댓글">
+      <div class="rc-grab" id="rc-grab"><span></span></div>
+      <ul class="rc-list" id="rc-list"></ul>
+      <div class="rc-gif" id="rc-gif" hidden><label class="rc-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="rc-q" type="search" placeholder="GIPHY 검색" autocomplete="off" enterkeyhint="search" aria-label="GIF 검색"></label><div class="rc-grid" id="rc-grid"></div></div>
+      <div class="rc-gift" id="rc-gift" hidden><p class="rc-gt" id="rc-gt"></p><p class="rc-gb" id="rc-gb"></p><div class="rc-amt"><input id="rc-amt" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="선물할 멸공"><span>멸공</span></div><div class="rc-chips" id="rc-chips"><button type="button" data-v="100">100</button><button type="button" data-v="500">500</button><button type="button" data-v="1000">1,000</button><button type="button" data-v="10000">10,000</button></div><button type="button" class="rc-send" id="rc-send">선물하기</button></div>
+      <form class="rc-bar" id="rc-form"><span class="rc-me" id="rc-me"></span><label class="rc-field"><input id="rc-in" maxlength="300" placeholder="대화에 참여하세요..." autocomplete="off" enterkeyhint="send" aria-label="댓글 달기"><button type="button" class="rc-gifb" id="rc-gifb" aria-label="GIF 보내기">GIF</button></label><button type="button" class="rc-giftb" id="rc-giftb" aria-label="멸공 선물"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20h14v-7.5M12 8.5V20"/><path d="M12 8.5C10.5 5 7 4.5 7 6.6 7 8.2 9.5 8.5 12 8.5zM12 8.5c1.5-3.5 5-4 5-1.9 0 1.6-2.5 1.9-5 1.9z"/></svg></button></form>
+    </section>
+  </div>
+  <!-- SNS 알림: 릴스로 받은 멸공 선물을 여기서 받아요 -->
+  <div class="sns-sheet" id="sns-noti" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="알림"><span class="sns-grab"></span><header class="sns-sh"><span></span><b>알림</b><button type="button" class="sns-x" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></header><ul class="sn-list" id="sn-list"></ul></section></div>
   <div class="sns-sheet" id="sns-replies" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="댓글"><span class="sns-grab"></span><header class="sns-sh"><span></span><b>댓글</b><button type="button" class="sns-x" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></header><ul class="sns-rl" id="sns-rl"></ul><form class="sns-rf" id="sns-rf"><input id="sns-ri" class="sns-ci" maxlength="300" placeholder="댓글 달기..." aria-label="댓글 달기" autocomplete="off"><button type="submit" class="sns-send" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5 21 3z"/></svg></button></form></section></div>
 
   <div class="dock">
@@ -317,6 +332,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=97"></script>
+<script type="module" src="app/rs/boot.js?v=100"></script>
 </body>
 </html>
