@@ -69,6 +69,7 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   await a.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]').click()); await a.waitForTimeout(1500);
   await a.click('.row:has-text("우리방"), .chat-row:has-text("우리방"), [data-id]:has-text("우리방")'); await a.waitForTimeout(1500);
   await a.click('#thread-name-btn'); await a.waitForTimeout(800);
+  await a.click('#cinfo [data-act="edit"]'); await a.waitForTimeout(800);
   ok('단톡방 설정 판', await a.isVisible('#group-sheet') && await a.isVisible('#grp-name'));
   ok('배경 고르기도 있어요', (await a.$$('#group-sheet [data-pick]')).length === 5);
   await a.fill('#grp-name', '새 방이름'); await a.press('#grp-name', 'Enter'); await a.waitForTimeout(2000);

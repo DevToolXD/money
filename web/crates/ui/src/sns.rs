@@ -68,6 +68,33 @@ fn me() -> (String, String) {
     let n = if n.is_empty() { cloud::cloud().and_then(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string()).unwrap_or_default() } else { n };
     (n, p)
 }
+/// 릴스 탭이 쓰는 게시물 목록 (번호, 쓴 사람, 글, 사진, 시각, 좋아요 수, 내가 좋아요, 댓글 수)
+pub fn reel_posts() -> Vec<(String, String, String, String, f64, f64, bool, f64)> {
+    POSTS.with(|p| p.borrow().iter().map(|x| (x.id.clone(), x.by.clone(), x.text.clone(), x.img.clone(), x.at, x.likes, x.liked, x.rc)).collect())
+}
+/// 좋아요 누르기·취소 (릴스에서도 써요)
+pub fn toggle_like(id: &str) {
+    let id = id.to_string();
+    let on = !POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).map(|p| p.liked).unwrap_or(false));
+    patch(&id, |p| {
+        p.liked = on;
+        p.likes = (p.likes + if on { 1.0 } else { -1.0 }).max(0.0);
+    });
+    dom::vibrate(8);
+    paint_feed();
+    spawn_local(async move {
+        if cloud::call("postLike", &[JsValue::from_str(&id), on.into()]).await.is_err() {
+            crate::shell::toast("좋아요를 못 했어요");
+        }
+    });
+}
+/// 게시물을 듣기 시작해요 (릴스 탭을 먼저 열어도 글이 와요)
+pub fn ensure_watch() {
+    if cloud::signed_in() {
+        bind_once();
+        watch();
+    }
+}
 pub fn ago(at: f64) -> String {
     let s = ((js_sys::Date::now() - at) / 1000.0).max(0.0);
     if s < 60.0 {
@@ -157,6 +184,7 @@ fn paint_feed() {
     if was_empty && filled {
         dom::reveal(&el);
     }
+    crate::reels::repaint();
 }
 
 /// 댓글이 있는 글의 마지막 댓글을 읽어 와요 (아직 모르는 것만)

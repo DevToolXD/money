@@ -12,6 +12,8 @@ const open = async (b) => {
   const errs = []; page.on('pageerror', (e) => errs.push(e.message));
   await page.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
   await page.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+  // 위성 사진은 밖으로 나가지 않고 작은 그림으로 대신해요
+  await page.route('https://server.arcgisonline.com/**', (r) => r.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }));
   await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
   return { page, errs };
 };
@@ -80,15 +82,16 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.waitForTimeout(2000);
   ok('상태 버튼은 숨어 있어요', await p.isHidden('#status-fab'));
   const labels = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
-  ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,홈,랭킹,SNS');
-  await tab(p, 'home'); await p.waitForTimeout(1500);
-  ok('홈 탭: 준비 중', (await active(p)) === 'home' && (await text(p, '#screen-home')).includes('준비 중'));
-  await tab(p, 'map'); await p.waitForTimeout(1500);
-  ok('지도 탭: 준비 중', (await active(p)) === 'map' && (await text(p, '#screen-map')).includes('준비 중'));
-  await tab(p, 'blank3'); await p.waitForTimeout(1200);
-  ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank3' && (await text(p, '#screen-blank3')).includes('empty'));
+  ok('첫 쪽: 메시지·릴스·랭킹·SNS', labels.join(',') === '메시지,릴스,랭킹,SNS');
+  await tab(p, 'reels'); await p.waitForTimeout(1500);
+  ok('릴스 탭: 게시물이 없으면 안내', (await active(p)) === 'reels' && (await text(p, '#reels')).includes('아직 게시물이 없어요'));
+  await tab(p, 'map'); await p.waitForTimeout(2000);
+  ok('지도 탭: 위성 사진 조각', (await active(p)) === 'map' && (await p.evaluate(() => document.querySelectorAll('#map-tiles img.map-tile').length)) > 3);
+  ok('지도: 워터마크 없이 출처 한 줄', (await text(p, '.map-attr')).includes('Esri'));
+  await tab(p, 'game'); await p.waitForTimeout(2500);
+  ok('게임 탭: 지도와 팀 고르기', (await active(p)) === 'game' && (await p.evaluate(() => document.querySelectorAll('#gm-regs path').length)) === 20 && await p.isVisible('.gm-team.r') && await p.isVisible('.gm-team.b'));
   const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
-  ok('둘째 쪽: 놀기 + 무제 3개', labels2.join(',') === '놀기,지도,거래,무제');
+  ok('둘째 쪽: 놀기·지도·거래·게임', labels2.join(',') === '놀기,지도,거래,게임');
   await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
 
   // 위쪽 바: 내리면 작은 제목이 나와요

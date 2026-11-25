@@ -32,9 +32,7 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   ok('메시지를 누르면 대화가 열려요', (await p.textContent('#thread-name')).includes('카드주인'));
   ok('카드는 닫혀요', !(await p.isVisible('.pf-card')));
   await p.click('#thread-avatar'); await p.waitForTimeout(700);
-  ok('대화 사진을 누르면 카드', await p.isVisible('.pf.on .pf-card'));
-  await p.mouse.click(195, 80); await p.waitForTimeout(600);
-  ok('밖을 누르면 닫혀요', !(await p.isVisible('.pf-card')));
+  ok('대화 사진을 누르면 대화 정보 (아이폰 메시지처럼)', await p.isVisible('#cinfo .ci-panel') && (await p.textContent('#cinfo')).includes('카드주인'));
   ok('화면 오류 없음', p.errs.length === 0); if (p.errs.length) console.log(p.errs.slice(0, 2));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close(); process.exit(res.every(Boolean) ? 0 : 1);

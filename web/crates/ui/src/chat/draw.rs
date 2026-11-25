@@ -27,6 +27,19 @@ thread_local! {
     /// 다시 그리기는 한 화면에 한 번만 해요
     static QUEUED: Cell<bool> = const { Cell::new(false) };
 }
+/// 펜 색을 바꾸고, 고른 색에 표시를 하고, 펜 버튼도 그 색으로 칠해요
+fn set_ink(c: &str) {
+    INK.with(|i| *i.borrow_mut() = c.to_string());
+    if let Some(p) = by_id("palette") {
+        for b in dom::qsa(&p, "[data-c]") {
+            let _ = b.set_attribute("aria-pressed", &(dom::data(&b, "c") == c).to_string());
+        }
+    }
+    if let Some(b) = by_id("draw-pen") {
+        let _ = b.style().set_property("color", c);
+    }
+    dom::vibrate(6);
+}
 fn canvas() -> Option<web_sys::HtmlCanvasElement> {
     by_id("draw-canvas")?.dyn_into().ok()
 }
@@ -68,7 +81,7 @@ pub fn open() {
     el.set_hidden(false);
     STROKES.with(|s| s.borrow_mut().clear());
     REDO.with(|s| s.borrow_mut().clear());
-    dom::set_hidden("palette", true);
+    set_ink(COLORS[0]);
     let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).clamp(1.0, 2.0);
     DPR.set(dpr);
     leptos::prelude::request_animation_frame(move || {
@@ -134,21 +147,17 @@ async fn ok() {
 
 pub fn init() {
     if let Some(p) = by_id("palette") {
-        p.set_inner_html(&COLORS.iter().enumerate().map(|(i, c)| format!(r#"<button type="button" data-c="{c}" style="background:{c}" aria-label="색 {}"></button>"#, i + 1)).collect::<String>());
-        let p2 = p.clone();
-        dom::on(&p, "click", move |e| {
+        // 색 줄은 늘 보여요 (펜을 눌러 여닫는 단계가 없어서, 아이폰에서 창이 안 열리거나 바로 닫히는 일이 없어요)
+        p.set_inner_html(&COLORS.iter().enumerate().map(|(i, c)| format!(r#"<button type="button" data-c="{c}" style="background:{c}" aria-label="색 {}" aria-pressed="{}"></button>"#, i + 1, i == 0)).collect::<String>());
+        p.set_hidden(false);
+        let pick = |e: web_sys::Event| {
             if let Some(b) = dom::closest(&e, "[data-c]") {
-                INK.with(|i| *i.borrow_mut() = dom::data(&b, "c"));
-                p2.set_hidden(true);
+                e.prevent_default();
+                set_ink(&dom::data(&b, "c"));
             }
-        });
-    }
-    if let Some(b) = by_id("draw-pen") {
-        dom::on(&b, "click", |_| {
-            if let Some(p) = by_id("palette") {
-                p.set_hidden(!p.hidden());
-            }
-        });
+        };
+        dom::on(&p, "pointerdown", pick);
+        dom::on(&p, "click", pick);
     }
     if let Some(c) = canvas() {
         let c2 = c.clone();
@@ -157,7 +166,6 @@ pub fn init() {
             if DRAWING.get() {
                 return; // 이미 한 손가락으로 그리는 중이에요
             }
-            dom::set_hidden("palette", true);
             let _ = c2.set_pointer_capture(pe.pointer_id());
             PID.set(pe.pointer_id());
             let pt = point(&c2, &e);

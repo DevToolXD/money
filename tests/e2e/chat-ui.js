@@ -136,10 +136,15 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await a.click('#plus'); await a.waitForTimeout(300);
   await a.click('#attach [data-a="draw"]'); await a.waitForTimeout(700);
   ok('그리기 화면', await a.evaluate(() => document.getElementById('draw').classList.contains('is-open')));
+  ok('색 줄이 늘 보여요', await a.isVisible('#palette'));
+  await a.click('#palette [data-c="#ff3b30"]'); await a.waitForTimeout(300);
   const cb = await a.locator('#draw-canvas').boundingBox();
   await a.mouse.move(cb.x + 60, cb.y + 120); await a.mouse.down();
   for (let i = 0; i < 12; i++) await a.mouse.move(cb.x + 60 + i * 15, cb.y + 120 + i * 8);
-  await a.mouse.up();
+  await a.mouse.up(); await a.waitForTimeout(200);
+  const px = await a.evaluate(() => { const c = document.getElementById('draw-canvas'); const k = c.width / c.getBoundingClientRect().width; const d = c.getContext('2d').getImageData((60 + 5 * 15) * k, (120 + 5 * 8) * k, 1, 1).data; return [...d]; });
+  console.log('pen pixel', px);
+  ok('고른 색(빨강)으로 그려져요', px[0] > 200 && px[1] < 120 && px[3] > 200);
   await a.click('#draw-ok'); await a.waitForTimeout(1500);
   ok('그림 카드', await (async () => { for (let i = 0; i < 40; i++) { if (await bp.$('#bubbles .media.drawn img')) return true; await bp.waitForTimeout(250); } return false; })());
 

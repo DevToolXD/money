@@ -46,11 +46,17 @@ const PLAY: &[Part] = &[
     Part { d: "M4.5 11.5h19M9.5 3.5v4.5M18.5 3.5v4.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M14 14.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4Z", stroke: 1.3, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
-// 홈: 집 (지붕과 문)
-const HOME: &[Part] = &[
-    Part { d: "M3.5 13.2 14 4.2l10.5 9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-    Part { d: "M6 11.5V23a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V11.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-    Part { d: "M11.5 24v-6.2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V24", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+// 릴스: 둥근 사각형 안의 재생 삼각형
+const REELS: &[Part] = &[
+    Part { d: "M8 4h12a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M4 9.5h20M9.5 4l3 5.5M16 4l3 5.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M12 13.5v6l5-3Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+];
+// 게임: 두 깃발이 마주 보는 대항전
+const GAME: &[Part] = &[
+    Part { d: "M5 24.5V4.5M23 24.5V4.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M5 5h8l-2 3.5 2 3.5H5M23 5h-8l2 3.5-2 3.5h8", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M11 20l3-3 3 3", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
 const INVENTORY: &[Part] = &[
     Part { d: "M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
@@ -111,7 +117,8 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "messages" => MESSAGES,
         "money" => MONEY,
         "work" => WORK,
-        "home" => HOME,
+        "reels" => REELS,
+        "game" => GAME,
         "play" => PLAY,
         "map" => MAP,
         "trade" => TRADE,

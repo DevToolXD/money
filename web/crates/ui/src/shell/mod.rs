@@ -375,6 +375,9 @@ fn setup_tabbar(first: &str) {
             "ranking" => ranking::load(false),
             "untitled3" => crate::sns::open(),
             "trade" => crate::trade::open(),
+            "reels" => crate::reels::open(),
+            "map" => crate::map::open(),
+            "game" => crate::game::open(),
             "play" => crate::play::open(),
             _ => {}
         }

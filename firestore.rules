@@ -1371,6 +1371,37 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    // ----- 게임(독소전쟁 대항전): 팀(r 소련, b 독일)을 한 번 고르고, 누른 횟수를 4초 이상 모아 한 번에 올려요 (한 번에 1~200).
+    //       game/main의 팀 점수와 내 점수가 같은 묶음에서 같은 만큼만 늘어요 -----
+    function gamePlayerPath(uid) { return /databases/$(database)/documents/gamePlayers/$(uid); }
+    match /game/{id} {
+      allow get: if signedIn();
+      allow create: if signedIn() && id == 'main' && request.resource.data.keys().hasOnly(['r', 'b']) && request.resource.data.r == 0 && request.resource.data.b == 0;
+      allow update: if signedIn() && id == 'main'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([get(gamePlayerPath(request.auth.uid)).data.team])
+        && request.resource.data[get(gamePlayerPath(request.auth.uid)).data.team] == resource.data[get(gamePlayerPath(request.auth.uid)).data.team]
+           + (getAfter(gamePlayerPath(request.auth.uid)).data.clicks - get(gamePlayerPath(request.auth.uid)).data.clicks)
+        && getAfter(gamePlayerPath(request.auth.uid)).data.at == request.time;
+    }
+    match /gamePlayers/{uid} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 30;
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['team', 'name', 'clicks', 'at'])
+        && request.resource.data.team in ['r', 'b']
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && request.resource.data.clicks == 0
+        && request.resource.data.at == request.time;
+      allow update: if isMe(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'at'])
+        && request.resource.data.clicks is int
+        && request.resource.data.clicks > resource.data.clicks
+        && request.resource.data.clicks - resource.data.clicks <= 200
+        && request.resource.data.at == request.time
+        && request.time >= resource.data.at + duration.value(4, 's')
+        && getAfter(/databases/$(database)/documents/game/main).data[resource.data.team] == get(/databases/$(database)/documents/game/main).data[resource.data.team] + (request.resource.data.clicks - resource.data.clicks);
+    }
+
     // ----- 거래: 물물교환·멸공으로 사고팔기 글. 거래는 글을 보고 메시지로 해요. 글쓴이만 완료 표시·지우기 -----
     match /trades/{id} {
       allow get: if signedIn();

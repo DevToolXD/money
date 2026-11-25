@@ -259,6 +259,28 @@ await t("접속 표시: 내 것만, 시각만", async () => {
   await assertFails(setDoc(doc(A, "presence/uA"), { at: Timestamp.fromMillis(Date.now() + 9e8) }));
   await assertSucceeds(getDocs(query(collection(pw("uB", "bob"), "presence"), limit(10))));
 });
+await t("게임: 팀 고르기·점수는 4초마다 1~200씩, 팀 점수와 같은 묶음으로만", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "game/main"), { r: 0, b: 0 }); });
+  const A = pw("uA", "alice"), B = pw("uB", "bob");
+  await assertFails(setDoc(doc(A, "gamePlayers/uA"), { team: "x", name: "a", clicks: 0, at: serverTimestamp() }));
+  await assertFails(setDoc(doc(A, "gamePlayers/uA"), { team: "b", name: "a", clicks: 5, at: serverTimestamp() }));
+  await assertFails(setDoc(doc(A, "gamePlayers/uB"), { team: "b", name: "a", clicks: 0, at: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(A, "gamePlayers/uA"), { team: "b", name: "앨리스", clicks: 0, at: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(B, "gamePlayers/uB"), { team: "r", name: "밥", clicks: 0, at: serverTimestamp() }));
+  await assertFails(updateDoc(doc(A, "gamePlayers/uA"), { team: "r" }));
+  await sleep(4100);
+  const flush = (db, uid, team, from, n, teamDelta = n) => { const b = writeBatch(db); b.update(doc(db, `gamePlayers/${uid}`), { clicks: from + n, at: serverTimestamp() }); b.update(doc(db, "game/main"), { [team]: increment(teamDelta) }); return b; };
+  await assertFails(flush(A, "uA", "b", 0, 201).commit()); // 한 번에 너무 많이
+  await assertFails(flush(A, "uA", "r", 0, 10).commit()); // 상대 팀 점수 올리기
+  await assertFails(flush(A, "uA", "b", 0, 10, 50).commit()); // 팀 점수만 부풀리기
+  await assertFails(updateDoc(doc(A, "game/main"), { b: increment(10) })); // 내 점수 없이
+  await assertSucceeds(flush(A, "uA", "b", 0, 120).commit());
+  await assertFails(flush(A, "uA", "b", 120, 10).commit()); // 4초 안에 또
+  await assertSucceeds(flush(B, "uB", "r", 0, 80).commit());
+  const g = (await getDoc(doc(A, "game/main"))).data();
+  if (g.b !== 120 || g.r !== 80) throw new Error("점수가 달라요 " + JSON.stringify(g));
+  await assertSucceeds(getDocs(query(collection(B, "gamePlayers"), orderBy("clicks", "desc"), limit(20))));
+});
 await t("거래: 글 올리기·완료 표시·지우기는 글쓴이만", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice"), B = pw("uB", "bob");

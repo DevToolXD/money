@@ -1375,6 +1375,41 @@ async fn presence_list() -> R {
     Ok(out.into())
 }
 
+/* ---------- 게임 (독소전쟁 대항전) ---------- */
+/// 전체 점수 한 문서만 들어요 (r: 소련, b: 독일)
+fn game_watch(cb: js_sys::Function) -> R {
+    let next = Closure::<dyn FnMut(JsValue)>::new(move |sn: JsValue| {
+        let v = if exists(&sn) { data(&sn) } else { o(&[("r", n(0.0)), ("b", n(0.0))]) };
+        let _ = cb.call1(&JsValue::NULL, &v);
+    })
+    .into_js_value();
+    f("onSnapshot", &[d(&["game", "main"]), next, report_fn()])
+}
+async fn game_me() -> R {
+    let sn = get_doc(d(&["gamePlayers", &uid_of()?])).await?;
+    Ok(if exists(&sn) { data(&sn) } else { JsValue::NULL })
+}
+async fn game_join(team: String, name: String) -> R {
+    let g = get_doc(d(&["game", "main"])).await?;
+    if !exists(&g) {
+        let _ = set_doc(d(&["game", "main"]), o(&[("r", n(0.0)), ("b", n(0.0))])).await;
+    }
+    rethrow(set_doc(d(&["gamePlayers", &uid_of()?]), o(&[("team", s(&team)), ("name", s(&name)), ("clicks", n(0.0)), ("at", ts())])).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+/// 모아 둔 클릭을 한 번에 올려요 (내 점수와 팀 점수가 같은 묶음에서 같은 만큼)
+async fn game_flush(team: String, k: f64) -> R {
+    let b = batch();
+    m(&b, "update", &[d(&["gamePlayers", &uid_of()?]), o(&[("clicks", inc(k)), ("at", ts())])])?;
+    m(&b, "update", &[d(&["game", "main"]), o(&[(team.as_str(), inc(k))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+async fn game_top() -> R {
+    let snap = rethrow(get_docs(q(c(&["gamePlayers"]), vec![order("clicks", Some("desc")), lim(20.0)])).await)?;
+    Ok(docs(&snap).iter().map(|dd| { let v = data(dd); o(&[("uid", get(dd, "id")), ("team", get(&v, "team")), ("name", get(&v, "name")), ("clicks", get(&v, "clicks"))]) }).collect::<js_sys::Array>().into())
+}
+
 /* ---------- 거래 (물물교환·사고팔기) ---------- */
 fn trade_row(dd: &JsValue) -> JsValue {
     let v = data(dd);
@@ -1708,6 +1743,11 @@ fn build() -> js_sys::Object {
     });
     am!(api, "presenceBeat", |_a| presence_beat().await);
     am!(api, "presenceList", |_a| presence_list().await);
+    method_now(&api, "gameWatch", |a| game_watch(a[0].clone().dyn_into().map_err(|_| JsValue::from_str("cb"))?));
+    am!(api, "gameMe", |_a| game_me().await);
+    am!(api, "gameJoin", |a| game_join(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "gameFlush", |a| game_flush(sa(&a[0]), num(&a[1])).await);
+    am!(api, "gameTop", |_a| game_top().await);
     am!(api, "tradesList", |_a| trades_list().await);
     am!(api, "tradeCreate", |a| trade_create(a[0].clone()).await);
     am!(api, "tradeDone", |a| trade_done(sa(&a[0]), a[1].is_truthy()).await);
