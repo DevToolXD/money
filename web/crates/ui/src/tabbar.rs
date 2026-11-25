@@ -39,8 +39,8 @@ const PAGE: Preset = Preset { w: 20.0, z: 1.0 }; // 핫바 넘기기: 튕기지 
 // 핫바: 옆으로 넘기면 바 안의 내용만 다음 쪽으로 바뀌어요 (프로필 버튼은 그대로)
 const PAGES: [[(&str, &str); 4]; 2] = [
     // 메시지·SNS 말고는 새로 만들 자리라 비워 두었어요 (무제)
-    [("messages", "메시지"), ("home", "홈"), ("ranking", "랭킹"), ("blank3", "무제")],
-    [("blank4", "무제"), ("blank5", "무제"), ("blank6", "무제"), ("untitled3", "SNS")],
+    [("messages", "메시지"), ("home", "홈"), ("ranking", "랭킹"), ("untitled3", "SNS")],
+    [("play", "놀기"), ("blank5", "무제"), ("blank6", "무제"), ("blank3", "무제")],
 ];
 
 const VERT: &str = "\nattribute vec2 aPos;\nvoid main() { gl_Position = vec4(aPos, 0.0, 1.0); }\n";

@@ -2213,6 +2213,84 @@ async fn claim_gift(cid: String, mid: String, amount: JsValue) -> R {
     commit(&b).await?;
     Ok(JsValue::UNDEFINED)
 }
+/* ---------- 접속 중 표시 ---------- */
+async fn presence_beat() -> R {
+    set_doc(d(&["presence", &uid_of()?]), o(&[("at", ts())])).await?;
+    Ok(JsValue::UNDEFINED)
+}
+/// 최근 3분 안에 들어온 사람들: [uid, 시각(ms)] 목록
+async fn presence_list() -> R {
+    let snap = get_docs(q(c(&["presence"]), vec![w(s("at"), ">=", from_millis(now() - 180_000.0)), lim(200.0)])).await?;
+    let out = js_sys::Array::new();
+    for dd in docs(&snap) {
+        out.push(&o(&[("uid", get(&dd, "id")), ("at", n(ms(&get(&data(&dd), "at"))))]));
+    }
+    Ok(out.into())
+}
+
+/* ---------- 놀기 (약속) ---------- */
+fn plan_row(dd: &JsValue) -> JsValue {
+    let v = data(dd);
+    o(&[("id", get(dd, "id")), ("by", get(&v, "by")), ("title", get(&v, "title")), ("place", get(&v, "place")), ("when", get(&v, "when")), ("text", get(&v, "text")), ("vis", get(&v, "vis")), ("invited", get(&v, "invited")), ("going", get(&v, "going")), ("at", n(ms(&get(&v, "at"))))])
+}
+/// 모두에게 보이는 약속 + 나를 부른 약속 (각 60개까지). 순서는 화면에서 정해요
+async fn plans_list() -> R {
+    let me_ = uid_of()?;
+    let a = get_docs(q(c(&["plans"]), vec![w(s("vis"), "==", s("all")), lim(60.0)])).await?;
+    let b = get_docs(q(c(&["plans"]), vec![w(s("invited"), "array-contains", s(&me_)), lim(60.0)])).await?;
+    let out = js_sys::Array::new();
+    let mut seen: Vec<String> = Vec::new();
+    for dd in docs(&a).into_iter().chain(docs(&b)) {
+        let id = st(&get(&dd, "id"));
+        if !seen.contains(&id) {
+            seen.push(id);
+            out.push(&plan_row(&dd));
+        }
+    }
+    Ok(out.into())
+}
+async fn plan_create(v: JsValue) -> R {
+    let me_ = uid_of()?;
+    let r = new_id(c(&["plans"]));
+    let inv: js_sys::Array = get(&v, "invited").dyn_into().unwrap_or_default();
+    let vis = if inv.length() > 0 { "pick" } else { "all" };
+    if vis == "pick" && !inv.includes(&s(&me_), 0) {
+        inv.push(&s(&me_));
+    }
+    rethrow(set_doc(r.clone(), o(&[("by", s(&me_)), ("title", get(&v, "title")), ("place", get(&v, "place")), ("when", n(num(&get(&v, "when")).floor())), ("text", get(&v, "text")), ("vis", s(vis)), ("invited", inv.into()), ("going", js_sys::Array::of1(&s(&me_)).into()), ("at", ts())])).await)?;
+    Ok(get(&r, "id"))
+}
+/// 참여(on=true)·취소: 지금 명단을 읽고 나만 넣거나 빼요 (한 묶음 안에서)
+async fn plan_join(id: String, on: bool) -> R {
+    let me_ = uid_of()?;
+    rethrow(
+        run_tx(move |tx| {
+            let (id, me_) = (id.clone(), me_.clone());
+            Box::pin(async move {
+                let r = d(&["plans", &id]);
+                let sn = tx_get(&tx, &r).await?;
+                if !exists(&sn) {
+                    return Err(fail("gone", "없어진 약속이에요"));
+                }
+                let going: js_sys::Array = get(&data(&sn), "going").dyn_into().unwrap_or_default();
+                let list: js_sys::Array = going.iter().filter(|u| st(u) != me_).collect();
+                if on {
+                    list.push(&s(&me_));
+                }
+                m(&tx, "update", &[r, o(&[("going", list.clone().into())])])?;
+                Ok(list.into())
+            })
+        })
+        .await,
+    )
+}
+async fn plan_delete(id: String) -> R {
+    let b = batch();
+    m(&b, "delete", &[d(&["plans", &id])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+
 /* ---------- 땅 (현실 지도의 육각형 칸) ---------- */
 fn land_row(dd: &JsValue) -> JsValue {
     let v = data(dd);
@@ -2631,6 +2709,12 @@ fn build() -> js_sys::Object {
         let amt = num(&a[2]);
         send(sa(&a[0]), a[1].clone(), o(&[("type", s("gift")), ("amount", a[2].clone()), ("done", false.into())]), s(&format!("토큰 {} 선물", ko(amt))), Some(amt)).await
     });
+    am!(api, "presenceBeat", |_a| presence_beat().await);
+    am!(api, "presenceList", |_a| presence_list().await);
+    am!(api, "plansList", |_a| plans_list().await);
+    am!(api, "planCreate", |a| plan_create(a[0].clone()).await);
+    am!(api, "planJoin", |a| plan_join(sa(&a[0]), a[1].is_truthy()).await);
+    am!(api, "planDelete", |a| plan_delete(sa(&a[0])).await);
     am!(api, "landsIn", |a| lands_in(a[0].clone()).await);
     am!(api, "landBuy", |a| land_buy(num(&a[0]), num(&a[1]), sa(&a[2])).await);
     am!(api, "landName", |a| land_name(sa(&a[0]), sa(&a[1])).await);

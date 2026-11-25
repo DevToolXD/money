@@ -628,6 +628,10 @@ function __wbg_get_imports() {
             const ret = arg0.getDate();
             return ret;
         },
+        __wbg_getDay_0ea3aef4bf721d1c: function(arg0) {
+            const ret = arg0.getDay();
+            return ret;
+        },
         __wbg_getElementById_7ee213db584f37b0: function(arg0, arg1, arg2) {
             const ret = arg0.getElementById(getStringFromWasm0(arg1, arg2));
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
@@ -769,6 +773,10 @@ function __wbg_get_imports() {
             const len1 = WASM_VECTOR_LEN;
             getDataViewMemory0().setInt32((arg0 >>> 0) + 4 * 1, len1, true);
             getDataViewMemory0().setInt32((arg0 >>> 0) + 4 * 0, ptr1, true);
+        },
+        __wbg_includes_40dae55ee37516e5: function(arg0, arg1, arg2) {
+            const ret = arg0.includes(arg1, arg2);
+            return ret;
         },
         __wbg_innerHTML_5596b7e9bb4c4532: function(arg0, arg1) {
             const ret = arg1.innerHTML;
@@ -1277,6 +1285,10 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_new_with_year_month_day_2b03abbebcc8f077: function(arg0, arg1, arg2) {
             const ret = new Date(arg0 >>> 0, arg1, arg2);
+            return ret;
+        },
+        __wbg_new_with_year_month_day_hr_min_sec_a22891157876dabc: function(arg0, arg1, arg2, arg3, arg4, arg5) {
+            const ret = new Date(arg0 >>> 0, arg1, arg2, arg3, arg4, arg5);
             return ret;
         },
         __wbg_nextElementSibling_758a2a7370bec999: function(arg0) {
@@ -2029,7 +2041,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000e: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 267, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 270, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

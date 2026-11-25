@@ -68,7 +68,7 @@ fn me() -> (String, String) {
     let n = if n.is_empty() { cloud::cloud().and_then(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string()).unwrap_or_default() } else { n };
     (n, p)
 }
-fn ago(at: f64) -> String {
+pub fn ago(at: f64) -> String {
     let s = ((js_sys::Date::now() - at) / 1000.0).max(0.0);
     if s < 60.0 {
         "방금".into()
@@ -83,6 +83,10 @@ fn ago(at: f64) -> String {
 
 /* ---------- 그리기 ---------- */
 
+/// 접속 표시가 바뀌었을 때 사람 줄만 다시 그려요
+pub fn repaint_people() {
+    paint_top();
+}
 fn paint_top() {
     if let Some(m) = by_id("sns-me") {
         let (n, ph) = me();
@@ -92,7 +96,7 @@ fn paint_top() {
     let html: String = PEOPLE.with(|p| {
         p.borrow()
             .iter()
-            .map(|(uid, name, photo)| format!(r#"<button type="button" class="sns-p" data-uid="{}" role="listitem">{}<span class="sns-n">{}</span></button>"#, esc(uid), dom::avatar_html(name, photo, "avatar contact sns-av"), esc(name)))
+            .map(|(uid, name, photo)| format!(r#"<button type="button" class="sns-p" data-uid="{}" role="listitem">{}<span class="sns-n">{}</span></button>"#, esc(uid), crate::presence::wrap(dom::avatar_html(name, photo, "avatar contact sns-av"), uid), esc(name)))
             .collect()
     });
     el.set_inner_html(&if html.is_empty() && !cloud::signed_in() { r#"<p class="sns-empty">로그인하면 사람들이 보여요</p>"#.into() } else { html });
@@ -498,7 +502,10 @@ fn bind() {
         dom::on(&f, "click", on_feed_click);
     }
     if let Some(b) = by_id("sns-fab") {
-        dom::on(&b, "click", |_| open_compose());
+        dom::on(&b, "click", |_| {
+            let on_play = dom::app_el().and_then(|a| a.get_attribute("data-screen")).as_deref() == Some("play");
+            if on_play { crate::play::open_compose() } else { open_compose() }
+        });
     }
     for id in ["sns-compose", "sns-replies", "sns-share"] {
         if let Some(s) = by_id(id) {
@@ -564,10 +571,14 @@ fn bind() {
 }
 
 /// SNS 탭을 열 때
-pub fn open() {
+/// + 버튼 같은 공용 버튼을 한 번만 묶어요 (놀기 탭을 먼저 열어도 + 버튼이 돼요)
+pub fn bind_once() {
     if !BOUND.replace(true) {
         bind();
     }
+}
+pub fn open() {
+    bind_once();
     paint_top();
     paint_feed();
     if !cloud::signed_in() {

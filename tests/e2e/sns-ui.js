@@ -14,7 +14,7 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
     await page.goto('http://127.0.0.1:8765/index.html'); await page.waitForTimeout(3500);
     return page;
   };
-  const go = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(600); await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="untitled3"]').click()); await p.waitForTimeout(3000); };
+  const go = async (p) => { await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="untitled3"]').click()); await p.waitForTimeout(3000); };
   const t = Date.now().toString(36).slice(-4);
   const a = await mk();
   await a.evaluate((u) => window.cloud.signUp(u, 'abc123', '글쓴이'), 'sna' + t);
@@ -57,7 +57,7 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   await p.click('#sns-send'); await p.waitForTimeout(3500);
   ok('보내기 판이 닫혀요', !(await p.isVisible('#sns-share .sns-panel')));
   await a.waitForTimeout(2500);
-  await a.evaluate(() => window.tabbar.flipPage()); await a.waitForTimeout(600);
+
   await a.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]').click()); await a.waitForTimeout(1500);
   ok('받은 쪽 대화 미리보기에 게시물', (await a.textContent('body')).includes('구경꾼'));
   // 단톡방 설정

@@ -29,8 +29,9 @@ const fn swipe(sel: &'static str, title: &'static str, text: &'static str, until
 
 const INTRO: &[Step] = &[
     st(".tabbar .tab[data-tab=\"messages\"]", "메시지", "여기를 눌러 보세요. 친구와 대화하고, 단톡방을 만들고, 토큰을 선물해요.", true),
-    swipe(".tabbar", "핫바 넘기기", "탭 바를 손가락으로 옆으로 쓱 밀어 보세요. 다음 쪽에 SNS가 있어요.", ".tabbar .tab[data-tab=\"untitled3\"]"),
-    st(".tabbar .tab[data-tab=\"untitled3\"]", "SNS", "여기를 눌러 보세요. 사진과 글을 올리고 좋아요와 댓글을 달아요.", true),
+    st(".tabbar .tab[data-tab=\"untitled3\"]", "SNS", "여기를 눌러 보세요. 사진과 글을 올리고, 지금 접속한 사람은 동그라미에 초록 점이 떠요.", true),
+    swipe(".tabbar", "핫바 넘기기", "탭 바를 손가락으로 옆으로 쓱 밀어 보세요. 다음 쪽에 놀기가 있어요.", ".tabbar .tab[data-tab=\"play\"]"),
+    st(".tabbar .tab[data-tab=\"play\"]", "놀기", "여기를 눌러 보세요. 약속을 올리면 사람들이 참여해요.", true),
     st(".tabbar .tab-account", "메뉴", "여기를 눌러 보세요. 프로필, 친구 초대, 설정, 피드백이 나와요.", true),
     st(".qm-row[data-go=\"settings\"]", "설정", "여기를 눌러 보세요. 테마, 알림, 진동, 튜토리얼 다시 보기가 있어요.", true),
 ];
@@ -273,7 +274,7 @@ fn finish() {
     let name = RUN.with(|r| r.borrow_mut().take().map(|(n, _, _)| n));
     if let Some(n) = name {
         dom::store_set(&done_key(&n), "1");
-        if n == "intro3" {
+        if n == "intro4" {
             crate::shell::toast("준비 끝! 친구에게 메시지를 보내 보세요");
         }
     }
@@ -303,14 +304,14 @@ fn run(name: &str, steps: &[Step], force: bool) {
 
 /// 앱을 열 때: 로그인되면 처음 한 번 기본 사용법을 보여 줘요
 pub fn init() {
-    if !auto_ok() || dom::store_get(&done_key("intro3"), "") == "1" {
+    if !auto_ok() || dom::store_get(&done_key("intro4"), "") == "1" {
         return;
     }
     spawn_local(async {
         for _ in 0..120 {
             if cloud::signed_in() && crate::chat::live() {
                 dom::sleep(1500).await;
-                run("intro3", INTRO, false);
+                run("intro4", INTRO, false);
                 return;
             }
             dom::sleep(1000).await;
@@ -343,8 +344,8 @@ pub fn business(kind: &str) {
 
 /// 설정 → 튜토리얼 다시 보기: 본 기록을 지우고 기본 사용법부터 다시 보여 줘요 (사업 탭 사용법은 사업 탭을 열면 다시 나와요)
 pub fn replay() {
-    for k in ["intro", "intro2", "intro3", "biz-food", "biz-pc", "biz-ai", "biz-nuclear"] {
+    for k in ["intro", "intro2", "intro3", "intro4", "biz-food", "biz-pc", "biz-ai", "biz-nuclear"] {
         dom::store_set(&done_key(k), "");
     }
-    run("intro3", INTRO, true);
+    run("intro4", INTRO, true);
 }

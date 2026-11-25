@@ -2277,3 +2277,71 @@ html[data-theme="dark"] .map-fog { background: linear-gradient(#1c1c1e 0%, rgba(
 /* 땅 카드: 더 맑은 유리 (뒤 지도가 비쳐요) */
 .land-sheet { background: rgba(255, 255, 255, 0.5); -webkit-backdrop-filter: blur(22px) saturate(200%); backdrop-filter: blur(22px) saturate(200%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.75), inset 0 2px 2px rgba(255, 255, 255, 0.95), inset 0 -8px 16px rgba(255, 255, 255, 0.25), 0 18px 44px rgba(30, 40, 90, 0.22); border-radius: 32px; }
 .map-hud { background: rgba(255, 255, 255, 0.5); }
+
+/* ===== 아래에서 올라오는 시트: 화면보다 길면 안에서 스크롤하고, 위쪽(제목·완료)은 늘 보여요 (단톡방 설정이 안 닫히던 문제) ===== */
+.sheet { max-height: calc(100% - var(--safe-top, 0px) - 16px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sheet > .grabber { position: sticky; top: -8px; z-index: 3; }
+.sheet .sheet-head { position: sticky; top: 0; z-index: 2; margin: 0 -24px 12px; padding: 10px 24px 10px; background: var(--bg-canvas); }
+.grp-mem { max-height: none; overflow: visible; }
+
+/* ===== 접속 중: 동그라미 오른쪽 아래 초록 점 (인스타처럼) ===== */
+.av-on { position: relative; display: inline-grid; flex: none; }
+.on-dot { position: absolute; right: 2%; bottom: 2%; width: 26%; height: 26%; min-width: 11px; min-height: 11px; max-width: 18px; max-height: 18px; border-radius: 50%; background: #31d158; border: 2.5px solid var(--bg-canvas, #fff); box-sizing: border-box; }
+.sns-p .av-on, .chat-row .av-on { margin: 0; }
+.chat-row .av-on { margin-top: 2px; }
+.chat-row .av-on .avatar { margin-top: 0; }
+
+/* ===== 놀기: SNS와 같은 유리 카드 ===== */
+#screen-play .sns-head h1 { font-size: 30px; }
+.pl-lead { margin: 0 18px 12px; font-size: 14px; color: var(--text-secondary); word-break: keep-all; }
+.pl-card { padding: 14px 14px 12px; margin: 0 14px 14px; }
+.pl-head { display: flex; align-items: center; justify-content: space-between; }
+.pl-head .sns-who { display: flex; align-items: center; gap: 10px; background: none; color: inherit; text-align: left; }
+.pl-head .sns-who span { display: grid; }
+.pl-head .sns-who b { font-size: 15px; }
+.pl-head .sns-who small { font-size: 12px; color: var(--text-secondary); }
+.pl-soon { padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 700; color: #0a7cff; background: rgba(10, 124, 255, 0.1); }
+.pl-title { margin: 12px 2px 8px; font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -0.02em; word-break: keep-all; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pl-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: 15px; font-size: 13px; font-weight: 600; background: rgba(255, 255, 255, 0.6); box-shadow: inset 0 0 0 0.6px rgba(0, 0, 0, 0.06); }
+html[data-theme="dark"] .pl-chip { background: rgba(255, 255, 255, 0.1); }
+.pl-chip svg { width: 15px; height: 15px; }
+.pl-lock { color: #8e5bd8; }
+.pl-text { margin: 10px 2px 0; font-size: 15px; line-height: 21px; white-space: pre-wrap; word-break: keep-all; }
+.pl-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.pl-faces { display: flex; align-items: center; min-width: 0; }
+.pl-face { margin-left: -8px; padding: 0; background: none; border-radius: 50%; }
+.pl-face:first-child { margin-left: 0; }
+.pl-fav { width: 32px; height: 32px; font-size: 11px; box-shadow: 0 0 0 2px var(--bg-canvas, #fff); }
+.pl-face .on-dot { min-width: 9px; min-height: 9px; border-width: 2px; }
+.pl-more { margin-left: 4px; font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.pl-count { margin-left: 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.pl-go { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 40px; padding: 0 18px; border-radius: 20px; font-size: 15px; font-weight: 700; color: #fff; background: #0a7cff; }
+.pl-go.on { color: #0a7cff; background: rgba(10, 124, 255, 0.12); }
+.pl-go svg { width: 17px; height: 17px; }
+.pl-del { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #d70015; background: rgba(215, 0, 21, 0.08); }
+.pl-del svg { width: 20px; height: 20px; }
+.pl-empty { margin: 40px 24px; text-align: center; color: var(--text-secondary); }
+.pl-empty b { display: block; margin-bottom: 6px; font-size: 18px; color: var(--text-primary); }
+.pl-empty p { margin: 0; font-size: 14px; }
+.app[data-screen="play"] .sns-fab { opacity: 1; scale: 1; visibility: visible; transition: opacity 0.25s, scale 0.35s var(--ease); }
+/* 새 약속 시트 */
+.pl-panel { display: flex; flex-direction: column; height: 82%; }
+.pl-form { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 10px; padding: 12px 0 8px; }
+.pl-in { width: 100%; box-sizing: border-box; height: 44px; border: 0; border-radius: 14px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--text-primary); background: rgba(120, 120, 128, 0.12); outline: none; -webkit-user-select: text; user-select: text; }
+.pl-big { height: 52px; font-size: 19px; font-weight: 700; }
+.pl-area { height: auto; min-height: 78px; padding: 12px 14px; resize: none; line-height: 21px; }
+.pl-row { display: flex; align-items: center; gap: 10px; }
+.pl-row span { flex: none; width: 48px; font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+.pl-who { display: flex; gap: 8px; }
+.pl-who .wk-pill { margin: 0; }
+.pl-who .wk-pill[aria-pressed="true"] { background: #0a7cff; color: #fff; }
+.pl-people { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; padding: 4px 0; }
+.pl-people[hidden] { display: none; }
+.pl-pp { position: relative; display: grid; justify-items: center; gap: 5px; padding: 0; background: none; color: inherit; font-size: 12px; }
+.pl-pp span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-pav { width: 56px; height: 56px; font-size: 19px; transition: transform 0.2s var(--ease); }
+.pl-pp i { position: absolute; top: 0; right: 10%; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #0a7cff; opacity: 0; transform: scale(0.6); transition: opacity 0.2s, transform 0.25s var(--ease); }
+.pl-pp i svg { width: 14px; height: 14px; }
+.pl-pp.on i { opacity: 1; transform: none; }
+.pl-pp.on .pl-pav { transform: scale(0.92); box-shadow: 0 0 0 3px #0a7cff; }

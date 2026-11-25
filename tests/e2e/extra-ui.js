@@ -44,9 +44,9 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('진동 끄기', (await A.evaluate(() => localStorage.getItem('vibrate'))) === 'off');
   ok('알림 줄이 설정에 있어요', await A.isVisible('#screen-settings #toggle-notify'));
   // 튜토리얼 (시험에서는 coach-test로 켜요)
-  await A.evaluate(() => { localStorage.setItem('coach-test', '1'); localStorage.removeItem('coach-intro3'); });
+  await A.evaluate(() => { localStorage.setItem('coach-test', '1'); localStorage.removeItem('coach-intro4'); });
   await A.reload(); await A.waitForTimeout(8000);
-  const N = 5;
+  const N = 6;
   const at = async (k) => (await A.textContent('#coach .coach-n')).includes(`${k} / ${N}`);
   ok(`튜토리얼이 떠요 (1 / ${N})`, (await A.isVisible('#coach .coach-tip')) && await at(1));
   await A.screenshot({ path: path.join(__dirname, 'shots', 'coach.png') });
@@ -54,15 +54,16 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   const tapC = async (sel) => { const r = await box(sel); await A.mouse.click(r.x + r.width / 2, r.y + r.height / 2); await A.waitForTimeout(900); };
   ok('다음·건너뛰기 버튼이 없어요', (await A.$$('#coach button')).length === 0);
   const before = await A.evaluate(() => document.querySelector('.app').dataset.screen);
-  await A.mouse.click(350, 785); await A.waitForTimeout(600);
+  await A.mouse.click(200, 300); await A.waitForTimeout(600);
   ok('다른 곳은 눌리지 않아요', await at(1) && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === before);
   await tapC('.tabbar .tab[data-tab="messages"]');
-  ok('메시지를 누르면 핫바 넘기기 (2)', await at(2) && (await A.textContent('#coach .coach-hint')).includes('옆으로'));
+  await tapC('.tabbar .tab[data-tab="untitled3"]');
+  ok('SNS를 누르면 핫바 넘기기 (3)', await at(3) && (await A.textContent('#coach .coach-hint')).includes('옆으로'));
   let bb = await box('.tabbar .tab[data-tab="home"]');
   await A.mouse.move(bb.x + bb.width / 2 + 60, bb.y + bb.height / 2); await A.mouse.down(); await A.mouse.move(bb.x - 40, bb.y + bb.height / 2, { steps: 4 }); await A.mouse.up(); await A.waitForTimeout(1200);
-  ok('탭 바를 밀어 넘기면 SNS (3)', await at(3));
-  await tapC('.tabbar .tab[data-tab="untitled3"]');
-  ok('SNS를 누르면 메뉴 (4)', await at(4) && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'untitled3');
+  ok('탭 바를 밀어 넘기면 놀기 (4)', await at(4));
+  await tapC('.tabbar .tab[data-tab="play"]');
+  ok('놀기를 누르면 메뉴 (5)', await at(5) && (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'play');
   await tapC('.tabbar .tab-account'); await tapC('.qm-row[data-go="settings"]');
   ok('설정을 누르면 끝나요', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'settings' && !(await A.isVisible('#coach .coach-tip')));
   // 피드백

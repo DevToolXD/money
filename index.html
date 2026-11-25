@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=131">
+<link rel="stylesheet" href="app/app.css?v=132">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -73,9 +73,10 @@
       <header class="large-title"><h1 id="title-blank3">무제</h1></header>
       <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">empty</span></div><div class="inv-empty-glass"></div></div>
     </section>
-    <section class="screen" id="screen-blank4" data-screen="blank4" data-title="무제" aria-labelledby="title-blank4">
-      <header class="large-title"><h1 id="title-blank4">무제</h1></header>
-      <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">empty</span></div><div class="inv-empty-glass"></div></div>
+    <section class="screen" id="screen-play" data-screen="play" data-title="놀기" data-notitle aria-labelledby="title-play">
+      <header class="sns-head"><h1 id="title-play">놀기</h1></header>
+      <p class="pl-lead">약속을 올리면 사람들이 참여해요. 고른 사람만 보게 할 수도 있어요.</p>
+      <div class="sns-feed" id="play-feed" aria-label="약속"></div>
     </section>
     <section class="screen" id="screen-blank5" data-screen="blank5" data-title="무제" aria-labelledby="title-blank5">
       <header class="large-title"><h1 id="title-blank5">무제</h1></header>
@@ -428,6 +429,16 @@
 
   <div class="sns-sheet" id="sns-compose" hidden><section class="sns-panel" role="dialog" aria-modal="true" aria-label="새 게시물"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>새 게시물</b><button type="button" class="sns-post" id="sns-post" disabled>올리기</button></header><div class="sns-cme" id="sns-cme"></div><textarea id="sns-text" class="sns-text" maxlength="500" rows="4" placeholder="무슨 일이 있었나요?" aria-label="게시물 글"></textarea><div id="sns-prev"></div><div class="sns-tools"><label class="sns-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-8 8"/></svg><span>사진</span><input id="sns-file" type="file" accept="image/*" hidden></label><label class="sns-tool sns-placebox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/></svg><input id="sns-place" maxlength="20" placeholder="장소" autocomplete="off" aria-label="장소"></label></div><p class="sns-pub">모두에게 보여요</p></section></div>
   <div class="sns-sheet" id="sns-share" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="보내기"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>보내기</b><button type="button" class="sns-post" id="sns-send" disabled>보내기</button></header><ul class="sns-sl" id="sns-sl"></ul></section></div>
+  <div class="sns-sheet" id="play-compose" hidden><section class="sns-panel tall pl-panel" role="dialog" aria-modal="true" aria-label="새 약속"><span class="sns-grab"></span><header class="sns-sh"><button type="button" class="sns-cancel" data-close>취소</button><b>새 약속</b><button type="button" class="sns-post" id="pl-post" disabled>올리기</button></header>
+    <div class="pl-form">
+      <input id="pl-title" class="pl-in pl-big" maxlength="40" autocomplete="off" placeholder="무엇을 할까요? (예: 한강 치맥)" aria-label="약속 제목">
+      <label class="pl-row"><span>언제</span><input id="pl-when" type="datetime-local" class="pl-in"></label>
+      <label class="pl-row"><span>어디서</span><input id="pl-place" class="pl-in" maxlength="30" autocomplete="off" placeholder="장소 (선택)"></label>
+      <textarea id="pl-text" class="pl-in pl-area" maxlength="300" rows="3" placeholder="하고 싶은 말 (선택)"></textarea>
+      <div class="pl-who" role="group" aria-label="누가 볼까요"><button type="button" class="gg wk-pill" id="pl-who-all" aria-pressed="true">모두에게</button><button type="button" class="gg wk-pill" id="pl-who-pick" aria-pressed="false">고른 사람만</button></div>
+      <div class="pl-people" id="pl-people" hidden></div>
+    </div>
+  </section></div>
   <div class="sns-sheet" id="sns-replies" hidden><section class="sns-panel tall" role="dialog" aria-modal="true" aria-label="댓글"><span class="sns-grab"></span><header class="sns-sh"><span></span><b>댓글</b><button type="button" class="sns-x" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></header><ul class="sns-rl" id="sns-rl"></ul><form class="sns-rf" id="sns-rf"><input id="sns-ri" class="sns-ci" maxlength="300" placeholder="댓글 달기..." aria-label="댓글 달기" autocomplete="off"><button type="submit" class="sns-send" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5 21 3z"/></svg></button></form></section></div>
 
   <div class="dock">
@@ -441,7 +452,7 @@
       <button type="button" class="tab" data-tab="messages" data-group="main" aria-current="page"><span class="tab-icon"></span><span class="tab-label">메시지</span></button>
       <button type="button" class="tab" data-tab="home" data-group="main"><span class="tab-icon"></span><span class="tab-label">홈</span></button>
       <button type="button" class="tab" data-tab="ranking" data-group="main"><span class="tab-icon"></span><span class="tab-label">랭킹</span></button>
-      <button type="button" class="tab" data-tab="blank3" data-group="main"><span class="tab-icon"></span><span class="tab-label">무제</span></button>
+      <button type="button" class="tab" data-tab="untitled3" data-group="main"><span class="tab-icon"></span><span class="tab-label">SNS</span></button>
       <button type="button" class="tab tab-account" data-tab="account" data-group="side" aria-label="계정"><span class="tab-icon"></span></button>
     </nav>
   </div>
@@ -450,6 +461,6 @@
 
 <script src="vendor/html2canvas/html2canvas.min.js"></script>
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=75"></script>
+<script type="module" src="app/rs/boot.js?v=76"></script>
 </body>
 </html>

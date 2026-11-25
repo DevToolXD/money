@@ -164,7 +164,7 @@ pub fn render() {
     pinned.set_inner_html(
         &pins
             .iter()
-            .map(|c| format!(r#"<button class="pin{}" type="button" data-id="{}">{}{}{}</button>"#, if c.unread { " is-unread" } else { "" }, esc(&c.id), if c.unread { r#"<i class="dot"></i>"# } else { "" }, avatar_html(&c.name, &c.photo, "avatar contact"), esc(&c.name)))
+            .map(|c| format!(r#"<button class="pin{}" type="button" data-id="{}">{}{}{}</button>"#, if c.unread { " is-unread" } else { "" }, esc(&c.id), if c.unread { r#"<i class="dot"></i>"# } else { "" }, if c.group { avatar_html(&c.name, &c.photo, "avatar contact") } else { crate::presence::wrap(avatar_html(&c.name, &c.photo, "avatar contact"), &c.other) }, esc(&c.name)))
             .collect::<String>(),
     );
     let shown: Vec<&Chat> = chats.iter().filter(|c| !pins.iter().any(|p| p.id == c.id) && (c.name.contains(&q) || c.last.contains(&q)) && (!only || c.unread)).collect();
@@ -173,7 +173,7 @@ pub fn render() {
             r#"<li><div class="chat-row" role="button" tabindex="0" data-id="{}">{}{}<div class="chat-main"><div class="chat-top"><b>{}{}</b><span class="meta">{}{}{CHEV}</span></div><p class="chat-prev">{}</p></div><button class="del" type="button" data-del="{}">삭제</button></div></li>"#,
             esc(&c.id),
             if c.unread { r#"<i class="dot"></i>"# } else { "" },
-            avatar_html(&c.name, &c.photo, "avatar contact"),
+            if c.group { avatar_html(&c.name, &c.photo, "avatar contact") } else { crate::presence::wrap(avatar_html(&c.name, &c.photo, "avatar contact"), &c.other) },
             esc(&c.name),
             if c.group { "" } else { crate::profile::blue(&c.other) },
             if c.muted { r#"<svg class="mute-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 9-5.2M18 11v5l2 2H5M4 4l16 16"/></svg>"# } else { "" },

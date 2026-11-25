@@ -1392,6 +1392,38 @@ service cloud.firestore {
   
     // SNS (무제 탭): 글·사진 하나, 좋아요·리포스트는 내 표시만, 댓글 수는 댓글을 쓰는 같은 묶음에서만 1 늘어요
     function postPath(id) { return /databases/$(database)/documents/posts/$(id); }
+    // ----- 접속 중 표시: 앱이 켜져 있는 동안 1분에 한 번 시각만 써요 -----
+    match /presence/{uid} {
+      allow get, list: if signedIn();
+      allow create, update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.at == request.time;
+    }
+
+    // ----- 놀기: 약속을 올리고 사람들이 참여해요. 고른 사람만 보게 할 수 있어요 -----
+    match /plans/{id} {
+      function canSee(d) { return d.vis == 'all' || request.auth.uid in d.invited || d.by == request.auth.uid; }
+      allow get, list: if signedIn() && canSee(resource.data);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['by', 'title', 'place', 'when', 'text', 'vis', 'invited', 'going', 'at'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 40
+        && request.resource.data.place is string && request.resource.data.place.size() <= 30
+        && request.resource.data.text is string && request.resource.data.text.size() <= 300
+        && request.resource.data.when is int
+        && request.resource.data.vis in ['all', 'pick']
+        && request.resource.data.invited is list && request.resource.data.invited.size() <= 30
+        && request.resource.data.going == [request.auth.uid]
+        && request.resource.data.at == request.time;
+      // 참여·취소: 내 이름만 넣고 빼요
+      allow update: if signedIn() && canSee(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['going'])
+        && request.resource.data.going is list && request.resource.data.going.size() <= 50
+        && request.resource.data.going.toSet().difference(resource.data.going.toSet()).hasOnly([request.auth.uid])
+        && resource.data.going.toSet().difference(request.resource.data.going.toSet()).hasOnly([request.auth.uid]);
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
+    }
+
     match /posts/{id} {
       allow read: if signedIn();
       allow create: if signedIn()

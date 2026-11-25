@@ -30,6 +30,12 @@ const UNTITLED: &[Part] = &[
     Part { d: "M9.2 10.3A4.8 4.8 0 1 1 15.7 14.7C14.5 15.5 14 16.3 14 17.9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M14 23.2h.01", stroke: 2.3, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
+// 놀기: 달력 위에 별 (약속)
+const PLAY: &[Part] = &[
+    Part { d: "M4.5 8.5a2.5 2.5 0 0 1 2.5-2.5h14a2.5 2.5 0 0 1 2.5 2.5V22a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 22Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M4.5 11.5h19M9.5 3.5v4.5M18.5 3.5v4.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M14 14.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4Z", stroke: 1.3, fill: false, alpha: 1.0, evenodd: false, transform: None },
+];
 // 홈: 집 (지붕과 문)
 const HOME: &[Part] = &[
     Part { d: "M3.5 13.2 14 4.2l10.5 9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
@@ -96,6 +102,7 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "money" => MONEY,
         "work" => WORK,
         "home" => HOME,
+        "play" => PLAY,
         "untitled" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
         "inventory" => INVENTORY,
         "untitled3" => SNS,

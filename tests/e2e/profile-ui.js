@@ -19,7 +19,7 @@ const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' :
   const p = await mk();
   await p.evaluate((u) => window.cloud.signUp(u, 'abc123', '카드보기'), 'pfb' + t);
   await p.reload(); await p.waitForTimeout(6000);
-  await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(600);
+
   await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="untitled3"]').click()); await p.waitForTimeout(3500);
   await p.click('#sns-people .sns-p:has-text("카드주인")');
   await p.waitForTimeout(700);

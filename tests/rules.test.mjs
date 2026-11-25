@@ -252,6 +252,40 @@ await t("선물 받기: 받는 사람이 한 번만, 선물 금액만큼만 받�
   await sleep(2100);
   await assertFails(claim(bob, 1250000 + 600).commit()); // 두 번 받기
 });
+await t("접속 표시: 내 것만, 시각만", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp() }));
+  await assertFails(setDoc(doc(A, "presence/uB"), { at: serverTimestamp() }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: Timestamp.fromMillis(Date.now() + 9e8) }));
+  await assertSucceeds(getDocs(query(collection(pw("uB", "bob"), "presence"), limit(10))));
+});
+await t("놀기: 약속 올리기·보기·참여·취소·지우기", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice"), B = pw("uB", "bob"), C = pw("uC", "carol");
+  const plan = { by: "uA", title: "한강 치맥", place: "여의도", when: Date.now() + 864e5, text: "7시", vis: "all", invited: [], going: ["uA"], at: serverTimestamp() };
+  await assertFails(setDoc(doc(A, "plans/p1"), { ...plan, by: "uB" }));
+  await assertFails(setDoc(doc(A, "plans/p1"), { ...plan, going: ["uA", "uB"] }));
+  await assertFails(setDoc(doc(A, "plans/p1"), { ...plan, title: "" }));
+  await assertSucceeds(setDoc(doc(A, "plans/p1"), plan));
+  await assertSucceeds(setDoc(doc(A, "plans/p2"), { ...plan, vis: "pick", invited: ["uA", "uB"] }));
+  // 보기: 비공개는 초대된 사람만
+  await assertSucceeds(getDoc(doc(C, "plans/p1")));
+  await assertFails(getDoc(doc(C, "plans/p2")));
+  await assertSucceeds(getDoc(doc(B, "plans/p2")));
+  await assertSucceeds(getDocs(query(collection(C, "plans"), where("vis", "==", "all"), limit(30))));
+  await assertFails(getDocs(query(collection(C, "plans"), limit(30))));
+  await assertSucceeds(getDocs(query(collection(B, "plans"), where("invited", "array-contains", "uB"), limit(30))));
+  // 참여: 나만 넣고 빼요
+  await assertFails(updateDoc(doc(B, "plans/p1"), { going: ["uA", "uB", "uC"] }));
+  await assertFails(updateDoc(doc(B, "plans/p1"), { going: ["uB"] }));
+  await assertSucceeds(updateDoc(doc(B, "plans/p1"), { going: ["uA", "uB"] }));
+  await assertFails(updateDoc(doc(C, "plans/p2"), { going: ["uA", "uC"] }));
+  await assertFails(updateDoc(doc(B, "plans/p1"), { title: "바꾸기" }));
+  await assertSucceeds(updateDoc(doc(B, "plans/p1"), { going: ["uA"] }));
+  await assertFails(deleteDoc(doc(B, "plans/p1")));
+  await assertSucceeds(deleteDoc(doc(A, "plans/p1")));
+});
 await t("땅: 사기(10 토큰)·이름·건물·통행료·받기·팔기가 지갑과 한 묶음으로만 돼요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice"), B = pw("uB", "bob");

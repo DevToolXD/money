@@ -393,6 +393,7 @@ fn setup_tabbar(first: &str) {
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
             "home" => crate::home::open(),
+            "play" => crate::play::open(),
             _ => {}
         }
         invoke(&backdrop(), "setActive", &[JsValue::from_str(&name)]);
@@ -465,6 +466,7 @@ pub(crate) fn boot(cloud_v: JsValue) {
         company::load();
         crate::vitals::load();
         crate::chat::start();
+        crate::presence::start();
         match cloud::call("loadSettings", &[]).await {
             Ok(data) => {
                 let p = cloud::get(&data, "profile");
