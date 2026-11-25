@@ -110,7 +110,8 @@ pub(crate) fn update_chrome(el: &web_sys::HtmlElement) {
         return;
     }
     let (Some(top), Some(title)) = (by_id("topbar"), by_id("topbar-title")) else { return };
-    let y = el.scroll_top() as f64;
+    // 스크롤 위치는 scroll 이벤트에서 적어 둔 값을 써요. 탭을 바꾼 직후 scrollTop을 읽으면 레이아웃을 강제로 계산해서 멈춰요
+    let y = js_sys::Reflect::get(el, &JsValue::from_str("_sy")).ok().and_then(|v| v.as_f64()).unwrap_or(0.0);
     let ts = title.style();
     let Some(h1) = qs(el, ".large-title h1") else {
         // 큰 제목이 없는 화면(메시지)은 작은 제목이 늘 보여요. 돈 탭처럼 data-notitle이면 제목 없이 유리만 나타나요
@@ -535,7 +536,10 @@ pub fn start() {
     set_title(&first);
     for el in screens() {
         let e2 = el.clone();
-        dom::on(&el, "scroll", move |_| update_chrome(&e2));
+        dom::on(&el, "scroll", move |_| {
+            let _ = Reflect::set(&e2, &JsValue::from_str("_sy"), &JsValue::from_f64(e2.scroll_top() as f64));
+            update_chrome(&e2);
+        });
     }
     // 관리 화면 (owner 전용 버튼), 공지 화면
     for (id, to) in [("open-manage", "manage"), ("manage-back", "account"), ("open-notices", "notices"), ("notices-back", "account")] {

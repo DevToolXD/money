@@ -1311,8 +1311,13 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
     });
     // 화면이 스크롤되면 막대 유리가 보여주는 자리도 따라가요
     {
+        // 사진이 없으면(지금은 늘 꺼 둬요) 유리는 바탕색만 비춰서 스크롤해도 바뀌는 게 없어요. 그때는 다시 그리지 않아요
         let c = Closure::<dyn FnMut(web_sys::Event)>::new(|_: web_sys::Event| {
-            with(|b| b.request_render());
+            with(|b| {
+                if !b.shots.is_empty() {
+                    b.request_render();
+                }
+            });
         });
         let o = web_sys::AddEventListenerOptions::new();
         o.set_capture(true);

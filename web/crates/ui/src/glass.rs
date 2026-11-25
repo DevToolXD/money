@@ -19,6 +19,9 @@ const PRESSABLE: &str = "button, a, [role='button'], .pk-ic, .a-ico";
 
 #[derive(Default)]
 struct St {
+    /// 크기·위치 정보를 처음 읽었는지 (붙일 때 읽지 않고, 브라우저가 레이아웃을 끝낸 뒤 ResizeObserver에서 읽어요)
+    ready: bool,
+    field: bool,
     key: String,
     hl: Option<HtmlElement>,
     p: f64,
@@ -196,7 +199,31 @@ impl G {
         v
     }
 
+    /// 처음 한 번: 위치가 static이면 relative로, 누를 때 빛 번짐(lg-hl)을 넣어요
+    fn prepare(&mut self, i: usize) {
+        if self.els[i].1.ready {
+            return;
+        }
+        self.els[i].1.ready = true;
+        if self.els[i].1.field {
+            return;
+        }
+        let el = self.els[i].0.clone();
+        if win().get_computed_style(&el).ok().flatten().and_then(|c| c.get_property_value("position").ok()).as_deref() == Some("static") {
+            let _ = el.class_list().add_1("lg-rel");
+        }
+        if let Ok(hl) = crate::dom::doc().create_element("lg-hl") {
+            let _ = hl.set_attribute("aria-hidden", "true");
+            let _ = el.append_child(&hl);
+            self.els[i].1.hl = hl.dyn_into().ok();
+        }
+    }
+
     fn paint(&mut self, i: usize) {
+        // 굴절 렌즈를 못 쓰는 곳(아이폰 등)은 크기를 읽을 필요가 없어요
+        if !self.lens {
+            return;
+        }
         let el = self.els[i].0.clone();
         let w = el.offset_width() as f64;
         let h = el.offset_height() as f64;
@@ -432,25 +459,17 @@ fn attach(el: &HtmlElement) {
         return;
     }
     let field = matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA");
-    let mut st = St { drop: el.id() == "status-bubble", ..St::default() };
+    let st = St { drop: el.id() == "status-bubble", field, ..St::default() };
     let _ = el.class_list().add_1("lg");
-    if !field {
-        if win().get_computed_style(el).ok().flatten().and_then(|c| c.get_property_value("position").ok()).as_deref() == Some("static") {
-            let _ = el.class_list().add_1("lg-rel");
-        }
-        if let Ok(hl) = crate::dom::doc().create_element("lg-hl") {
-            let _ = hl.set_attribute("aria-hidden", "true");
-            let _ = el.append_child(&hl);
-            st.hl = hl.dyn_into().ok();
-        }
-    } else {
+    if field {
         let _ = el.class_list().add_1("lg-field");
     }
+    // 크기·스타일은 여기서 읽지 않아요 (새 글·새 화면을 넣는 순간 읽으면 브라우저가 레이아웃을 바로 계산해서 멈춰요).
+    // ResizeObserver가 처음 알려줄 때(레이아웃이 끝난 뒤) prepare·paint해요
     with(|g| {
         g.els.push((el.clone(), st));
         let i = g.els.len() - 1;
         let _ = js_sys::Reflect::set(el, &"_lgi".into(), &(i as f64).into());
-        g.paint(i);
         if let Some(ro) = &g.resize {
             ro.observe(el);
         }
@@ -493,6 +512,7 @@ pub fn start() {
                 if let Some(t) = t {
                     with(|g| {
                         if let Some(i) = g.index(&t) {
+                            g.prepare(i);
                             g.paint(i);
                         }
                     });

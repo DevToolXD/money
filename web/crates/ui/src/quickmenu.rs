@@ -9,6 +9,8 @@ use wasm_bindgen::JsCast;
 use crate::dom::{self, by_id};
 
 thread_local! {
+    /// 지금 누르는 손가락이 메뉴 버튼 둘레에서 시작했는지
+    static EDGE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static OPEN: Cell<bool> = const { Cell::new(false) };
     static SEQ: Cell<u32> = const { Cell::new(0) };
 }
@@ -126,12 +128,20 @@ pub fn init(nav: &web_sys::HtmlElement) {
     for ev in ["pointerdown", "pointerup", "pointermove", "click", "keydown"] {
         let cb = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |e: web_sys::Event| {
             let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) else { return };
+            // 버튼 둘레(유리 판 가장자리)를 눌렀는지는 누르기 시작할 때 한 번만 재요.
+            // 다른 탭을 누른 click 때마다 재면, 화면이 막 바뀐 뒤라 브라우저가 레이아웃을 강제로 계산해서 멈춰요
             let on_btn = t.closest(".tab-account").ok().flatten().is_some()
-                || e.dyn_ref::<web_sys::MouseEvent>().zip(btn()).is_some_and(|(m, b)| {
-                    let r = b.get_bounding_client_rect();
-                    let (x, y) = (m.client_x() as f64, m.client_y() as f64);
-                    x >= r.left() && x <= r.right() && y >= r.top() && y <= r.bottom()
-                });
+                || if ev == "pointerdown" {
+                    let hit = e.dyn_ref::<web_sys::MouseEvent>().zip(btn()).is_some_and(|(m, b)| {
+                        let r = b.get_bounding_client_rect();
+                        let (x, y) = (m.client_x() as f64, m.client_y() as f64);
+                        x >= r.left() && x <= r.right() && y >= r.top() && y <= r.bottom()
+                    });
+                    EDGE.set(hit);
+                    hit
+                } else {
+                    ev != "keydown" && EDGE.get()
+                };
             if !on_btn {
                 return;
             }

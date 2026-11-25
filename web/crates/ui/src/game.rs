@@ -63,6 +63,9 @@ thread_local! {
     static BUSY: Cell<bool> = const { Cell::new(false) };
     /// 처음 받은 점수는 움직임 없이 바로 그 전선으로 그려요
     static GOT: Cell<bool> = const { Cell::new(false) };
+    /// 지도 전체 보기 (끄면 카메라가 전선을 따라가요)
+    static FULL: Cell<bool> = const { Cell::new(false) };
+    static CAM: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
 /// 지도 안의 SVG 요소 (HTML 요소가 아니라서 by_id로는 못 찾아요)
@@ -127,7 +130,7 @@ fn load_regions() {
     REGIONS.with(|r| *r.borrow_mut() = v);
 }
 
-const SWORD: &str = r#"<path d="M14.5 4.5h5v5L10 19l-2.5-2.5z"/><path d="M5 14l5 5M4 20l2.5-2.5M12.5 6.5l5 5"/>"#;
+const AIM: &str = r#"<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v4.5M12 17.5V22M2 12h4.5M17.5 12H22"/>"#;
 fn svg(d: &str) -> String {
     format!(r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{d}</svg>"#)
 }
@@ -153,12 +156,21 @@ fn build() {
   <div class="gm-top"><span class="gm-side r"><i></i>소련 <b id="gm-rp">50%</b></span><span class="gm-side b">독일 <b id="gm-bp">50%</b><i></i></span></div>
   <div class="gm-bar" aria-hidden="true"><span class="gm-bar-r" id="gm-bar"></span></div>
   <p class="gm-news" id="gm-news">전선이 팽팽해요. 많이 누르는 쪽이 밀어붙여요</p>
-  <svg class="gm-map" viewBox="0 24 1000 780" role="img" aria-label="전쟁 지도"><path class="gm-ctx" d="{ctx}"/><g id="gm-regs">{paths}</g><g class="gm-lbl"><text id="gm-rt" class="r" x="0" y="0">0</text><text id="gm-bt" class="b" x="0" y="0">0</text></g></svg>
+  <div class="gm-view" id="gm-view"><svg class="gm-map" id="gm-svg" viewBox="0 24 1000 780" role="img" aria-label="전쟁 지도"><path class="gm-ctx" d="{ctx}"/><g id="gm-regs">{paths}</g><g id="gm-fx"></g><g class="gm-lbl"><text id="gm-rt" class="r" x="0" y="0">0</text><text id="gm-bt" class="b" x="0" y="0">0</text></g></svg><button type="button" class="gm-full" id="gm-full">전체 지도</button></div>
 </div>
 <div class="gm-play" id="gm-play"></div>
 <section class="gm-rank" aria-labelledby="gm-rank-t"><h2 id="gm-rank-t">랭킹</h2><div class="gm-cols" id="gm-rank"></div><p class="gm-mine" id="gm-mine"></p></section>"#
     ));
     BUILT.set(true);
+    if let Some(b) = by_id("gm-full") {
+        dom::on(&b, "click", |_| {
+            FULL.set(!FULL.get());
+            dom::set_text("gm-full", if FULL.get() { "전선 보기" } else { "전체 지도" });
+            dom::vibrate(6);
+            camera();
+        });
+    }
+    camera();
     if let Some(p) = by_id("gm-play") {
         dom::on(&p, "click", on_play_click);
         // 누르는 순간 바로 세요 (손을 떼기를 기다리지 않아요). 여러 손가락도 따로 세요
@@ -192,7 +204,7 @@ fn paint_play() {
         &p,
         &format!(
             r#"<button type="button" class="gm-hit {t}" id="gm-hit">{}<b>{}군 공격</b></button><p class="gm-me"><span>내 클릭 <b id="gm-my">0</b></span><span>우리 팀 <b id="gm-ours">0</b></span></p>"#,
-            svg(SWORD),
+            svg(AIM),
             side_name(&t)
         ),
     );
@@ -281,7 +293,9 @@ fn paint_labels(r: f64, b: f64) {
             let w: f64 = a.iter().map(|g| g.area).sum::<f64>().max(1.0);
             (a.iter().map(|g| g.cx * g.area).sum::<f64>() / w, a.iter().map(|g| g.cy * g.area).sum::<f64>() / w)
         };
-        for (id, part, v) in [("gm-bt", &regs[..k], b), ("gm-rt", &regs[k..], r)] {
+        // 전선을 따라가는 동안에는 화면에 보이는 전선 가까운 땅 가운데, 전체 보기면 진영 전체 가운데
+        let (b0, r1) = if FULL.get() { (0, N) } else { (k.saturating_sub(3), (k + 3).min(N)) };
+        for (id, part, v) in [("gm-bt", &regs[b0..k], b), ("gm-rt", &regs[k..r1], r)] {
             let Some(el) = svg_el(id) else { continue };
             let (x, y) = center(part);
             let (x, y) = (format!("{x:.0}"), format!("{y:.0}"));
@@ -316,6 +330,8 @@ fn step() {
         let _ = cl.add_1(if to_b { "b" } else { "r" });
         dom::anim(&p, r#"[{"transform":"scale(1)","filter":"brightness(1)"},{"transform":"scale(1.06)","filter":"brightness(1.45)","offset":0.35},{"transform":"scale(1)","filter":"brightness(1)"}]"#, r#"{"duration":700,"easing":"cubic-bezier(.2,.8,.2,1)","fill":"none"}"#);
     }
+    blast(i, to_b);
+    camera();
     let news = format!("{}이 {}{} 점령했어요", if to_b { "독일" } else { "소련" }, name, obj_josa(&name));
     dom::set_text("gm-news", &news);
     if let Some(n) = by_id("gm-news") {
@@ -323,6 +339,60 @@ fn step() {
         let _ = n.offset_width();
         let _ = n.class_list().add_1("pop");
     }
+    paint_labels(scores().0, scores().1);
+}
+
+/// 점령한 땅 가운데에서 팀 색 고리가 두 번 퍼져요 (깃발을 꽂는 느낌)
+fn blast(i: usize, to_b: bool) {
+    if dom::reduce_motion() {
+        return;
+    }
+    let Some(fx) = svg_el("gm-fx") else { return };
+    let Some((cx, cy)) = REGIONS.with(|r| r.borrow().get(i).map(|g| (g.cx, g.cy))) else { return };
+    let html: String = (0..2)
+        .map(|n| format!(r#"<circle class="gm-ring {}" cx="{cx:.0}" cy="{cy:.0}" r="34" style="animation-delay:{}ms"/>"#, if to_b { "b" } else { "r" }, n * 180))
+        .collect();
+    fx.set_inner_html(&html);
+    leptos::prelude::set_timeout(move || fx.set_inner_html(""), std::time::Duration::from_millis(1300));
+}
+
+/// 카메라: 전선 양쪽 두 지역씩이 화면에 꽉 차게 지도를 키우고 옮겨요.
+/// SVG 안을 다시 그리지 않고 SVG 통째로 CSS transform만 바꿔서(합성 단계에서 처리) 가벼워요
+fn camera() {
+    let Some(el) = svg_el("gm-svg") else { return };
+    let k = SHOWN.get();
+    let (s, tx, ty) = if FULL.get() {
+        (1.0, 0.0, 0.0)
+    } else {
+        let Some((x0, y0, x1, y1)) = REGIONS.with(|r| {
+            let r = r.borrow();
+            if r.len() != N {
+                return None;
+            }
+            let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+            for g in &r[k.saturating_sub(2)..(k + 2).min(N)] {
+                let h = g.area.sqrt() * 0.8;
+                x0 = x0.min(g.cx - h);
+                x1 = x1.max(g.cx + h);
+                y0 = y0.min(g.cy - h);
+                y1 = y1.max(g.cy + h);
+            }
+            Some((x0, y0, x1, y1))
+        }) else {
+            return;
+        };
+        let (w, h) = ((x1 - x0).max(300.0) + 60.0, (y1 - y0).max(234.0) + 60.0);
+        let s = (1000.0 / w).min(780.0 / h).clamp(1.0, 3.2);
+        // 보이는 판(1000x780, 위 24 잘림)에서의 비율 자리
+        let (fx, fy) = (((x0 + x1) / 2.0) / 1000.0, ((y0 + y1) / 2.0 - 24.0) / 780.0);
+        ((s * 100.0).round() / 100.0, (0.5 - fx * s).clamp(1.0 - s, 0.0), (0.5 - fy * s).clamp(1.0 - s, 0.0))
+    };
+    let t = format!("translate({:.2}%,{:.2}%) scale({s})", tx * 100.0, ty * 100.0);
+    if CAM.with(|c| *c.borrow() == t) {
+        return;
+    }
+    CAM.with(|c| *c.borrow_mut() = t.clone());
+    let _ = el.set_attribute("style", &format!("transform:{t};--s:{s}"));
     paint_labels(scores().0, scores().1);
 }
 
@@ -351,6 +421,7 @@ fn watch() {
                     let _ = p.set_attribute("class", &format!("gm-reg {}", if i < k { "b" } else { "r" }));
                 }
             }
+            camera();
         }
         paint_score();
         run();

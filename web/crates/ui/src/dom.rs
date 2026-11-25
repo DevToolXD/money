@@ -37,19 +37,30 @@ pub fn set_text(id: &str, t: &str) {
         }
     }
 }
-/// 안의 항목들이 아래에서 살짝 떠오르며 차례로 나타나요 (불러온 내용이 툭 튀어나오지 않게). 움직임 줄이기면 아무것도 안 해요
+/// 안의 항목들이 아래에서 살짝 떠오르며 차례로 나타나요 (불러온 내용이 툭 튀어나오지 않게). 움직임 줄이기면 아무것도 안 해요.
+/// 레이아웃을 강제로 계산하지 않아요: 이미 움직이는 중이면 class를 그대로 두고 끝나는 시간만 늦춰요
+/// (그 사이 새로 들어온 항목은 들어오는 순간 저절로 떠올라요). 예전엔 다시 시작하려고 크기를 읽어서 탭마다 수십 ms 멈췄어요
 pub fn reveal(el: &web_sys::Element) {
+    thread_local!(static GEN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) });
     if reduce_motion() {
         return;
     }
     let cl = el.class_list();
-    let _ = cl.remove_1("reveal");
-    let _ = el.client_width(); // 다시 처음부터 움직이게
-    let _ = cl.add_1("reveal");
+    if !cl.contains("reveal") {
+        let _ = cl.add_1("reveal");
+    }
+    let g = GEN.with(|c| {
+        c.set(c.get().wrapping_add(1));
+        c.get()
+    });
+    // 요소마다 마지막 차례를 적어 두고, 그 차례가 끝날 때만 class를 떼요
+    let _ = el.set_attribute("data-rv", &g.to_string());
     let el2 = el.clone();
     wasm_bindgen_futures::spawn_local(async move {
         sleep(700).await;
-        let _ = el2.class_list().remove_1("reveal");
+        if el2.get_attribute("data-rv").as_deref() == Some(g.to_string().as_str()) {
+            let _ = el2.class_list().remove_1("reveal");
+        }
     });
 }
 /// 내용이 바뀌었을 때만 innerHTML을 바꿔요 (2초마다 다시 그리는 곳에서 써요)
