@@ -2504,3 +2504,65 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
   .sns-like.on svg, .pl-go.on, .tr-go.on { animation: none; }
 }
 .thread.is-open { transition: transform 0.5s var(--liquid-soft); }
+
+/* ===== 대화 정보 (아이폰 메시지 그대로: 프레임 분석)
+   열기: 이름 자리에서 폭 2/3 크기의 진한 유리 카드로 나타나(내용도 작게) 잠깐 머문 뒤, 화면 전체로 튕기듯 펼쳐져요 (0.36초)
+   닫기: 위쪽으로 줄어들며(70% → 45%) 흐려지고 이름 자리로 빨려 들어가요 (0.22초) ===== */
+.ci { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.ci[hidden] { display: none; }
+.ci.on { pointer-events: auto; }
+.ci-panel { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--safe-top, 0px) + 6px) 16px 40px; color: #fff;
+  background: linear-gradient(180deg, rgba(30, 30, 44, 0.86) 0%, rgba(22, 22, 32, 0.9) 100%); -webkit-backdrop-filter: blur(34px) saturate(150%); backdrop-filter: blur(34px) saturate(150%);
+  transform-origin: 50% 76px; will-change: transform, clip-path, opacity; }
+.ci.on .ci-panel { animation: ciOpen 0.36s linear both; }
+.ci.closing .ci-panel { animation: ciClose 0.22s cubic-bezier(0.4, 0, 0.7, 0.6) both; }
+@keyframes ciOpen {
+  0%   { opacity: 0.2; transform: scale(0.66); clip-path: inset(0 0 42% 0 round 44px); }
+  10%  { opacity: 1;   transform: scale(0.67); clip-path: inset(0 0 41% 0 round 44px); }
+  38%  { opacity: 1;   transform: scale(0.69); clip-path: inset(0 0 40% 0 round 42px); animation-timing-function: cubic-bezier(0.25, 1.25, 0.35, 1); }
+  100% { opacity: 1;   transform: none;        clip-path: inset(0 0 0 0 round 0); }
+}
+@keyframes ciClose {
+  0%   { opacity: 1;   transform: none;        clip-path: inset(0 0 0 0 round 0); }
+  40%  { opacity: 0.95; transform: scale(0.7); clip-path: inset(0 0 34% 0 round 42px); }
+  70%  { opacity: 0.6; transform: scale(0.5);  clip-path: inset(0 0 52% 0 round 48px); }
+  100% { opacity: 0;   transform: scale(0.32); clip-path: inset(0 0 70% 0 round 56px); }
+}
+@media (prefers-reduced-motion: reduce) { .ci.on .ci-panel, .ci.closing .ci-panel { animation-duration: 0.01s; } }
+.ci-top { display: flex; justify-content: space-between; align-items: center; height: 48px; }
+.ci-round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.3); }
+.ci-round svg { width: 22px; height: 22px; }
+.ci-pill { height: 40px; padding: 0 16px; border-radius: 20px; font-size: 16px; font-weight: 700; color: #fff; background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.3); }
+.ci-head { display: grid; justify-items: center; gap: 8px; margin-top: -30px; }
+.ci-big { width: 92px; height: 92px; font-size: 32px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+.ci-name { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.ci-acts { display: flex; justify-content: center; gap: 22px; margin: 16px 0 18px; }
+.ci-act { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.3); }
+.ci-act:disabled { opacity: 0.35; }
+.ci-act svg { width: 24px; height: 24px; }
+.ci-tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 16px; }
+.ci-tab { height: 34px; padding: 0 16px; border-radius: 17px; font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.62); }
+.ci-tab.on { color: #fff; background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 0 0 0.7px rgba(255, 255, 255, 0.25); }
+.ci-body { display: grid; gap: 12px; }
+.ci-card { display: block; width: 100%; padding: 14px 16px; border-radius: 22px; text-align: left; color: #fff; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 0.6px rgba(255, 255, 255, 0.14); }
+.ci-row { display: flex; align-items: center; justify-content: space-between; }
+.ci-label { margin: 0 0 2px; font-size: 13px; color: rgba(255, 255, 255, 0.62); }
+.ci-row b { font-size: 17px; font-weight: 600; }
+.ci-on { font-size: 13px; font-weight: 700; color: #31d158; }
+.ci-list { padding: 4px 16px; }
+.ci-li { display: flex; align-items: center; justify-content: space-between; min-height: 50px; font-size: 16px; }
+.ci-li + .ci-li { border-top: 0.5px solid rgba(255, 255, 255, 0.14); }
+.ci-sw { position: relative; width: 52px; height: 32px; border-radius: 16px; background: rgba(120, 120, 128, 0.5); transition: background-color 0.25s; }
+.ci-sw i { position: absolute; left: 2px; top: 2px; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); transition: transform 0.35s var(--liquid, ease); }
+.ci-sw.on { background: #34c759; }
+.ci-sw.on i { transform: translateX(20px); }
+.ci-link { font-size: 16px; font-weight: 600; color: #4aa3ff; }
+.ci-mems { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 4px; margin-top: 10px; }
+.ci-mem { display: grid; justify-items: center; gap: 6px; color: #fff; font-size: 12px; }
+.ci-mem .avatar { width: 54px; height: 54px; font-size: 18px; }
+.ci-mem span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-walls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ci-walls .wall-opt { color: #fff; }
+.ci-photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-radius: 18px; overflow: hidden; }
+.ci-photos span { aspect-ratio: 1; background-size: cover; background-position: center; background-color: rgba(255, 255, 255, 0.1); }
+.ci-empty { margin: 30px 0; text-align: center; color: rgba(255, 255, 255, 0.62); font-size: 15px; }

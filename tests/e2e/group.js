@@ -47,12 +47,33 @@ const open = async (b) => {
   await B.evaluate(() => document.querySelector('#chat-list [data-id^="g_"]').click()); await B.waitForTimeout(2500);
   const bub = (await B.textContent('#bubbles')) || '';
   ok('보낸 사람 이름 가나다가 보여요', bub.includes('가나다') && bub.includes('단톡 안녕'));
-  await B.evaluate(() => document.getElementById('thread-name-btn').click()); await B.waitForTimeout(2500);
-  const mem = (await B.textContent('#grp-mem')) || '';
-  ok('단톡방 설정에서 대화 상대가 보여요', mem.includes('가나다') && mem.includes('나') && (await B.textContent('#grp-mem-h')).includes('명'));
+  // 이름을 누르면 아이폰 메시지처럼 대화 정보가 펼쳐져요 (움직임은 시각별로 찍어 둬요)
+  await B.evaluate(() => document.getElementById('thread-name-btn').click());
+  const OUT = process.env.CI_SHOTS;
+  const shot = async (ms, name) => { await B.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), ms); await B.waitForTimeout(60); if (OUT) await B.screenshot({ path: `${OUT}/${name}.png` }); };
+  for (const ms of [0, 40, 100, 135, 180, 240, 360]) await shot(ms, 'o' + ms);
+  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(1500);
+  const mem = (await B.textContent('#cinfo .ci-mems')) || '';
+  ok('대화 정보에서 대화 상대가 보여요', await B.isVisible('#cinfo .ci-panel') && mem.includes('가나다') && (await B.textContent('#cinfo')).includes('명'));
   await B.screenshot({ path: require('path').join(__dirname, 'shots', 'group-members.png') });
-  await B.evaluate(() => document.querySelector('#grp-mem .grp-mrow:not(:first-child)')?.click() || document.querySelectorAll('#grp-mem .grp-mrow')[1]?.click()); await B.waitForTimeout(1200);
+  await B.click('#cinfo [data-tab="wall"]'); await B.waitForTimeout(400);
+  ok('배경 탭', await B.isVisible('#cinfo [data-wall-pick="night"]'));
+  await B.click('#cinfo [data-wall-pick="night"]'); await B.waitForTimeout(400);
+  ok('배경이 바뀌어요', (await B.getAttribute('#thread', 'data-wall')) === 'night');
+  await B.click('#cinfo [data-tab="info"]'); await B.waitForTimeout(400);
+  await B.click('#cinfo [data-act="mute"].ci-sw'); await B.waitForTimeout(400);
+  ok('알림 가리기 켜짐', (await B.getAttribute('#cinfo [data-act="mute"].ci-sw', 'aria-checked')) === 'true');
+  await B.click('#cinfo [data-act="close"]');
+  for (const ms of [0, 60, 100, 150, 200]) await shot(ms, 'c' + ms);
+  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(500);
+  ok('닫으면 사라져요', !(await B.isVisible('#cinfo .ci-panel')));
+  await B.evaluate(() => document.getElementById('thread-avatar').click()); await B.waitForTimeout(800);
+  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(300);
+  ok('사진을 눌러도 같은 정보가 열려요', await B.isVisible('#cinfo .ci-panel'));
+  await B.evaluate(() => document.querySelectorAll('#cinfo .ci-mem')[0]?.click()); await B.waitForTimeout(1200);
   ok('대화 상대를 누르면 프로필이 떠요', await B.isVisible('.pf-card'));
+  await B.mouse.click(195, 80); await B.waitForTimeout(500);
+  await B.evaluate(() => document.querySelector('#cinfo [data-act="close"]')?.click()); await B.waitForTimeout(600);
   // A가 D를 초대
   await A.evaluate(() => document.getElementById('thread-invite').click()); await A.waitForTimeout(1500);
   const rows2 = await A.$$('#new-results .res-row');

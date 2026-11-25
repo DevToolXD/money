@@ -144,10 +144,12 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   ok('그림 카드', await (async () => { for (let i = 0; i < 40; i++) { if (await bp.$('#bubbles .media.drawn img')) return true; await bp.waitForTimeout(250); } return false; })());
 
   // 배경화면
-  await a.click('#thread-name-btn'); await a.waitForTimeout(500);
-  await a.click('#wall-sheet [data-pick="mint"]'); await a.waitForTimeout(300);
+  await a.click('#thread-name-btn'); await a.waitForTimeout(700);
+  ok('이름을 누르면 대화 정보 (1:1: 프로필·선물·알림)', await a.isVisible('#cinfo .ci-panel') && await a.isVisible('#cinfo .ci-act[data-act="gift"]') && (await text(a, '#cinfo')).includes('아이디'));
+  await a.click('#cinfo [data-tab="wall"]'); await a.waitForTimeout(300);
+  await a.click('#cinfo [data-wall-pick="mint"]'); await a.waitForTimeout(300);
   ok('배경화면 바꾸기', (await a.getAttribute('#thread', 'data-wall')) === 'mint');
-  await a.click('#wall-done'); await a.waitForTimeout(400);
+  await a.click('#cinfo [data-act="close"]'); await a.waitForTimeout(500);
   ok('배경 저장 (이 기기)', JSON.parse(await a.evaluate(() => localStorage.getItem('walls')) || '{}')[await a.evaluate(() => document.querySelector('#chat-list .chat-row, #pinned .pin')?.dataset.id || '')] === 'mint' || (await a.evaluate(() => localStorage.getItem('walls'))).includes('mint'));
   // 말풍선 꾹 눌러 복사 메뉴
   await press(a, '#bubbles .bubble');

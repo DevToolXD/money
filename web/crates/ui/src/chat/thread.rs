@@ -244,6 +244,17 @@ fn apply_wall() {
     }
 }
 
+/// 배경화면을 바꾸고 저장해요 (대화 정보의 배경 탭에서도 써요)
+pub(crate) fn set_wall(id: &str, pick: &str) {
+    let w = walls();
+    let _ = Reflect::set(&w, &JsValue::from_str(id), &JsValue::from_str(pick));
+    if let Ok(s) = js_sys::JSON::stringify(&w) {
+        dom::store_set("walls", &String::from(s));
+    }
+    apply_wall();
+    let _ = ctx().call("saveSettings", &[]);
+}
+
 /* ---------- 열기, 닫기 ---------- */
 
 pub fn open(id: &str) {
@@ -342,6 +353,7 @@ pub fn open(id: &str) {
 }
 
 pub fn close() {
+    super::info::close();
     if let Some(f) = UNSUB.with(|u| u.borrow_mut().take()) {
         let _ = f.call0(&JsValue::NULL);
     }
@@ -452,22 +464,11 @@ pub fn init() {
     }
     // 배경화면
     // 1:1 대화 위쪽 사진을 누르면 그 사람 카드가 떠요
-    if let Some(a) = by_id("thread-avatar") {
-        dom::on(&a, "click", |_| {
-            if let Some(c) = super::open_chat() {
-                if c.group {
-                    open_group_sheet(&c);
-                } else if !c.other.is_empty() {
-                    crate::profile::show(&c.other, &c.name, None);
-                }
-            }
-        });
-    }
-    if let Some(b) = by_id("thread-name-btn") {
-        dom::on(&b, "click", |_| match super::open_chat() {
-            Some(c) if c.group => open_group_sheet(&c),
-            _ => super::sheet_open(true, "wall-sheet"),
-        });
+    // 위쪽 사진이나 이름을 누르면 어디를 눌러도 같은 대화 정보가 펼쳐져요 (아이폰 메시지처럼)
+    for id in ["thread-avatar", "thread-name-btn"] {
+        if let Some(a) = by_id(id) {
+            dom::on(&a, "click", |_| super::info::open());
+        }
     }
     bind_group();
     for b in dom::qsa(&dom::doc().document_element().expect("html"), "[data-pick]") {
@@ -508,7 +509,7 @@ fn paint_head(c: &Chat) {
         dom::toggle(&av, "photo", !tp.is_empty());
     }
 }
-fn open_group_sheet(c: &Chat) {
+pub(crate) fn open_group_sheet(c: &Chat) {
     paint_head(c);
     if let Some(i) = by_id("grp-name").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
         i.set_value(&c.name);
