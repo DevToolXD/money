@@ -819,7 +819,7 @@ html[data-theme="dark"] .attach { background: rgba(50, 50, 56, 0.8); color: #fff
 .po-n { position: relative; font-size: 15px; font-weight: 700; color: var(--text-secondary); }
 .poll-meta { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); font-weight: 500; }
 
-/* ===== 토큰 보내기 (회색 리퀴드 글라스 시트) ===== */
+/* ===== 멸공 보내기 (회색 리퀴드 글라스 시트) ===== */
 .sheet.dark { background: rgba(112, 117, 130, 0.52); -webkit-backdrop-filter: blur(38px) saturate(180%); backdrop-filter: blur(38px) saturate(180%); box-shadow: inset 0 0 0 0.8px rgba(255, 255, 255, 0.38), inset 0 2px 1.5px rgba(255, 255, 255, 0.5), inset 0 -2px 3px rgba(255, 255, 255, 0.12); color: #fff; border-radius: 40px 40px 0 0; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); }
 .sheet.dark .grabber { background: rgba(255, 255, 255, 0.5); }
 .gift-to { margin: 6px 0 0; text-align: center; font-size: 16px; font-weight: 600; color: rgba(255, 255, 255, 0.78); }
@@ -2168,8 +2168,8 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .map-attr { position: absolute; left: 6px; bottom: 4px; padding: 1px 6px; border-radius: 6px; font-size: 11px; color: #333; background: rgba(255, 255, 255, 0.75); text-decoration: none; }
 
 /* 홈 지도: 화면 전체. 탭 바와 위쪽 버튼은 지도 위에 떠요 */
-#screen-home { padding: 0; overflow: hidden; }
-#screen-home .map-title { display: none; }
+#screen-map { padding: 0; overflow: hidden; }
+#screen-map .map-title { display: none; }
 .map-card { position: absolute; inset: 0; margin: 0; height: auto; min-height: 0; border-radius: 0; }
 .map-world { position: absolute; inset: 0; will-change: transform; transform-origin: 0 0; }
 .map-hex { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -2186,7 +2186,7 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .map-wash { position: absolute; left: -320px; top: -320px; right: -320px; bottom: -320px; background: rgba(246, 244, 238, 0.8); pointer-events: none; }
 .map-card, .map-tile { background: #f2efe9; }
 
-/* 홈 지도 게임: 내 토큰 알약, 땅 카드(유리), 내 위치 고리 */
+/* 홈 지도 게임: 내 멸공 알약, 땅 카드(유리), 내 위치 고리 */
 .map-hud { position: absolute; left: 14px; top: calc(env(safe-area-inset-top, 0px) + 14px); margin: 0; height: 40px; padding: 0 16px 0 12px; display: flex; align-items: center; gap: 6px; border-radius: 20px; font-size: 15px; color: var(--text-primary); background: rgba(255, 255, 255, 0.72); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.9), 0 6px 20px rgba(30, 40, 80, 0.14); pointer-events: none; }
 .map-hud[hidden] { display: none; }
 .map-hud svg { width: 20px; height: 20px; color: #0a7cff; }
@@ -2345,3 +2345,27 @@ html[data-theme="dark"] .pl-chip { background: rgba(255, 255, 255, 0.1); }
 .pl-pp i svg { width: 14px; height: 14px; }
 .pl-pp.on i { opacity: 1; transform: none; }
 .pl-pp.on .pl-pav { transform: scale(0.92); box-shadow: 0 0 0 3px #0a7cff; }
+
+/* 탭을 옮길 때: 위로 올라오는 움직임 없이 짧게 겹쳐 바뀌어요 (미리 읽어 둔 화면이라 새로 그려지는 모습이 안 보여요) */
+.screen { transform: none; transition: opacity 0.16s ease, visibility 0s 0.16s; }
+.screen.is-active { transition: opacity 0.16s ease; }
+
+/* ===== 홈: 내 멸공·땅·약속 ===== */
+.hm-hero { margin: 4px 14px 14px; padding: 22px 22px 20px; border-radius: 26px; display: grid; gap: 2px; color: #fff; background: linear-gradient(145deg, #3d8bff 0%, #6a5cff 60%, #8f5bd8 100%); box-shadow: 0 14px 34px rgba(80, 90, 220, 0.28), inset 0 1.5px 1px rgba(255, 255, 255, 0.45); }
+.hm-eyebrow { font-size: 14px; font-weight: 700; opacity: 0.85; }
+.hm-bal { font-size: 48px; line-height: 54px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.hm-sub { font-size: 15px; font-weight: 700; opacity: 0.85; }
+.hm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 14px 6px; }
+.hm-tile { display: grid; gap: 2px; align-content: start; justify-items: start; text-align: left; padding: 14px; border-radius: 22px; color: var(--text-primary); background: var(--bg-card); min-height: 132px; }
+.hm-tile b { margin-top: 8px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.hm-tile span:not(.hm-ic) { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.hm-tile small { font-size: 12px; line-height: 16px; color: var(--text-secondary); word-break: keep-all; }
+.hm-tile:active { scale: 0.97; }
+.hm-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; }
+.hm-ic svg { width: 22px; height: 22px; }
+.hm-blue { background: #0a7cff; } .hm-orange { background: #ff9f0a; } .hm-green { background: #34c759; } .hm-purple { background: #8f5bd8; }
+.hm-online { padding-top: 0; }
+.hm-plan { display: grid; gap: 2px; width: calc(100% - 28px); margin: 0 14px 8px; padding: 14px 16px; border-radius: 18px; text-align: left; color: var(--text-primary); background: var(--bg-card); }
+.hm-plan b { font-size: 17px; font-weight: 800; }
+.hm-plan span { font-size: 14px; font-weight: 600; color: #0a7cff; }
+.hm-plan small { font-size: 12px; color: var(--text-secondary); }

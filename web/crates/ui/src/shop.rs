@@ -50,7 +50,7 @@ fn cat_index(k: &str) -> usize {
     CATS.iter().position(|(c, _)| *c == k).unwrap_or(0)
 }
 
-/// 살 때 내는 토큰: 센트는 올림해서 토큰으로 내요
+/// 살 때 내는 멸공: 센트는 올림해서 멸공으로 내요
 fn cost_of(cents: f64, n: i64) -> i64 {
     ((cents * n as f64) / 100.0).ceil() as i64
 }
@@ -162,7 +162,7 @@ fn buy(sig: Sig, p: ShopItem, n: i64) {
     spawn_local(async move {
         let (cid, id, co) = (p.cid.clone(), p.id.clone(), p.co_name.clone());
         // 카드를 리더기에 긁는 연출과 결제를 함께 해요
-        let amount = format!("{} 토큰", fmt_num(cost_of(p.price_cents, n) as f64, 0));
+        let amount = format!("{} 멸공", fmt_num(cost_of(p.price_cents, n) as f64, 0));
         let got = crate::pay::swipe(
             &amount,
             c.wallet_op(move || {
@@ -237,7 +237,7 @@ fn Shop(sig: Sig) -> impl IntoView {
                                         <div class="shop-body">
                                             <b class="shop-name">{if pc { "컴퓨터" } else { "전기" }}</b>
                                             <span class="shop-co">{if o.co_name.is_empty() { "회사".to_string() } else { o.co_name.clone() }}</span>
-                                            <span class="shop-stock">{format!("1개 {} 토큰 · {}", tok(o.price), if pc { "컴퓨터".to_string() } else { format!("전기 {}", fmt_num(o.elec, 0)) })}</span>
+                                            <span class="shop-stock">{format!("1개 {} 멸공 · {}", tok(o.price), if pc { "컴퓨터".to_string() } else { format!("전기 {}", fmt_num(o.elec, 0)) })}</span>
                                         </div>
                                     </article>
                                 }).collect_view()}
@@ -292,7 +292,7 @@ fn Card(sig: Sig, p: ShopItem, i: usize) -> impl IntoView {
             <div class="shop-body">
                 <b class="shop-name">{p.name.clone()}</b>
                 <span class="shop-co">{p.co_name.clone()}</span>
-                <span class="shop-price">{format!("1개 {} 토큰", tok(cents))}</span>
+                <span class="shop-price">{format!("1개 {} 멸공", tok(cents))}</span>
                 <span class="shop-stock">{format!("재고 {}개", p.stock)}</span>
                 <div class="shop-step" role="group" aria-label="살 개수">
                     <button type="button" class="shop-round" data-d="-1" aria-label="한 개 줄이기" disabled=move || { n.get() <= 1 } on:click=move |_| n.update(|v| *v = (*v - 1).max(1))>
@@ -304,7 +304,7 @@ fn Card(sig: Sig, p: ShopItem, i: usize) -> impl IntoView {
                     </button>
                 </div>
                 <button type="button" class="btn primary shop-buy" data-buy="1" class:busy=move || sig.busy.get() on:click=move |_| buy(sig, item.clone(), n.get_untracked())>
-                    {move || format!("{} 토큰에 사기", fmt_num(cost_of(cents, n.get()) as f64, 0))}
+                    {move || format!("{} 멸공에 사기", fmt_num(cost_of(cents, n.get()) as f64, 0))}
                 </button>
             </div>
         </article>

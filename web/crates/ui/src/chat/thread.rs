@@ -1,4 +1,4 @@
-//! 대화방: 말풍선과 카드(사진·그림·토큰·투표), 바뀐 줄만 갈아끼우기, 이전 메시지 더 보기, 글 쓰기, 배경화면
+//! 대화방: 말풍선과 카드(사진·그림·멸공·투표), 바뀐 줄만 갈아끼우기, 이전 메시지 더 보기, 글 쓰기, 배경화면
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -33,8 +33,8 @@ pub fn preview(m: &JsValue) -> String {
     match s(m, "type").as_str() {
         "photo" => "사진".into(),
         "draw" => "그림".into(),
-        "gift" => format!("토큰 {} 선물", amt()),
-        "request" => format!("토큰 {} 요청", amt()),
+        "gift" => format!("멸공 {} 선물", amt()),
+        "request" => format!("멸공 {} 요청", amt()),
         "poll" => format!("투표: {}", s(&cloud::get(m, "poll"), "q")),
         _ => s(m, "text"),
     }
@@ -45,7 +45,7 @@ pub(crate) fn msg_of(m: JsValue, group: bool, chat_name: &str) -> Msg {
     Msg { me: from == uid(), text: preview(&m), by, raw: m }
 }
 
-/// 글이 아닌 메시지(사진, 그림, 토큰, 투표)는 말풍선 대신 카드로 그려요
+/// 글이 아닌 메시지(사진, 그림, 멸공, 투표)는 말풍선 대신 카드로 그려요
 fn card_html(m: &JsValue, me: bool, i: usize) -> String {
     let t = s(m, "type");
     match t.as_str() {
@@ -80,7 +80,7 @@ fn card_html(m: &JsValue, me: bool, i: usize) -> String {
             } else {
                 format!(r#"<button class="cash-btn" data-act="{}" data-i="{i}" type="button">{}</button>"#, if gift { "accept" } else { "pay" }, if gift { "받기" } else { "보내기" })
             };
-            format!(r#"<div class="cash"><p class="cash-tag">{}</p><div class="cash-amt"><b>{}</b><span>토큰</span></div>{btn}</div>"#, if gift { "토큰 선물" } else { "토큰 요청" }, ko(amount))
+            format!(r#"<div class="cash"><p class="cash-tag">{}</p><div class="cash-amt"><b>{}</b><span>멸공</span></div>{btn}</div>"#, if gift { "멸공 선물" } else { "멸공 요청" }, ko(amount))
         }
         "poll" => {
             let poll = cloud::get(m, "poll");
@@ -329,7 +329,7 @@ pub fn open(id: &str) {
     UNSUB.with(|u| *u.borrow_mut() = unsub);
     dom::set_hidden("thread-invite", !c.group);
     if let Some(t) = dom::doc().query_selector("#attach [data-a=\"token\"]").ok().flatten().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
-        t.set_hidden(c.group); // 단톡방에서는 토큰을 주고받지 않아요
+        t.set_hidden(c.group); // 단톡방에서는 멸공을 주고받지 않아요
     }
     if let Some(app) = dom::app_el() {
         let _ = app.class_list().add_1("in-thread");

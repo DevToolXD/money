@@ -8,6 +8,7 @@ pub mod icons;
 pub mod tabbar;
 pub mod chat;
 pub mod coin;
+pub mod dash;
 pub mod ctx;
 pub mod dom;
 pub mod factory;

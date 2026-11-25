@@ -100,7 +100,7 @@ fn digits(v: &str) -> String {
 fn fac_msg(e: &CloudError) -> String {
     match e.code.as_str() {
         "busy" => "공장이 이미 돌고 있어요".into(),
-        "poor" => "회사 금고에 토큰이 모자라요".into(),
+        "poor" => "회사 금고에 멸공이 모자라요".into(),
         "nolab" => "공장을 아직 만들지 않았어요".into(),
         "bad" => "개수를 확인해 주세요".into(),
         "max" => "공장을 더 살 수 없어요".into(),
@@ -377,10 +377,10 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
         view! {
             <dl class="fac-sum">
                 <div><dt>"걸리는 시간"</dt><dd>{format!("약 {} (한 개마다 {}초)", clock(secs), fmt_num(unit_ms(pl) / 1000.0, 1))}</dd></div>
-                <div><dt>"재료값 합계"</dt><dd>{format!("{} 토큰", fmt_num(cost, 2))}</dd></div>
-                <div><dt>"다 팔면"</dt><dd>{format!("{} 토큰", fmt_num(rev, 2))}</dd></div>
-                <div class="fac-profit"><dt>"예상 이익"</dt><dd class:neg=move || { rev < cost }>{format!("{} 토큰", fmt_num(rev - cost, 2))}</dd></div>
-                <div class:short=short><dt>"회사 금고"</dt><dd>{if short { format!("{} 토큰 · 재료값이 모자라요 ({}개까지만 만들 수 있어요)", fmt_num(cash(), 2), fmt_num(afford().min(1e9), 0)) } else { format!("{} 토큰 → 만들 때마다 재료값이 나가요", fmt_num(cash(), 2)) }}</dd></div>
+                <div><dt>"재료값 합계"</dt><dd>{format!("{} 멸공", fmt_num(cost, 2))}</dd></div>
+                <div><dt>"다 팔면"</dt><dd>{format!("{} 멸공", fmt_num(rev, 2))}</dd></div>
+                <div class="fac-profit"><dt>"예상 이익"</dt><dd class:neg=move || { rev < cost }>{format!("{} 멸공", fmt_num(rev - cost, 2))}</dd></div>
+                <div class:short=short><dt>"회사 금고"</dt><dd>{if short { format!("{} 멸공 · 재료값이 모자라요 ({}개까지만 만들 수 있어요)", fmt_num(cash(), 2), fmt_num(afford().min(1e9), 0)) } else { format!("{} 멸공 → 만들 때마다 재료값이 나가요", fmt_num(cash(), 2)) }}</dd></div>
             </dl>
         }
         .into_any()
@@ -406,8 +406,8 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
                 <p class="fac-big">{format!("{} / {}개 만들었어요", fmt_num(m, 0), fmt_num(r.total, 0))}</p>
                 <p class="fac-line">{format!("남은 {}개 · 다음 1개까지 {}초", fmt_num(rem, 0), next as i64)}</p>
                 <p class="fac-line">{format!("다 만들어지기까지 {} · {}에 끝나요", clock(finish), at_clock(end_ms))}</p>
-                <p class="fac-line fac-dim">{format!("지금까지 재료값 {} 토큰 · 다 팔면 {} 토큰", fmt_num(m * u, 2), fmt_num(m * price(), 2))}</p>
-                {short.then(|| view! { <p class="fac-warn">"재료값이 모자라 멈췄어요. 금고에 토큰을 넣어 주세요"</p> })}
+                <p class="fac-line fac-dim">{format!("지금까지 재료값 {} 멸공 · 다 팔면 {} 멸공", fmt_num(m * u, 2), fmt_num(m * price(), 2))}</p>
+                {short.then(|| view! { <p class="fac-warn">"재료값이 모자라 멈췄어요. 금고에 멸공을 넣어 주세요"</p> })}
             </div>
         }
         .into_any()
@@ -490,7 +490,7 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
             <div class="wk-nums" class:hide=none>
                 <span class="fac-stock">"재고 "<b id="wk-stock">{stock}</b>"개"</span>
                 <span>"공장 "<b id="fac-count">{move || if s.lab.with(|l| l.is_some()) { (plv() as i64).to_string() } else { "…".into() }}</b>"대"</span>
-                <span>"개당 재료값 "<b id="wk-unit">{move || fmt_num(unit(), 2)}</b>" 토큰"</span>
+                <span>"개당 재료값 "<b id="wk-unit">{move || fmt_num(unit(), 2)}</b>" 멸공"</span>
             </div>
             <label class="lab-field" class:hide=move || running() || none()>
                 <span>"만들 개수"</span>
@@ -501,7 +501,7 @@ fn FactoryCard(s: FacSig) -> impl IntoView {
                 <span class="fac-spin" aria-hidden="true"></span>{start_label}
             </button>
             <div id="fac-left" class="fac-leftbox">{live}</div>
-            <button class="btn" type="button" id="fac-buy" disabled=buy_off on:click=buy>"공장 추가 · 500 토큰"</button>
+            <button class="btn" type="button" id="fac-buy" disabled=buy_off on:click=buy>"공장 추가 · 500 멸공"</button>
         </div>
     }
 }

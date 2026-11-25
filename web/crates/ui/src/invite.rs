@@ -1,4 +1,4 @@
-//! 친구 초대: 내 초대 링크(…/?ref=내 번호)를 보내고, 그 링크로 친구가 가입하면 친구 한 명마다 50 토큰을 받을 수 있어요.
+//! 친구 초대: 내 초대 링크(…/?ref=내 번호)를 보내고, 그 링크로 친구가 가입하면 친구 한 명마다 50 멸공을 받을 수 있어요.
 //! 자동으로 들어오지 않고, 이 화면에서 "받기"를 눌러야 들어와요 (서버 규칙: invites, 지갑 op 'invite').
 
 use wasm_bindgen::prelude::*;
@@ -79,7 +79,7 @@ pub fn open() {
                     dom::avatar_html(&name, &photo, "avatar contact inv-av"),
                     esc(&name),
                     esc(&at),
-                    if done { r#"<span class="inv-done">받음</span>"#.to_string() } else { format!(r#"<button type="button" class="btn primary inv-claim" data-claim="{}">50 토큰 받기</button>"#, esc(&uid)) }
+                    if done { r#"<span class="inv-done">받음</span>"#.to_string() } else { format!(r#"<button type="button" class="btn primary inv-claim" data-claim="{}">50 멸공 받기</button>"#, esc(&uid)) }
                 )
             })
             .collect();
@@ -91,7 +91,7 @@ fn claim(r: String) {
     spawn_local(async move {
         match cloud::call("inviteClaim", &[JsValue::from_str(&r)]).await {
             Ok(_) => {
-                crate::shell::toast("친구 초대 보상 50 토큰을 받았어요");
+                crate::shell::toast("친구 초대 보상 50 멸공을 받았어요");
                 open();
             }
             Err(e) => crate::shell::toast(&format!("받지 못했어요. {}", cloud::why(&e.code))),

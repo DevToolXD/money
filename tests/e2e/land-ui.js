@@ -24,13 +24,13 @@ const TILE = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><
     p.uid = await p.evaluate(() => window.cloud.uid);
     return p;
   };
-  const home = async (p) => { await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="home"]').click()); await p.waitForTimeout(3500); };
+  const home = async (p) => { await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(600); await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="map"]').click()); await p.waitForTimeout(3500); };
   const toast = async (p, t) => { for (let i = 0; i < 40; i++) { if (((await p.textContent('.toast').catch(() => '')) || '').includes(t)) return true; await p.waitForTimeout(250); } return false; };
   const t = Date.now().toString(36).slice(-4);
   const A = await mk('땅주인', 'la' + t);
   await setBal(A.uid, 500); await A.waitForTimeout(2500);
   await home(A);
-  ok('지도와 내 토큰이 보여요', await A.isVisible('#map-view') && (await A.textContent('#map-hud')).includes('500'));
+  ok('지도와 내 멸공이 보여요', await A.isVisible('#map-view') && (await A.textContent('#map-hud')).includes('500'));
   // 내 위치(화면 가운데)의 칸을 눌러요
   await A.mouse.click(195, 422); await A.waitForTimeout(700);
   ok('빈 땅 카드: 사기 버튼', (await A.textContent('#land-sheet')).includes('주인 없는 땅') && await A.isVisible('#land-sheet [data-act="buy"]'));
@@ -40,7 +40,7 @@ const TILE = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><
   const lands = (await raw('lands')).documents || [];
   ok('서버에 내 땅 하나', lands.length === 1 && lands[0].fields.owner.stringValue === A.uid);
   const lid = lands[0].name.split('/').pop();
-  ok('지갑에서 10 토큰이 빠졌어요', num((await raw(`wallets/${A.uid}`)).fields.bal) === 490);
+  ok('지갑에서 10 멸공이 빠졌어요', num((await raw(`wallets/${A.uid}`)).fields.bal) === 490);
   ok('내 땅 카드: 이름 칸·짓기', await A.isVisible('#ld-name') && (await A.textContent('#land-sheet')).includes('집 1채 짓기'));
   await A.fill('#ld-name', '성수 1번지'); await A.click('#land-sheet [data-act="name"]');
   ok('이름을 지었어요', await toast(A, '땅 이름을 바꿨어요'));
@@ -55,7 +55,7 @@ const TILE = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><
   const B = await mk('지나가는이', 'lb' + t);
   await setBal(B.uid, 100); await B.waitForTimeout(2500);
   await home(B);
-  ok('남의 땅에 들어가면 통행료 2 토큰', await toast(B, '통행료 2 토큰을 냈어요'));
+  ok('남의 땅에 들어가면 통행료 2 멸공', await toast(B, '통행료 2 멸공을 냈어요'));
   await B.waitForTimeout(2500);
   ok('서버: 내 지갑 98, 땅에 2 모임', num((await raw(`wallets/${B.uid}`)).fields.bal) === 98 && num((await raw(`lands/${lid}`)).fields.pot) === 2);
   await B.mouse.click(195, 422); await B.waitForTimeout(1500);
@@ -67,14 +67,14 @@ const TILE = '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><
   // 주인이 받아요
   await A.reload(); await A.waitForTimeout(6000); await home(A);
   await A.mouse.click(195, 422); await A.waitForTimeout(1500);
-  ok('모인 통행료가 보여요', (await A.textContent('#land-sheet')).includes('통행료 받기 · 2 토큰'));
+  ok('모인 통행료가 보여요', (await A.textContent('#land-sheet')).includes('통행료 받기 · 2 멸공'));
   await A.click('#land-sheet [data-act="rent"]');
-  ok('통행료를 받았어요', await toast(A, '통행료 2 토큰을 받았어요'));
+  ok('통행료를 받았어요', await toast(A, '통행료 2 멸공을 받았어요'));
   await A.waitForTimeout(2500);
   ok('서버: 지갑 472, 땅은 0', num((await raw(`wallets/${A.uid}`)).fields.bal) === 472 && num((await raw(`lands/${lid}`)).fields.pot) === 0);
   await A.click('#land-sheet [data-act="sell"]'); await A.waitForTimeout(600);
   await A.click('#alert-ok');
-  ok('땅을 팔았어요 (15 토큰)', await toast(A, '땅을 팔고 15 토큰을 받았어요'));
+  ok('땅을 팔았어요 (15 멸공)', await toast(A, '땅을 팔고 15 멸공을 받았어요'));
   await A.waitForTimeout(2500);
   ok('서버: 땅이 없어지고 지갑 487', !((await raw('lands')).documents || []).length && num((await raw(`wallets/${A.uid}`)).fields.bal) === 487);
   const errs = [...A.errs, ...B.errs];

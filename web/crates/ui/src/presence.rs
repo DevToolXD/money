@@ -19,6 +19,11 @@ pub fn online(uid: &str) -> bool {
     let now = js_sys::Date::now();
     SEEN.with(|s| s.borrow().get(uid).is_some_and(|t| now - t < 180_000.0))
 }
+/// 지금 접속 중인 사람 번호들 (나는 빼요)
+pub fn online_uids(me: &str) -> Vec<String> {
+    let now = js_sys::Date::now();
+    SEEN.with(|s| s.borrow().iter().filter(|(u, t)| u.as_str() != me && now - **t < 180_000.0).map(|(u, _)| u.clone()).collect())
+}
 /// 동그라미에 접속 점을 붙여요 (접속 중이 아니면 그대로)
 pub fn wrap(avatar: String, uid: &str) -> String {
     if online(uid) {
@@ -53,6 +58,7 @@ fn tick() {
             if changed {
                 crate::sns::repaint_people();
                 crate::play::repaint();
+                crate::dash::repaint();
                 crate::chat::render();
             }
         }

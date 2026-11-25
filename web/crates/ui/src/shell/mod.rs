@@ -63,7 +63,7 @@ fn screens() -> Vec<web_sys::HtmlElement> {
 
 /* ---------- 테마, 화면 바꾸기, 위쪽 바 ---------- */
 
-/// 색 토큰(design-system)과 탭 바가 같은 테마를 보게 해요
+/// 색 멸공(design-system)과 탭 바가 같은 테마를 보게 해요
 fn apply_theme() {
     // 설정의 화면 모드 (자동이면 기기 설정을 따라요)
     let dark = match dom::store_get("theme", "auto").as_str() {
@@ -377,7 +377,7 @@ fn setup_tabbar(first: &str) {
         let name = tab_of(&e);
         show_screen(&name);
         crate::chat::leave(&name);
-        if name != "home" {
+        if name != "map" {
             crate::home::leave();
         }
         set_title(&name);
@@ -392,7 +392,8 @@ fn setup_tabbar(first: &str) {
             "inventory" => crate::inventory::refresh(),
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
-            "home" => crate::home::open(),
+            "map" => crate::home::open(),
+            "home" => crate::dash::open(),
             "play" => crate::play::open(),
             _ => {}
         }
@@ -467,6 +468,7 @@ pub(crate) fn boot(cloud_v: JsValue) {
         crate::vitals::load();
         crate::chat::start();
         crate::presence::start();
+        preload();
         match cloud::call("loadSettings", &[]).await {
             Ok(data) => {
                 let p = cloud::get(&data, "profile");
@@ -652,4 +654,24 @@ fn haptics() {
     });
     let _ = d.add_event_listener_with_callback_and_bool("touchend", te.as_ref().unchecked_ref(), true);
     te.forget();
+}
+
+/// 로그인한 뒤 모든 탭을 미리 읽고 그려 둬요. 탭을 옮길 때 새로 불러오는 모습이 안 보여요.
+/// 한꺼번에 하면 폰이 멈칫하니 조금씩 간격을 두고 해요 (서버 읽기는 각 화면의 캐시 규칙을 그대로 따라요)
+fn preload() {
+    wasm_bindgen_futures::spawn_local(async {
+        dom::sleep(900).await;
+        crate::dash::warm();
+        dom::sleep(700).await;
+        ranking::load(false);
+        dom::sleep(700).await;
+        crate::sns::open();
+        dom::sleep(700).await;
+        crate::play::open();
+        dom::sleep(700).await;
+        crate::home::warm();
+        dom::sleep(700).await;
+        crate::money::render();
+        crate::inventory::refresh();
+    });
 }

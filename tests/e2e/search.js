@@ -1,4 +1,4 @@
-// 진짜 번들 (에뮬레이터): 아이디 앞부분·이름 앞부분으로 찾고, 이름으로 토큰을 줄 수 있어요
+// 진짜 번들 (에뮬레이터): 아이디 앞부분·이름 앞부분으로 찾고, 이름으로 멸공을 줄 수 있어요
 const { chromium } = require('playwright');
 const fs = require('fs');
 const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
@@ -32,7 +32,7 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   ok('없는 이름은 빈 목록', Array.isArray(found) && found.length === 0);
   await O.waitForTimeout(2300);
   const g = await call(O, 'adminGrant', [name, 5]);
-  ok('이름으로 토큰을 줄 수 있어요', typeof g === 'string' && g.length > 5);
+  ok('이름으로 멸공을 줄 수 있어요', typeof g === 'string' && g.length > 5);
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close(); process.exit(res.every(Boolean) ? 0 : 1);
 })();

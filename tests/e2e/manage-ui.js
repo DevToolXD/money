@@ -1,4 +1,4 @@
-// 화면: 오너의 관리 탭에서 이름 앞부분을 치면 자동 검색이 뜨고, 누르면 칸이 채워지고, 토큰을 지급해요. 공지도 올려요
+// 화면: 오너의 관리 탭에서 이름 앞부분을 치면 자동 검색이 뜨고, 누르면 칸이 채워지고, 멸공을 지급해요. 공지도 올려요
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');

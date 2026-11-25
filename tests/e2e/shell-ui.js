@@ -84,11 +84,13 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   const labels = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
   ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,홈,랭킹,SNS');
   await tab(p, 'home'); await p.waitForTimeout(1500);
-  ok('홈 탭: 지도가 떠요', (await active(p)) === 'home' && await p.isVisible('#map-view') && await p.isVisible('#map-zin'));
+  ok('홈 탭: 내 멸공이 보여요', (await active(p)) === 'home' && await p.isVisible('#hm-bal') && await p.isVisible('#hm-hero'));
+  await tab(p, 'map'); await p.waitForTimeout(1500);
+  ok('지도 탭: 지도가 떠요', (await active(p)) === 'map' && await p.isVisible('#map-view') && await p.isVisible('#map-zin'));
   await tab(p, 'blank3'); await p.waitForTimeout(1200);
   ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank3' && (await text(p, '#screen-blank3')).includes('empty'));
   const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
-  ok('둘째 쪽: 놀기 + 무제 3개', labels2.join(',') === '놀기,무제,무제,무제');
+  ok('둘째 쪽: 놀기 + 무제 3개', labels2.join(',') === '놀기,지도,무제,무제');
   await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
 
   // 위쪽 바: 내리면 작은 제목이 나와요

@@ -427,24 +427,24 @@ fn paint_sheet() {
                 r#"<p class="ld-eyebrow">칸 {}, {}</p><h2 class="ld-title">주인 없는 땅</h2><p class="ld-sub">사면 내 땅이 되고, 다른 사람이 지나갈 때마다 통행료를 받아요.</p>{}"#,
                 c.0,
                 c.1,
-                if near { r#"<button type="button" class="btn primary ld-btn" data-act="buy">땅 사기 · 10 토큰</button>"#.to_string() } else { r#"<p class="ld-note">이 칸이나 바로 옆 칸에 가야 살 수 있어요</p>"#.to_string() }
+                if near { r#"<button type="button" class="btn primary ld-btn" data-act="buy">땅 사기 · 10 멸공</button>"#.to_string() } else { r#"<p class="ld-note">이 칸이나 바로 옆 칸에 가야 살 수 있어요</p>"#.to_string() }
             )
         }
         Some(l) if l.owner == me => format!(
-            r#"<p class="ld-eyebrow">내 땅 · {}</p><div class="ld-name"><input id="ld-name" maxlength="12" autocomplete="off" placeholder="땅 이름 (12자까지)" value="{}" aria-label="땅 이름"><button type="button" class="btn ld-save" data-act="name">저장</button></div><p class="ld-sub">지나가면 통행료 {} 토큰 · 모인 통행료 <b>{} 토큰</b></p><div class="ld-row">{}{}</div><button type="button" class="ld-sell" data-act="sell">팔기 · {} 토큰 돌려받기</button>"#,
+            r#"<p class="ld-eyebrow">내 땅 · {}</p><div class="ld-name"><input id="ld-name" maxlength="12" autocomplete="off" placeholder="땅 이름 (12자까지)" value="{}" aria-label="땅 이름"><button type="button" class="btn ld-save" data-act="name">저장</button></div><p class="ld-sub">지나가면 통행료 {} 멸공 · 모인 통행료 <b>{} 멸공</b></p><div class="ld-row">{}{}</div><button type="button" class="ld-sell" data-act="sell">팔기 · {} 멸공 돌려받기</button>"#,
             LV_NAME[l.lv],
             dom::esc(&l.name),
             tok(TOLL[l.lv]),
             tok(l.pot),
-            if l.lv < 4 { format!(r#"<button type="button" class="btn primary ld-btn" data-act="build">{} 짓기 · {} 토큰</button>"#, LV_NAME[l.lv + 1], tok(BUILD[l.lv])) } else { String::new() },
-            if l.pot > 0.0 { format!(r#"<button type="button" class="btn ld-btn" data-act="rent">통행료 받기 · {} 토큰</button>"#, tok(l.pot)) } else { String::new() },
+            if l.lv < 4 { format!(r#"<button type="button" class="btn primary ld-btn" data-act="build">{} 짓기 · {} 멸공</button>"#, LV_NAME[l.lv + 1], tok(BUILD[l.lv])) } else { String::new() },
+            if l.pot > 0.0 { format!(r#"<button type="button" class="btn ld-btn" data-act="rent">통행료 받기 · {} 멸공</button>"#, tok(l.pot)) } else { String::new() },
             tok(REFUND[l.lv] + l.pot)
         ),
         Some(l) => {
             let p = cloud::call_now("peek", &[JsValue::from_str(&l.owner)]).unwrap_or(JsValue::NULL);
             let who = cloud::get(&p, "name").as_string().filter(|n| !n.is_empty()).unwrap_or_else(|| "다른 사람".into());
             format!(
-                r#"<p class="ld-eyebrow">{}님의 땅 · {}</p><h2 class="ld-title">{}</h2><p class="ld-sub">이 칸에 들어가면 통행료 <b>{} 토큰</b>을 내요.</p>"#,
+                r#"<p class="ld-eyebrow">{}님의 땅 · {}</p><h2 class="ld-title">{}</h2><p class="ld-sub">이 칸에 들어가면 통행료 <b>{} 멸공</b>을 내요.</p>"#,
                 dom::esc(&who),
                 LV_NAME[l.lv],
                 if l.name.is_empty() { "이름 없는 땅".to_string() } else { dom::esc(&l.name) },
@@ -500,18 +500,18 @@ fn act(kind: String) {
                     crate::money::ensure(BUILD[lv]).await?;
                     wallet_call("landAct", vec![JsValue::from_str(&id), "build".into()]).await.map_err(|_| "짓지 못했어요. 잠시 뒤 다시 해 주세요".to_string())?;
                     dom::vibrate(18);
-                    Ok(format!("{}을(를) 지었어요. 통행료가 {} 토큰이 됐어요", LV_NAME[lv + 1], tok(TOLL[lv + 1])))
+                    Ok(format!("{}을(를) 지었어요. 통행료가 {} 멸공이 됐어요", LV_NAME[lv + 1], tok(TOLL[lv + 1])))
                 }
                 "rent" => {
                     let got = wallet_call("landAct", vec![JsValue::from_str(&id), "rent".into()]).await.map_err(|_| "받지 못했어요. 잠시 뒤 다시 해 주세요".to_string())?;
-                    Ok(format!("통행료 {} 토큰을 받았어요", tok(got.as_f64().unwrap_or(0.0))))
+                    Ok(format!("통행료 {} 멸공을 받았어요", tok(got.as_f64().unwrap_or(0.0))))
                 }
                 _ => {
-                    if !crate::shell::ask("이 땅을 팔까요?", "건물도 함께 사라지고, 들인 토큰의 절반과 모인 통행료가 돌아와요.", "팔기", "취소").await {
+                    if !crate::shell::ask("이 땅을 팔까요?", "건물도 함께 사라지고, 들인 멸공의 절반과 모인 통행료가 돌아와요.", "팔기", "취소").await {
                         return Err(String::new());
                     }
                     let got = wallet_call("landAct", vec![JsValue::from_str(&id), "sell".into()]).await.map_err(|_| "팔지 못했어요. 잠시 뒤 다시 해 주세요".to_string())?;
-                    Ok(format!("땅을 팔고 {} 토큰을 받았어요", tok(got.as_f64().unwrap_or(0.0))))
+                    Ok(format!("땅을 팔고 {} 멸공을 받았어요", tok(got.as_f64().unwrap_or(0.0))))
                 }
             }
         }
@@ -547,12 +547,12 @@ fn entered(c: (i64, i64)) {
         let toll = TOLL[l.lv];
         let name = if l.name.is_empty() { "남의 땅".to_string() } else { format!("\"{}\"", l.name) };
         if crate::money::ensure(toll).await.is_err() {
-            return crate::shell::toast(&format!("{name}에 들어왔어요. 토큰이 모자라 통행료 {} 토큰을 못 냈어요", tok(toll)));
+            return crate::shell::toast(&format!("{name}에 들어왔어요. 멸공이 모자라 통행료 {} 멸공을 못 냈어요", tok(toll)));
         }
         if wallet_call("landAct", vec![JsValue::from_str(&id), "toll".into()]).await.is_ok() {
             dom::store_set(&key, &js_sys::Date::now().to_string());
             dom::vibrate(30);
-            crate::shell::toast(&format!("{name}에 들어왔어요. 통행료 {} 토큰을 냈어요", tok(toll)));
+            crate::shell::toast(&format!("{name}에 들어왔어요. 통행료 {} 멸공을 냈어요", tok(toll)));
             paint_hud();
         }
     });
@@ -594,6 +594,7 @@ fn on_pos(p: JsValue) {
     let g = |k: &str| Reflect::get(&c, &k.into()).ok().and_then(|v| v.as_f64());
     let (Some(la), Some(lo)) = (g("latitude"), g("longitude")) else { return };
     ME.set(Some((la, lo, g("accuracy").unwrap_or(30.0))));
+    dom::store_set("map-last", &format!("{la:.5},{lo:.5}"));
     set_status("");
     if FOLLOW.get() {
         CENTER.set((la, lo));
@@ -863,7 +864,21 @@ fn bind() {
     }
 }
 
-/// 홈 탭이 열렸을 때
+/// 앱이 켜진 뒤 보이지 않는 채로 지도 그림을 미리 깔아 둬요 (마지막으로 있던 자리 기준)
+pub fn warm() {
+    bind();
+    if let Some(v) = view() {
+        let _ = v.offset_width();
+    }
+    let last = dom::store_get("map-last", "");
+    if let Some((a, b)) = last.split_once(',') {
+        if let (Ok(la), Ok(lo)) = (a.parse::<f64>(), b.parse::<f64>()) {
+            CENTER.set((la, lo));
+        }
+    }
+    schedule();
+}
+/// 지도 탭이 열렸을 때
 pub fn open() {
     bind();
     start_watch();

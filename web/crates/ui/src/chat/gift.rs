@@ -1,4 +1,4 @@
-//! 토큰 선물과 요청: 검은 시트. + − 는 10씩, 큰 + − 는 100씩 (꾹 누르면 계속), 숫자를 누르면 키패드로 직접 입력해요
+//! 멸공 선물과 요청: 검은 시트. + − 는 10씩, 큰 + − 는 100씩 (꾹 누르면 계속), 숫자를 누르면 키패드로 직접 입력해요
 
 use std::cell::{Cell, RefCell};
 
@@ -76,7 +76,7 @@ fn show_amt(animate: bool) {
         };
         let _ = p.style().set_property("font-size", size);
     }
-    dom::set_text("gift-bal", &format!("내 토큰 {}", crate::money::w(crate::money::balance().unwrap_or(0.0))));
+    dom::set_text("gift-bal", &format!("내 멸공 {}", crate::money::w(crate::money::balance().unwrap_or(0.0))));
     if let Some(s) = SHOWN.get() {
         if animate && s != a {
             roll(if a > s { 1.0 } else { -1.0 }, &old);
@@ -118,10 +118,10 @@ async fn send() {
     }
     let g = G.with(|g| g.borrow().clone());
     if g.amt < 1.0 {
-        return toast("보낼 토큰을 정해 주세요");
+        return toast("보낼 멸공을 정해 주세요");
     }
     if let Err(m) = crate::money::ensure(g.amt).await {
-        ctx().ask("토큰을 보낼 수 없어요", &m, "확인", "").await;
+        ctx().ask("멸공을 보낼 수 없어요", &m, "확인", "").await;
         return;
     }
     BUSY.set(true);
@@ -135,7 +135,7 @@ async fn send() {
         Ok(_) => {
             crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{}님에게 선물", g.name))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", (-g.amt).into())]));
             sheet_open(false, "");
-            toast(&format!("{}님에게 토큰 {}을 보냈어요", g.name, ko(g.amt)));
+            toast(&format!("{}님에게 멸공 {}을 보냈어요", g.name, ko(g.amt)));
         }
         Err(_) => toast("보내지 못했어요. 잠시 뒤 다시 해 주세요"),
     }
@@ -147,19 +147,19 @@ async fn request() {
     }
     let g = G.with(|g| g.borrow().clone());
     if g.amt < 1.0 {
-        return toast("요청할 토큰을 정해 주세요");
+        return toast("요청할 멸공을 정해 주세요");
     }
     BUSY.set(true);
     let (cid, to, amount) = (g.cid.clone(), g.to.clone(), g.amt);
     let r = queue_send(move || {
         let payload = dom::obj(&[("type", "request".into()), ("amount", amount.into()), ("done", false.into())]);
-        cloud::call_now("send", &[JsValue::from_str(&cid), JsValue::from_str(&to), payload, JsValue::from_str(&format!("토큰 {} 요청", ko(amount)))])
+        cloud::call_now("send", &[JsValue::from_str(&cid), JsValue::from_str(&to), payload, JsValue::from_str(&format!("멸공 {} 요청", ko(amount)))])
     })
     .await;
     match r {
         Ok(_) => {
             sheet_open(false, "");
-            toast(&format!("{}님에게 토큰 {}을 요청했어요", g.name, ko(g.amt)));
+            toast(&format!("{}님에게 멸공 {}을 요청했어요", g.name, ko(g.amt)));
         }
         Err(_) => toast("요청하지 못했어요"),
     }

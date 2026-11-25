@@ -179,7 +179,7 @@ pub async fn search_profiles(text: &str) -> Result<Vec<ProfileHit>, CloudError> 
     shape(call("searchProfiles", &[JsValue::from_str(text)]).await?)
 }
 
-/// 토큰 지급 (아이디나 이름)
+/// 멸공 지급 (아이디나 이름)
 pub async fn admin_grant(id: &str, amt: u32) -> Result<(), CloudError> {
     call("adminGrant", &[JsValue::from_str(id), JsValue::from(amt)]).await.map(|_| ())
 }
@@ -276,7 +276,7 @@ pub async fn lab_start_factory(cid: &str, pid: &str, n: u32) -> Result<(), Cloud
     call("labStartFactory", &[JsValue::from_str(cid), JsValue::from_str(pid), JsValue::from(n)]).await.map(|_| ())
 }
 
-/// 공장 추가 (500 토큰). 새 공장 대수를 돌려줘요
+/// 공장 추가 (500 멸공). 새 공장 대수를 돌려줘요
 pub async fn lab_buy_factory(cid: &str) -> Result<f64, CloudError> {
     Ok(call("labBuyFactory", &[JsValue::from_str(cid)]).await?.as_f64().unwrap_or(0.0))
 }
@@ -467,7 +467,7 @@ pub fn fmt_num(v: f64, max_frac: u32) -> String {
     out
 }
 
-/// 센트를 토큰 글자로 (80 → "0.8", 300 → "3")
+/// 센트를 멸공 글자로 (80 → "0.8", 300 → "3")
 pub fn tok(cents: f64) -> String {
     fmt_num(cents / 100.0, 2)
 }
@@ -486,7 +486,7 @@ pub fn why(code: &str) -> &'static str {
         "resource-exhausted" => "조금 천천히 눌러 주세요",
         "failed-precondition" => "지금 상태에서는 할 수 없어요",
         "not-found" => "찾는 정보가 없어요",
-        "insufficient" => "토큰이 모자라요",
+        "insufficient" => "멸공이 모자라요",
         "unauthenticated" => "다시 로그인해 주세요",
         _ => "잠시 뒤 다시 해 주세요",
     }

@@ -1,4 +1,4 @@
-// 화면: 돈 탭. 잔액, 이자 상품(가입·가격·토큰 부족), 거래내역, 카드 꾹 눌러 순서 바꾸기(이 기기에 저장)
+// 화면: 돈 탭. 잔액, 이자 상품(가입·가격·멸공 부족), 거래내역, 카드 꾹 눌러 순서 바꾸기(이 기기에 저장)
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -36,32 +36,32 @@ const order = (p) => p.evaluate(() => [...document.querySelectorAll('#movable > 
   const uid = await p.evaluate(() => window.cloud.uid);
   await setBal(uid, 100); await p.waitForTimeout(2500);
   await tab(p, 'money'); await p.waitForTimeout(1200);
-  ok('잔액 100 토큰', (await text(p, '#bal-num')).replace(/\s/g, '').includes('100토큰'));
+  ok('잔액 100 멸공', (await text(p, '#bal-num')).replace(/\s/g, '').includes('100멸공'));
   ok('가입한 상품이 없어요', (await text(p, '#bank-rate')) === '가입한 상품이 없어요');
-  ok('5% 상품 가격 안내', (await text(p, '#bank-note')).includes('연 5% 상품 20 토큰부터'));
+  ok('5% 상품 가격 안내', (await text(p, '#bank-note')).includes('연 5% 상품 20 멸공부터'));
   ok('거래내역이 비어 있어요', (await text(p, '#tx-top')).includes('아직 거래내역이 없어요'));
   ok('카드 두 장: 이자 상품, 최근 거래내역', (await order(p)) === 'bank,hist');
 
   // 이자 상품 시트
   await p.click('#open-bank'); await p.waitForTimeout(700);
   ok('이자 상품 시트가 열려요', await p.evaluate(() => document.getElementById('bank-sheet').classList.contains('is-open')));
-  ok('내 토큰 100', (await text(p, '#bank-bal')).includes('100 토큰'));
+  ok('내 멸공 100', (await text(p, '#bank-bal')).includes('100 멸공'));
   ok('상품 10개', (await p.$$('#bank-list .prod')).length === 10);
   const labels = await p.$$eval('#bank-list [data-buy]', (bs) => bs.map((b) => b.textContent.trim()));
-  ok('5%·10%는 구입, 15%부터 토큰 부족', labels[0] === '구입' && labels[1] === '구입' && labels[2] === '토큰 부족');
-  ok('10% 가격 70 토큰', (await text(p, '#bank-list .prod:nth-child(2) .prod-price')) === '70 토큰');
+  ok('5%·10%는 구입, 15%부터 멸공 부족', labels[0] === '구입' && labels[1] === '구입' && labels[2] === '멸공 부족');
+  ok('10% 가격 70 멸공', (await text(p, '#bank-list .prod:nth-child(2) .prod-price')) === '70 멸공');
   await p.click('#bank-list [data-buy="5"]');
   await p.waitForSelector('#alert-ok', { state: 'visible' }); await p.click('#alert-ok');
   ok('가입 알림', await toastHas(p, '연 5% 이자 상품에 가입했어요'));
   await p.waitForTimeout(2500);
   const w = await wallet(uid);
-  ok('서버 지갑: 5%, 80 토큰', num(w.rate) === 5 && num(w.bal) === 80);
+  ok('서버 지갑: 5%, 80 멸공', num(w.rate) === 5 && num(w.bal) === 80);
   ok('버튼이 가입 중으로', (await text(p, '#bank-list [data-buy="5"]')).trim() === '가입 중');
   await p.click('#bank-sheet [data-close]').catch(() => p.evaluate(() => document.querySelector('#dim').click()));
   await p.waitForTimeout(800);
   ok('이자율 표시', (await text(p, '#bank-rate')) === '연 5% 복리');
   ok('다음 이자 안내', (await text(p, '#bank-note')).includes('다음 이자까지'));
-  ok('잔액 80', (await text(p, '#bal-num')).replace(/\s/g, '').includes('80토큰'));
+  ok('잔액 80', (await text(p, '#bal-num')).replace(/\s/g, '').includes('80멸공'));
   ok('최근 거래내역에 구입 기록', (await text(p, '#tx-top')).includes('이자 상품 구입') && (await text(p, '#tx-top')).includes('-20'));
 
   // 거래내역 시트

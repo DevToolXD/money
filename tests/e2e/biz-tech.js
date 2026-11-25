@@ -44,7 +44,7 @@ const toastHas = async (p, t) => { for (let i = 0; i < 20; i++) { if ((await tex
   ok('컴퓨터 칸부터 열려요 (식품·인공지능은 없어요)', (await text(p, '.pk-title b')) === '컴퓨터' && (await p.$$('.pk-stage [data-tech]')).length === 3 && !(await text(p, '.pk-stage')).includes('식품'));
   await shot(p, 'tech-list');
   await p.click('.pk-stage [data-tech="laptop"]'); await p.waitForTimeout(1200);
-  ok('이름과 가격: 노트북, 원가 12 토큰', (await p.inputValue('#pk-name')) === '노트북' && (await text(p, '.pk-stage')).includes('12 토큰'));
+  ok('이름과 가격: 노트북, 원가 12 멸공', (await p.inputValue('#pk-name')) === '노트북' && (await text(p, '.pk-stage')).includes('12 멸공'));
   await shot(p, 'tech-sum');
   await p.click('#pk-sell');
   ok('팔기 시작 알림', await toastHas(p, '노트북을(를) 팔기 시작했어요'));

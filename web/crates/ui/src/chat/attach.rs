@@ -1,4 +1,4 @@
-//! + 메뉴(카메라·사진·그리기·투표·토큰), 사진 보내기, 사진 크게 보기, 카드 누르기(선물 받기·요청 보내기·투표)
+//! + 메뉴(카메라·사진·그리기·투표·멸공), 사진 보내기, 사진 크게 보기, 카드 누르기(선물 받기·요청 보내기·투표)
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -98,7 +98,7 @@ async fn on_card(e: web_sys::Event) {
         let ko = cloud::fmt_num(amount, 3);
         let cx = ctx();
         if dom::data(&act, "act") == "cancel" {
-            if !cx.ask(&format!("토큰 {ko} 선물을 취소할까요?"), "상대가 아직 받지 않아서 토큰이 그대로 돌아와요.", "선물 취소", "닫기").await {
+            if !cx.ask(&format!("멸공 {ko} 선물을 취소할까요?"), "상대가 아직 받지 않아서 멸공이 그대로 돌아와요.", "선물 취소", "닫기").await {
                 return;
             }
             let (cid, mid2) = (c.id.clone(), mid.clone());
@@ -106,7 +106,7 @@ async fn on_card(e: web_sys::Event) {
             match JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {
                 Ok(_) => {
                     crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{}님에게 보낸 선물 취소", c.name))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", amount.into())]));
-                    toast(&format!("선물을 취소했어요. 토큰 {ko}이 돌아왔어요"));
+                    toast(&format!("선물을 취소했어요. 멸공 {ko}이 돌아왔어요"));
                 }
                 Err(_) => toast("취소하지 못했어요. 상대가 이미 받았을 수 있어요"),
             }
@@ -116,16 +116,16 @@ async fn on_card(e: web_sys::Event) {
             match JsFuture::from(crate::money::wallet_op(f.unchecked_into())).await {
                 Ok(_) => {
                     crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{}님의 선물", c.name))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", amount.into())]));
-                    toast(&format!("토큰 {ko}을 받았어요"));
+                    toast(&format!("멸공 {ko}을 받았어요"));
                 }
                 Err(_) => toast("받지 못했어요. 잠시 뒤 다시 해 주세요"),
             }
         } else {
             if let Err(m) = crate::money::ensure(amount).await {
-                cx.ask("토큰을 보낼 수 없어요", &m, "확인", "").await;
+                cx.ask("멸공을 보낼 수 없어요", &m, "확인", "").await;
                 return;
             }
-            if !cx.ask(&format!("토큰 {ko}을 보낼까요?"), &format!("{}님의 요청이에요.", c.name), "보내기", "취소").await {
+            if !cx.ask(&format!("멸공 {ko}을 보낼까요?"), &format!("{}님의 요청이에요.", c.name), "보내기", "취소").await {
                 return;
             }
             let (cid, other) = (c.id.clone(), c.other.clone());

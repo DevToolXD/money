@@ -50,7 +50,7 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   await O.page.waitForSelector('#mg-people .mg-person', { timeout: 8000 });
   await O.page.click('#mg-people .mg-person');
   const grantAmt = await O.page.inputValue('#mg-grant-amt');
-  ok('토큰 칸은 미리 채워지지 않아요', grantAmt === '');
+  ok('멸공 칸은 미리 채워지지 않아요', grantAmt === '');
   const errs = [...O.errs, ...M.errs];
   ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);

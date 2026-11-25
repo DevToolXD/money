@@ -30,6 +30,7 @@ thread_local! {
     static BOUND: Cell<bool> = const { Cell::new(false) };
     static BUSY: Cell<bool> = const { Cell::new(false) };
     static LOADING: Cell<bool> = const { Cell::new(false) };
+    static AT: Cell<f64> = const { Cell::new(0.0) };
 }
 
 const CAL: &str = r#"<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>"#;
@@ -134,7 +135,8 @@ pub fn repaint() {
 }
 
 async fn load() {
-    LOADING.set(true);
+    AT.set(js_sys::Date::now());
+    LOADING.set(PLANS.with(|p| p.borrow().is_empty()));
     repaint();
     let r = cloud::call("plansList", &[]).await;
     LOADING.set(false);
@@ -361,7 +363,8 @@ pub fn open() {
         bind();
     }
     repaint();
-    if cloud::signed_in() {
+    // 미리 읽어 둔 걸 먼저 보여주고, 15초가 지났으면 조용히 새로 읽어요
+    if cloud::signed_in() && js_sys::Date::now() - AT.get() > 15_000.0 {
         spawn_local(load());
     }
 }

@@ -1,5 +1,5 @@
 //! 직원 관리 (사장만 보여요): 회사 발전도와 종결까지 예상, 급여 금고 채우기, 직원마다 시급·일한 횟수·하루 평균 속도·마지막 활동, 해고.
-//! 직원 목록은 회사를 고르고 30초 안에는 다시 읽지 않아요 (서버를 아껴요). 임금은 시간당 토큰이고, 직원이 정수 시간 단위로 받아 가요 (급여 금고에서).
+//! 직원 목록은 회사를 고르고 30초 안에는 다시 읽지 않아요 (서버를 아껴요). 임금은 시간당 멸공이고, 직원이 정수 시간 단위로 받아 가요 (급여 금고에서).
 
 use std::cell::{Cell, RefCell};
 
@@ -159,7 +159,7 @@ fn render() {
         None => r#"<div class="stf-dev"><div class="stf-dh"><b>회사 발전</b><span>…</span></div></div>"#.to_string(),
     };
     let fund = format!(
-        r#"<div class="stf-fund"><div><b>급여 금고</b><span>{} 토큰</span></div><label class="stf-in"><input id="stf-fund-n" type="number" inputmode="numeric" min="1" step="1" placeholder="토큰" aria-label="급여 금고에 넣을 토큰"></label><button type="button" class="btn" data-act="fund">채우기</button></div><p class="stf-note">직원은 시간당 임금을 정수 시간 단위로 급여 금고에서 받아 가요. 금고가 비면 받을 수 없어요.</p>"#,
+        r#"<div class="stf-fund"><div><b>급여 금고</b><span>{} 멸공</span></div><label class="stf-in"><input id="stf-fund-n" type="number" inputmode="numeric" min="1" step="1" placeholder="멸공" aria-label="급여 금고에 넣을 멸공"></label><button type="button" class="btn" data-act="fund">채우기</button></div><p class="stf-note">직원은 시간당 임금을 정수 시간 단위로 급여 금고에서 받아 가요. 금고가 비면 받을 수 없어요.</p>"#,
         fmt_num(pay, 2)
     );
     let members = LIST.with(|l| l.borrow().clone());
@@ -169,7 +169,7 @@ fn render() {
             let (n, ph) = name_photo(&m.uid);
             let d = ((js_sys::Date::now() - m.at) / DAY).max(1.0);
             format!(
-                r#"<li class="stf-row" data-uid="{u}">{av}<div class="stf-main"><b>{n}</b><span>{since}일째 · 총 {cnt}번</span><span>하루 {avg}번 · {seen}</span></div><label class="stf-wage"><span>시급</span><input type="number" inputmode="numeric" min="0" max="1000000" step="1" value="{w}" data-uid="{u}" aria-label="{n}의 시급 토큰"></label><button type="button" class="stf-fire" data-act="fire" data-uid="{u}" aria-label="{n} 해고">{x}</button></li>"#,
+                r#"<li class="stf-row" data-uid="{u}">{av}<div class="stf-main"><b>{n}</b><span>{since}일째 · 총 {cnt}번</span><span>하루 {avg}번 · {seen}</span></div><label class="stf-wage"><span>시급</span><input type="number" inputmode="numeric" min="0" max="1000000" step="1" value="{w}" data-uid="{u}" aria-label="{n}의 시급 멸공"></label><button type="button" class="stf-fire" data-act="fire" data-uid="{u}" aria-label="{n} 해고">{x}</button></li>"#,
                 u = esc(&m.uid),
                 av = avatar_html(&n, &ph, "avatar contact stf-av"),
                 n = esc(&n),
@@ -220,13 +220,13 @@ fn bind() {
         let w = t.value().trim().parse::<f64>().ok().filter(|v| v.is_finite()).map(|v| v.floor()).unwrap_or(-1.0);
         if !(0.0..=1_000_000.0).contains(&w) {
             t.set_value("0");
-            return ctx().toast("임금은 0부터 1,000,000 토큰까지 정수로 적어 주세요");
+            return ctx().toast("임금은 0부터 1,000,000 멸공까지 정수로 적어 주세요");
         }
         spawn_local(async move {
             match cloud::call("setWage", &[JsValue::from_str(&uid), JsValue::from(w)]).await {
                 Ok(_) => {
                     LIST.with(|l| l.borrow_mut().iter_mut().filter(|m| m.uid == uid).for_each(|m| m.wage = w));
-                    ctx().toast(&format!("시급을 {} 토큰으로 정했어요", fmt_num(w, 0)));
+                    ctx().toast(&format!("시급을 {} 멸공으로 정했어요", fmt_num(w, 0)));
                 }
                 Err(e) => ctx().toast(&format!("임금을 정하지 못했어요. {}", cloud::why(&e.code))),
             }
@@ -238,7 +238,7 @@ fn fund() {
     let Some(co) = company() else { return };
     let amt = by_id("stf-fund-n").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()).and_then(|i| i.value().trim().parse::<f64>().ok()).map(|v| v.floor()).unwrap_or(0.0);
     if !(amt >= 1.0) || amt > 100_000_000.0 {
-        return ctx().toast("넣을 토큰을 1 이상 정수로 적어 주세요");
+        return ctx().toast("넣을 멸공을 1 이상 정수로 적어 주세요");
     }
     if BUSY.replace(true) {
         return;
@@ -257,7 +257,7 @@ fn fund() {
                 if let Some(i) = by_id("stf-fund-n").and_then(|i| i.dyn_into::<web_sys::HtmlInputElement>().ok()) {
                     i.set_value("");
                 }
-                ctx().toast(&format!("급여 금고에 {} 토큰을 넣었어요", fmt_num(amt, 0)));
+                ctx().toast(&format!("급여 금고에 {} 멸공을 넣었어요", fmt_num(amt, 0)));
                 render();
             }
             Err(e) => ctx().toast(&format!("급여 금고에 넣지 못했어요. {}", cloud::why(&e.code))),

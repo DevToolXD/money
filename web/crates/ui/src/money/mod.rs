@@ -32,9 +32,9 @@ fn growth(rate: f64, secs: f64) -> f64 {
 fn ko(v: f64) -> String {
     cloud::fmt_num(v, 3)
 }
-/// "1,250 토큰"
+/// "1,250 멸공"
 pub fn w(n: f64) -> String {
-    format!("{} 토큰", ko(n))
+    format!("{} 멸공", ko(n))
 }
 fn now() -> f64 {
     js_sys::Date::now()
@@ -68,9 +68,9 @@ impl Bank {
 fn every_text(bal: f64, rate: f64) -> String {
     let per = bal * growth(rate, 1.0);
     if per >= 1.0 {
-        format!("1초마다 {} 토큰", ko(per.floor()))
+        format!("1초마다 {} 멸공", ko(per.floor()))
     } else {
-        format!("약 {}초마다 1 토큰", ko((1.0 / per.max(1e-9)).ceil()))
+        format!("약 {}초마다 1 멸공", ko((1.0 / per.max(1e-9)).ceil()))
     }
 }
 
@@ -150,7 +150,7 @@ fn hm(t: f64) -> String {
     format!("{:02}:{:02}", d.get_hours(), d.get_minutes())
 }
 fn amt_html(n: f64) -> String {
-    format!(r#"<b class="t-amt"><i class="{}">{}{}</i> 토큰</b>"#, if n > 0.0 { "pos" } else { "neg" }, if n > 0.0 { "+" } else { "-" }, ko(n.abs()))
+    format!(r#"<b class="t-amt"><i class="{}">{}{}</i> 멸공</b>"#, if n > 0.0 { "pos" } else { "neg" }, if n > 0.0 { "+" } else { "-" }, ko(n.abs()))
 }
 fn tx_row(e: &Tx) -> String {
     format!(
@@ -399,13 +399,13 @@ fn put(id: &'static str, s: String, html: bool) {
 /// 잔액·이자 상품 카드·최근 거래내역을 다시 써요 (바뀐 것만)
 pub fn render() {
     let b = bank();
-    put("bal-num", format!("{COIN}<span>{}</span><small>토큰</small>", ko(if b.ready { b.shown() } else { 0.0 })), true); // 불러오기 전이나 못 불러오면 0
+    put("bal-num", format!("{COIN}<span>{}</span><small>멸공</small>", ko(if b.ready { b.shown() } else { 0.0 })), true); // 불러오기 전이나 못 불러오면 0
     if b.ready && b.rate > 0.0 {
         put("bank-rate", format!("연 {}% 복리", b.rate), false);
         put("bank-note", format!("{} · 다음 이자까지 {}초", every_text(b.shown(), b.rate), b.next_in()), false);
     } else {
         put("bank-rate", "가입한 상품이 없어요".into(), false);
-        put("bank-note", format!("연 5% 상품 {} 토큰부터 시작해요", ko(price(5))), false);
+        put("bank-note", format!("연 5% 상품 {} 멸공부터 시작해요", ko(price(5))), false);
     }
     let v = TX_VER.get() as i64;
     if RENDERED_TX.get() != v {
@@ -430,7 +430,7 @@ fn render_products() {
         return;
     }
     PRODUCT_SIG.with(|s| *s.borrow_mut() = sig);
-    dom::set_text("bank-bal", &format!("내 토큰 {}", w(if b.ready { b.bal } else { 0.0 })));
+    dom::set_text("bank-bal", &format!("내 멸공 {}", w(if b.ready { b.bal } else { 0.0 })));
     let rows: String = RATES
         .iter()
         .map(|&r| {
@@ -447,10 +447,10 @@ fn render_products() {
             } else if afford {
                 "구입"
             } else {
-                "토큰 부족"
+                "멸공 부족"
             };
             format!(
-                r#"<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">{}</span><span class="t-main"><b class="ts-name">연 {r}% 복리</b><span class="t-label">{}</span></span><span class="prod-side"><b class="prod-price">{} 토큰</b><button class="t-btn small {}" data-buy="{r}" type="button" {}>{label}</button></span></li>"#,
+                r#"<li class="t-row prod"><span class="t-ico sm" style="--c:#d6f1e6">{}</span><span class="t-main"><b class="ts-name">연 {r}% 복리</b><span class="t-label">{}</span></span><span class="prod-side"><b class="prod-price">{} 멸공</b><button class="t-btn small {}" data-buy="{r}" type="button" {}>{label}</button></span></li>"#,
                 ico("percent"),
                 every_text(b.bal, rf),
                 ko(p),
@@ -482,7 +482,7 @@ async fn buy(r: u32) {
     }
     let p = price(r);
     let c = ctx();
-    let ok = c.ask(&format!("연 {r}% 이자 상품"), &format!("{} 토큰을 내고 구입할까요? 구입하면 내 토큰이 복리로 계속 늘어나요.", ko(p)), "구입", "취소").await;
+    let ok = c.ask(&format!("연 {r}% 이자 상품"), &format!("{} 멸공을 내고 구입할까요? 구입하면 내 멸공이 복리로 계속 늘어나요.", ko(p)), "구입", "취소").await;
     if !ok || bank().bal < p {
         return;
     }
@@ -529,7 +529,7 @@ pub fn init(c: Ctx) {
     <div class="ac-top"><button class="ac-ic" id="ac-search" type="button" aria-label="거래내역">{}</button><button class="ac-ic" id="ac-more" type="button" aria-label="이자 상품">{}</button></div>
     <div class="ac-card"><span class="ac-word">token</span><canvas class="ac-art" id="ac-art" aria-hidden="true"></canvas></div>
     <div class="ac-bal"><div class="ac-bal-row"><div><span class="ac-bl">잔액</span><b id="bal-num" data-volatile></b></div><button class="ac-pill" id="ac-send" type="button">보내기 또는 요청</button></div></div>
-    <div class="ac-fine"><span class="ac-fine-l">토큰<br>발행소</span><i></i><b>TOKEN</b></div>
+    <div class="ac-fine"><span class="ac-fine-l">멸공<br>발행소</span><i></i><b>TOKEN</b></div>
     <div id="movable">{}</div>"#,
         sv2(r#"<circle cx="11" cy="11" r="7"/><path d="M16.500 16.500L21 21"/>"#),
         sv2(r#"<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>"#),
@@ -593,8 +593,8 @@ pub fn init(c: Ctx) {
     });
 }
 
-/// 토큰을 쓰기 전에: 지갑이 아직 안 왔으면 기다리고, 모자라 보이면 쌓인 이자를 먼저 받아서 다시 봐요.
-/// 화면에 보이는 토큰(이자 포함)이 있는데 "모자라요"가 뜨지 않게 해요. 안 되면 사람이 읽을 이유를 돌려줘요
+/// 멸공을 쓰기 전에: 지갑이 아직 안 왔으면 기다리고, 모자라 보이면 쌓인 이자를 먼저 받아서 다시 봐요.
+/// 화면에 보이는 멸공(이자 포함)이 있는데 "모자라요"가 뜨지 않게 해요. 안 되면 사람이 읽을 이유를 돌려줘요
 pub async fn ensure(amt: f64) -> Result<f64, String> {
     for _ in 0..20 {
         if bank().ready {
@@ -616,7 +616,7 @@ pub async fn ensure(amt: f64) -> Result<f64, String> {
         }
         dom::sleep(150).await;
     }
-    Err(format!("토큰이 모자라요. 내 토큰은 {}이에요", w(bank().bal)))
+    Err(format!("멸공이 모자라요. 내 멸공은 {}이에요", w(bank().bal)))
 }
 /// 지금 지갑 (다른 러스트 화면이 읽어요)
 pub fn balance() -> Option<f64> {

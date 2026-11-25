@@ -240,7 +240,7 @@ fn open_founding() {
         leptos::task::spawn_local(async {
             match crate::money::ensure(10.0).await {
                 Ok(_) => open_founding(),
-                Err(m) => toast(&format!("창업에는 10 토큰이 필요해요. {m}")),
+                Err(m) => toast(&format!("창업에는 10 멸공이 필요해요. {m}")),
             }
         });
         return;
@@ -253,7 +253,7 @@ fn open_founding() {
     FOUND_LOGO.with(|l| l.borrow_mut().clear());
     dom::set_text("found-err", "");
     paint_found_logo();
-    dom::set_text("found-cost", &format!("10 토큰이 들어요 · 내 토큰 {}", crate::money::w(bal.unwrap_or(0.0))));
+    dom::set_text("found-cost", &format!("10 멸공이 들어요 · 내 멸공 {}", crate::money::w(bal.unwrap_or(0.0))));
     sheet_by_id(true, "found-sheet");
 }
 async fn found() {
@@ -314,7 +314,7 @@ async fn found() {
         }
         Err(e) => dom::set_text(
             "found-err",
-            if cloud::get(&e, "code").as_string().as_deref() == Some("permission-denied") { "창업하지 못했어요. 이미 회사가 있거나 토큰이 부족해요" } else { "창업하지 못했어요. 잠시 뒤 다시 해 주세요" },
+            if cloud::get(&e, "code").as_string().as_deref() == Some("permission-denied") { "창업하지 못했어요. 이미 회사가 있거나 멸공이 부족해요" } else { "창업하지 못했어요. 잠시 뒤 다시 해 주세요" },
         ),
     }
     FOUNDING.set(false);

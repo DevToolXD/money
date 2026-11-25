@@ -37,7 +37,7 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   // 급여 금고 채우기
   await O.fill('#stf-fund-n', '50'); await O.click('#biz-staff [data-act="fund"]'); await O.waitForTimeout(2500);
   ok('급여 금고가 5000센트', Number((await raw(`companies/${cid}`)).fields.pay.integerValue) === 5000);
-  ok('금고 숫자가 화면에 보여요', (await O.textContent('#biz-staff')).includes('50 토큰'));
+  ok('금고 숫자가 화면에 보여요', (await O.textContent('#biz-staff')).includes('50 멸공'));
   await O.evaluate(() => document.querySelector('#biz-staff').scrollIntoView({ block: 'start' })); await O.waitForTimeout(500);
   await O.screenshot({ path: path.join(__dirname, 'shots', 'staff.png') });
   // 3시간 전에 입사한 것으로 바꾸고 직원이 일 탭을 열면 임금을 받아요
@@ -45,10 +45,10 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   const bal0 = Number((await raw(`wallets/${uS}`)).fields.bal.integerValue);
   await S.reload(); await S.waitForTimeout(6000);
   await S.evaluate(() => document.querySelector('.tabbar .tab[data-tab="work"]').click()); await S.waitForTimeout(4500);
-  ok('직원 임금 칸', (await S.textContent('#wk-wage')).includes('시급 3 토큰'));
+  ok('직원 임금 칸', (await S.textContent('#wk-wage')).includes('시급 3 멸공'));
   const bal1 = Number((await raw(`wallets/${uS}`)).fields.bal.integerValue);
-  ok('3시간 × 3토큰 = 9 토큰을 받아요', bal1 - bal0 === 9);
-  ok('급여 금고에서 9 토큰이 빠져요', Number((await raw(`companies/${cid}`)).fields.pay.integerValue) === 5000 - 900);
+  ok('3시간 × 3멸공 = 9 멸공을 받아요', bal1 - bal0 === 9);
+  ok('급여 금고에서 9 멸공이 빠져요', Number((await raw(`companies/${cid}`)).fields.pay.integerValue) === 5000 - 900);
   // 일한 횟수 (사장 화면)
   await S.evaluate(() => window.cloud.trackWork(40)).catch(() => {});
   await O.evaluate(() => document.querySelector('#biz-staff')).catch(() => {});

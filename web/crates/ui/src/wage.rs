@@ -34,17 +34,17 @@ pub fn paint(cid: &str, name: &str) {
         let line = if wage < 1.0 {
             format!("{} 사장님이 아직 임금을 정하지 않았어요", esc(&name))
         } else if amt > 0.0 {
-            format!("방금 {} 토큰을 받았어요", fmt_num(amt, 0))
+            format!("방금 {} 멸공을 받았어요", fmt_num(amt, 0))
         } else if due >= 1.0 {
             "급여 금고가 비어서 아직 못 받았어요. 채워지면 자동으로 받아요".to_string()
         } else {
             format!("다음 임금까지 약 {}분", ((next / 60000.0).ceil() as i64).max(1))
         };
         if amt > 0.0 {
-            crate::shell::toast(&format!("임금 {} 토큰을 받았어요", fmt_num(amt, 0)));
+            crate::shell::toast(&format!("임금 {} 멸공을 받았어요", fmt_num(amt, 0)));
         }
         el.set_inner_html(&format!(
-            r#"<div class="wk-wg"><div><b>시급 {} 토큰</b><span>{}</span></div><span class="wk-wg-pay">급여 금고 {} 토큰</span></div>"#,
+            r#"<div class="wk-wg"><div><b>시급 {} 멸공</b><span>{}</span></div><span class="wk-wg-pay">급여 금고 {} 멸공</span></div>"#,
             fmt_num(wage, 0),
             line,
             fmt_num(pay, 2)

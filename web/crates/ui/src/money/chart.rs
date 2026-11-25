@@ -18,7 +18,7 @@ thread_local! {
 fn date(y: i32, m: i32, d: i32) -> js_sys::Date {
     js_sys::Date::new_with_year_month_day(y as u32, m, d)
 }
-/// 하루 동안 쓴 토큰 (0시 기준 날짜별)
+/// 하루 동안 쓴 멸공 (0시 기준 날짜별)
 fn spent_between(lo: f64, hi: f64) -> f64 {
     all_tx().iter().filter(|e| e.amt < 0.0 && e.t >= lo && e.t < hi).map(|e| -e.amt).sum()
 }
@@ -55,9 +55,9 @@ fn series(r: &str) -> Vec<Pt> {
 }
 fn label(r: &str) -> &'static str {
     match r {
-        "y" => "1년 동안 쓴 토큰",
-        "m" => "1개월 동안 쓴 토큰",
-        _ => "1일 동안 쓴 토큰",
+        "y" => "1년 동안 쓴 멸공",
+        "m" => "1개월 동안 쓴 멸공",
+        _ => "1일 동안 쓴 멸공",
     }
 }
 fn xy(n: usize, i: usize, v: f64, max: f64) -> (f64, f64) {

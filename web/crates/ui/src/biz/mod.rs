@@ -234,8 +234,8 @@ fn ProdList(list: RwSignal<Vec<Prod>, LocalStorage>) -> impl IntoView {
                         <span class="biz-thumb" inner_html=thumb></span>
                         <span class="biz-main">
                             <b>{p.name.clone()}</b>
-                            <span>{format!("판매 {} 토큰", cloud::tok(p.price_cents))}</span>
-                            <span>{format!("원가 {} 토큰", cloud::tok(p.cost_cents))}</span>
+                            <span>{format!("판매 {} 멸공", cloud::tok(p.price_cents))}</span>
+                            <span>{format!("원가 {} 멸공", cloud::tok(p.cost_cents))}</span>
                             {p.paused.then(|| view! { <em class="biz-tag">"판매 멈춤"</em> })}
                         </span>
                         <button class="biz-more" type="button" data-more=p.id.clone() aria-label="더보기" inner_html=dots.clone() on:click=move |_| on_more(id.clone())></button>

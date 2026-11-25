@@ -1,4 +1,4 @@
-// 화면+서버: 친구 초대(링크로 가입 → 초대한 사람이 50 토큰 받기), 설정(화면 모드·진동·움직임), 튜토리얼(하나씩 눌러 보기), 베타 종료(관리자 한 번)
+// 화면+서버: 친구 초대(링크로 가입 → 초대한 사람이 50 멸공 받기), 설정(화면 모드·진동·움직임), 튜토리얼(하나씩 눌러 보기), 베타 종료(관리자 한 번)
 const { chromium } = require('playwright');
 const fs = require('fs'); const path = require('path');
 const emu = fs.readFileSync(path.join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
@@ -26,12 +26,12 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('가입하면 초대 기록이 남아요', (await raw(`invites/${uB}`)).fields?.by?.stringValue === uA);
   // 초대한 사람: 친구 초대 화면에서 받기
   await menu(A, 'invite');
-  ok('친구 초대 화면 문구', (await A.textContent('#screen-invite')).includes('친구를 초대하고 50 토큰을 받으세요'));
+  ok('친구 초대 화면 문구', (await A.textContent('#screen-invite')).includes('친구를 초대하고 50 멸공을 받으세요'));
   await A.waitForTimeout(1500);
   ok('초대한 친구가 보여요', (await A.textContent('#invite-list')).includes('새친구'));
   const bal0 = Number((await raw(`wallets/${uA}`)).fields.bal.integerValue);
   await A.click('#invite-list [data-claim]'); await A.waitForTimeout(2500);
-  ok('받기를 누르면 50 토큰', Number((await raw(`wallets/${uA}`)).fields.bal.integerValue) - bal0 === 50);
+  ok('받기를 누르면 50 멸공', Number((await raw(`wallets/${uA}`)).fields.bal.integerValue) - bal0 === 50);
   ok('받은 뒤에는 받음', (await A.textContent('#invite-list')).includes('받음'));
   // 설정
   await menu(A, 'settings');
@@ -68,7 +68,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   const left = await raw('profiles');
   ok('모든 프로필이 지워져요', !left.documents || left.documents.length === 0);
   const ws = (await raw('wallets')).documents || [];
-  ok('지갑도 지워져요 (켜져 있던 화면이 새로 만든 지갑은 0 토큰)', ws.every((w) => Number(w.fields.bal.integerValue) === 0));
+  ok('지갑도 지워져요 (켜져 있던 화면이 새로 만든 지갑은 0 멸공)', ws.every((w) => Number(w.fields.bal.integerValue) === 0));
   ok('베타 종료는 끝났다고 남아요', (await raw('meta/beta')).fields?.state?.stringValue === 'done');
   ok('화면 오류 없음', aErr + O.errs.length === 0); if (O.errs.length) console.log(O.errs.slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);

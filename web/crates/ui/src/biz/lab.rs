@@ -25,7 +25,7 @@ fn has(l: &JsValue, k: &str) -> bool {
 fn fmt_lab(v: f64) -> String {
     fmt_num(v, 3)
 }
-/// 센트를 토큰으로 보여요 (100센트 = 1 토큰)
+/// 센트를 멸공으로 보여요 (100센트 = 1 멸공)
 fn fmt_tok(cents: f64) -> String {
     fmt_num(cents / 100.0, 2)
 }
@@ -60,13 +60,13 @@ fn trn_text(l: &JsValue, left: f64) -> String {
         format!("{d} MB 학습을 마쳤어요")
     }
 }
-/// 예상: 걸리는 시간과 비용은 같아요 (1초 = 1 토큰). 성능이 높을수록 둘 다 줄어요
+/// 예상: 걸리는 시간과 비용은 같아요 (1초 = 1 멸공). 성능이 높을수록 둘 다 줄어요
 fn plan_text(l: &JsValue, amt: f64) -> String {
     if !(amt >= 1.0 && amt <= max_gen(l)) {
         return format!("1부터 {} 사이로 적어 주세요", fmt_lab(max_gen(l)));
     }
     let secs = (amt * 100.0 / n(l, "nperf")).ceil();
-    format!("비용 {} 토큰 · 약 {} 걸려요{}", fmt_lab(secs), fmt_sec(secs), if n(l, "cash") < secs * 100.0 { " · 금고가 부족해요" } else { "" })
+    format!("비용 {} 멸공 · 약 {} 걸려요{}", fmt_lab(secs), fmt_sec(secs), if n(l, "cash") < secs * 100.0 { " · 금고가 부족해요" } else { "" })
 }
 /// 학습: 데이터 양으로 배치 수·전기·시간·점수를 미리 보여줘요 (규칙과 같은 식)
 fn train_plan(l: &JsValue, d: f64) -> String {
@@ -215,14 +215,14 @@ fn load_market(s: S, cid: String, ai: bool, mine: JsValue) {
                 let e = nl
                     .iter()
                     .filter(|(_, l)| n(l, "price") > 0.0 && n(l, "elec") > 0.0)
-                    .map(|(c, l)| row(c, format!("1 전기 {} 토큰 · 재고 {}", fmt_tok(n(l, "price")), fmt_lab(n(l, "elec"))), "e", 10))
+                    .map(|(c, l)| row(c, format!("1 전기 {} 멸공 · 재고 {}", fmt_tok(n(l, "price")), fmt_lab(n(l, "elec"))), "e", 10))
                     .collect();
                 let p = pl
                     .iter()
                     .filter(|(_, l)| n(l, "price") > 0.0 && has(l, "rel"))
                     .map(|(c, l)| {
                         let r = get(l, "rel");
-                        row(c, format!("1대 {} 토큰 · 용량 {} · 속도 {} · 전기 {}", fmt_tok(n(l, "price")), fmt_lab(n(&r, "cap")), fmt_lab(n(&r, "spd")), fmt_lab(n(&r, "pow"))), "p", 1)
+                        row(c, format!("1대 {} 멸공 · 용량 {} · 속도 {} · 전기 {}", fmt_tok(n(l, "price")), fmt_lab(n(&r, "cap")), fmt_lab(n(&r, "spd")), fmt_lab(n(&r, "pow"))), "p", 1)
                     })
                     .collect();
                 let m = get(&mine, "pcM");
@@ -233,7 +233,7 @@ fn load_market(s: S, cid: String, ai: bool, mine: JsValue) {
                 let rows = al
                     .iter()
                     .filter(|(_, l)| n(l, "price") > 0.0 && get(l, "aiScore").as_f64().is_some_and(|v| v >= 0.0))
-                    .map(|(c, l)| row(c, format!("1시간 {} 토큰 · 점수 {}", fmt_tok(n(l, "price")), fmt_lab(n(l, "aiScore"))), "h", 1))
+                    .map(|(c, l)| row(c, format!("1시간 {} 멸공 · 점수 {}", fmt_tok(n(l, "price")), fmt_lab(n(l, "aiScore"))), "h", 1))
                     .collect();
                 Ok(Market::Use { rows, hours: format!("내 사용 시간 {}시간", fmt_lab(n(&mine, "aiH"))) })
             }
@@ -259,8 +259,8 @@ fn LabCard(s: S) -> impl IntoView {
 fn cash_view(l: &JsValue) -> impl IntoView {
     view! {
         <div class="lab-cash">
-            <p class="lab-sub">"회사 금고 "<b>{fmt_tok(n(l, "cash"))}</b>" 토큰"</p>
-            <label class="lab-field"><span>"넣거나 뺄 토큰"</span><input id="cash-amt" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="9" value="100" aria-label="금고에 넣거나 뺄 토큰"/></label>
+            <p class="lab-sub">"회사 금고 "<b>{fmt_tok(n(l, "cash"))}</b>" 멸공"</p>
+            <label class="lab-field"><span>"넣거나 뺄 멸공"</span><input id="cash-amt" class="lab-input" type="text" inputmode="numeric" autocomplete="off" maxlength="9" value="100" aria-label="금고에 넣거나 뺄 멸공"/></label>
             <div class="lab-actions">
                 <button type="button" class="btn" data-cash="out" on:click=move |ev| cash(ev, -1.0)>"빼기"</button>
                 <button type="button" class="btn primary" data-cash="in" on:click=move |ev| cash(ev, 1.0)>"넣기"</button>
@@ -268,11 +268,11 @@ fn cash_view(l: &JsValue) -> impl IntoView {
         </div>
     }
 }
-/// 단가 줄 (사장이 정해요): 파는 한 단위의 가격을 토큰으로 적어요
+/// 단가 줄 (사장이 정해요): 파는 한 단위의 가격을 멸공으로 적어요
 fn price_view(l: &JsValue, label: &'static str) -> impl IntoView {
     view! {
         <div class="lab-price">
-            <label class="lab-field"><span>{label}</span><span class="lab-unit"><input id="price-amt" class="lab-input" type="text" inputmode="decimal" autocomplete="off" maxlength="9" value=fmt_tok(n(l, "price")) aria-label="단가 (토큰)"/><b>"토큰"</b></span></label>
+            <label class="lab-field"><span>{label}</span><span class="lab-unit"><input id="price-amt" class="lab-input" type="text" inputmode="decimal" autocomplete="off" maxlength="9" value=fmt_tok(n(l, "price")) aria-label="단가 (멸공)"/><b>"멸공"</b></span></label>
             <button type="button" class="btn" data-lab="price" on:click=move |ev| act(ev, "price")>"단가 정하기"</button>
         </div>
     }
@@ -457,7 +457,7 @@ fn cash(ev: web_sys::MouseEvent, dir: f64) {
     let c = ctx();
     let v = read_num("cash-amt");
     if !(v.fract() == 0.0 && (1.0..=1_000_000_000.0).contains(&v)) {
-        return c.toast("1 이상의 토큰 수를 적어 주세요");
+        return c.toast("1 이상의 멸공 수를 적어 주세요");
     }
     btn.set_disabled(true);
     let label = btn.text_content().unwrap_or_default();
@@ -475,8 +475,8 @@ fn cash(ev: web_sys::MouseEvent, dir: f64) {
             })
             .await;
         match r {
-            Ok(_) => c.toast(&if dir > 0.0 { format!("{} 토큰을 금고에 넣었어요", fmt_lab(v)) } else { format!("{} 토큰을 지갑으로 뺐어요", fmt_lab(v)) }),
-            Err(e) => c.toast(&if e.code == "insufficient" { if dir > 0.0 { format!("지갑 토큰이 모자라요. 내 토큰은 {}이에요", crate::money::w(crate::money::balance().unwrap_or(0.0))) } else { "회사 금고에 토큰이 모자라요".to_string() } } else { format!("처리하지 못했어요. {}", cloud::why(&e.code)) }),
+            Ok(_) => c.toast(&if dir > 0.0 { format!("{} 멸공을 금고에 넣었어요", fmt_lab(v)) } else { format!("{} 멸공을 지갑으로 뺐어요", fmt_lab(v)) }),
+            Err(e) => c.toast(&if e.code == "insufficient" { if dir > 0.0 { format!("지갑 멸공이 모자라요. 내 멸공은 {}이에요", crate::money::w(crate::money::balance().unwrap_or(0.0))) } else { "회사 금고에 멸공이 모자라요".to_string() } } else { format!("처리하지 못했어요. {}", cloud::why(&e.code)) }),
         }
         btn.set_text_content(Some(&label));
         btn.set_disabled(false);
@@ -499,7 +499,7 @@ fn buy(ev: web_sys::MouseEvent, seller: String, kind: &'static str) {
         match cloud::call("labBuy", &[JsValue::from_str(&co_str(&co, "id")), JsValue::from_str(&seller), JsValue::from_str(kind), JsValue::from(v)]).await {
             Ok(_) => c.toast(&if kind == "e" { format!("전기 {}을 샀어요", fmt_lab(v)) } else { format!("컴퓨터 {}대를 샀어요", fmt_lab(v)) }),
             Err(e) => c.toast(match e.code.as_str() {
-                "insufficient" => "금고에 토큰이 부족해요",
+                "insufficient" => "금고에 멸공이 부족해요",
                 "stock" => "재고가 부족해요",
                 "unreleased" => "아직 출시하지 않은 상품이에요",
                 "bad" => "수량을 확인해 주세요",
@@ -526,7 +526,7 @@ fn act(ev: web_sys::MouseEvent, what: &'static str) {
     }
     let price = read_num("price-amt");
     if what == "price" && !(price >= 0.0 && price <= 1_000_000.0) {
-        return c.toast("0 이상의 토큰 수를 적어 주세요");
+        return c.toast("0 이상의 멸공 수를 적어 주세요");
     }
     btn.set_disabled(true);
     let cid = co_str(&co, "id");
@@ -540,7 +540,7 @@ fn act(ev: web_sys::MouseEvent, what: &'static str) {
                     c.toast(&match r.as_str() {
                         "ok" => format!("전기 {}을 만들기 시작했어요", fmt_lab(amt)),
                         "busy" => "이미 발전 중이에요".into(),
-                        "poor" => "금고에 토큰이 부족해요".into(),
+                        "poor" => "금고에 멸공이 부족해요".into(),
                         "max" => "한 번에 만들 수 있는 양을 넘었어요".into(),
                         _ => "처리하지 못했어요".into(),
                     });

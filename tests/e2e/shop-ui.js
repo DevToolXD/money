@@ -36,11 +36,11 @@ const setBal = (uid, bal) => fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=b
   await setBal(uB, 100); await B.page.waitForTimeout(2300);
   await B.page.evaluate(() => document.querySelector('.tabbar .tab[data-tab="shop"]').click()); await B.page.waitForTimeout(2500);
   const card = (await B.page.textContent('#shop-root')) || '';
-  ok('상품 카드: 이름, 가격, 재고가 보여요', card.includes('시험 생수') && card.includes('1개 1.5 토큰') && card.includes('재고 5개'));
+  ok('상품 카드: 이름, 가격, 재고가 보여요', card.includes('시험 생수') && card.includes('1개 1.5 멸공') && card.includes('재고 5개'));
   ok('개수 버튼 두 개가 있어요', (await B.page.$$('.shop-card .shop-round')).length === 2);
   ok('처음에는 줄이기 버튼이 꺼져 있어요', await B.page.isDisabled('.shop-card [data-d="-1"]'));
   await B.page.click('.shop-card [data-d="1"]'); await B.page.waitForTimeout(200);
-  ok('늘리면 2개, 3 토큰에 사기', (await B.page.textContent('.shop-n')).trim() === '2' && (await B.page.textContent('.shop-buy')).includes('3 토큰에 사기'));
+  ok('늘리면 2개, 3 멸공에 사기', (await B.page.textContent('.shop-n')).trim() === '2' && (await B.page.textContent('.shop-buy')).includes('3 멸공에 사기'));
   await B.page.click('.shop-buy'); await B.page.waitForTimeout(4000);
   ok('산 뒤 알림', ((await B.page.textContent('.toast').catch(() => '')) || '').includes('시험 생수 2개를 샀어요'));
   ok('지갑 100 → 97', (await wallet(uB)) === 97);

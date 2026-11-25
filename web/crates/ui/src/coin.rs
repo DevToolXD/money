@@ -1,6 +1,6 @@
 //! 코인 탭: 모네로(XMR) 채굴. 사용자가 켤 때마다 허락을 받고, 언제든 끌 수 있어요. 앱을 열어도 저절로 켜지지 않아요.
 //! 채굴은 웹 워커(app/miner.js, RandomX)가 하고, 풀과는 채굴 프록시(server/miner-proxy, WebSocket)로 이어져요.
-//! 채굴한 모네로는 운영자 지갑으로 가고, 사용자는 계정 하나에 1초마다 0.01 토큰(100초에 1 토큰)을 받아요.
+//! 채굴한 모네로는 운영자 지갑으로 가고, 사용자는 계정 하나에 1초마다 0.01 멸공(100초에 1 멸공)을 받아요.
 //! 보상은 서버 규칙이 계정마다 문서 하나로 세서, 탭을 여러 개 열어도 늘지 않아요 (firestore.rules: mining).
 
 use std::cell::{Cell, RefCell};
@@ -39,7 +39,7 @@ thread_local! {
     static RETRY: Cell<u32> = const { Cell::new(0) };
 }
 
-/// 1 토큰마다 걸리는 시간: CPU 1개 100초, 2개 66.667초 (1.5배)
+/// 1 멸공마다 걸리는 시간: CPU 1개 100초, 2개 66.667초 (1.5배)
 fn step_ms() -> f64 {
     if THREADS.get() >= 2 { 66667.0 } else { 100000.0 }
 }
@@ -62,7 +62,7 @@ fn paint() {
     dom::set_text("coin-rate", &if on { format!("{} H/s", cloud::fmt_num(rate, 1)) } else { "—".into() });
     dom::set_text("coin-hashes", &cloud::fmt_num(HASHES.get(), 0));
     dom::set_text("coin-shares", &SHARES.get().to_string());
-    dom::set_text("coin-earned", &format!("{} 토큰", cloud::fmt_num(EARNED.get(), 0)));
+    dom::set_text("coin-earned", &format!("{} 멸공", cloud::fmt_num(EARNED.get(), 0)));
     let left = ((NEXT_AT.get() - js_sys::Date::now()) / 1000.0).ceil();
     dom::set_text("coin-next", &if on && NEXT_AT.get() > 0.0 { format!("{}초", left.max(0.0) as i64) } else if on { "멈춤".into() } else { "—".into() });
     for b in dom::qsa(&dom::doc().document_element().expect("html"), "#coin-threads [data-n]") {
@@ -312,7 +312,7 @@ async fn ask_and_start() {
     let ok = crate::chat::ctx()
         .ask(
             "채굴을 시작할까요?",
-            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 100초마다 1 토큰(CPU 2개면 1.5배)을 받아요. 한 번 허락하면 끄기 전까지 앱을 열 때마다 켜져요. 코인 탭에서 언제든 끌 수 있어요.",
+            "이 기기의 CPU로 모네로(XMR)를 채굴해요. 배터리를 많이 쓰고 기기가 따뜻해질 수 있어요. 채굴한 모네로는 운영자 지갑으로 가고, 켜 둔 동안 계정 하나에 100초마다 1 멸공(CPU 2개면 1.5배)을 받아요. 한 번 허락하면 끄기 전까지 앱을 열 때마다 켜져요. 코인 탭에서 언제든 끌 수 있어요.",
             "허락하고 시작",
             "취소",
         )

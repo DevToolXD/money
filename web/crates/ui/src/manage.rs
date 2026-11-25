@@ -1,4 +1,4 @@
-//! 관리 (오너만): 토큰 지급, 공지 올리기(투표 포함), 계정 데이터 지우기.
+//! 관리 (오너만): 멸공 지급, 공지 올리기(투표 포함), 계정 데이터 지우기.
 //! 행동마다 다리(firebase.src.js)가 인증토큰 3개를 만들어 서버 규칙이 확인해요. 예전 `app/manage.js`와 같은 id·class예요.
 
 use std::cell::{Cell, RefCell};
@@ -106,7 +106,7 @@ struct Person {
 fn js_s(v: &wasm_bindgen::JsValue, k: &str) -> String {
     cloud::get(v, k).as_string().unwrap_or_default()
 }
-/// 사람 목록 읽기: 처음에는 이름순 20명, 찾을 때는 이름·아이디 앞부분으로. 순위표에 있으면 순위와 토큰도 보여줘요
+/// 사람 목록 읽기: 처음에는 이름순 20명, 찾을 때는 이름·아이디 앞부분으로. 순위표에 있으면 순위와 멸공도 보여줘요
 async fn load_people(text: String) -> Vec<Person> {
     let ranks = cloud::call("loadRanks", &[false.into()]).await.ok().map(|v| js_sys::Array::from(&v).to_vec()).unwrap_or_default();
     let rank_of = |uid: &str| ranks.iter().position(|r| js_s(r, "uid") == uid).map(|i| (i + 1, cloud::get(&ranks[i], "bal").as_f64().unwrap_or(0.0)));
@@ -194,12 +194,12 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
             return ctx().toast("목록에서 사람을 골라 주세요");
         }
         if !(1..=1_000_000).contains(&amt) {
-            return ctx().toast("토큰은 1부터 100만까지 적어 주세요");
+            return ctx().toast("멸공은 1부터 100만까지 적어 주세요");
         }
         let id2 = id.clone();
         act(
             Box::pin(async move { cloud::admin_grant(&id2, amt).await }),
-            format!("{id} 님에게 {amt} 토큰을 지급했어요"),
+            format!("{id} 님에게 {amt} 멸공을 지급했어요"),
             Box::new(move || {
                 if let Some(i) = grant_amt.get_untracked() {
                     i.set_value("");
@@ -291,9 +291,9 @@ fn Manage(rows: RwSignal<Vec<Row>, LocalStorage>) -> impl IntoView {
                         </button>
                         {on.then(|| view! {
                             <div class="mg-act">
-                                <label class="lab-field"><span>"줄 토큰"</span><input node_ref=grant_amt id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"/></label>
+                                <label class="lab-field"><span>"줄 멸공"</span><input node_ref=grant_amt id="mg-grant-amt" class="lab-input" type="text" inputmode="numeric" maxlength="7" placeholder="예: 100"/></label>
                                 <div class="mg-act-row">
-                                    <button type="button" class="btn primary" id="mg-grant" class:busy=move || busy.get() on:click=grant>"토큰 주기"</button>
+                                    <button type="button" class="btn primary" id="mg-grant" class:busy=move || busy.get() on:click=grant>"멸공 주기"</button>
                                     <button type="button" class="btn" id="mg-blue" class:busy=move || busy.get() on:click=blue_toggle>{move || { let _ = tick.get(); if sel.with(|s| s.as_ref().map(|x| !crate::profile::blue(&x.uid).is_empty()).unwrap_or(false)) { "인증 빼기" } else { "인증 주기" } }}</button>
                                     <button type="button" class="btn mg-danger" id="mg-del" class:busy=move || busy.get() on:click=delete>"데이터 지우기"</button>
                                 </div>

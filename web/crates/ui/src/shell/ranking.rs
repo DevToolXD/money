@@ -1,4 +1,4 @@
-//! 랭킹: 토큰을 가장 많이 가진 순서 (위 세 명은 단상, 나머지는 줄, 맨 아래는 내 순위)
+//! 랭킹: 멸공을 가장 많이 가진 순서 (위 세 명은 단상, 나머지는 줄, 맨 아래는 내 순위)
 
 use std::cell::Cell;
 
@@ -78,7 +78,7 @@ fn paint(list: &[JsValue], my_rank: &str) {
         let bal = crate::money::balance();
         m.set_hidden(bal.is_none());
         m.set_inner_html(&format!(
-            r#"<span class="rk-mn">{my_rank}</span>{}<b>{}{}</b><span class="rk-mval">{} 토큰</span>"#,
+            r#"<span class="rk-mn">{my_rank}</span>{}<b>{}{}</b><span class="rk-mval">{} 멸공</span>"#,
             avatar_html(&dom::store_get("profile-name", "나"), &dom::store_get("profile-photo", ""), "avatar contact"),
             esc(&dom::store_get("profile-name", "나")),
             crate::profile::blue(&me),

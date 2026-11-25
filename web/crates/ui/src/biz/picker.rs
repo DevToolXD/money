@@ -210,7 +210,7 @@ fn summary_html() -> String {
         ps.name = Some(name_of(&ps.p));
     }
     st(|s| s.pick = Some(ps.clone()));
-    let rows: String = lines.iter().map(|(n, v)| format!(r#"<div class="pk-cost-row"><span>{n}</span><b>{} 토큰</b></div>"#, cloud::tok(*v as f64))).collect();
+    let rows: String = lines.iter().map(|(n, v)| format!(r#"<div class="pk-cost-row"><span>{n}</span><b>{} 멸공</b></div>"#, cloud::tok(*v as f64))).collect();
     let steps: String = [-100i64, -10, 10, 100]
         .iter()
         .map(|d| format!(r#"<button class="pk-step" type="button" data-step="{d}">{}{}</button>"#, if *d > 0 { "+" } else { "−" }, cloud::tok(d.abs() as f64)))
@@ -222,12 +222,12 @@ fn summary_html() -> String {
       <div class="pk-card">
         <p class="pk-lab">원가 계산</p>
         {rows}
-        <div class="pk-cost-row pk-cost-total"><span>원가 합계</span><b>{} 토큰</b></div>
+        <div class="pk-cost-row pk-cost-total"><span>원가 합계</span><b>{} 멸공</b></div>
       </div>
       <div class="pk-card">
         <input id="pk-input" class="pk-input" inputmode="decimal" autocomplete="off" value="{}" aria-label="팔 가격">
         <div class="pk-steps">{steps}</div>
-        <button class="pk-chip" type="button" data-suggest="{sug}">추천 {} 토큰 (원가의 2배)</button>
+        <button class="pk-chip" type="button" data-suggest="{sug}">추천 {} 멸공 (원가의 2배)</button>
         <p class="pk-profit" id="pk-profit"></p>
       </div>
       <p class="pk-err" id="pk-err" role="alert"></p>
@@ -269,7 +269,7 @@ fn view_html(e: Entry) -> String {
                 .filter(|t| t.cat == k)
                 .enumerate()
                 .map(|(i, t)| format!(
-                    r#"<button class="pk-row" type="button" data-tech="{}" style="--i:{i}"><span class="pk-ic" style="--c:{}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{}</svg></span><span class="pk-main"><b>{}</b><span>{} · 원가 {} 토큰</span></span><span class="pk-chev">{}</span></button>"#,
+                    r#"<button class="pk-row" type="button" data-tech="{}" style="--i:{i}"><span class="pk-ic" style="--c:{}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{}</svg></span><span class="pk-main"><b>{}</b><span>{} · 원가 {} 멸공</span></span><span class="pk-chev">{}</span></button>"#,
                     t.key,
                     ICON_COL[i % ICON_COL.len()],
                     t.icon,
@@ -295,11 +295,11 @@ fn paint_profit() {
     let t = if pr < 1 {
         "가격을 정해 주세요".to_string()
     } else if gain > 0 {
-        format!("한 개에 {} 토큰 남아요 (이익률 {}%)", cloud::tok(gain as f64), ((gain as f64 / pr as f64) * 100.0 + 0.5).floor() as i64)
+        format!("한 개에 {} 멸공 남아요 (이익률 {}%)", cloud::tok(gain as f64), ((gain as f64 / pr as f64) * 100.0 + 0.5).floor() as i64)
     } else if gain == 0 {
         "원가와 같아요. 남는 돈이 없어요".into()
     } else {
-        format!("원가보다 {} 토큰 낮아요", cloud::tok(-gain as f64))
+        format!("원가보다 {} 멸공 낮아요", cloud::tok(-gain as f64))
     };
     el.set_text_content(Some(&t));
 }
@@ -588,7 +588,7 @@ fn sell() {
         return;
     }
     if !(ps.price.unwrap_or(0) >= 1) {
-        err.set_text_content(Some("가격을 0.01 토큰 이상으로 정해 주세요"));
+        err.set_text_content(Some("가격을 0.01 멸공 이상으로 정해 주세요"));
         return;
     }
     let Some(co) = company() else {

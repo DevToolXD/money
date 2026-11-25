@@ -1,4 +1,4 @@
-// 진짜 번들 + 진짜 규칙 (에뮬레이터): 오너가 인증토큰을 자동으로 받아 토큰을 주고, 공지를 올리고, 계정 데이터를 지워요. 다른 사람은 못 해요
+// 진짜 번들 + 진짜 규칙 (에뮬레이터): 오너가 인증토큰을 자동으로 받아 멸공을 주고, 공지를 올리고, 계정 데이터를 지워요. 다른 사람은 못 해요
 const { chromium } = require('playwright');
 const fs = require('fs');
 const emu = fs.readFileSync(require('path').join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
@@ -29,10 +29,10 @@ const wait = (p, ms) => p.waitForTimeout(ms);
   await wait(pOwner, 2300);
   ok('오너 계정은 owner 아이디로 만들어졌어요', (await rawDoc(`profiles/${uOwner}`)).fields.id.stringValue === 'owner');
   await wait(pT, 2300);
-  ok('일반 사람은 토큰을 지급할 수 없어요', (await call(pT, 'adminGrant', ['owner', 5])).startsWith('ERR'));
+  ok('일반 사람은 멸공을 지급할 수 없어요', (await call(pT, 'adminGrant', ['owner', 5])).startsWith('ERR'));
   ok('일반 사람은 공지를 올릴 수 없어요', (await call(pT, 'adminNotice', ['나쁜 공지'])).startsWith('ERR'));
   const before = (await wallet(uT)) ?? 0;
-  ok('오너: 대상에게 토큰 지급', (await call(pOwner, 'adminGrant', ['tgtperson1', 50])) === uT);
+  ok('오너: 대상에게 멸공 지급', (await call(pOwner, 'adminGrant', ['tgtperson1', 50])) === uT);
   await wait(pOwner, 2300);
   ok('지갑이 50 늘었어요', (await wallet(uT)) === before + 50);
   ok('지급 뒤 인증토큰은 없어졌어요', (await fetch(`${DB}/adminAuth/${uOwner}`, { headers: { authorization: 'Bearer owner' } }).then((r) => r.json())).error !== undefined);

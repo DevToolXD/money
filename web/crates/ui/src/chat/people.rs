@@ -1,4 +1,4 @@
-//! 새 대화: 사람 고르기 (20명씩 이어서, 이름·아이디로 찾기), 단톡방 만들기, 단톡방에 초대, 토큰 보낼 사람 고르기
+//! 새 대화: 사람 고르기 (20명씩 이어서, 이름·아이디로 찾기), 단톡방 만들기, 단톡방에 초대, 멸공 보낼 사람 고르기
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
@@ -134,7 +134,7 @@ fn reset_list() {
     PEOPLE.with(|p| p.borrow_mut().clear());
     empty("불러오는 중이에요");
 }
-/// 사람 고르기 시트 ("chat": 대화 열기, "gift": 토큰 보낼 사람)
+/// 사람 고르기 시트 ("chat": 대화 열기, "gift": 멸공 보낼 사람)
 pub fn open_picker(gift: bool) {
     if !live() {
         if cloud::signed_in() {

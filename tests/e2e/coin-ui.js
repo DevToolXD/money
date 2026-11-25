@@ -1,5 +1,5 @@
 // 화면+서버: 코인 탭. 켤 때 허락을 받고, 가짜 풀(진짜 프록시를 거쳐)에서 일을 받아 RandomX로 계산하고 share가 인정되며,
-// 100초마다 1 토큰 보상은 계정마다 한 번만 (두 탭이 동시에 받아도 늘지 않아요), 끄면 멈춰요
+// 100초마다 1 멸공 보상은 계정마다 한 번만 (두 탭이 동시에 받아도 늘지 않아요), 끄면 멈춰요
 const { chromium } = require('playwright');
 const fs = require('fs'); const path = require('path'); const net = require('net'); const { spawn } = require('child_process');
 const emu = fs.readFileSync(path.join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
@@ -45,7 +45,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('RandomX로 해시를 계산해요', hashes > 0);
   ok('찾은 share를 풀로 보내고 인정받아요', submits > 0 && Number(await p.textContent('#coin-shares')) > 0);
   ok('채굴 기록이 생겨요', !!(await raw(`mining/${uid}`)).fields);
-  // 보상: 250초 전에 시작한 것으로 바꾸고 두 탭에서 동시에 받아도 2 토큰만
+  // 보상: 250초 전에 시작한 것으로 바꾸고 두 탭에서 동시에 받아도 2 멸공만
   const p2 = await open(); await p2.waitForTimeout(9000); // 두 번째 탭도 (허락을 기억해서) 켜져요
   const at0 = new Date(Date.now() - 250000).toISOString();
   await fetch(`${DB}/mining/${uid}?updateMask.fieldPaths=at`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { at: { timestampValue: at0 } } }) });
@@ -53,7 +53,7 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   await Promise.all([p.evaluate(() => window.cloud.mineClaim()).catch(() => 0), p2.evaluate(() => window.cloud.mineClaim()).catch(() => 0)]);
   await p.waitForTimeout(1500);
   const bal1 = Number((await raw(`wallets/${uid}`)).fields.bal.integerValue);
-  ok(`250초면 2 토큰, 두 탭이어도 한 번만 (${bal1 - bal0})`, bal1 - bal0 === 2);
+  ok(`250초면 2 멸공, 두 탭이어도 한 번만 (${bal1 - bal0})`, bal1 - bal0 === 2);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'coin.png') });
   // 허락을 기억해요: 다시 열면 묻지 않고 켜져요
   await p2.close();

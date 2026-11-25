@@ -40,7 +40,7 @@ fn kind_full(k: &str) -> &'static str {
         _ => "식품 회사",
     }
 }
-/// 임시 시가총액: 창업 자본 10 토큰 + 직원 1명당 2 토큰
+/// 임시 시가총액: 창업 자본 10 멸공 + 직원 1명당 2 멸공
 fn cap_of(c: &Company) -> f64 {
     10.0 + 2.0 * c.staff
 }
@@ -480,7 +480,7 @@ fn Stats(c: Company) -> impl IntoView {
         <div class="wk-stats">
             <div class="gg wk-stat"><b>{format!("{}명", c.staff)}</b><span>"직원"</span></div>
             <div class="gg wk-stat"><b>{format!("{}명", c.open)}</b><span>"모집 중"</span></div>
-            <div class="gg wk-stat"><b>{fmt_n(cap_of(&c))}</b><span>"시총 토큰"</span></div>
+            <div class="gg wk-stat"><b>{fmt_n(cap_of(&c))}</b><span>"시총 멸공"</span></div>
         </div>
     }
 }
@@ -579,7 +579,7 @@ fn Market(s: Sig) -> impl IntoView {
                     .map(|(i, c)| {
                         let mark = ctx().mark(&c.name, &c.logo, "avatar contact wk-av");
                         let open = c.open;
-                        let line = format!("{} · 직원 {} · 시총 {} 토큰", kind_full(&c.kind), format_args!("{}명", c.staff), fmt_n(cap_of(&c)));
+                        let line = format!("{} · 직원 {} · 시총 {} 멸공", kind_full(&c.kind), format_args!("{}명", c.staff), fmt_n(cap_of(&c)));
                         let (id, name) = (c.id.clone(), c.name.clone());
                         view! {
                             <button type="button" class="wk-row" data-id=id style=format!("--i:{}", i.min(10)) on:click=move |_| open_detail(c.clone())>

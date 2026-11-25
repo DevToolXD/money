@@ -65,7 +65,7 @@ const toastHas = async (p, t) => { for (let i = 0; i < 20; i++) { if ((await tex
   ok('이름과 가격 정하기: 이름이 미리 채워져요', (await text(p, '.pk-title b')) === '이름과 가격 정하기' && (await p.inputValue('#pk-name')) === '생수 1L');
   await shot(p, '3-summary');
   const cost = await text(p, '.pk-cost-total');
-  ok('원가 합계가 보여요', cost.includes('토큰'));
+  ok('원가 합계가 보여요', cost.includes('멸공'));
   ok('이익 글이 보여요', (await text(p, '#pk-profit')).includes('이익률'));
   await p.click('[data-step="100"]'); await p.waitForTimeout(200);
   const price1 = await p.inputValue('#pk-input');
@@ -123,7 +123,7 @@ const toastHas = async (p, t) => { for (let i = 0; i < 20; i++) { if ((await tex
   ok('식품 회사 금고 줄', (await text(p, '#biz-lab')).includes('식품 회사 · 금고'));
   await p.fill('#cash-amt', '25');
   await p.click('#biz-lab [data-cash="in"]');
-  ok('금고에 넣었어요', await toastHas(p, '25 토큰을 금고에 넣었어요'));
+  ok('금고에 넣었어요', await toastHas(p, '25 멸공을 금고에 넣었어요'));
   await p.waitForTimeout(2500);
   ok('금고 숫자가 25', (await text(p, '#biz-lab .lab-cash')).includes('25'));
   const lab = await (await fetch(`${DB}/companies/${cid}/lab/main`, { headers: H })).json();

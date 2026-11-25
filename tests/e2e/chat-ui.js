@@ -1,5 +1,5 @@
 // 화면: 메시지. 새 대화(사람 고르기) → 글 보내기 → 받는 사람 목록(안 읽음 점) → 열기, 찾기, 꾹 눌러 고정, 안 읽음만 보기,
-// 토큰 선물(받기)과 요청(보내기), 사진 보내기와 크게 보기, 투표 만들고 투표하기, 그리기, 배경화면, 편집에서 삭제
+// 멸공 선물(받기)과 요청(보내기), 사진 보내기와 크게 보기, 투표 만들고 투표하기, 그리기, 배경화면, 편집에서 삭제
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -71,7 +71,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await bp.click('#pinned .pin'); await bp.waitForTimeout(2000);
   ok('열면 두 말풍선', (await text(bp, '#bubbles')).includes('안녕하세요') && (await text(bp, '#bubbles')).includes('두 번째'));
 
-  // 토큰 선물: 보내는이 → 받는이
+  // 멸공 선물: 보내는이 → 받는이
   await a.click('#plus'); await a.waitForTimeout(300);
   ok('+ 메뉴', await a.evaluate(() => document.getElementById('attach-back').classList.contains('is-open')));
   await a.click('#attach [data-a="token"]'); await a.waitForTimeout(700);
@@ -82,10 +82,10 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await a.click('#keypad [data-k="5"]'); await a.click('#keypad [data-k="0"]'); await a.waitForTimeout(200);
   ok('키패드로 50', (await text(a, '#g-num')) === '50');
   await a.click('#g-send');
-  ok('선물 알림', await toastHas(a, '받는이님에게 토큰 50을 보냈어요'));
-  ok('받는 쪽에 선물 카드와 받기 버튼', await waitText(bp, '#bubbles .cash', '토큰 선물') && (await bp.$('#bubbles [data-act="accept"]')) !== null);
+  ok('선물 알림', await toastHas(a, '받는이님에게 멸공 50을 보냈어요'));
+  ok('받는 쪽에 선물 카드와 받기 버튼', await waitText(bp, '#bubbles .cash', '멸공 선물') && (await bp.$('#bubbles [data-act="accept"]')) !== null);
   await bp.evaluate(() => document.querySelector('#bubbles [data-act="accept"]').click());
-  ok('받았어요 알림', await toastHas(bp, '토큰 50을 받았어요'));
+  ok('받았어요 알림', await toastHas(bp, '멸공 50을 받았어요'));
   await bp.waitForTimeout(2500);
   ok('지갑: 보내는이 450, 받는이 550', (await bal(uA)) === 450 && (await bal(uB)) === 550);
   ok('선물 카드가 받았어요로', await waitText(bp, '#bubbles .cash-state', '받았어요'));
@@ -94,8 +94,8 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await bp.click('#attach [data-a="token"]'); await bp.waitForTimeout(700);
   await bp.click('#g-amt'); await bp.click('#keypad [data-k="3"]'); await bp.click('#keypad [data-k="0"]');
   await bp.click('#g-request');
-  ok('요청 알림', await toastHas(bp, '보내는이님에게 토큰 30을 요청했어요'));
-  ok('보내는 쪽에 요청 카드', await waitText(a, '#bubbles', '토큰 요청'));
+  ok('요청 알림', await toastHas(bp, '보내는이님에게 멸공 30을 요청했어요'));
+  ok('보내는 쪽에 요청 카드', await waitText(a, '#bubbles', '멸공 요청'));
   await a.waitForTimeout(800);
   await a.evaluate(() => document.querySelector('#bubbles [data-act="pay"]').click());
   await okAlert(a);

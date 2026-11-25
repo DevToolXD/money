@@ -1152,7 +1152,7 @@ async fn track_work(total: JsValue) -> R {
     rethrow(update_doc(d(&["jobs", &uid_of()?]), o(&[("n", total), ("seen", ts())])).await)
 }
 /// 임금 받기: 받을 수 있는 정수 시간만큼. 급여 금고에 있는 만큼만 받아요.
-/// 돌려주는 값: amt(받은 토큰), wage(시급), due(받을 시간 수), pay(급여 금고 토큰), next(다음 한 시간까지 남은 밀리초)
+/// 돌려주는 값: amt(받은 멸공), wage(시급), due(받을 시간 수), pay(급여 금고 멸공), next(다음 한 시간까지 남은 밀리초)
 async fn claim_wage(cid: String) -> R {
     let uid = uid_of()?;
     let (js, cs) = (get_doc(d(&["jobs", &uid])), get_doc(d(&["companies", &cid])));
@@ -1193,8 +1193,8 @@ async fn mine_start(k: f64) -> R {
     let k = if k >= 2.0 { 2.0 } else { 1.0 };
     rethrow(set_doc(d(&["mining", &uid_of()?]), o(&[("at", ts()), ("k", n(k))])).await)
 }
-/// 보상 받기: CPU 1개면 100초, 2개면 66.667초마다 1 토큰 (한 번에 4개까지). 5분 넘게 못 받았으면 다시 시작해요.
-/// 받은 토큰 수(amt), 다음까지 남은 ms(next), 한 개 간격(step)을 돌려줘요
+/// 보상 받기: CPU 1개면 100초, 2개면 66.667초마다 1 멸공 (한 번에 4개까지). 5분 넘게 못 받았으면 다시 시작해요.
+/// 받은 멸공 수(amt), 다음까지 남은 ms(next), 한 개 간격(step)을 돌려줘요
 async fn mine_claim() -> R {
     let uid = uid_of()?;
     let sn = rethrow(get_doc(d(&["mining", &uid])).await)?;
@@ -1221,7 +1221,7 @@ async fn mine_claim() -> R {
     rethrow(commit(&b).await)?;
     Ok(o(&[("amt", n(c)), ("next", n((at + (c + 1.0) * step - edge).max(0.0))), ("step", n(step))]))
 }
-/// 사장: 급여 금고 채우기 (지갑 토큰 → 급여 금고)
+/// 사장: 급여 금고 채우기 (지갑 멸공 → 급여 금고)
 async fn fund_pay(cid: String, amt: JsValue) -> R {
     let a = num(&amt);
     let b = batch();
@@ -1588,7 +1588,7 @@ async fn lab_buy_factory(cid: String) -> R {
                     return Err(fail("max", "공장을 더 살 수 없어요"));
                 }
                 if num(&get(&l, "cash")) < 50000.0 {
-                    return Err(fail("poor", "회사 금고에 500 토큰이 부족해요. 먼저 금고에 넣어 주세요"));
+                    return Err(fail("poor", "회사 금고에 500 멸공이 부족해요. 먼저 금고에 넣어 주세요"));
                 }
                 m(&tx, "update", &[lref, o(&[("cash", n(num(&get(&l, "cash")) - 50000.0)), ("plv", n(plv + 1.0))])])?;
                 Ok(n(plv + 1.0))
@@ -1802,7 +1802,7 @@ async fn list_products(cid: String) -> R {
         .iter()
         .map(|dd| {
             let v = data_est(dd);
-            // 예전 상품은 토큰 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
+            // 예전 상품은 멸공 단위(cost·price)로 적혀 있어서 센트로 바꿔 보여줘요
             let cents = |ck: &str, tk: &str| {
                 let x = get(&v, ck);
                 if is_int(&x) {
@@ -2309,6 +2309,15 @@ async fn lands_in(chunks: JsValue) -> R {
     }
     Ok(out.into())
 }
+/// 내 땅 전부 (100곳까지)
+async fn lands_mine() -> R {
+    let snap = get_docs(q(c(&["lands"]), vec![w(s("owner"), "==", s(&uid_of()?)), lim(100.0)])).await?;
+    let out = js_sys::Array::new();
+    for dd in docs(&snap) {
+        out.push(&land_row(&dd));
+    }
+    Ok(out.into())
+}
 fn land_wallet(b: &JsValue, delta: f64, kind: &str, id: &str) -> Result<(), JsValue> {
     m(b, "update", &[wallet_ref()?, o(&[("bal", inc(delta)), ("wt", ts()), ("op", o(&[("kind", s(kind)), ("cid", s(id))]))])])?;
     Ok(())
@@ -2380,7 +2389,7 @@ async fn pay_request(cid: String, to: JsValue, req: String, amount: JsValue) -> 
     let b = batch();
     m(&b, "update", &[d(&["chats", &cid, "messages", &req]), o(&[("done", true.into())])])?;
     m(&b, "set", &[gref.clone(), o(&[("type", s("gift")), ("amount", amount.clone()), ("done", false.into()), ("from", s(&uid)), ("to", to), ("at", ts())])])?;
-    m(&b, "update", &[d(&["chats", &cid]), o(&[("last", s(&format!("토큰 {} 선물", ko(a)))), ("lastAt", ts()), ("lastFrom", s(&uid))])])?;
+    m(&b, "update", &[d(&["chats", &cid]), o(&[("last", s(&format!("멸공 {} 선물", ko(a)))), ("lastAt", ts()), ("lastFrom", s(&uid))])])?;
     m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-a)), ("wt", ts()), ("op", o(&[("kind", s("gift")), ("cid", s(&cid)), ("mid", get(&gref, "id"))]))])])?;
     commit(&b).await?;
     Ok(JsValue::UNDEFINED)
@@ -2707,7 +2716,7 @@ fn build() -> js_sys::Object {
     am!(api, "send", |a| send(sa(&a[0]), a[1].clone(), a[2].clone(), a[3].clone(), None).await);
     am!(api, "sendGift", |a| {
         let amt = num(&a[2]);
-        send(sa(&a[0]), a[1].clone(), o(&[("type", s("gift")), ("amount", a[2].clone()), ("done", false.into())]), s(&format!("토큰 {} 선물", ko(amt))), Some(amt)).await
+        send(sa(&a[0]), a[1].clone(), o(&[("type", s("gift")), ("amount", a[2].clone()), ("done", false.into())]), s(&format!("멸공 {} 선물", ko(amt))), Some(amt)).await
     });
     am!(api, "presenceBeat", |_a| presence_beat().await);
     am!(api, "presenceList", |_a| presence_list().await);
@@ -2715,6 +2724,7 @@ fn build() -> js_sys::Object {
     am!(api, "planCreate", |a| plan_create(a[0].clone()).await);
     am!(api, "planJoin", |a| plan_join(sa(&a[0]), a[1].is_truthy()).await);
     am!(api, "planDelete", |a| plan_delete(sa(&a[0])).await);
+    am!(api, "landsMine", |_a| lands_mine().await);
     am!(api, "landsIn", |a| lands_in(a[0].clone()).await);
     am!(api, "landBuy", |a| land_buy(num(&a[0]), num(&a[1]), sa(&a[2])).await);
     am!(api, "landName", |a| land_name(sa(&a[0]), sa(&a[1])).await);

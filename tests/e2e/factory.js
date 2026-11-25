@@ -27,13 +27,13 @@ const wait = (p, ms) => p.waitForTimeout(ms);
   await setWallet(uid, 1000); await wait(p, 2300);
   const cid = await call(p, 'foundCompany', ['공장 테스트', '', 'food']);
   await wait(p, 2300);
-  await call(p, 'labCash', [cid, 600, 1]); // 600 토큰 넣기 (50000 센트 이상)
+  await call(p, 'labCash', [cid, 600, 1]); // 600 멸공 넣기 (50000 센트 이상)
   await wait(p, 2300);
   const pid = await call(p, 'createProduct', [cid, { cat: 'food', group: 'water', item: 'water', name: '공장 생수', shape: 1, cap: 3, capColor: 5, color: -1, costCents: 100, priceCents: 300, paused: false, active: true }]);
   ok('회사·상품 만들기', typeof cid === 'string' && typeof pid === 'string' && !String(cid).startsWith('ERR'));
   const c0 = await cashOf(cid);
-  ok('금고 600 토큰 (60000 센트)', c0 === 60000);
-  ok('공장 추가: 500토큰을 내고 두 대가 돼요', (await call(p, 'labBuyFactory', [cid])) === 2 && (await cashOf(cid)) === 10000);
+  ok('금고 600 멸공 (60000 센트)', c0 === 60000);
+  ok('공장 추가: 500멸공을 내고 두 대가 돼요', (await call(p, 'labBuyFactory', [cid])) === 2 && (await cashOf(cid)) === 10000);
   const started = await call(p, 'labStartFactory', [cid, pid, 2]);
   ok('돌리기: 2개 시작', started === 2);
   ok('돌리고 있으면 또 못 돌려요', String(await call(p, 'labStartFactory', [cid, pid, 2])).startsWith('ERR'));
