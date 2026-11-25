@@ -15,7 +15,7 @@ const MIN_Z: i32 = 15; // 더 줄이면 육각형이 너무 많아져 렉이 걸
 const MAX_Z: i32 = 18;
 // 육각형 칸: 확대 16 기준 지도 위에서 꼭짓점까지 24px (약 35m)인 뾰족 위쪽 육각형. 확대에 따라 같이 커지고 작아져요
 const HZ: i32 = 16;
-const PADC: f64 = 520.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
+const PADC: f64 = 360.0; // 육각형 캔버스는 화면보다 사방으로 이만큼 크게 한 번만 그려 두고, 끌 때는 옮기기만 해요
 const HS: f64 = 24.0;
 
 thread_local! {
@@ -74,8 +74,8 @@ fn render() {
         g.base = g.cur;
     });
     let n = 2f64.powi(z) as i64;
-    let (x0, x1) = (((ox - 512.0) / TILE).floor() as i64, ((ox + w + 512.0) / TILE).floor() as i64);
-    let (y0, y1) = (((oy - 512.0) / TILE).floor() as i64, ((oy + h + 512.0) / TILE).floor() as i64);
+    let (x0, x1) = (((ox - 384.0) / TILE).floor() as i64, ((ox + w + 384.0) / TILE).floor() as i64);
+    let (y0, y1) = (((oy - 384.0) / TILE).floor() as i64, ((oy + h + 384.0) / TILE).floor() as i64);
     let Some(layer) = by_id("map-tiles") else { return };
     TILES.with(|t| {
         let mut t = t.borrow_mut();
@@ -219,7 +219,7 @@ fn draw_hex() {
     let cv: web_sys::HtmlCanvasElement = c.unchecked_into();
     let (w, h) = size(&v);
     let (w, h) = (w + PADC * 2.0, h + PADC * 2.0);
-    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(1.5);
+    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0).min(1.25); // 기울어져 보여서 더 높여도 차이가 안 나고 그래픽 메모리만 늘어요
     let (pw, ph) = ((w * dpr) as u32, (h * dpr) as u32);
     if cv.width() != pw || cv.height() != ph {
         cv.set_width(pw);

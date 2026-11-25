@@ -31,7 +31,26 @@ pub fn set_hidden(id: &str, hidden: bool) {
 }
 pub fn set_text(id: &str, t: &str) {
     if let Some(e) = by_id(id) {
-        e.set_text_content(Some(t));
+        // 같은 글자면 건드리지 않아요 (괜히 다시 그리지 않게)
+        if e.text_content().as_deref() != Some(t) {
+            e.set_text_content(Some(t));
+        }
+    }
+}
+/// 내용이 바뀌었을 때만 innerHTML을 바꿔요 (2초마다 다시 그리는 곳에서 써요)
+pub fn set_html_if(el: &web_sys::Element, html: &str) {
+    thread_local!(static LAST: std::cell::RefCell<std::collections::HashMap<String, u64>> = std::cell::RefCell::new(std::collections::HashMap::new()));
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    html.hash(&mut h);
+    let k = h.finish();
+    let id = el.id();
+    let same = !id.is_empty() && LAST.with(|m| m.borrow().get(&id) == Some(&k));
+    if !same {
+        el.set_inner_html(html);
+        if !id.is_empty() {
+            LAST.with(|m| m.borrow_mut().insert(id, k));
+        }
     }
 }
 /// 입력칸 글자 (없으면 빈 글자)

@@ -85,7 +85,7 @@ pub fn repaint() {
     // 지금 접속한 사람
     if let Some(l) = by_id("hm-online") {
         let ids = crate::presence::online_uids(&me);
-        l.set_inner_html(&if ids.is_empty() {
+        dom::set_html_if(&l, &if ids.is_empty() {
             r#"<p class="sns-empty">지금 접속한 사람이 없어요</p>"#.to_string()
         } else {
             ids.iter()
@@ -99,7 +99,7 @@ pub fn repaint() {
     // 다가오는 약속 (내가 참여하는 것, 가까운 순 3개)
     if let Some(l) = by_id("hm-plan-list") {
         let list = PLANS.with(|p| p.borrow().iter().take(3).cloned().collect::<Vec<_>>());
-        l.set_inner_html(&if list.is_empty() {
+        dom::set_html_if(&l, &if list.is_empty() {
             r#"<div class="pl-empty"><b>다가오는 약속이 없어요</b><p>놀기 탭에서 약속을 올리거나 참여해 보세요</p></div>"#.to_string()
         } else {
             list.iter()

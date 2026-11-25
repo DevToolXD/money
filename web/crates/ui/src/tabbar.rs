@@ -497,7 +497,7 @@ impl Bar {
         if nr.width() < 10.0 || nr.height() < 10.0 {
             return;
         }
-        let dpr = clamp(win().device_pixel_ratio(), 1.0, 3.0);
+        let dpr = clamp(win().device_pixel_ratio(), 1.0, 2.0); // 3배는 유리에서 차이가 안 보이고 GPU 일만 2.25배예요
         self.dpr = if dpr == 0.0 { 1.0 } else { dpr };
         let dpr = self.dpr;
         self.cw = nr.width() + PAD_X * 2.0;
@@ -1089,7 +1089,8 @@ impl Bar {
             }
             let _ = self.nav.class_list().toggle_with_force("has-glass", glass_on);
         }
-        let scroll = if glass_on {
+        // 스크롤 위치는 화면 사진이 있을 때만 필요해요. 읽으면 브라우저가 레이아웃을 바로 계산해서(탭을 바꾼 직후엔 특히) 느려져요
+        let scroll = if glass_on && entry.is_some() {
             js_sys::Reflect::get(&self.backdrop, &"activeEl".into()).ok().and_then(|e| e.dyn_into::<web_sys::Element>().ok()).map(|e| e.scroll_top() as f64).unwrap_or(0.0)
         } else {
             0.0

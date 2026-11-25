@@ -56,7 +56,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
   // 받는 사람
   ok('받는 사람 목록에 대화와 안 읽음 점', await waitText(bp, '#chat-list', '보내는이') && (await bp.$('#chat-list .chat-row .dot')) !== null);
-  ok('미리보기 글은 마지막 글', (await text(bp, '#chat-list .chat-prev')) === '두 번째');
+  { let pv = ''; for (let i = 0; i < 20; i++) { pv = await text(bp, '#chat-list .chat-prev'); if (pv === '두 번째') break; await bp.waitForTimeout(250); } console.log('preview:', JSON.stringify(pv)); ok('미리보기 글은 마지막 글', pv === '두 번째'); }
   await bp.click('#filter-unread'); await bp.waitForTimeout(300);
   ok('안 읽음만 보기에도 보여요', (await text(bp, '#chat-list')).includes('보내는이'));
   await bp.click('#filter-unread'); await bp.waitForTimeout(300);

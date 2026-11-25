@@ -2369,3 +2369,5 @@ html[data-theme="dark"] .pl-chip { background: rgba(255, 255, 255, 0.1); }
 .hm-plan b { font-size: 17px; font-weight: 800; }
 .hm-plan span { font-size: 14px; font-weight: 600; color: #0a7cff; }
 .hm-plan small { font-size: 12px; color: var(--text-secondary); }
+.map-hex { left: -360px; top: -360px; width: calc(100% + 720px); height: calc(100% + 720px); }
+.map-wash { left: -360px; top: -360px; right: -360px; bottom: -360px; }
