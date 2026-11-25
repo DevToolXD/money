@@ -802,7 +802,7 @@ async fn ensure_account() -> R {
         }
     };
     if !ex {
-        // 옛 방식으로 만든 계정은 프로필이 없어요. 실명이 있으면 쓰고, 없으면 아이디를 이름으로 써요
+        // 옛 방식으로 만든 계정은 프로필이 없어요. 이름이 있으면 쓰고, 없으면 아이디를 이름으로 써요
         let mut name = st(&get(&current(), "displayName"));
         if !ok_name(&name) {
             name = match get_doc(d(&["users", &uid])).await {
@@ -1186,40 +1186,6 @@ async fn claim_wage(cid: String) -> R {
     m(&b, "update", &[d(&["companies", &cid]), o(&[("pay", inc(-amt * 100.0))])])?;
     rethrow(commit(&b).await)?;
     Ok(out(amt, wage, due - hours, pay - amt, next))
-}
-/* ----- 채굴 보상 (코인 탭) ----- */
-/// 채굴을 (다시) 시작해요: 기록 시각을 지금으로, CPU 수(k: 1이나 2)도 같이 적어요
-async fn mine_start(k: f64) -> R {
-    let k = if k >= 2.0 { 2.0 } else { 1.0 };
-    rethrow(set_doc(d(&["mining", &uid_of()?]), o(&[("at", ts()), ("k", n(k))])).await)
-}
-/// 보상 받기: CPU 1개면 100초, 2개면 66.667초마다 1 멸공 (한 번에 4개까지). 5분 넘게 못 받았으면 다시 시작해요.
-/// 받은 멸공 수(amt), 다음까지 남은 ms(next), 한 개 간격(step)을 돌려줘요
-async fn mine_claim() -> R {
-    let uid = uid_of()?;
-    let sn = rethrow(get_doc(d(&["mining", &uid])).await)?;
-    if !exists(&sn) {
-        mine_start(1.0).await?;
-        return Ok(o(&[("amt", n(0.0)), ("next", n(100000.0)), ("step", n(100000.0))]));
-    }
-    let dd = data(&sn);
-    let k = if num(&get(&dd, "k")) == 2.0 { 2.0 } else { 1.0 };
-    let step = if k == 2.0 { 66667.0 } else { 100000.0 };
-    let at = ms(&get(&dd, "at"));
-    let edge = now() - 3000.0;
-    if edge - at > 290000.0 {
-        mine_start(k).await?;
-        return Ok(o(&[("amt", n(0.0)), ("next", n(step)), ("step", n(step)), ("restart", true.into())]));
-    }
-    let c = ((edge - at) / step).floor().min(4.0);
-    if c < 1.0 {
-        return Ok(o(&[("amt", n(0.0)), ("next", n((at + step - edge).max(0.0))), ("step", n(step))]));
-    }
-    let b = batch();
-    m(&b, "update", &[d(&["mining", &uid]), o(&[("at", from_millis(at + c * step)), ("k", n(k))])])?;
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(c)), ("wt", ts()), ("op", o(&[("kind", s("mine")), ("amt", n(c))]))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(o(&[("amt", n(c)), ("next", n((at + (c + 1.0) * step - edge).max(0.0))), ("step", n(step))]))
 }
 /// 사장: 급여 금고 채우기 (지갑 멸공 → 급여 금고)
 async fn fund_pay(cid: String, amt: JsValue) -> R {
@@ -2630,8 +2596,6 @@ fn build() -> js_sys::Object {
     am!(api, "loadMyJob", |_a| load_my_job().await);
     am!(api, "applyJob", |a| apply_job(sa(&a[0]), a[1].clone()).await);
     am!(api, "quitJob", |a| quit_job(sa(&a[0])).await);
-    am!(api, "mineStart", |a| mine_start(num(&a[0])).await);
-    am!(api, "mineClaim", |_a| mine_claim().await);
     am!(api, "listStaff", |a| list_staff(sa(&a[0])).await);
     am!(api, "setWage", |a| rethrow(update_doc(d(&["jobs", &sa(&a[0])]), o(&[("wage", a[1].clone())])).await));
     am!(api, "fireStaff", |a| fire_staff(sa(&a[0]), sa(&a[1])).await);

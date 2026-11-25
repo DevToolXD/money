@@ -82,10 +82,8 @@ pub fn init() {
             let name = name.trim().to_string();
             let old = dom::store_get("profile-name", "내 계정");
             if !name.is_empty() && name != old {
-                let ko = name.chars().count() >= 2 && name.chars().count() <= 6 && name.chars().all(|c| ('가'..='힣').contains(&c));
-                let en = name.len() >= 3 && name.len() <= 40 && name.chars().all(|c| c.is_ascii_alphabetic() || c == ' ') && !name.starts_with(' ') && !name.ends_with(' ');
-                if !(ko || en) {
-                    return toast("이름은 한글 2~6자나 영어로 적어 주세요");
+                if name.chars().count() > 20 || name.contains(['<', '>']) {
+                    return toast("이름은 20자까지, < > 없이 적어 주세요");
                 }
                 leptos::task::spawn_local(async move {
                     match cloud::call("setName", &[JsValue::from_str(&name)]).await {

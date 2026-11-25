@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 
-use super::{ask, boot, cloud_ready, global, restart, screen};
+use super::{boot, cloud_ready, global, restart, screen};
 use crate::dom::{self, by_id, safe_img};
 
 /// 로그인 사진 다섯 장의 위쪽 평균 색 (사진이 바뀌면 상태바 색도 따라가요)
@@ -207,15 +207,10 @@ async fn run(job: impl FnOnce(JsValue) -> Result<JsValue, cloud::CloudError>, is
 fn valid_id(id: &str) -> bool {
     (3..=20).contains(&id.chars().count()) && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
-/// 실명: 한글 2~6자 또는 영문 이름
+/// 이름(별명도 돼요): 1~20자, < > 없이
 fn valid_name(n: &str) -> bool {
-    let cs: Vec<char> = n.chars().collect();
-    let ko = (2..=6).contains(&cs.len()) && cs.iter().all(|c| ('가'..='힣').contains(c));
-    let en = (3..=40).contains(&cs.len())
-        && cs.first().is_some_and(|c| c.is_ascii_alphabetic())
-        && cs.last().is_some_and(|c| c.is_ascii_alphabetic())
-        && cs.iter().all(|c| c.is_ascii_alphabetic() || *c == ' ');
-    ko || en
+    let c = n.trim().chars().count();
+    (1..=20).contains(&c) && !n.contains(['<', '>'])
 }
 async fn submit() {
     if let Some(b) = by_id("login-submit") {
@@ -245,14 +240,7 @@ async fn submit() {
     }
     let name = crate::biz::clean_name(&dom::input_value("login-name"));
     if !valid_name(&name) {
-        return dom::set_text("login-error", "실명을 입력해 주세요 (한글 2~6자 또는 영문 이름)");
-    }
-    let sure = ask(&format!("\"{name}\" 님이 실명이 맞나요?"), "실명이 아니면 이용이 제한될 수 있어요. 가입한 뒤에는 이름을 바꾸기 어려워요.", "실명이에요", "다시 입력").await;
-    if !sure {
-        if let Some(n) = by_id("login-name") {
-            let _ = n.focus();
-        }
-        return;
+        return dom::set_text("login-error", "이름을 1~20자로 적어 주세요");
     }
     // 임시: 한 기기(브라우저)에서는 계정을 하나만 만들어요
     let made = dom::store_get("acct-made", "");
@@ -353,22 +341,6 @@ async fn logout() {
 }
 
 pub fn init() {
-    // 이름 칸을 처음 누르면 실명 안내를 한 번 보여줘요
-    if let Some(n) = by_id("login-name") {
-        let n2 = n.clone();
-        dom::on(&n, "focus", move |_| {
-            if !SIGNUP.get() || WARNED.get() {
-                return;
-            }
-            WARNED.set(true);
-            let _ = n2.blur();
-            let n3 = n2.clone();
-            leptos::task::spawn_local(async move {
-                ask("실명으로 가입해 주세요", "이름은 무조건 본인의 실명이어야 해요. 별명이나 다른 사람의 이름으로는 가입할 수 없어요.", "알겠어요", "").await;
-                let _ = n3.focus();
-            });
-        });
-    }
     for b in dom::qsa(&dom::doc().document_element().expect("html"), "#open-login, .js-open-login") {
         dom::on(&b, "click", |_| show_login(true));
     }

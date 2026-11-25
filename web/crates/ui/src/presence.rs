@@ -58,7 +58,6 @@ fn tick() {
             if changed {
                 crate::sns::repaint_people();
                 crate::play::repaint();
-                crate::dash::repaint();
                 crate::chat::render();
             }
         }

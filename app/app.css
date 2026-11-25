@@ -2434,3 +2434,7 @@ html[data-theme="dark"] .hm-wallet { background: linear-gradient(160deg, #2a2a35
 .hm-ti { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: #3b6cf6; background: rgba(59, 108, 246, 0.12); }
 .hm-ti2 { color: #7a4fe0; background: rgba(122, 79, 224, 0.12); }
 .hm-ti svg { width: 22px; height: 22px; }
+.hm-soon { padding: 18px 20px 20px; text-align: center; }
+.hm-soon b { display: block; font-size: 20px; font-weight: 800; }
+.hm-soon p { margin: 4px 0 0; font-size: 15px; color: var(--text-secondary); }
+#screen-home { padding-top: calc(var(--top-h) + 14px); background: none; }

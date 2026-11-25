@@ -60,7 +60,7 @@ await t("로그인하지 않으면 아무것도 못 해요", async () => {
 });
 
 console.log("\n[프로필]");
-await t("내 실명 프로필을 만들 수 있어요", async () => {
+await t("내 프로필을 만들 수 있어요", async () => {
   const db = pw("uA", "alice");
   await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "김철수", photo: "" }));
 });
@@ -72,19 +72,18 @@ await t("남의 uid 자리에는 못 만들어요", async () => {
   const db = pw("uA", "alice");
   await assertFails(setDoc(doc(db, "profiles/uB"), { id: "alice", name: "김철수", photo: "" }));
 });
-await t("별명·숫자·너무 긴 이름은 실명 규칙에서 막혀요", async () => {
+await t("이름은 별명도 돼요 (1~20자, < > 없이)", async () => {
   const db = pw("uA", "alice");
-  for (const name of ["철수123", "x", "가나다라마바사", "<script>", ""]) await assertFails(setDoc(doc(db, "profiles/uA"), { id: "alice", name, photo: "" }));
+  for (const name of ["<script>", "", "가".repeat(21)]) await assertFails(setDoc(doc(db, "profiles/uA"), { id: "alice", name, photo: "" }));
+  await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "철수123", photo: "" }));
 });
 await t("영문 이름은 허용돼요", async () => {
   const db = pw("uA", "alice");
   await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "John Smith", photo: "" }));
 });
-await t("이름이 없던 옛 계정은 아이디를 이름으로 쓸 수 있어요 (아이디와 다른 별명은 여전히 막혀요)", async () => {
+await t("이름이 없던 옛 계정은 아이디를 이름으로 쓸 수 있어요", async () => {
   const db = pw("uA", "alice");
   await assertSucceeds(setDoc(doc(db, "profiles/uA"), { id: "alice", name: "alice", photo: "" }));
-  const db2 = pw("uB", "bob");
-  await assertFails(setDoc(doc(db2, "profiles/uB"), { id: "bob", name: "alice9", photo: "" }));
 });
 await t("아이디는 바꿀 수 없고 이름(규칙 안에서)·사진은 바꿀 수 있어요, 인증 표시는 관리자만", async () => {
   await seed(seedBase);
@@ -1664,46 +1663,6 @@ await t("베타 종료: 관리자만 한 번 시작하고, 그동안만 모든 �
   await assertFails(deleteDoc(doc(owner, "profiles/uB"))); // 끝난 뒤에는 못 지워요
   await assertFails(updateDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() })); // 다시 못 해요
   await assertFails(setDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() }));
-});
-console.log("\n[채굴]");
-await t("채굴: 계정 하나에 100초마다 1 토큰, 시각과 지갑이 같은 묶음에서, 5분 안에, 미래 시각은 안 돼요", async () => {
-  const at0 = Date.now() - 250000;
-  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(at0) }); await setDoc(doc(d, "wallets/uA"), { bal: 10, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }); });
-  const a = pw("uA", "alice");
-  const claim = (n, { amt = n, shift = n * 100000 } = {}) => {
-    const b = writeBatch(a);
-    b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + shift) });
-    b.update(doc(a, "wallets/uA"), { bal: increment(amt), wt: serverTimestamp(), op: { kind: "mine", amt } });
-    return b;
-  };
-  await assertFails(claim(3).commit()); // 300초는 아직 안 지났어요 (250초)
-  await assertFails(claim(2, { amt: 3 }).commit()); // 개수가 안 맞아요
-  await assertFails(claim(2, { shift: 150000 }).commit()); // 100초 단위가 아니에요
-  await assertFails(updateDoc(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + 200000) })); // 지갑 없이 시각만
-  await assertSucceeds(claim(2).commit());
-  same((await getDoc(doc(a, "wallets/uA"))).data().bal, 12);
-  await assertFails(getDoc(doc(pw("uB", "bob"), "mining/uA")));
-  await assertFails(setDoc(doc(pw("uB", "bob"), "mining/uA"), { at: serverTimestamp() }));
-  await assertSucceeds(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp() })); // 다시 시작
-  // 5분이 넘게 쉬었으면 그동안은 못 받아요
-  const old = Date.now() - 600000;
-  await seed((d) => setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(old) }));
-  await sleep(2100);
-  const b = writeBatch(a);
-  b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(old + 300000) });
-  b.update(doc(a, "wallets/uA"), { bal: increment(3), wt: serverTimestamp(), op: { kind: "mine", amt: 3 } });
-  await assertFails(b.commit());
-});
-await t("채굴: CPU 2개면 66.667초마다 1 토큰 (1.5배), CPU 수는 다시 시작할 때만 바뀌어요", async () => {
-  const at0 = Date.now() - 140000;
-  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "mining/uA"), { at: Timestamp.fromMillis(at0), k: 2 }); await setDoc(doc(d, "wallets/uA"), { bal: 0, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }); });
-  const a = pw("uA", "alice");
-  const claim = (n, step, k = 2) => { const b = writeBatch(a); b.update(doc(a, "mining/uA"), { at: Timestamp.fromMillis(at0 + n * step), k }); b.update(doc(a, "wallets/uA"), { bal: increment(n), wt: serverTimestamp(), op: { kind: "mine", amt: n } }); return b; };
-  await assertFails(claim(1, 100000).commit()); // 2개인데 100초 단위
-  await assertFails(claim(2, 66667, 1).commit()); // 받으면서 CPU 수를 바꿔요
-  await assertSucceeds(claim(2, 66667).commit()); // 133초 → 2 토큰
-  await assertSucceeds(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp(), k: 1 })); // 다시 시작하면서 바꾸기
-  await assertFails(updateDoc(doc(a, "mining/uA"), { at: serverTimestamp(), k: 3 }));
 });
 console.log(`\n${pass}개 통과, ${fails.length}개 실패`);
 if (fails.length) console.log("실패:", fails.join(" / "));

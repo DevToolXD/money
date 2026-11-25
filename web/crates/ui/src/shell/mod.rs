@@ -393,7 +393,6 @@ fn setup_tabbar(first: &str) {
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
             "map" => crate::home::open(),
-            "home" => crate::dash::open(),
             "play" => crate::play::open(),
             _ => {}
         }
@@ -585,7 +584,6 @@ pub fn start() {
     crate::money::init(c.clone());
     crate::work::init(c.clone());
     crate::wage::init();
-    crate::coin::init();
     crate::notify::init_system();
     crate::settings::init();
     crate::invite::init();
@@ -661,8 +659,6 @@ fn haptics() {
 fn preload() {
     wasm_bindgen_futures::spawn_local(async {
         dom::sleep(900).await;
-        crate::dash::warm();
-        dom::sleep(700).await;
         ranking::load(false);
         dom::sleep(700).await;
         crate::sns::open();

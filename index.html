@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' wss://money-miner.zerodayseverside-7ea.workers.dev https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self'; connect-src 'self' https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=138">
+<link rel="stylesheet" href="app/app.css?v=139">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -46,31 +46,9 @@
       <div id="work-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="work-root"><p class="biz-loading">불러오는 중이에요</p></div>
     </section>
-    <section class="screen" id="screen-home" data-screen="home" data-title="홈" data-notitle aria-labelledby="title-home">
-      <header class="hm-head"><h1 id="title-home">멸공<span>.</span></h1><div class="hm-btns"><button type="button" class="hm-round" data-go="find" aria-label="사람 찾기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button><button type="button" class="hm-round" data-go="notices" aria-label="공지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 1.8H4.4z"/><path d="M10 20.6a2 2 0 0 0 4 0"/></svg></button><button type="button" class="hm-me" id="hm-me" data-go="account" aria-label="내 프로필"></button></div></header>
-      <div class="hm-wallet">
-        <button type="button" class="hm-wtop" data-go="history"><span class="hm-wlabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="13" rx="3"/><path d="M3.5 10h17"/><circle cx="16.5" cy="14.5" r="1.1"/></svg>MY WALLET</span><svg class="hm-chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
-          <b class="hm-bal" id="hm-bal">0</b>
-          <span class="hm-wrow"><span class="hm-coin"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 6.6 6.6 1.9-6.6 1.9L12 20.5l-1.9-6.6L3.5 12l6.6-1.9z"/></svg></i>MYEOLGONG</span><span class="hm-wsub" id="hm-sub">내 보유 자산</span></span></button>
-        <div class="hm-acts">
-          <button type="button" data-go="earn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5v14M6.5 13l5.5 5.5 5.5-5.5"/></svg><span>받기</span></button>
-          <button type="button" data-go="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg><span>보내기</span></button>
-          <button type="button" data-go="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>거래 내역</span></button>
-          <button type="button" data-go="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-3M10 19v-7M15 19v-5M20 19V6"/></svg><span>자산 현황</span></button>
-        </div>
-      </div>
-      <div class="hm-sec"><h2>For You</h2><button type="button" class="hm-more" data-go="untitled3">최신 소식<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg></button></div>
-      <div id="hm-foryou"></div>
-      <div class="hm-sec"><h2>Trending</h2><button type="button" class="hm-more hm-blue-t" data-go="map">모두 보기<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg></button></div>
-      <div class="hm-trend">
-        <button type="button" data-go="map"><i class="hm-ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16l5-5 4 4 7-7M15 8h5v5"/></svg></i><span><small>TRENDING 01</small><b id="hm-lands">#내 땅 0곳</b></span></button>
-        <button type="button" data-go="play"><i class="hm-ti hm-ti2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg></i><span><small>TRENDING 02</small><b id="hm-plans">#약속 0개</b></span></button>
-      </div>
-      <div class="hm-sec"><h2>지금 접속한 사람</h2></div>
-      <div class="sns-people hm-online" id="hm-online" role="list" aria-label="접속한 사람"></div>
-      <div class="hm-sec"><h2>다가오는 약속</h2></div>
-      <div id="hm-plan-list"></div>
-      <span id="hm-pot" hidden></span><span id="hm-plan-next" hidden></span><span id="hm-coin" hidden></span>
+    <section class="screen" id="screen-home" data-screen="home" data-title="홈" aria-labelledby="title-home">
+      <header class="large-title"><h1 id="title-home">홈</h1></header>
+      <div class="card inv-empty"><div class="inv-empty-art"><span class="script-write">soon</span></div><div class="hm-soon"><b>준비 중이에요</b><p>곧 새로운 홈을 보여 드릴게요</p></div></div>
     </section>
     <section class="screen" id="screen-map" data-screen="map" data-title="지도" aria-labelledby="title-map">
       <header class="large-title map-title"><h1 id="title-map">지도</h1></header>
@@ -209,24 +187,6 @@
       <header class="sns-head"><h1 id="title-untitled3">SNS</h1><div class="sns-right"><button class="sns-bell" id="sns-bell" type="button" aria-label="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></button><span class="sns-me" id="sns-me"></span></div></header>
       <div class="sns-people" id="sns-people" role="list" aria-label="사람들"></div>
       <div class="sns-feed" id="sns-feed" aria-label="게시물"></div>
-    </section>
-    <section class="screen" id="screen-coin" data-screen="coin" data-title="코인" aria-labelledby="title-coin">
-      <header class="large-title"><h1 id="title-coin">코인</h1></header>
-      <div class="card coin-card" id="coin-card">
-        <div class="coin-top"><span class="coin-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5V9l3.5 4 3.5-4v6.5"/></svg></span><div><h2>모네로 채굴</h2><p id="coin-state">꺼져 있어요</p></div>
-          <button type="button" class="coin-sw" id="coin-toggle" role="switch" aria-checked="false" aria-label="채굴 켜기"><i></i></button></div>
-        <dl class="coin-stats">
-          <div><dt>속도</dt><dd id="coin-rate">—</dd></div>
-          <div><dt>다음 보상까지</dt><dd id="coin-next">—</dd></div>
-          <div><dt>계산한 해시</dt><dd id="coin-hashes">0</dd></div>
-          <div><dt>인정된 share</dt><dd id="coin-shares">0</dd></div>
-          <div><dt>이번에 받은 멸공</dt><dd id="coin-earned">0 멸공</dd></div>
-        </dl>
-      </div>
-      <h2 class="section-title">채굴에 쓸 CPU</h2>
-      <div class="card coin-th"><div class="wk-sorts" id="coin-threads" role="group" aria-label="채굴에 쓸 CPU"><button type="button" class="gg wk-pill" data-n="1" aria-pressed="true">1개 (권장)</button><button type="button" class="gg wk-pill" data-n="2" aria-pressed="false">2개 · 보상 1.5배</button></div><p class="coin-note">2개로 채굴하면 멸공을 1.5배 빨리 받아요 (100초 → 약 67초마다 1 멸공). 대신 배터리를 더 쓰고 뜨거워져요.</p></div>
-      <h2 class="section-title">보상</h2>
-      <div class="card coin-th"><p class="coin-note">채굴을 켜 둔 동안 계정 하나에 100초마다 1 멸공(CPU 2개면 약 67초마다)을 받아요. 풀 연결이 끊긴 동안은 시간을 세지 않아요. 탭이나 기기를 여러 개 켜도 계정마다 한 번만 세요. 채굴한 모네로는 운영자 지갑으로 가요. 처음 켤 때 허락을 받고, 끄기 전까지는 앱을 열면 다시 켜져요. 풀 연결이 끊기면 될 때까지 다시 연결해요.</p></div>
     </section>
     <section class="screen" id="screen-invite" data-screen="invite" data-title="친구 초대" aria-labelledby="title-invite">
       <header class="large-title"><h1 id="title-invite">친구 초대</h1></header>
@@ -408,7 +368,7 @@
       <div class="swap" id="swap"><h2 class="login-title" id="login-title">로그인</h2>
       <p class="login-sub" id="login-sub">아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요.</p></div>
       <form id="login-form" class="lg-card" novalidate>
-        <div class="extra" id="name-row"><div><label><span>이름 (실명)</span><input id="login-name" type="text" autocomplete="name" placeholder="실명을 입력해 주세요"></label></div></div>
+        <div class="extra" id="name-row"><div><label><span>이름</span><input id="login-name" type="text" autocomplete="nickname" maxlength="20" placeholder="이름이나 별명"></label></div></div>
         <label><span>아이디</span><input id="login-email" type="text" inputmode="latin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="영문, 숫자, _ 3~20자"></label>
         <label><span>비밀번호</span><input id="login-pw" type="password" autocomplete="current-password" placeholder="6자 이상"></label>
         <div class="extra" id="pw2-row"><div><label><span>비밀번호 확인</span><input id="login-pw2" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label></div></div>
@@ -485,6 +445,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=81"></script>
+<script type="module" src="app/rs/boot.js?v=82"></script>
 </body>
 </html>

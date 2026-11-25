@@ -1,4 +1,4 @@
-// 화면: 앱 틀. 로그인 화면(가입 전환, 입력 검사, 실명 확인, 화면으로 가입), 계정(이름·아이디·소개 고치기·공지 화면 오가기),
+// 화면: 앱 틀. 로그인 화면(가입 전환, 입력 검사, 화면으로 가입), 계정(이름·아이디·소개 고치기·공지 화면 오가기),
 // 상태 버튼(배고픔·목마름·에너지), 창업(시트로), 회사 프로필(업종 바꾸기), 랭킹, 위쪽 바, 탭 오가기, 로그아웃
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -46,8 +46,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.click('#login-switch'); await p.waitForTimeout(500);
   ok('계정 만들기로 바뀌어요', (await text(p, '#login-title')) === '계정 만들기' && (await text(p, '#login-submit')) === '계정 만들기');
   await p.click('#login-name'); await p.waitForTimeout(400);
-  ok('이름 칸을 누르면 실명 안내', (await text(p, '#alert-title')) === '실명으로 가입해 주세요');
-  await p.click('#alert-ok'); await p.waitForTimeout(300);
+  ok('이름 칸을 눌러도 실명 안내가 없어요', !(await p.isVisible('.alert-card')));
   const id = 'sh' + sfx;
   await p.fill('#login-name', '홍길동');
   await p.fill('#login-email', id); await p.fill('#login-pw', 'abc123'); await p.fill('#login-pw2', 'abc124');
@@ -55,8 +54,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   ok('비밀번호 확인이 다르면 안내', (await text(p, '#login-error')) === '비밀번호가 서로 달라요');
   await p.fill('#login-pw2', 'abc123');
   await p.click('#login-submit'); await p.waitForTimeout(400);
-  ok('실명 확인 질문', (await text(p, '#alert-title')).includes('홍길동'));
-  await p.click('#alert-ok');
+  ok('실명 확인 질문이 없어요', !(await p.isVisible('.alert-card')));
   let inOk = false;
   for (let i = 0; i < 40 && !inOk; i++) { await p.waitForTimeout(250); inOk = !(await p.evaluate(() => document.getElementById('login').classList.contains('is-open'))); }
   ok('가입하면 로그인 화면이 닫혀요', inOk);
@@ -84,7 +82,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   const labels = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
   ok('첫 쪽: 메시지 + 무제 3개', labels.join(',') === '메시지,홈,랭킹,SNS');
   await tab(p, 'home'); await p.waitForTimeout(1500);
-  ok('홈 탭: 내 멸공이 보여요', (await active(p)) === 'home' && await p.isVisible('#hm-bal') && await p.isVisible('.hm-wallet') && await p.isVisible('.hm-acts'));
+  ok('홈 탭: 준비 중', (await active(p)) === 'home' && (await text(p, '#screen-home')).includes('준비 중'));
   await tab(p, 'map'); await p.waitForTimeout(1500);
   ok('지도 탭: 지도가 떠요', (await active(p)) === 'map' && await p.isVisible('#map-view') && await p.isVisible('#map-zin'));
   await tab(p, 'blank3'); await p.waitForTimeout(1200);
