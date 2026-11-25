@@ -167,9 +167,6 @@ pub(crate) async fn refresh_now() {
         }
     }
     lab::paint();
-    if let Some(c) = co.as_ref().filter(|_| mine_co()) {
-        crate::coach::business(&co_str(c, "kind"));
-    }
     let Some(co) = co.filter(|_| food && cloud::signed_in()) else {
         list.set(Vec::new());
         paint();

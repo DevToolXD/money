@@ -19,7 +19,6 @@ pub mod play;
 pub mod presence;
 pub mod inventory;
 pub mod invite;
-pub mod coach;
 pub mod manage;
 pub mod money;
 pub mod notices;

@@ -936,16 +936,6 @@ function __wbg_get_imports() {
             const ret = result;
             return ret;
         },
-        __wbg_instanceof_Node_01bbf5179851b46b: function(arg0) {
-            let result;
-            try {
-                result = arg0 instanceof Node;
-            } catch (_) {
-                result = false;
-            }
-            const ret = result;
-            return ret;
-        },
         __wbg_instanceof_Object_97e16a01fd368661: function(arg0) {
             let result;
             try {
@@ -1526,9 +1516,6 @@ function __wbg_get_imports() {
             const ret = arg0.scrollHeight;
             return ret;
         },
-        __wbg_scrollIntoView_2d57abe5fc53ada3: function(arg0, arg1) {
-            arg0.scrollIntoView(arg1);
-        },
         __wbg_scrollTo_797242fbcc8a4338: function(arg0, arg1) {
             arg0.scrollTo(arg1);
         },
@@ -1593,9 +1580,6 @@ function __wbg_get_imports() {
         },
         __wbg_set_behavior_162aafb93f17509a: function(arg0, arg1) {
             arg0.behavior = __wbindgen_enum_ScrollBehavior[arg1];
-        },
-        __wbg_set_block_a5fb74a86e30b7a1: function(arg0, arg1) {
-            arg0.block = __wbindgen_enum_ScrollLogicalPosition[arg1];
         },
         __wbg_set_bubbles_c575af63822ba0df: function(arg0, arg1) {
             arg0.bubbles = arg1 !== 0;
@@ -2041,7 +2025,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000e: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 270, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 267, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },
@@ -2239,9 +2223,6 @@ const __wbindgen_enum_ReadableStreamType = ["bytes"];
 
 
 const __wbindgen_enum_ScrollBehavior = ["auto", "instant", "smooth"];
-
-
-const __wbindgen_enum_ScrollLogicalPosition = ["start", "center", "end", "nearest"];
 
 
 const __wbindgen_enum_WorkerType = ["classic", "module"];

@@ -1,4 +1,4 @@
-//! 설정 탭: 화면 모드(자동·밝게·어둡게), 새 메시지 알림, 진동, 움직임 줄이기, 튜토리얼 다시 보기, 이 기기에 저장된 정보 지우기, 로그아웃.
+//! 설정 탭: 화면 모드(자동·밝게·어둡게), 새 메시지 알림, 진동, 움직임 줄이기, 이 기기에 저장된 정보 지우기, 로그아웃.
 
 use wasm_bindgen_futures::spawn_local;
 
@@ -47,9 +47,6 @@ pub fn init() {
             dom::store_set("motion", if less { "less" } else { "" });
             paint();
         });
-    }
-    if let Some(b) = by_id("set-tutorial") {
-        dom::on(&b, "click", |_| crate::coach::replay());
     }
     if let Some(b) = by_id("set-logout") {
         dom::on(&b, "click", |_| {

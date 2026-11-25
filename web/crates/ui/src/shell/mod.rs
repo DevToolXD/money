@@ -587,7 +587,6 @@ pub fn start() {
     crate::notify::init_system();
     crate::settings::init();
     crate::invite::init();
-    crate::coach::init();
     crate::feedback::init();
     crate::inventory::init(c.clone());
     crate::manage::init(c.clone());
