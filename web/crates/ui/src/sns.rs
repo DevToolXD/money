@@ -68,6 +68,10 @@ fn me() -> (String, String) {
     let n = if n.is_empty() { cloud::cloud().and_then(|c| cloud::get(&cloud::get(&c, "user"), "name").as_string()).unwrap_or_default() } else { n };
     (n, p)
 }
+/// 홈의 "For You": 가장 최근 게시물 (쓴 사람, 글, 사진, 시각, 좋아요 수, 댓글 수, 내가 좋아요)
+pub fn latest() -> Option<(String, String, String, f64, f64, f64, bool)> {
+    POSTS.with(|p| p.borrow().first().map(|x| (x.by.clone(), x.text.clone(), x.img.clone(), x.at, x.likes, x.rc, x.liked)))
+}
 pub fn ago(at: f64) -> String {
     let s = ((js_sys::Date::now() - at) / 1000.0).max(0.0);
     if s < 60.0 {
@@ -181,6 +185,7 @@ fn watch() {
         let who: js_sys::Array = posts.iter().map(|p| JsValue::from_str(&p.by)).collect();
         POSTS.with(|p| *p.borrow_mut() = posts);
         paint_feed();
+                crate::dash::repaint();
         load_last();
         spawn_local(async move {
             if cloud::call("fetchProfiles", &[who.into()]).await.map(|n| n.as_f64().unwrap_or(0.0) > 0.0).unwrap_or(false) {

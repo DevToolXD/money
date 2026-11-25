@@ -60,7 +60,7 @@ pub fn repaint() {
     match crate::money::balance() {
         Some(b) if signed => {
             dom::set_text("hm-bal", &fmt(b.floor()));
-            dom::set_text("hm-sub", "");
+            dom::set_text("hm-sub", "내 보유 자산");
         }
         _ => {
             dom::set_text("hm-bal", if signed { "…" } else { "0" });
@@ -68,7 +68,7 @@ pub fn repaint() {
         }
     }
     let m = MINE.with(|m| m.borrow().clone());
-    dom::set_text("hm-lands", &format!("{}곳", m.as_ref().map(|m| m.lands).unwrap_or(0)));
+    dom::set_text("hm-lands", &format!("#내 땅 {}곳", m.as_ref().map(|m| m.lands).unwrap_or(0)));
     dom::set_text("hm-pot", &match &m {
         Some(m) if m.pot > 0.0 => format!("모인 통행료 {} 멸공", fmt(m.pot)),
         Some(m) if m.lands > 0 => "통행료를 기다려요".into(),
@@ -79,9 +79,39 @@ pub fn repaint() {
         let p = p.borrow();
         (p.iter().filter(|x| x.by == me).cloned().collect(), p.first().cloned())
     });
-    dom::set_text("hm-plans", &format!("{}개", mine.len()));
+    dom::set_text("hm-plans", &format!("#약속 {}개", mine.len().max(PLANS.with(|p| p.borrow().len()))));
     dom::set_text("hm-plan-next", &next.map(|n| format!("다음: {}", n.title)).unwrap_or_else(|| "참여한 약속이 없어요".into()));
     dom::set_text("hm-coin", "");
+    // 위쪽 내 동그라미
+    if let Some(e) = by_id("hm-me") {
+        let (n, ph) = person(&me);
+        let n = if n.is_empty() { dom::store_get("profile-name", "나") } else { n };
+        dom::set_html_if(&e, &if signed { dom::avatar_html(&n, &ph, "avatar contact hm-meav") } else { r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/></svg>"#.to_string() });
+    }
+    // For You: SNS 최신 글 한 장
+    if let Some(e) = by_id("hm-foryou") {
+        let html = match crate::sns::latest() {
+            Some((by, text, img, at, likes, rc, liked)) => {
+                let (n, ph) = person(&by);
+                let pic = dom::safe_img(&img, 300000);
+                format!(
+                    r#"<article class="hm-post" data-go="untitled3"><header><button type="button" class="hm-who" data-uid="{u}">{av}</button><span class="hm-pn"><b>{n}{bl}</b><small>{ago}</small></span></header>{tx}{im}<footer><span class="{lc}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.4A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.8c0 5.8-7.5 10.4-7.5 10.4z"/></svg>{lk}</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5c0 4-3.8 7-8.5 7-1 0-2-.1-2.9-.4L4.5 19.5l1.3-3.3C4.7 15 4 13.4 4 11.5c0-4 3.8-7 8-7s8 3 8 7z"/></svg>{rc}</span></footer></article>"#,
+                    u = esc(&by),
+                    av = crate::presence::wrap(dom::avatar_html(&n, &ph, "avatar contact hm-pav"), &by),
+                    n = esc(&n),
+                    bl = crate::profile::blue(&by),
+                    ago = crate::sns::ago(at),
+                    tx = if text.is_empty() { String::new() } else { format!(r#"<p class="hm-ptx">{}</p>"#, esc(&text)) },
+                    im = if pic.is_empty() { String::new() } else { format!(r#"<div class="hm-pimg" style="background-image:url({pic})"></div>"#) },
+                    lc = if liked { "on" } else { "" },
+                    lk = fmt(likes),
+                    rc = fmt(rc),
+                )
+            }
+            None => r#"<div class="hm-post hm-pempty" data-go="untitled3"><b>아직 올라온 글이 없어요</b><p>SNS에서 첫 글을 올려 보세요</p></div>"#.to_string(),
+        };
+        dom::set_html_if(&e, &html);
+    }
     // 지금 접속한 사람
     if let Some(l) = by_id("hm-online") {
         let ids = crate::presence::online_uids(&me);
@@ -162,6 +192,30 @@ fn go(to: &str) {
         "invite" => {
             crate::shell::go_screen("invite");
             crate::invite::open();
+        }
+        // 받기: 채굴로 멸공 받기 (코인)
+        "earn" => {
+            crate::shell::go_screen("coin");
+            crate::coin::open();
+        }
+        // 보내기: 보낼 사람 고르기
+        "send" => {
+            if !cloud::signed_in() {
+                return crate::shell::toast("로그인하고 보낼 수 있어요");
+            }
+            crate::chat::people::open_picker(true);
+        }
+        "history" => {
+            crate::shell::go_screen("money");
+            crate::money::render();
+        }
+        "notices" => crate::shell::go_screen("notices"),
+        "account" => crate::shell::go_screen("account"),
+        "find" => {
+            if !cloud::signed_in() {
+                return crate::shell::toast("로그인하고 찾을 수 있어요");
+            }
+            crate::chat::people::open_picker(false);
         }
         tab => {
             let tab = tab.to_string();

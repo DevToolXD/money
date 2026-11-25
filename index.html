@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=137">
+<link rel="stylesheet" href="app/app.css?v=138">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -46,19 +46,31 @@
       <div id="work-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="work-root"><p class="biz-loading">불러오는 중이에요</p></div>
     </section>
-    <section class="screen" id="screen-home" data-screen="home" data-title="홈" aria-labelledby="title-home">
-      <header class="large-title"><h1 id="title-home">홈</h1></header>
-      <div class="hm-hero" id="hm-hero"><span class="hm-eyebrow">내 멸공</span><b class="hm-bal" id="hm-bal">0</b><span class="hm-sub" id="hm-sub"></span></div>
-      <div class="hm-grid">
-        <button type="button" class="hm-tile" data-go="map"><span class="hm-ic hm-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.2"/></svg></span><b id="hm-lands">0곳</b><span>내 땅</span><small id="hm-pot"></small></button>
-        <button type="button" class="hm-tile" data-go="play"><span class="hm-ic hm-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><b id="hm-plans">0개</b><span>내 약속</span><small id="hm-plan-next"></small></button>
-        <button type="button" class="hm-tile" data-go="coin"><span class="hm-ic hm-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5V9l3.5 4 3.5-4v6.5"/></svg></span><b>코인</b><span>채굴로 멸공 받기</span><small id="hm-coin"></small></button>
-        <button type="button" class="hm-tile" data-go="invite"><span class="hm-ic hm-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/></svg></span><b>친구 초대</b><span>한 명마다 50 멸공</span><small></small></button>
+    <section class="screen" id="screen-home" data-screen="home" data-title="홈" data-notitle aria-labelledby="title-home">
+      <header class="hm-head"><h1 id="title-home">멸공<span>.</span></h1><div class="hm-btns"><button type="button" class="hm-round" data-go="find" aria-label="사람 찾기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button><button type="button" class="hm-round" data-go="notices" aria-label="공지"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 1.8H4.4z"/><path d="M10 20.6a2 2 0 0 0 4 0"/></svg></button><button type="button" class="hm-me" id="hm-me" data-go="account" aria-label="내 프로필"></button></div></header>
+      <div class="hm-wallet">
+        <button type="button" class="hm-wtop" data-go="history"><span class="hm-wlabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="13" rx="3"/><path d="M3.5 10h17"/><circle cx="16.5" cy="14.5" r="1.1"/></svg>MY WALLET</span><svg class="hm-chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>
+          <b class="hm-bal" id="hm-bal">0</b>
+          <span class="hm-wrow"><span class="hm-coin"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 6.6 6.6 1.9-6.6 1.9L12 20.5l-1.9-6.6L3.5 12l6.6-1.9z"/></svg></i>MYEOLGONG</span><span class="hm-wsub" id="hm-sub">내 보유 자산</span></span></button>
+        <div class="hm-acts">
+          <button type="button" data-go="earn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5v14M6.5 13l5.5 5.5 5.5-5.5"/></svg><span>받기</span></button>
+          <button type="button" data-go="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg><span>보내기</span></button>
+          <button type="button" data-go="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>거래 내역</span></button>
+          <button type="button" data-go="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-3M10 19v-7M15 19v-5M20 19V6"/></svg><span>자산 현황</span></button>
+        </div>
       </div>
-      <h2 class="section-title">지금 접속한 사람</h2>
+      <div class="hm-sec"><h2>For You</h2><button type="button" class="hm-more" data-go="untitled3">최신 소식<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg></button></div>
+      <div id="hm-foryou"></div>
+      <div class="hm-sec"><h2>Trending</h2><button type="button" class="hm-more hm-blue-t" data-go="map">모두 보기<svg viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg></button></div>
+      <div class="hm-trend">
+        <button type="button" data-go="map"><i class="hm-ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16l5-5 4 4 7-7M15 8h5v5"/></svg></i><span><small>TRENDING 01</small><b id="hm-lands">#내 땅 0곳</b></span></button>
+        <button type="button" data-go="play"><i class="hm-ti hm-ti2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg></i><span><small>TRENDING 02</small><b id="hm-plans">#약속 0개</b></span></button>
+      </div>
+      <div class="hm-sec"><h2>지금 접속한 사람</h2></div>
       <div class="sns-people hm-online" id="hm-online" role="list" aria-label="접속한 사람"></div>
-      <h2 class="section-title">다가오는 약속</h2>
-      <div class="sns-feed" id="hm-plan-list"></div>
+      <div class="hm-sec"><h2>다가오는 약속</h2></div>
+      <div id="hm-plan-list"></div>
+      <span id="hm-pot" hidden></span><span id="hm-plan-next" hidden></span><span id="hm-coin" hidden></span>
     </section>
     <section class="screen" id="screen-map" data-screen="map" data-title="지도" aria-labelledby="title-map">
       <header class="large-title map-title"><h1 id="title-map">지도</h1></header>
@@ -473,6 +485,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=80"></script>
+<script type="module" src="app/rs/boot.js?v=81"></script>
 </body>
 </html>
