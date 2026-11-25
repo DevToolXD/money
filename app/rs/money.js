@@ -1461,6 +1461,9 @@ function __wbg_get_imports() {
         __wbg_scrollTo_797242fbcc8a4338: function(arg0, arg1) {
             arg0.scrollTo(arg1);
         },
+        __wbg_scrollTo_8447b4fdf830d055: function(arg0, arg1, arg2) {
+            arg0.scrollTo(arg1, arg2);
+        },
         __wbg_scrollTop_23cacc894823db89: function(arg0) {
             const ret = arg0.scrollTop;
             return ret;
@@ -1946,7 +1949,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000e: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 252, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 253, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

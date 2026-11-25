@@ -2464,3 +2464,7 @@ html[data-theme="dark"] .hm-wallet { background: linear-gradient(160deg, #2a2a35
 .tr-addimg { width: 100%; height: 120px; border-radius: 18px; display: grid; place-content: center; justify-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-secondary); background: rgba(120, 120, 128, 0.1); border: 1.5px dashed rgba(120, 120, 128, 0.35); }
 .tr-addimg svg { width: 28px; height: 28px; }
 #tr-prev .sns-pv { height: 200px; }
+
+/* 자판이 올라오면 앱 틀을 실제로 보이는 크기에 맞춰요 (viewport.rs). 입력창이 자판 바로 위에 붙어요 */
+html.kb-open .app { height: var(--vvh, 100dvh); transform: translate3d(0, var(--vvt, 0px), 0); }
+html.kb-open .composer { padding-bottom: 8px; }

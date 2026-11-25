@@ -16,6 +16,7 @@ pub mod fire;
 pub mod glass;
 pub mod play;
 pub mod trade;
+pub mod viewport;
 pub mod presence;
 pub mod inventory;
 pub mod invite;

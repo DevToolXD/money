@@ -598,6 +598,7 @@ pub fn start() {
     company::init();
     ranking::init();
     crate::beta::beta_init();
+    crate::viewport::init();
     login::init();
     account::init();
     setup_tabbar(&first);
