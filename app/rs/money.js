@@ -303,10 +303,6 @@ function __wbg_get_imports() {
             const ret = arg0.byteOffset;
             return ret;
         },
-        __wbg_call_275b78b3b6520b92: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
-            const ret = arg0.call(arg1, arg2, arg3, arg4);
-            return ret;
-        }, arguments); },
         __wbg_call_40b008ba32f73991: function() { return handleError(function (arg0, arg1) {
             const ret = arg0.call(arg1);
             return ret;
@@ -324,6 +320,10 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_cancelBubble_1164dd588f0c3481: function(arg0) {
             const ret = arg0.cancelBubble;
+            return ret;
+        },
+        __wbg_childElementCount_86fe9ddc618f0671: function(arg0) {
+            const ret = arg0.childElementCount;
             return ret;
         },
         __wbg_children_5767547ca7e1c276: function(arg0) {
@@ -384,9 +384,6 @@ function __wbg_get_imports() {
             const ret = arg0.cloneNode(arg1 !== 0);
             return ret;
         }, arguments); },
-        __wbg_closePath_e9e11e034c5d75a3: function(arg0) {
-            arg0.closePath();
-        },
         __wbg_close_294d3f727cb7a844: function() { return handleError(function (arg0) {
             arg0.close();
         }, arguments); },
@@ -470,10 +467,6 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32((arg0 >>> 0) + 4 * 1, len1, true);
             getDataViewMemory0().setInt32((arg0 >>> 0) + 4 * 0, ptr1, true);
         },
-        __wbg_defaultView_a5c6f4959014ed14: function(arg0) {
-            const ret = arg0.defaultView;
-            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        },
         __wbg_defineProperty_a5a9526e5e4e6fd7: function(arg0, arg1, arg2) {
             const ret = Object.defineProperty(arg0, arg1, arg2);
             return ret;
@@ -484,10 +477,6 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_deleteTexture_89bd1d49ae4fb309: function(arg0, arg1) {
             arg0.deleteTexture(arg1);
-        },
-        __wbg_deltaY_37dc0a54748a91f4: function(arg0) {
-            const ret = arg0.deltaY;
-            return ret;
         },
         __wbg_devicePixelRatio_90ee4024cee5d5f4: function(arg0) {
             const ret = arg0.devicePixelRatio;
@@ -995,16 +984,6 @@ function __wbg_get_imports() {
             const ret = result;
             return ret;
         },
-        __wbg_instanceof_WheelEvent_22450e5cf332461f: function(arg0) {
-            let result;
-            try {
-                result = arg0 instanceof WheelEvent;
-            } catch (_) {
-                result = false;
-            }
-            const ret = result;
-            return ret;
-        },
         __wbg_instanceof_Window_5cf453f5639aa1a2: function(arg0) {
             let result;
             try {
@@ -1310,14 +1289,6 @@ function __wbg_get_imports() {
         },
         __wbg_offsetWidth_ec7d4ad6adc7e29d: function(arg0) {
             const ret = arg0.offsetWidth;
-            return ret;
-        },
-        __wbg_offsetX_b3f88f70dc639385: function(arg0) {
-            const ret = arg0.offsetX;
-            return ret;
-        },
-        __wbg_offsetY_8037bf2718ef7393: function(arg0) {
-            const ret = arg0.offsetY;
             return ret;
         },
         __wbg_parentElement_300cdd39ce1d95f8: function(arg0) {
@@ -1975,7 +1946,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000e: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 256, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 252, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

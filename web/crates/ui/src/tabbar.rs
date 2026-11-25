@@ -40,7 +40,7 @@ const PAGE: Preset = Preset { w: 20.0, z: 1.0 }; // 핫바 넘기기: 튕기지 
 const PAGES: [[(&str, &str); 4]; 2] = [
     // 메시지·SNS 말고는 새로 만들 자리라 비워 두었어요 (무제)
     [("messages", "메시지"), ("home", "홈"), ("ranking", "랭킹"), ("untitled3", "SNS")],
-    [("play", "놀기"), ("map", "지도"), ("blank6", "무제"), ("blank3", "무제")],
+    [("play", "놀기"), ("map", "지도"), ("trade", "거래"), ("blank3", "무제")],
 ];
 
 const VERT: &str = "\nattribute vec2 aPos;\nvoid main() { gl_Position = vec4(aPos, 0.0, 1.0); }\n";

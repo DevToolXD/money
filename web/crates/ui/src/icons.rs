@@ -30,6 +30,11 @@ const UNTITLED: &[Part] = &[
     Part { d: "M9.2 10.3A4.8 4.8 0 1 1 15.7 14.7C14.5 15.5 14 16.3 14 17.9", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M14 23.2h.01", stroke: 2.3, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
+// 거래: 서로 엇갈린 두 화살표 (물물교환)
+const TRADE: &[Part] = &[
+    Part { d: "M6 9.5h15.5l-4-4", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M22 18.5H6.5l4 4", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+];
 // 지도: 접힌 지도
 const MAP: &[Part] = &[
     Part { d: "M3.5 7.2 10 4.5l8 2.7 6.5-2.7v16.3L18 23.5l-8-2.7-6.5 2.7Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
@@ -109,6 +114,7 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "home" => HOME,
         "play" => PLAY,
         "map" => MAP,
+        "trade" => TRADE,
         "untitled" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
         "inventory" => INVENTORY,
         "untitled3" => SNS,

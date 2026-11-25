@@ -13,11 +13,10 @@ thread_local! {
     static SEQ: Cell<u32> = const { Cell::new(0) };
 }
 
-const ITEMS: [(&str, &str, &str); 5] = [
+const ITEMS: [(&str, &str, &str); 4] = [
     ("game", "게임", r#"<path d="M7.5 8h9a4.5 4.5 0 0 1 4.4 5.4l-.6 3a2.4 2.4 0 0 1-4 1.3L14.6 16H9.4l-1.7 1.7a2.4 2.4 0 0 1-4-1.3l-.6-3A4.5 4.5 0 0 1 7.5 8z"/><path d="M8 11v3M6.5 12.5h3"/><path d="M15.5 12.3h.01M17.5 13.6h.01"/>"#),
     ("account", "프로필", r#"<circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/>"#),
     ("invite", "친구 초대", r#"<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/>"#),
-    ("settings", "설정", r#"<path d="M10.3 3.6h3.4l.5 2.4a6.6 6.6 0 0 1 1.7 1l2.3-.8 1.7 2.9-1.8 1.6a6.6 6.6 0 0 1 0 2l1.8 1.6-1.7 2.9-2.3-.8a6.6 6.6 0 0 1-1.7 1l-.5 2.4h-3.4l-.5-2.4a6.6 6.6 0 0 1-1.7-1l-2.3.8-1.7-2.9 1.8-1.6a6.6 6.6 0 0 1 0-2L4.1 9.1l1.7-2.9 2.3.8a6.6 6.6 0 0 1 1.7-1z"/><circle cx="12" cy="12" r="2.8"/>"#),
     ("feedback", "피드백", r#"<path d="M20 12a8 7 0 0 1-12.5 5.8L4 19l1.2-3.4A8 7 0 1 1 20 12z"/><path d="M12 8.5v4M12 15.3h.01"/>"#),
 ];
 
@@ -50,7 +49,6 @@ fn root() -> Option<web_sys::HtmlElement> {
             crate::shell::go_screen(&to);
             match to.as_str() {
                 "invite" => crate::invite::open(),
-                "settings" => crate::settings::open(),
                 "feedback" => crate::feedback::open(),
                 _ => {}
             }

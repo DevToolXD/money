@@ -259,6 +259,22 @@ await t("접속 표시: 내 것만, 시각만", async () => {
   await assertFails(setDoc(doc(A, "presence/uA"), { at: Timestamp.fromMillis(Date.now() + 9e8) }));
   await assertSucceeds(getDocs(query(collection(pw("uB", "bob"), "presence"), limit(10))));
 });
+await t("거래: 글 올리기·완료 표시·지우기는 글쓴이만", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice"), B = pw("uB", "bob");
+  const tr = { by: "uA", title: "자전거", want: "킥보드", price: 0, text: "거의 새것", img: "", done: false, at: serverTimestamp() };
+  await assertFails(setDoc(doc(A, "trades/t1"), { ...tr, by: "uB" }));
+  await assertFails(setDoc(doc(A, "trades/t1"), { ...tr, done: true }));
+  await assertFails(setDoc(doc(A, "trades/t1"), { ...tr, price: -1 }));
+  await assertFails(setDoc(doc(A, "trades/t1"), { ...tr, img: "javascript:alert(1)" }));
+  await assertSucceeds(setDoc(doc(A, "trades/t1"), tr));
+  await assertSucceeds(getDocs(query(collection(B, "trades"), orderBy("at", "desc"), limit(40))));
+  await assertFails(updateDoc(doc(B, "trades/t1"), { done: true }));
+  await assertFails(updateDoc(doc(A, "trades/t1"), { price: 5 }));
+  await assertSucceeds(updateDoc(doc(A, "trades/t1"), { done: true }));
+  await assertFails(deleteDoc(doc(B, "trades/t1")));
+  await assertSucceeds(deleteDoc(doc(A, "trades/t1")));
+});
 await t("놀기: 약속 올리기·보기·참여·취소·지우기", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice"), B = pw("uB", "bob"), C = pw("uC", "carol");

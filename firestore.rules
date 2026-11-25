@@ -1371,6 +1371,26 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    // ----- 거래: 물물교환·멸공으로 사고팔기 글. 거래는 글을 보고 메시지로 해요. 글쓴이만 완료 표시·지우기 -----
+    match /trades/{id} {
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit <= 40;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['by', 'title', 'want', 'price', 'text', 'img', 'done', 'at'])
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.title is string && request.resource.data.title.size() >= 1 && request.resource.data.title.size() <= 40
+        && request.resource.data.want is string && request.resource.data.want.size() <= 40
+        && request.resource.data.price is int && request.resource.data.price >= 0 && request.resource.data.price <= 100000000
+        && request.resource.data.text is string && request.resource.data.text.size() <= 300
+        && (request.resource.data.img == '' || img(request.resource.data.img, 300000))
+        && request.resource.data.done == false
+        && request.resource.data.at == request.time;
+      allow update: if signedIn() && resource.data.by == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done'])
+        && request.resource.data.done is bool;
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
+    }
+
     // ----- 놀기: 약속을 올리고 사람들이 참여해요. 고른 사람만 보게 할 수 있어요 -----
     match /plans/{id} {
       function canSee(d) { return d.vis == 'all' || request.auth.uid in d.invited || d.by == request.auth.uid; }

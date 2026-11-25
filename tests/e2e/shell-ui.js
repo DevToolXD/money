@@ -84,11 +84,11 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await tab(p, 'home'); await p.waitForTimeout(1500);
   ok('홈 탭: 준비 중', (await active(p)) === 'home' && (await text(p, '#screen-home')).includes('준비 중'));
   await tab(p, 'map'); await p.waitForTimeout(1500);
-  ok('지도 탭: 지도가 떠요', (await active(p)) === 'map' && await p.isVisible('#map-view') && await p.isVisible('#map-zin'));
+  ok('지도 탭: 준비 중', (await active(p)) === 'map' && (await text(p, '#screen-map')).includes('준비 중'));
   await tab(p, 'blank3'); await p.waitForTimeout(1200);
   ok('무제 탭: 빈 화면 글씨 모션', (await active(p)) === 'blank3' && (await text(p, '#screen-blank3')).includes('empty'));
   const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
-  ok('둘째 쪽: 놀기 + 무제 3개', labels2.join(',') === '놀기,지도,무제,무제');
+  ok('둘째 쪽: 놀기 + 무제 3개', labels2.join(',') === '놀기,지도,거래,무제');
   await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);
 
   // 위쪽 바: 내리면 작은 제목이 나와요

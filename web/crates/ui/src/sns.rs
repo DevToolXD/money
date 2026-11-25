@@ -150,7 +150,13 @@ fn paint_feed() {
         return;
     }
     let html: String = POSTS.with(|p| p.borrow().iter().map(card).collect());
-    el.set_inner_html(&if html.is_empty() { r#"<p class="sns-none">아직 게시물이 없어요. + 를 눌러 첫 게시물을 올려 보세요</p>"#.into() } else { html });
+    let was_empty = el.query_selector(".sns-card").ok().flatten().is_none();
+    let filled = !html.is_empty();
+    // 같은 내용이면 다시 그리지 않아요 (실시간 듣기가 자주 불러요)
+    dom::set_html_if(&el, &if html.is_empty() { r#"<p class="sns-none">아직 게시물이 없어요. + 를 눌러 첫 게시물을 올려 보세요</p>"#.into() } else { html });
+    if was_empty && filled {
+        dom::reveal(&el);
+    }
 }
 
 /// 댓글이 있는 글의 마지막 댓글을 읽어 와요 (아직 모르는 것만)
@@ -504,7 +510,13 @@ fn bind() {
     if let Some(b) = by_id("sns-fab") {
         dom::on(&b, "click", |_| {
             let on_play = dom::app_el().and_then(|a| a.get_attribute("data-screen")).as_deref() == Some("play");
-            if on_play { crate::play::open_compose() } else { open_compose() }
+            let scr = dom::app_el().and_then(|a| a.get_attribute("data-screen")).unwrap_or_default();
+            let _ = on_play;
+            match scr.as_str() {
+                "play" => crate::play::open_compose(),
+                "trade" => crate::trade::open_compose(),
+                _ => open_compose(),
+            }
         });
     }
     for id in ["sns-compose", "sns-replies", "sns-share"] {

@@ -37,6 +37,21 @@ pub fn set_text(id: &str, t: &str) {
         }
     }
 }
+/// 안의 항목들이 아래에서 살짝 떠오르며 차례로 나타나요 (불러온 내용이 툭 튀어나오지 않게). 움직임 줄이기면 아무것도 안 해요
+pub fn reveal(el: &web_sys::Element) {
+    if reduce_motion() {
+        return;
+    }
+    let cl = el.class_list();
+    let _ = cl.remove_1("reveal");
+    let _ = el.client_width(); // 다시 처음부터 움직이게
+    let _ = cl.add_1("reveal");
+    let el2 = el.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        sleep(700).await;
+        let _ = el2.class_list().remove_1("reveal");
+    });
+}
 /// 내용이 바뀌었을 때만 innerHTML을 바꿔요 (2초마다 다시 그리는 곳에서 써요)
 pub fn set_html_if(el: &web_sys::Element, html: &str) {
     thread_local!(static LAST: std::cell::RefCell<std::collections::HashMap<String, u64>> = std::cell::RefCell::new(std::collections::HashMap::new()));

@@ -76,6 +76,7 @@ fn apply_theme() {
     }
 }
 /// 설정에서 화면 모드를 바꿀 때: 색을 바꾸고, 탭 바 유리가 쓰던 옛 색 사진은 버리고 새로 찍어요
+#[allow(dead_code)] // 설정 탭을 없애서 지금은 안 써요 (저장된 화면 모드는 그대로 따라요)
 pub(crate) fn set_theme(mode: &str) {
     dom::store_set("theme", mode);
     apply_theme();
@@ -376,10 +377,12 @@ fn setup_tabbar(first: &str) {
     dom::on(&nav, "tabchange", move |e| {
         let name = tab_of(&e);
         show_screen(&name);
-        crate::chat::leave(&name);
-        if name != "map" {
-            crate::home::leave();
+        // 새 화면의 내용이 아래에서 살짝 떠오르며 나타나요 (불러오는 모습이 툭툭 보이지 않게)
+        if let Some(sc) = screen(&name) {
+            dom::reveal(&sc);
         }
+        crate::chat::leave(&name);
+
         set_title(&name);
         if let Some(sc) = screen(&name) {
             update_chrome(&sc);
@@ -392,7 +395,7 @@ fn setup_tabbar(first: &str) {
             "inventory" => crate::inventory::refresh(),
             "business" => crate::biz::refresh(), // 상품 재고와 금고를 새로 읽어요
             "untitled3" => crate::sns::open(),
-            "map" => crate::home::open(),
+            "trade" => crate::trade::open(),
             "play" => crate::play::open(),
             _ => {}
         }
@@ -585,7 +588,6 @@ pub fn start() {
     crate::work::init(c.clone());
     crate::wage::init();
     crate::notify::init_system();
-    crate::settings::init();
     crate::invite::init();
     crate::feedback::init();
     crate::inventory::init(c.clone());
@@ -595,6 +597,7 @@ pub fn start() {
     crate::vitals::init();
     company::init();
     ranking::init();
+    crate::beta::beta_init();
     login::init();
     account::init();
     setup_tabbar(&first);
@@ -665,7 +668,7 @@ fn preload() {
         dom::sleep(700).await;
         crate::play::open();
         dom::sleep(700).await;
-        crate::home::warm();
+        crate::trade::open();
         dom::sleep(700).await;
         crate::money::render();
         crate::inventory::refresh();

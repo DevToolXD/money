@@ -127,11 +127,16 @@ pub fn repaint() {
         return;
     }
     let html: String = PLANS.with(|p| p.borrow().iter().map(card).collect());
+    let was_empty = f.query_selector(".pl-card").ok().flatten().is_none();
+    let filled = !html.is_empty();
     f.set_inner_html(&if html.is_empty() {
         if LOADING.get() { r#"<p class="sns-empty">불러오는 중이에요</p>"#.into() } else { r#"<div class="pl-empty"><b>아직 약속이 없어요</b><p>아래 + 버튼으로 첫 약속을 올려 보세요</p></div>"#.into() }
     } else {
         html
     });
+    if was_empty && filled {
+        dom::reveal(&f);
+    }
 }
 
 async fn load() {
@@ -363,8 +368,8 @@ pub fn open() {
         bind();
     }
     repaint();
-    // 미리 읽어 둔 걸 먼저 보여주고, 15초가 지났으면 조용히 새로 읽어요
-    if cloud::signed_in() && js_sys::Date::now() - AT.get() > 15_000.0 {
+    // 미리 읽어 둔 걸 먼저 보여주고, 5초가 지났으면 조용히 새로 읽어요
+    if cloud::signed_in() && js_sys::Date::now() - AT.get() > 5_000.0 {
         spawn_local(load());
     }
 }

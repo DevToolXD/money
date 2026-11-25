@@ -2194,6 +2194,32 @@ async fn presence_list() -> R {
     Ok(out.into())
 }
 
+/* ---------- 거래 (물물교환·사고팔기) ---------- */
+fn trade_row(dd: &JsValue) -> JsValue {
+    let v = data(dd);
+    o(&[("id", get(dd, "id")), ("by", get(&v, "by")), ("title", get(&v, "title")), ("want", get(&v, "want")), ("price", get(&v, "price")), ("text", get(&v, "text")), ("img", get(&v, "img")), ("done", get(&v, "done")), ("at", n(ms(&get(&v, "at"))))])
+}
+/// 최근 거래 글 40개 (서버를 아끼려고 탭을 열 때 한 번 읽어요)
+async fn trades_list() -> R {
+    let snap = rethrow(get_docs(q(c(&["trades"]), vec![order("at", Some("desc")), lim(40.0)])).await)?;
+    Ok(docs(&snap).iter().map(trade_row).collect::<js_sys::Array>().into())
+}
+async fn trade_create(v: JsValue) -> R {
+    let r = new_id(c(&["trades"]));
+    rethrow(set_doc(r.clone(), o(&[("by", s(&uid_of()?)), ("title", get(&v, "title")), ("want", get(&v, "want")), ("price", n(num(&get(&v, "price")).floor().max(0.0))), ("text", get(&v, "text")), ("img", get(&v, "img")), ("done", false.into()), ("at", ts())])).await)?;
+    Ok(get(&r, "id"))
+}
+async fn trade_done(id: String, on: bool) -> R {
+    rethrow(update_doc(d(&["trades", &id]), o(&[("done", on.into())])).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+async fn trade_delete(id: String) -> R {
+    let b = batch();
+    m(&b, "delete", &[d(&["trades", &id])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+
 /* ---------- 놀기 (약속) ---------- */
 fn plan_row(dd: &JsValue) -> JsValue {
     let v = data(dd);
@@ -2684,6 +2710,10 @@ fn build() -> js_sys::Object {
     });
     am!(api, "presenceBeat", |_a| presence_beat().await);
     am!(api, "presenceList", |_a| presence_list().await);
+    am!(api, "tradesList", |_a| trades_list().await);
+    am!(api, "tradeCreate", |a| trade_create(a[0].clone()).await);
+    am!(api, "tradeDone", |a| trade_done(sa(&a[0]), a[1].is_truthy()).await);
+    am!(api, "tradeDelete", |a| trade_delete(sa(&a[0])).await);
     am!(api, "plansList", |_a| plans_list().await);
     am!(api, "planCreate", |a| plan_create(a[0].clone()).await);
     am!(api, "planJoin", |a| plan_join(sa(&a[0]), a[1].is_truthy()).await);

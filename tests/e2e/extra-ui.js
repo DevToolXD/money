@@ -33,16 +33,10 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   await A.click('#invite-list [data-claim]'); await A.waitForTimeout(2500);
   ok('받기를 누르면 50 멸공', Number((await raw(`wallets/${uA}`)).fields.bal.integerValue) - bal0 === 50);
   ok('받은 뒤에는 받음', (await A.textContent('#invite-list')).includes('받음'));
-  // 설정
-  await menu(A, 'settings');
-  await A.click('#set-theme [data-theme-pick="dark"]'); await A.waitForTimeout(300);
-  ok('화면 모드: 어둡게', (await A.evaluate(() => document.documentElement.dataset.theme)) === 'dark');
-  await A.click('#set-theme [data-theme-pick="auto"]'); await A.waitForTimeout(300);
-  await A.click('#toggle-motion'); await A.waitForTimeout(200);
-  ok('움직임 줄이기', await A.evaluate(() => document.documentElement.hasAttribute('data-reduce')));
-  await A.click('#toggle-motion'); await A.click('#toggle-vibrate'); await A.waitForTimeout(200);
-  ok('진동 끄기', (await A.evaluate(() => localStorage.getItem('vibrate'))) === 'off');
-  ok('알림 줄이 설정에 있어요', await A.isVisible('#screen-settings #toggle-notify'));
+  // 설정은 없앴어요
+  await A.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await A.waitForTimeout(500);
+  ok('메뉴에 설정·코인이 없어요', !(await A.$('.qm-row[data-go="settings"]')) && !(await A.$('.qm-row[data-go="coin"]')));
+  await A.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await A.waitForTimeout(500);
   // 피드백
   await menu(A, 'feedback');
   ok('유튜브 대신 피드백 화면', (await A.evaluate(() => document.querySelector('.app').dataset.screen)) === 'feedback' && !(await A.$('.qm-row[data-go="youtube"]')));
