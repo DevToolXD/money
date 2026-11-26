@@ -141,7 +141,7 @@ service cloud.firestore {
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
     // ----- 상점: 명품 값(멸공, 명품 순위대로). 앱(shop.rs의 ITEMS)과 같아야 해요 -----
     function shopPrice() {
-      return {'hermes': 1000000, 'gucci': 720000, 'chanel': 610000, 'prada': 520000, 'dior': 440000, 'burberry': 380000, 'fendi': 320000};
+      return {'hermes': 1000, 'gucci': 720, 'chanel': 610, 'prada': 520, 'dior': 440, 'burberry': 380, 'fendi': 320};
     }
     function bagPath(u) { return /databases/$(database)/documents/bag/$(u); }
     function bagItems(u) { return exists(bagPath(u)) ? get(bagPath(u)).data.items : []; }

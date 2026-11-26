@@ -14,20 +14,20 @@ use crate::dom::{self, by_id, esc};
 
 /// (번호, 이름, 명품 순위, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요.
 /// 순위는 명품 브랜드 피라미드(1 에르메스 · 2 루이 비통 · 3 구찌 · 4 샤넬 · 5 프라다 · 6 디올 · 7 버버리 · 8 펜디)예요.
-/// 값은 1위 1,000,000 멸공에서 순위마다 약 15%씩 내려가요 (2위 루이 비통 850,000은 사진이 생기면 넣어요)
+/// 값은 1위 1,000 멸공에서 순위마다 약 15%씩 내려가요 (2위 루이 비통 850은 사진이 생기면 넣어요)
 pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 7] = [
-    ("hermes", "에르메스 버킨", "1위", 1_000_000, "hand", "#f9cfa8", "#5b2a0a", false),
-    ("gucci", "구찌 GG 호보백", "3위", 720_000, "hand", "#ecd9b6", "#1f4d2b", false),
-    ("chanel", "샤넬 클래식 플랩", "4위", 610_000, "hand", "#dcdce2", "#141414", false),
-    ("prada", "프라다 리나일론 숄더백", "5위", 520_000, "hand", "#d3d7e0", "#171717", false),
-    ("dior", "디올 오블리크 파우치", "6위", 440_000, "hand", "#cbd8ee", "#14223f", false),
-    ("burberry", "버버리 체크 캐시미어 머플러", "7위", 380_000, "neck", "#f2e0b8", "#4a2c10", false),
-    ("fendi", "펜디 FF 토트백", "8위", 320_000, "hand", "#e8dfcf", "#231a12", false),
+    ("hermes", "에르메스 버킨", "1위", 1_000, "hand", "#f9cfa8", "#5b2a0a", false),
+    ("gucci", "구찌 GG 호보백", "3위", 720, "hand", "#ecd9b6", "#1f4d2b", false),
+    ("chanel", "샤넬 클래식 플랩", "4위", 610, "hand", "#dcdce2", "#141414", false),
+    ("prada", "프라다 리나일론 숄더백", "5위", 520, "hand", "#d3d7e0", "#171717", false),
+    ("dior", "디올 오블리크 파우치", "6위", 440, "hand", "#cbd8ee", "#14223f", false),
+    ("burberry", "버버리 체크 캐시미어 머플러", "7위", 380, "neck", "#f2e0b8", "#4a2c10", false),
+    ("fendi", "펜디 FF 토트백", "8위", 320, "hand", "#e8dfcf", "#231a12", false),
 ];
 /// 카테고리 칸 (번호, 이름, 대표 사진, 자리들)
 const CATS: [(&str, &str, &str, &[&str]); 3] = [("all", "전체", "hermes", &[]), ("bag", "가방", "chanel", &["hand"]), ("neck", "목도리", "burberry", &["neck"])];
 /// 알약 칩 (번호, 이름)
-const CHIPS: [(&str, &str); 4] = [("all", "모든 명품"), ("top", "1~4위"), ("mid", "5~8위"), ("cheap", "40만 멸공 이하")];
+const CHIPS: [(&str, &str); 4] = [("all", "모든 명품"), ("top", "1~4위"), ("mid", "5~8위"), ("cheap", "400 멸공 이하")];
 
 thread_local! {
     /// 내 가방 (산 장신구)
@@ -120,7 +120,7 @@ fn shown() -> Vec<&'static str> {
             match chip {
                 "top" => rank <= 4,
                 "mid" => (5..=8).contains(&rank),
-                "cheap" => x.3 <= 400_000,
+                "cheap" => x.3 <= 400,
                 _ => true,
             }
         })
@@ -159,7 +159,7 @@ fn paint() {
     let title = match chip {
         "top" => "1~4위 명품",
         "mid" => "5~8위 명품",
-        "cheap" => "40만 멸공 이하",
+        "cheap" => "400 멸공 이하",
         _ => "명품 순위",
     };
     dom::set_html_if(
