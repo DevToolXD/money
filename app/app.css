@@ -2797,3 +2797,5 @@ html[data-theme="dark"] .sh-cat, html[data-theme="dark"] .sh-chip { background: 
 .sh-empty { margin: 18px 16px 0; padding: 40px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; background: var(--bg-card, #fff); border-radius: 10px; color: var(--text-secondary, #8e8e93); font-size: 15px; }
 .sh-empty svg { width: 40px; height: 40px; color: var(--text-primary, #000); margin-bottom: 4px; }
 .sh-empty b { color: var(--text-primary, #000); font-size: 19px; font-weight: 700; }
+/* 자판이 올라와 있으면 탭 바(알약바)를 숨겨요. 앱 틀이 자판 위로 줄어들 때 바가 자판에 딸려 올라오지 않게 */
+html.kb-open .dock { visibility: hidden; opacity: 0; pointer-events: none; }
