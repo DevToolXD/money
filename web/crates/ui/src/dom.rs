@@ -341,3 +341,26 @@ pub fn avatar_html(name: &str, photo: &str, cls: &str) -> String {
 pub fn cut(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
+
+/// 입력칸에 글을 쓰는 중에 누르는 버튼용: 아이폰은 버튼을 누르면 자판을 먼저 내리면서 화면 크기가 바뀌어서, 그사이에 "클릭"이 사라져요(버튼이 안 눌려요).
+/// 그래서 손가락을 뗀 순간(자판이 내려가기 전)에 바로 하고, 뒤따라오는 클릭은 무시해요. 마우스·키보드는 클릭으로 해요
+pub fn on_tap(el: &web_sys::EventTarget, f: impl Fn() + 'static) {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let f = Rc::new(f);
+    let last: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+    let (f1, l1) = (f.clone(), last.clone());
+    on(el, "pointerup", move |e| {
+        let touch = js_sys::Reflect::get(&e, &"pointerType".into()).ok().and_then(|v| v.as_string()).as_deref() == Some("touch");
+        if touch {
+            l1.set(js_sys::Date::now());
+            f1();
+        }
+    });
+    on(el, "click", move |_| {
+        if js_sys::Date::now() - last.get() < 700.0 {
+            return;
+        }
+        f();
+    });
+}

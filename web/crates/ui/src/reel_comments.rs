@@ -420,10 +420,10 @@ fn bind_once() {
         });
     }
     if let Some(b) = by_id("rc-gifb") {
-        dom::on(&b, "click", |_| open_gif());
+        dom::on_tap(&b, open_gif);
     }
     if let Some(b) = by_id("rc-giftb") {
-        dom::on(&b, "click", |_| {
+        dom::on_tap(&b, || {
             if MODE.with(|m| *m.borrow() == "gift") {
                 set_mode("");
             } else {
