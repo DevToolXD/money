@@ -2753,3 +2753,6 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .gc-r10.t2 { background: linear-gradient(160deg, rgba(120, 180, 255, 0.35), rgba(45, 127, 249, 0.1)); }
 @keyframes gcPop { 0% { opacity: 0; transform: scale(0.5) translateY(10px); } 100% { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .gc-r10 { animation: none; } }
+.gc-done { margin: 4px 0; font-size: 17px; font-weight: 800; color: #c48a00; }
+.gc-go[disabled] { opacity: 0.45; }
+.iv-n { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-left: 4px; }

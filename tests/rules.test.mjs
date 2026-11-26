@@ -303,26 +303,6 @@ await t("GIF 댓글: GIPHY 주소만", async () => {
   await assertFails(reply("javascript:alert(1)"));
   await assertSucceeds(reply("https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/200w.webp"));
 });
-await t("10연차: 100 멸공에 뽑기 10개, 칸마다 다른 결과로 낄 수 있어요", async () => {
-  await seed(seedBase);
-  const A = pw("uA", "alice");
-  const ten = (db, bal, k = 10) => {
-    const refs = Array.from({ length: 10 }, () => doc(collection(db, "pulls")));
-    const b = writeBatch(db);
-    refs.slice(0, k).forEach((r, n) => b.set(r, { by: "uA", at: serverTimestamp(), n }));
-    b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "gacha10", pids: refs.map((r) => r.id) } });
-    return { b, refs };
-  };
-  await assertFails(ten(A, 1250000 - 10).b.commit()); // 10 멸공만 내기
-  const ok = ten(A, 1250000 - 100);
-  await assertSucceeds(ok.b.commit());
-  const OFF = [0, 383, 761, 127, 512, 894, 266, 649, 38, 421];
-  const T = [[15, "lambo"], [40, "goldbar"], [75, "wallet"], [115, "watch"], [160, "chain"], [215, "headphones"], [275, "cap"], [335, "sunglasses"], [400, "glasses"], [540, "coffee"], [690, "duck"], [840, "banana"], [1000, "branch"]];
-  const snap = await getDoc(doc(A, `pulls/${ok.refs[7].id}`));
-  const k = T.find(([x]) => (snap.data().at.toMillis() + OFF[7]) % 1000 < x)[1];
-  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: k === "lambo" ? "branch" : "lambo", p: ok.refs[7].id }] }));
-  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [{ k, p: ok.refs[7].id }] }));
-});
 await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");
@@ -331,32 +311,68 @@ await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await assertFails(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "<script>" }));
   await assertSucceeds(getDoc(doc(A, "meta/giphy")));
 });
-await t("뽑기: 10 멸공이 같은 묶음으로 빠질 때만, 장신구는 뽑은 등급만 낄 수 있어요", async () => {
+const GW = [["lambo", 3], ["goldbar", 7], ["wallet", 15], ["watch", 20], ["chain", 25], ["headphones", 40], ["cap", 45], ["sunglasses", 50], ["glasses", 55], ["coffee", 170], ["duck", 180], ["banana", 190], ["branch", 200]];
+const GOFF = [0, 383, 761, 127, 512, 894, 266, 649, 38, 421];
+// 앱(gacha.rs)과 같은 계산: 가진 것을 빼고 남은 무게로 m을 늘려 고르기
+const gpick = (m, owned) => { const rem = 1000 - GW.filter(([k]) => owned.includes(k)).reduce((a, [, w]) => a + w, 0); let acc = 0; for (const [k, w] of GW) { if (owned.includes(k)) continue; if (m * rem < 1000 * (acc + w)) return k; acc += w; } return null; };
+const charge = (db, uid, count, bal) => {
+  const refs = Array.from({ length: count }, () => doc(collection(db, "pulls")));
+  const b = writeBatch(db);
+  refs.forEach((r, n) => b.set(r, { by: uid, at: serverTimestamp(), n }));
+  b.set(doc(db, `owned/${uid}`), { items: [], pend: refs.map((r) => r.id) }, { merge: false });
+  b.update(doc(db, `wallets/${uid}`), { bal, wt: serverTimestamp(), op: count === 1 ? { kind: "gacha", pid: refs[0].id } : { kind: "gacha10", pids: refs.map((r) => r.id) } });
+  return { b, refs };
+};
+const resolve = async (db, uid, refs, items0, cheat) => {
+  const at = (await getDoc(doc(db, `pulls/${refs[0].id}`))).data().at.toMillis();
+  const items = [...items0];
+  const ks = refs.map((r, n) => { const k = gpick((at + GOFF[n]) % 1000, items); items.push(k); return k; });
+  if (cheat) ks[0] = cheat;
+  const b = writeBatch(db);
+  refs.forEach((r, n) => b.update(r, { k: ks[n] }));
+  b.set(doc(db, `owned/${uid}`), { items: [...items0, ...ks], pend: [] });
+  return { b, ks };
+};
+await t("뽑기: 멸공 내기(뽑기권)와 받기 두 단계, 결과는 서버 시각으로 정해지고 중복이 없어요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");
-  const pull = (db, bal) => {
-    const r = doc(collection(db, "pulls"));
-    const b = writeBatch(db);
-    b.set(r, { by: "uA", at: serverTimestamp() });
-    b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "gacha", pid: r.id } });
-    return { b, r };
-  };
-  await assertFails(pull(A, 1250000 - 1).b.commit()); // 덜 내기
-  await assertFails(setDoc(doc(A, "pulls/x1"), { by: "uA", at: serverTimestamp() })); // 돈 없이
-  const ok = pull(A, 1250000 - 10);
-  await assertSucceeds(ok.b.commit());
-  const snap = await getDoc(doc(A, `pulls/${ok.r.id}`));
-  const m = snap.data().at.toMillis() % 1000;
-  const T = [[15, "lambo"], [40, "goldbar"], [75, "wallet"], [115, "watch"], [160, "chain"], [215, "headphones"], [275, "cap"], [335, "sunglasses"], [400, "glasses"], [540, "coffee"], [690, "duck"], [840, "banana"], [1000, "branch"]];
-  const tier = T.find(([x]) => m < x)[1];
-  const other = tier === "lambo" ? "branch" : "lambo";
-  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: other, p: ok.r.id }] })); // 다른 결과
-  await assertFails(updateDoc(doc(pw("uB", "bob"), "profiles/uB"), { decos: [{ k: tier, p: ok.r.id }] })); // 남의 뽑기
-  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: tier, p: ok.r.id }, { k: "lambo", p: "nope" }] })); // 하나라도 가짜
-  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: tier, p: ok.r.id }] }));
+  await assertFails(charge(A, "uA", 1, 1250000 - 1).b.commit()); // 덜 내기
+  const one = charge(A, "uA", 1, 1250000 - 10);
+  await assertSucceeds(one.b.commit());
+  const at = (await getDoc(doc(A, `pulls/${one.refs[0].id}`))).data().at.toMillis();
+  const right = gpick(at % 1000, []);
+  const wrong = right === "lambo" ? "branch" : "lambo";
+  await assertFails((await resolve(A, "uA", one.refs, [], wrong)).b.commit()); // 다른 결과로 받기
+  const r1 = await resolve(A, "uA", one.refs, []);
+  await assertSucceeds(r1.b.commit());
+  await assertFails(updateDoc(doc(A, `pulls/${one.refs[0].id}`), { k: wrong })); // 두 번 받기
+  // 10번 뽑기: 이미 가진 것은 안 나오고 10개 모두 달라요
+  await sleep(2100);
+  const ten = { refs: Array.from({ length: 10 }, () => doc(collection(A, "pulls"))) };
+  const b = writeBatch(A);
+  ten.refs.forEach((r, n) => b.set(r, { by: "uA", at: serverTimestamp(), n }));
+  b.set(doc(A, "owned/uA"), { items: r1.ks, pend: ten.refs.map((r) => r.id) });
+  b.update(doc(A, "wallets/uA"), { bal: 1250000 - 110, wt: serverTimestamp(), op: { kind: "gacha10", pids: ten.refs.map((r) => r.id) } });
+  await assertSucceeds(b.commit());
+  const r10 = await resolve(A, "uA", ten.refs, r1.ks);
+  await assertSucceeds(r10.b.commit());
+  const all = [...r1.ks, ...r10.ks];
+  if (new Set(all).size !== 11) throw new Error("중복이 있어요 " + all.join(","));
+  // 남은 종류(2개)보다 많이 뽑을 수 없어요
+  await sleep(2100);
+  const tenMore = { refs: Array.from({ length: 10 }, () => doc(collection(A, "pulls"))) };
+  const b2 = writeBatch(A);
+  tenMore.refs.forEach((r, n) => b2.set(r, { by: "uA", at: serverTimestamp(), n }));
+  b2.set(doc(A, "owned/uA"), { items: all, pend: tenMore.refs.map((r) => r.id) });
+  b2.update(doc(A, "wallets/uA"), { bal: 1250000 - 210, wt: serverTimestamp(), op: { kind: "gacha10", pids: tenMore.refs.map((r) => r.id) } });
+  await assertFails(b2.commit());
+  // 끼기: 내 가방에 있는 것만
+  const notMine = GW.map(([k]) => k).find((k) => !all.includes(k));
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: notMine }] }));
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: all[0] }, { k: all[1] }] }));
   await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [] }));
-  await assertFails(getDocs(query(collection(pw("uB", "bob"), "pulls"), limit(10))));
-  await assertSucceeds(getDocs(query(collection(A, "pulls"), where("by", "==", "uA"), limit(300))));
+  await assertFails(getDoc(doc(pw("uB", "bob"), "owned/uA")));
+  await assertFails(setDoc(doc(A, "owned/uA"), { items: ["lambo", "goldbar"], pend: [] })); // 가방 마음대로 채우기
 });
 await t("공모전: 관리자만 열고 닫고, 사진 하나·한 표, 표 수는 같은 묶음으로만", async () => {
   await seed(seedBase);

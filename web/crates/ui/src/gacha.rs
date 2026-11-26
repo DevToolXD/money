@@ -15,43 +15,49 @@ use crate::dom::{self, by_id, esc};
 
 /// (번호, 이름, 등급, 천분율 확률, 자리). 순서와 확률은 서버 규칙(pullOf)과 같아야 해요
 pub const ITEMS: [(&str, &str, &str, u32, &str); 13] = [
-    ("lambo", "람보르기니", "전설", 15, "ground"),
-    ("goldbar", "금괴", "전설", 25, "hand"),
-    ("wallet", "명품 지갑", "영웅", 35, "hand"),
-    ("watch", "손목시계", "영웅", 40, "wrist"),
-    ("chain", "금목걸이", "영웅", 45, "neck"),
-    ("headphones", "헤드폰", "희귀", 55, "head"),
-    ("cap", "야구모자", "희귀", 60, "head"),
-    ("sunglasses", "선글라스", "희귀", 60, "face"),
-    ("glasses", "안경", "희귀", 65, "face"),
-    ("coffee", "커피", "일반", 140, "hand"),
-    ("duck", "고무 오리", "일반", 150, "head"),
-    ("banana", "바나나", "일반", 150, "hand"),
-    ("branch", "나뭇가지", "일반", 160, "hand"),
+    ("lambo", "람보르기니", "전설", 3, "ground"),
+    ("goldbar", "금괴", "전설", 7, "hand"),
+    ("wallet", "명품 지갑", "영웅", 15, "hand"),
+    ("watch", "손목시계", "영웅", 20, "wrist"),
+    ("chain", "금목걸이", "영웅", 25, "neck"),
+    ("headphones", "헤드폰", "희귀", 40, "head"),
+    ("cap", "야구모자", "희귀", 45, "head"),
+    ("sunglasses", "선글라스", "희귀", 50, "face"),
+    ("glasses", "안경", "희귀", 55, "face"),
+    ("coffee", "커피", "일반", 170, "hand"),
+    ("duck", "고무 오리", "일반", 180, "head"),
+    ("banana", "바나나", "일반", 190, "hand"),
+    ("branch", "나뭇가지", "일반", 200, "hand"),
 ];
 /// 사진 출처 (이름, 작가, 라이선스, 원본 주소)
 const CREDITS: &[(&str, &str, &str, &str)] = &include!("deco_credits.in");
 
 thread_local! {
-    /// 내가 뽑은 것 (뽑기 번호, 장신구)
-    static MINE: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+    /// 내 가방: 가진 장신구 (뽑은 순서, 중복 없음)
+    static MINE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static LOADED: Cell<bool> = const { Cell::new(false) };
     static BUSY: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
 }
 
-/// 10연차에서 n번째 칸에 더하는 간격 (서버 규칙과 같아요)
+/// 10번 뽑기에서 n번째 칸에 더하는 간격 (서버 규칙과 같아요)
 const OFF: [i64; 10] = [0, 383, 761, 127, 512, 894, 266, 649, 38, 421];
-/// 서버 규칙과 같은 계산: 뽑은 시각(밀리초)에 칸 간격을 더한 끝 세 자리
-pub fn tier(at_ms: f64, n: usize) -> &'static str {
+/// 서버 규칙(pickOk)과 같은 계산: 가진 것을 빼고, 남은 것들의 무게로 m(0~999)을 늘려서 골라요. 모두 가졌으면 None
+pub fn pick(at_ms: f64, n: usize, owned: &[String]) -> Option<&'static str> {
     let m = (at_ms.floor() as i64 + OFF[n.min(9)]).rem_euclid(1000) as u32;
+    let has = |k: &str| owned.iter().any(|o| o == k);
+    let rem: u32 = 1000 - ITEMS.iter().filter(|x| has(x.0)).map(|x| x.3).sum::<u32>();
     let mut acc = 0;
-    for (k, _, _, p, _) in ITEMS {
-        acc += p;
-        if m < acc {
-            return k;
+    for (k, _, _, w, _) in ITEMS {
+        if has(k) {
+            continue;
         }
+        if m * rem < 1000 * (acc + w) {
+            return Some(k);
+        }
+        acc += w;
     }
-    "branch"
+    None
 }
 /// 받침이 있으면 "을", 없으면 "를"
 fn eul(w: &str) -> &'static str {
@@ -88,8 +94,8 @@ pub fn deco_of(uid: &str) -> String {
     }
     js_sys::Array::from(&list).iter().filter_map(|x| cloud::get(&x, "k").as_string()).filter(|k| item(k).is_some()).collect::<Vec<_>>().join(",")
 }
-/// 지금 내가 낀 것 (번호, 뽑기 번호)
-fn my_decos() -> Vec<(String, String)> {
+/// 지금 내가 낀 것
+fn my_decos() -> Vec<String> {
     let p = cloud::call_now("peek", &[JsValue::from_str(&my_uid())]).unwrap_or(JsValue::NULL);
     let list = cloud::get(&p, "decos");
     if !js_sys::Array::is_array(&list) {
@@ -97,8 +103,8 @@ fn my_decos() -> Vec<(String, String)> {
     }
     js_sys::Array::from(&list)
         .iter()
-        .filter_map(|x| Some((cloud::get(&x, "k").as_string()?, cloud::get(&x, "p").as_string()?)))
-        .filter(|(k, _)| item(k).is_some())
+        .filter_map(|x| cloud::get(&x, "k").as_string())
+        .filter(|k| item(k).is_some())
         .collect()
 }
 
@@ -119,10 +125,36 @@ fn thumb(k: &str, cls: &str) -> String {
     format!(r#"<img class="{cls}" src="app/deco/{k}.webp" alt="{n}" draggable="false" decoding="async">"#)
 }
 
-async fn load_mine() {
-    let Ok(v) = cloud::call("gachaList", &[]).await else { return };
-    let list: Vec<(String, String)> = js_sys::Array::from(&v).iter().map(|x| (cloud::get(&x, "id").as_string().unwrap_or_default(), tier(cloud::get(&x, "at").as_f64().unwrap_or(0.0), cloud::get(&x, "n").as_f64().unwrap_or(0.0) as usize).to_string())).collect();
-    MINE.with(|m| *m.borrow_mut() = list);
+/// 내 가방을 읽어요. 멸공은 냈는데 아직 못 받은 뽑기권이 있으면(앱이 꺼졌을 때) 여기서 마저 받아요
+async fn load_mine() -> Result<(), cloud::CloudError> {
+    let v = cloud::call("gachaOwned", &[]).await?;
+    let items: Vec<String> = js_sys::Array::from(&cloud::get(&v, "items")).iter().filter_map(|x| x.as_string()).collect();
+    MINE.with(|m| *m.borrow_mut() = items.clone());
+    LOADED.set(true);
+    let pend: Vec<String> = js_sys::Array::from(&cloud::get(&v, "pend")).iter().filter_map(|x| x.as_string()).collect();
+    if !pend.is_empty() {
+        let at = cloud::get(&v, "at").as_f64().unwrap_or(0.0);
+        resolve(&pend, at).await?;
+    }
+    Ok(())
+}
+/// 2단계 받기: 뽑기권마다 결과를 정해(앞 칸 결과도 가진 것으로 쳐서 중복 없이) 가방에 넣어요
+async fn resolve(ids: &[String], at: f64) -> Result<Vec<String>, cloud::CloudError> {
+    let before = MINE.with(|m| m.borrow().clone());
+    let mut owned = before.clone();
+    let mut ks = Vec::new();
+    for n in 0..ids.len() {
+        let Some(k) = pick(at, n, &owned) else { break };
+        owned.push(k.to_string());
+        ks.push(k.to_string());
+    }
+    let a = |v: &[String]| -> JsValue { v.iter().map(|x| JsValue::from_str(x)).collect::<js_sys::Array>().into() };
+    cloud::call("gachaResolve", &[a(ids), a(&ks), a(&before)]).await?;
+    MINE.with(|m| *m.borrow_mut() = owned);
+    Ok(ks)
+}
+fn left() -> usize {
+    ITEMS.len() - MINE.with(|m| m.borrow().len())
 }
 
 /* ---------- 뽑기 화면 ---------- */
@@ -147,9 +179,20 @@ fn paint_gacha() {
     dom::set_html_if(
         &root,
         &format!(
-            r#"<div class="card gc-hero"><div class="gc-ball" id="gc-ball"><span class="gc-shine"></span></div><p class="gc-sub">동그라미 사진에 얹는 장신구가 나와요. 여러 개를 같이 낄 수 있어요</p><div class="gc-btns"><button type="button" class="gc-go" id="gc-go">1번 뽑기<small>10 멸공</small></button><button type="button" class="gc-go ten" id="gc-go10">10번 뽑기<small>100 멸공</small></button></div><p class="gc-bal">내 멸공 <b>{}</b></p></div>
+            r#"<div class="card gc-hero"><div class="gc-ball" id="gc-ball"><span class="gc-shine"></span></div><p class="gc-sub">동그라미 사진에 얹는 장신구가 나와요. 여러 개를 같이 낄 수 있어요</p>{btns}<p class="gc-bal">모은 장신구 <b>{have}/{total}</b> · 내 멸공 <b>{bal}</b></p></div>
 <h2 class="section-title">나올 수 있는 것</h2><div class="card gc-odds">{odds}</div><details class="gc-cred"><summary>사진 출처</summary><ul>{credits}</ul></details>"#,
-            crate::money::w(bal)
+            bal = crate::money::w(bal),
+            have = ITEMS.len() - left(),
+            total = ITEMS.len(),
+            btns = if LOADED.get() && left() == 0 {
+                r#"<p class="gc-done">모든 장신구를 모았어요</p>"#.to_string()
+            } else {
+                format!(
+                    r#"<div class="gc-btns"><button type="button" class="gc-go" id="gc-go">1번 뽑기<small>10 멸공</small></button><button type="button" class="gc-go ten" id="gc-go10"{}>10번 뽑기<small>{}</small></button></div>"#,
+                    if LOADED.get() && left() < 10 { " disabled" } else { "" },
+                    if LOADED.get() && left() < 10 { format!("남은 {}종뿐이에요", left()) } else { "100 멸공".to_string() }
+                )
+            }
         ),
     );
 }
@@ -164,12 +207,31 @@ fn pct(p: u32) -> String {
 pub fn open_gacha() {
     bind_once();
     paint_gacha();
+    if cloud::signed_in() {
+        spawn_local(async {
+            let _ = load_mine().await;
+            paint_gacha();
+        });
+    }
 }
-async fn pull() {
+/// 뽑기 (1번 또는 10번): 1단계 멸공 내기 → 2단계 받기
+async fn pull(count: usize) {
     if BUSY.replace(true) {
         return;
     }
-    if let Err(m) = crate::money::ensure(10.0).await {
+    if !LOADED.get() {
+        if load_mine().await.is_err() {
+            BUSY.set(false);
+            return crate::shell::toast("가방을 불러오지 못했어요. 잠시 뒤 다시 해 주세요");
+        }
+    }
+    if left() < count {
+        BUSY.set(false);
+        paint_gacha();
+        return crate::shell::toast(if left() == 0 { "모든 장신구를 모았어요" } else { "남은 종류가 10개보다 적어요. 1번 뽑기로 해 주세요" });
+    }
+    let cost = 10.0 * count as f64;
+    if let Err(m) = crate::money::ensure(cost).await {
         BUSY.set(false);
         crate::shell::ask("뽑기를 할 수 없어요", &m, "확인", "").await;
         return;
@@ -178,82 +240,56 @@ async fn pull() {
     if let Some(b) = &ball {
         let _ = b.class_list().add_1("shake");
     }
-    dom::vibrate(10);
-    let f = Closure::once_into_js(|| cloud::call_now("gachaPull", &[]).unwrap_or(JsValue::UNDEFINED));
+    dom::vibrate(if count > 1 { 14 } else { 10 });
+    let items: js_sys::Array = MINE.with(|m| m.borrow().iter().map(|x| JsValue::from_str(x)).collect());
+    let f = Closure::once_into_js(move || cloud::call_now("gachaCharge", &[(count as f64).into(), items.into()]).unwrap_or(JsValue::UNDEFINED));
     let r = cloud::settle(crate::money::wallet_op(f.unchecked_into()).into()).await;
+    let got = match r {
+        Ok(v) => {
+            crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(if count > 1 { "10번 뽑기" } else { "뽑기" })), ("cat", "쇼핑".into()), ("icon", "gift".into()), ("amt", (-cost).into())]));
+            let ids: Vec<String> = js_sys::Array::from(&cloud::get(&v, "ids")).iter().filter_map(|x| x.as_string()).collect();
+            resolve(&ids, cloud::get(&v, "at").as_f64().unwrap_or(0.0)).await
+        }
+        Err(e) => Err(e),
+    };
     // 흔드는 움직임을 다 보여주고 열어요
-    dom::sleep(700).await;
+    dom::sleep(if count > 1 { 900 } else { 700 }).await;
     if let Some(b) = &ball {
         let _ = b.class_list().remove_1("shake");
     }
     BUSY.set(false);
-    match r {
-        Ok(v) => {
-            let id = cloud::get(&v, "id").as_string().unwrap_or_default();
-            let k = tier(cloud::get(&v, "at").as_f64().unwrap_or(0.0), 0);
-            MINE.with(|m| m.borrow_mut().push((id.clone(), k.to_string())));
-            crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str("뽑기")), ("cat", "쇼핑".into()), ("icon", "gift".into()), ("amt", (-10.0).into())]));
-            show_result(k, &id);
-            paint_gacha();
+    match got {
+        Ok(ks) if ks.len() > 1 => show_result10(&ks),
+        Ok(ks) if ks.len() == 1 => show_result(&ks[0]),
+        Ok(_) => {}
+        Err(e) => {
+            // 멸공을 낸 뒤 받기에서 끊겼으면, 다음에 열 때 마저 받아요
+            crate::shell::toast(&format!("뽑지 못했어요. {}", cloud::why(&e.code)));
+            LOADED.set(false);
         }
-        Err(e) => crate::shell::toast(&format!("뽑지 못했어요. {}", cloud::why(&e.code))),
     }
-}
-/// 10연차: 100 멸공으로 한 번에 10개
-async fn pull10() {
-    if BUSY.replace(true) {
-        return;
-    }
-    if let Err(m) = crate::money::ensure(100.0).await {
-        BUSY.set(false);
-        crate::shell::ask("뽑기를 할 수 없어요", &m, "확인", "").await;
-        return;
-    }
-    let ball = by_id("gc-ball");
-    if let Some(b) = &ball {
-        let _ = b.class_list().add_1("shake");
-    }
-    dom::vibrate(14);
-    let f = Closure::once_into_js(|| cloud::call_now("gachaPull10", &[]).unwrap_or(JsValue::UNDEFINED));
-    let r = cloud::settle(crate::money::wallet_op(f.unchecked_into()).into()).await;
-    dom::sleep(900).await;
-    if let Some(b) = &ball {
-        let _ = b.class_list().remove_1("shake");
-    }
-    BUSY.set(false);
-    match r {
-        Ok(v) => {
-            let at = cloud::get(&v, "at").as_f64().unwrap_or(0.0);
-            let got: Vec<(String, &'static str)> = js_sys::Array::from(&cloud::get(&v, "ids")).iter().enumerate().map(|(n, id)| (id.as_string().unwrap_or_default(), tier(at, n))).collect();
-            MINE.with(|m| m.borrow_mut().extend(got.iter().map(|(id, k)| (id.clone(), k.to_string()))));
-            crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str("10번 뽑기")), ("cat", "쇼핑".into()), ("icon", "gift".into()), ("amt", (-100.0).into())]));
-            show_result10(&got);
-            paint_gacha();
-        }
-        Err(e) => crate::shell::toast(&format!("뽑지 못했어요. {}", cloud::why(&e.code))),
-    }
+    paint_gacha();
 }
 /// 10연차 결과: 좋은 것부터 10칸, 가장 좋은 것은 크게
-fn show_result10(got: &[(String, &'static str)]) {
+fn show_result10(got: &[String]) {
     let Some(el) = by_id("gc-result") else { return };
     let rank = |k: &str| ITEMS.iter().position(|x| x.0 == k).unwrap_or(99);
-    let mut v: Vec<&(String, &'static str)> = got.iter().collect();
-    v.sort_by_key(|(_, k)| rank(k));
-    let Some((best_id, best)) = v.first().map(|(i, k)| (i.clone(), *k)) else { return };
+    let mut v: Vec<&String> = got.iter().collect();
+    v.sort_by_key(|k| rank(k));
+    let Some(best) = v.first().map(|k| k.as_str()) else { return };
     let Some((_, bn, br, ..)) = item(best) else { return };
     let tiles: String = v
         .iter()
         .enumerate()
-        .map(|(i, (_, k))| {
+        .map(|(i, k)| {
             let (_, n, r, ..) = item(k).copied().unwrap_or(("", "", "일반", 0, ""));
             format!(r#"<li class="gc-r10 {}" style="animation-delay:{}ms">{}<b>{n}</b></li>"#, rarity_cls(r), 80 * i, thumb(k, "gc-ti"))
         })
         .collect();
     el.set_inner_html(&format!(
-        r#"<div class="gc-card ten {}"><p class="gc-tier">10번 뽑기 · 최고 {br}</p>{}<h3>{bn}</h3><ul class="gc-ten">{tiles}</ul><div class="gc-acts"><button type="button" class="gc-btn ghost" data-act="close">확인</button><button type="button" class="gc-btn" data-act="wear" data-item="{best}" data-pull="{}">{bn} 끼기</button></div></div>"#,
+        r#"<div class="gc-card ten {}"><p class="gc-tier">10번 뽑기 · 최고 {br}</p>{}<h3>{bn}</h3><ul class="gc-ten">{tiles}</ul><div class="gc-acts"><button type="button" class="gc-btn ghost" data-act="close">확인</button><button type="button" class="gc-btn" data-act="wear" data-item="{best}">{bn} 끼기</button></div></div>"#,
         rarity_cls(br),
         thumb(best, "gc-big"),
-        esc(&best_id)
     ));
     el.set_hidden(false);
     let _ = el.offset_width();
@@ -261,17 +297,16 @@ fn show_result10(got: &[(String, &'static str)]) {
     dom::vibrate(if *br == "전설" { 40 } else { 16 });
 }
 /// 결과 창: 장신구 사진과, 내 동그라미에 얹은 모습. 바로 끼거나 닫아요
-fn show_result(k: &str, pull_id: &str) {
+fn show_result(k: &str) {
     let Some(el) = by_id("gc-result") else { return };
     let Some((_, n, r, ..)) = item(k) else { return };
-    let mut keys: Vec<String> = my_decos().into_iter().filter(|(x, _)| item(x).map(|i| i.4) != item(k).map(|i| i.4)).map(|(x, _)| x).collect();
+    let mut keys: Vec<String> = my_decos().into_iter().filter(|x| item(x).map(|i| i.4) != item(k).map(|i| i.4)).collect();
     keys.push(k.to_string());
     el.set_inner_html(&format!(
-        r#"<div class="gc-card {}"><p class="gc-tier">{r}</p>{}<h3>{n}</h3>{}<div class="gc-acts"><button type="button" class="gc-btn ghost" data-act="close">확인</button><button type="button" class="gc-btn" data-act="wear" data-item="{k}" data-pull="{}">바로 끼기</button></div></div>"#,
+        r#"<div class="gc-card {}"><p class="gc-tier">{r}</p>{}<h3>{n}</h3>{}<div class="gc-acts"><button type="button" class="gc-btn ghost" data-act="close">확인</button><button type="button" class="gc-btn" data-act="wear" data-item="{k}">바로 끼기</button></div></div>"#,
         rarity_cls(r),
         thumb(k, "gc-big"),
         me_avatar(&keys.join(","), "md"),
-        esc(pull_id)
     ));
     el.set_hidden(false);
     let _ = el.offset_width();
@@ -289,13 +324,15 @@ fn hide_result() {
     });
 }
 /// 끼기: 같은 자리에 있던 것은 빼고 새로 끼워요. 빼기: 그것만 빼요
-async fn wear(k: String, pull_id: String, on: bool) {
+async fn wear(k: String, on: bool) {
     let slot = item(&k).map(|x| x.4).unwrap_or("");
-    let mut list: Vec<(String, String)> = my_decos().into_iter().filter(|(x, _)| if on { item(x).map(|i| i.4) != Some(slot) } else { *x != k }).collect();
+    let mine = MINE.with(|m| m.borrow().clone());
+    // 가방에 없는 것(예전 방식으로 끼던 것)은 빼고 저장해요
+    let mut list: Vec<String> = my_decos().into_iter().filter(|x| mine.contains(x)).filter(|x| if on { item(x).map(|i| i.4) != Some(slot) } else { *x != k }).collect();
     if on {
-        list.push((k.clone(), pull_id));
+        list.push(k.clone());
     }
-    let arr: js_sys::Array = list.iter().map(|(k, p)| dom::obj(&[("k", JsValue::from_str(k)), ("p", JsValue::from_str(p))])).collect();
+    let arr: js_sys::Array = list.iter().map(|k| dom::obj(&[("k", JsValue::from_str(k))])).collect();
     match cloud::call("decoSet", &[arr.into()]).await {
         Ok(_) => {
             let n = item(&k).map(|x| x.1).unwrap_or("");
@@ -314,36 +351,35 @@ fn paint_inv() {
     if !cloud::signed_in() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 인벤을 볼 수 있어요</p>"#);
     }
-    let now: Vec<String> = my_decos().into_iter().map(|(k, _)| k).collect();
+    let now: Vec<String> = my_decos();
     let mine = MINE.with(|m| m.borrow().clone());
+    // 가진 것만, 귀한 것부터
     let cards: String = ITEMS
         .iter()
+        .filter(|x| mine.iter().any(|m| m == x.0))
         .map(|(k, n, r, _, _)| {
-            let have: Vec<&(String, String)> = mine.iter().filter(|x| x.1 == *k).collect();
-            let foot = if have.is_empty() {
-                r#"<span class="iv-lock">아직 없어요</span>"#.to_string()
-            } else if now.iter().any(|x| x == k) {
+            let foot = if now.iter().any(|x| x == k) {
                 format!(r#"<button type="button" class="iv-btn on" data-act="off" data-item="{k}">끼는 중</button>"#)
             } else {
-                format!(r#"<button type="button" class="iv-btn" data-act="wear" data-item="{k}" data-pull="{}">끼기</button>"#, esc(&have[0].0))
+                format!(r#"<button type="button" class="iv-btn" data-act="wear" data-item="{k}">끼기</button>"#)
             };
-            format!(
-                r#"<li class="iv-card {}{}">{}<b>{n}</b><small>{r}{}</small>{foot}</li>"#,
-                rarity_cls(r),
-                if have.is_empty() { " locked" } else { "" },
-                thumb(k, "iv-ti"),
-                if have.len() > 1 { format!(" · {}개", have.len()) } else { String::new() }
-            )
+            format!(r#"<li class="iv-card {}">{}<b>{n}</b><small>{r}</small>{foot}</li>"#, rarity_cls(r), thumb(k, "iv-ti"))
         })
         .collect();
-    let names: Vec<&str> = now.iter().filter_map(|k| item(k).map(|x| x.1)).collect();
+    let names: Vec<&str> = now.iter().filter(|k| mine.contains(k)).filter_map(|k| item(k).map(|x| x.1)).collect();
+    let shown: Vec<String> = now.iter().filter(|k| mine.contains(k)).cloned().collect();
     dom::set_html_if(
         &root,
         &format!(
-            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 장신구</h2><p class="iv-tip">자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 낄 수 있어요</p><ul class="iv-grid">{cards}</ul>{}"#,
-            me_avatar(&now.join(","), "xl"),
+            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 장신구 <small class="iv-n">{}개</small></h2>{}"#,
+            me_avatar(&shown.join(","), "xl"),
             if names.is_empty() { "끼고 있는 장신구가 없어요".to_string() } else { format!("<b>{}</b> 끼는 중", esc(&names.join(" · "))) },
-            if mine.is_empty() { r#"<p class="iv-empty">메뉴의 뽑기에서 10 멸공으로 장신구를 뽑아 보세요</p>"# } else { "" }
+            mine.len(),
+            if mine.is_empty() {
+                if LOADED.get() { r#"<p class="iv-empty">아직 장신구가 없어요. 메뉴의 뽑기에서 뽑아 보세요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
+            } else {
+                format!(r#"<p class="iv-tip">자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 낄 수 있어요</p><ul class="iv-grid">{cards}</ul>"#)
+            }
         ),
     );
 }
@@ -352,7 +388,7 @@ pub fn open_inv() {
     paint_inv();
     if cloud::signed_in() {
         spawn_local(async {
-            load_mine().await;
+            let _ = load_mine().await;
             paint_inv();
         });
     }
@@ -365,9 +401,9 @@ fn bind_once() {
     if let Some(r) = by_id("gacha-root") {
         dom::on(&r, "click", |e| {
             if dom::closest(&e, "#gc-go").is_some() {
-                spawn_local(pull());
+                spawn_local(pull(1));
             } else if dom::closest(&e, "#gc-go10").is_some() {
-                spawn_local(pull10());
+                spawn_local(pull(10));
             }
         });
     }
@@ -381,9 +417,9 @@ fn bind_once() {
         match dom::data(&b, "act").as_str() {
             "wear" => {
                 hide_result();
-                spawn_local(wear(dom::data(&b, "item"), dom::data(&b, "pull"), true));
+                spawn_local(wear(dom::data(&b, "item"), true));
             }
-            "off" => spawn_local(wear(dom::data(&b, "item"), String::new(), false)),
+            "off" => spawn_local(wear(dom::data(&b, "item"), false)),
             _ => hide_result(),
         }
     };

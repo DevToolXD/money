@@ -1428,35 +1428,49 @@ async fn contest_vote(cid: String, entry: String, old: String) -> R {
 }
 
 /* ---------- 뽑기와 장신구 ---------- */
-/// 10 멸공으로 한 번 뽑아요. 등급은 서버가 찍은 시각으로 정해져서, 다시 읽어 그 시각을 돌려줘요 ({id, at})
-async fn gacha_pull() -> R {
+/// 내 가방: {items: 가진 장신구(뽑은 순서), pend: 아직 받지 않은 뽑기권, at: 그 뽑기권의 서버 시각}
+async fn gacha_owned() -> R {
     let uid = uid_of()?;
-    let r = new_id(c(&["pulls"]));
-    let b = batch();
-    m(&b, "set", &[r.clone(), o(&[("by", s(&uid)), ("at", ts())])])?;
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0)), ("wt", ts()), ("op", o(&[("kind", s("gacha")), ("pid", get(&r, "id"))]))])])?;
-    rethrow(commit(&b).await)?;
-    let sn = rethrow(get_doc(r.clone()).await)?;
-    Ok(o(&[("id", get(&r, "id")), ("at", n(ms(&get(&data(&sn), "at"))))]))
+    let sn = rethrow(get_doc(d(&["owned", &uid])).await)?;
+    let (items, pend) = if exists(&sn) { (get(&data(&sn), "items"), get(&data(&sn), "pend")) } else { (js_sys::Array::new().into(), js_sys::Array::new().into()) };
+    let p: js_sys::Array = pend.clone().dyn_into().unwrap_or_default();
+    let at = if p.length() > 0 {
+        let t = rethrow(get_doc(d(&["pulls", &jstr(&p.get(0))])).await)?;
+        n(ms(&get(&data(&t), "at")))
+    } else {
+        n(0.0)
+    };
+    Ok(o(&[("items", items), ("pend", pend), ("at", at)]))
 }
-/// 10연차: 100 멸공으로 10개를 한 묶음에. 모두 같은 서버 시각이라 하나만 다시 읽어요 ({ids, at})
-async fn gacha_pull10() -> R {
+/// 1단계 멸공 내기: 뽑기권 count장(1 또는 10)과 내 가방의 "받을 것"을 같은 묶음으로. 서버 시각을 다시 읽어 돌려줘요 ({ids, at})
+async fn gacha_charge(count: usize, items: JsValue) -> R {
     let uid = uid_of()?;
-    let refs: Vec<JsValue> = (0..10).map(|_| new_id(c(&["pulls"]))).collect();
+    let refs: Vec<JsValue> = (0..count).map(|_| new_id(c(&["pulls"]))).collect();
     let ids: js_sys::Array = refs.iter().map(|r| get(r, "id")).collect();
     let b = batch();
     for (i, r) in refs.iter().enumerate() {
         m(&b, "set", &[r.clone(), o(&[("by", s(&uid)), ("at", ts()), ("n", n(i as f64))])])?;
     }
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-100.0)), ("wt", ts()), ("op", o(&[("kind", s("gacha10")), ("pids", ids.clone().into())]))])])?;
+    m(&b, "set", &[d(&["owned", &uid]), o(&[("items", items), ("pend", ids.clone().into())])])?;
+    let op = if count == 1 { o(&[("kind", s("gacha")), ("pid", get(&refs[0], "id"))]) } else { o(&[("kind", s("gacha10")), ("pids", ids.clone().into())]) };
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0 * count as f64)), ("wt", ts()), ("op", op)])])?;
     rethrow(commit(&b).await)?;
     let sn = rethrow(get_doc(refs[0].clone()).await)?;
     Ok(o(&[("ids", ids.into()), ("at", n(ms(&get(&data(&sn), "at"))))]))
 }
-/// 내가 뽑은 것 모두 ({id, at, n})
-async fn gacha_list() -> R {
-    let snap = rethrow(get_docs(q(c(&["pulls"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(300.0)])).await)?;
-    Ok(docs(&snap).iter().map(|dd| { let x = data(dd); let k = get(&x, "n"); o(&[("id", get(dd, "id")), ("at", n(ms(&get(&x, "at")))), ("n", if k.as_f64().is_some() { k } else { n(0.0) })]) }).collect::<js_sys::Array>().into())
+/// 2단계 받기: 뽑기권마다 결과를 적고, 가방에 붙여요 (규칙이 결과를 같은 계산으로 검사해요)
+async fn gacha_resolve(ids: JsValue, ks: JsValue, items: JsValue) -> R {
+    let uid = uid_of()?;
+    let ids: js_sys::Array = ids.dyn_into().unwrap_or_default();
+    let ks: js_sys::Array = ks.dyn_into().unwrap_or_default();
+    let all: js_sys::Array = items.dyn_into::<js_sys::Array>().unwrap_or_default().concat(&ks);
+    let b = batch();
+    for i in 0..ids.length() {
+        m(&b, "update", &[d(&["pulls", &jstr(&ids.get(i))]), o(&[("k", ks.get(i))])])?;
+    }
+    m(&b, "set", &[d(&["owned", &uid]), o(&[("items", all.into()), ("pend", js_sys::Array::new().into())])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
 }
 /// 장신구 끼기: [{k: 장신구, p: 뽑기 번호}] 목록 그대로 (빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
 async fn deco_set(list: JsValue) -> R {
@@ -1910,7 +1924,9 @@ fn build() -> js_sys::Object {
     am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
     am!(api, "reelGift", |a| reel_gift(sa(&a[0]), sa(&a[1]), num(&a[2])).await);
     am!(api, "reelGifts", |_a| reel_gifts().await);
-    am!(api, "gachaPull", |_a| gacha_pull().await);
+    am!(api, "gachaOwned", |_a| gacha_owned().await);
+    am!(api, "gachaCharge", |a| gacha_charge(if num(&a[0]) >= 10.0 { 10 } else { 1 }, a[1].clone()).await);
+    am!(api, "gachaResolve", |a| gacha_resolve(a[0].clone(), a[1].clone(), a[2].clone()).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));
     am!(api, "contestClose", |a| rethrow(update_doc(d(&["contests", &sa(&a[0])]), o(&[("open", false.into()), ("end", ts())])).await));
@@ -1921,8 +1937,6 @@ fn build() -> js_sys::Object {
     });
     am!(api, "contestEnter", |a| contest_enter(sa(&a[0]), sa(&a[1])).await);
     am!(api, "contestVote", |a| contest_vote(sa(&a[0]), sa(&a[1]), opt_s(&a[2])).await);
-    am!(api, "gachaList", |_a| gacha_list().await);
-    am!(api, "gachaPull10", |_a| gacha_pull10().await);
     am!(api, "decoSet", |a| deco_set(a[0].clone()).await);
     am!(api, "giphyGet", |_a| {
         let sn = get_doc(d(&["meta", "giphy"])).await?;

@@ -1,4 +1,4 @@
-// 화면: 메뉴(줄 세 개) → 뽑기(10 멸공) → 결과 창 → 바로 끼기, 인벤에서 끼기/빼기, 다른 화면의 내 동그라미에 장신구
+// 화면: 메뉴(줄 세 개) → 뽑기. 이미 가진 장신구는 다시 안 나와요 (1번·10번 모두). 인벤에는 가진 것만, 여러 개 같이 끼기
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -8,8 +8,7 @@ const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default
 const H = { 'content-type': 'application/json', authorization: 'Bearer owner' };
 const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json());
 const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
-const T = [[15, 'lambo'], [40, 'goldbar'], [75, 'wallet'], [115, 'watch'], [160, 'chain'], [215, 'headphones'], [275, 'cap'], [335, 'sunglasses'], [400, 'glasses'], [540, 'coffee'], [690, 'duck'], [840, 'banana'], [1000, 'branch']];
-const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]) => ms % 1000 < x)[1]; };
+const items = async (uid) => ((await raw(`owned/${uid}`)).fields?.items?.arrayValue?.values || []).map((v) => v.stringValue);
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message));
@@ -20,65 +19,51 @@ const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]
   await p.evaluate((u) => window.cloud.signUp(u, 'abc123', '뽑기왕'), id);
   await p.reload(); await p.waitForTimeout(6000);
   const uid = await p.evaluate(() => window.cloud.uid);
-  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { bal: { integerValue: '200' } } }) });
+  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { bal: { integerValue: '300' } } }) });
+  // 가방에 안경·야구모자를 미리 넣어 둬요
+  await fetch(`${DB}/owned/${uid}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { items: { arrayValue: { values: [{ stringValue: 'glasses' }, { stringValue: 'cap' }] } }, pend: { arrayValue: {} } } }) });
   await p.waitForTimeout(1500);
   const toast = async (t) => { for (let i = 0; i < 60; i++) { if (((await p.textContent('.toast').catch(() => '')) || '').includes(t)) return true; await p.waitForTimeout(250); } return false; };
-  const menu = async (go) => { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500); await p.click(`.qm-row[data-go="${go}"]`); await p.waitForTimeout(1500); };
+  const menu = async (go) => { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500); await p.click(`.qm-row[data-go="${go}"]`); await p.waitForTimeout(2000); };
   await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500);
   const rows = await p.evaluate(() => [...document.querySelectorAll('.qm-row')].map((e) => e.textContent));
   ok('메뉴에 뽑기·인벤', rows.includes('뽑기') && rows.includes('인벤'));
-  await p.click('.qm-row[data-go="gacha"]'); await p.waitForTimeout(1500);
+  await p.click('.qm-row[data-go="gacha"]'); await p.waitForTimeout(2500);
   const g = await p.textContent('#gacha-root');
-  ok('뽑기 화면: 10 멸공 버튼과 등급별 확률', g.includes('1번 뽑기') && g.includes('10번 뽑기') && g.includes('100 멸공') && g.includes('람보르기니') && g.includes('1.5%') && g.includes('명품 지갑') && g.includes('전설') && g.includes('영웅') && g.includes('희귀') && g.includes('일반'));
+  ok('뽑기 화면: 1번·10번 버튼, 낮아진 확률, 모은 수', g.includes('1번 뽑기') && g.includes('10번 뽑기') && g.includes('0.3%') && g.includes('모은 장신구 2/13'));
   ok('장신구 13종 사진', (await p.$$('#gacha-root .gc-tile img')).length === 13);
-  ok('사진 출처', (await p.textContent('.gc-cred')).includes('사진 출처'));
   await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha.png') });
-  await p.click('#gc-go'); await p.waitForTimeout(4500);
+  await p.click('#gc-go'); await p.waitForTimeout(5000);
   ok('결과 창', await p.isVisible('#gc-result .gc-card'));
   const shown = await p.getAttribute('#gc-result [data-act="wear"]', 'data-item');
-  const pulls = (await raw('pulls')).documents || [];
-  ok('서버: 뽑기 하나, 지갑 190', pulls.length === 1 && int((await raw(`wallets/${uid}`)).fields?.bal) === 190);
-  ok('결과는 서버 시각으로 정한 등급과 같아요', shown === tierOf(pulls[0].fields.at.timestampValue));
+  const it1 = await items(uid);
+  ok('1번 뽑기: 가진 것(안경·모자)은 안 나오고 가방에 붙어요', !['glasses', 'cap'].includes(shown) && it1.length === 3 && it1[2] === shown);
+  ok('서버: 지갑 290', int((await raw(`wallets/${uid}`)).fields?.bal) === 290);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha-result.png') });
-  await p.click('#gc-result [data-act="wear"]');
-  ok('바로 끼기', await toast('꼈어요'));
-  await p.waitForTimeout(2500);
-  // 10번 뽑기
-  await menu('gacha');
-  await p.click('#gc-go10'); await p.waitForTimeout(5500);
-  ok('10번 뽑기: 10칸 결과', (await p.$$('#gc-result .gc-r10')).length === 10);
-  const all = ((await raw('pulls?pageSize=50')).documents || []);
-  ok('서버: 뽑기 11개, 지갑 90', all.length === 11 && int((await raw(`wallets/${uid}`)).fields?.bal) === 90);
+  await p.click('#gc-result [data-act="close"]'); await p.waitForTimeout(2600);
+  // 10번 뽑기: 남은 10종이 모두, 중복 없이
+  await p.click('#gc-go10'); await p.waitForTimeout(6000);
+  ok('10번 뽑기: 10칸', (await p.$$('#gc-result .gc-r10')).length === 10);
+  const it2 = await items(uid);
+  ok('서버: 13종 모두, 중복 없음, 지갑 190', it2.length === 13 && new Set(it2).size === 13 && int((await raw(`wallets/${uid}`)).fields?.bal) === 190);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha-10.png') });
-  await p.click('#gc-result [data-act="close"]'); await p.waitForTimeout(600);
-  await p.waitForTimeout(1000);
-  ok('서버: 프로필에 장신구', ((await raw(`profiles/${uid}`)).fields?.decos?.arrayValue?.values?.[0]?.mapValue?.fields?.k?.stringValue) === shown);
+  await p.click('#gc-result [data-act="close"]'); await p.waitForTimeout(800);
+  ok('다 모으면 더 뽑을 수 없어요', (await p.textContent('#gacha-root')).includes('모든 장신구를 모았어요') && !(await p.$('#gc-go')));
+  // 인벤: 가진 것만
   await menu('inv');
-  ok('인벤: 끼는 중, 내 동그라미에 장신구', (await p.textContent('#inv-root')).includes('끼는 중') && await p.isVisible(`#inv-root .iv-hero .dc-${shown}`));
-  ok('안 뽑은 건 잠겨 있어요', (await p.$$('#inv-root .iv-card.locked')).length + (await p.$$('#inv-root .iv-card:not(.locked)')).length === 13 && (await p.$$('#inv-root .iv-card.locked')).length < 13);
-  await p.screenshot({ path: path.join(__dirname, 'shots', 'inv.png') });
-  await p.click('#inv-root [data-act="off"]');
-  ok('빼기', await toast('뺐어요'));
-  await p.waitForTimeout(800);
-  await p.click('#inv-root [data-act="wear"]');
-  ok('다시 끼기', await toast('꼈어요'));
-  // 여러 개 같이 끼기: 결과가 정해진 뽑기 기록(시각 밀리초 끝 세 자리)으로 안경(350)과 야구모자(250)를 넣어요
-  const put = (id, ms) => fetch(`${DB}/pulls/${id}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { by: { stringValue: uid }, at: { timestampValue: new Date(Math.floor(Date.now() / 1000) * 1000 + ms).toISOString() } } }) });
-  await put('tglasses', 350); await put('tcap', 250);
-  await menu('inv'); await p.waitForTimeout(1500);
-  for (const k of ['glasses', 'cap']) { if (shown !== k) { await p.click(`#inv-root [data-act="wear"][data-item="${k}"]`); await toast('꼈어요'); await p.waitForTimeout(2200); } }
+  ok('인벤: 가진 것만 (13개), 잠긴 칸 없음', (await p.$$('#inv-root .iv-card')).length === 13 && !(await p.$('#inv-root .iv-card.locked')));
+  for (const k of ['glasses', 'cap']) { await p.click(`#inv-root [data-act="wear"][data-item="${k}"]`); await toast('꼈어요'); await p.waitForTimeout(1500); }
   const decos = ((await raw(`profiles/${uid}`)).fields?.decos?.arrayValue?.values || []).map((v) => v.mapValue.fields.k.stringValue);
-  console.log('decos', decos, await p.textContent('#inv-root .iv-hero'));
   ok('여러 개 같이 끼기 (자리마다 하나)', decos.includes('glasses') && decos.includes('cap') && await p.isVisible('#inv-root .iv-hero .dc-glasses') && await p.isVisible('#inv-root .iv-hero .dc-cap'));
-  await p.evaluate(() => { document.getElementById('screen-inv').scrollTop = 0; }); await p.waitForTimeout(400);
+  await p.click('#inv-root [data-act="off"][data-item="cap"]');
+  ok('빼기', await toast('뺐어요'));
+  await p.waitForTimeout(1200);
+  await p.click('#inv-root [data-act="wear"][data-item="cap"]'); await toast('꼈어요'); await p.waitForTimeout(1200);
+  await p.evaluate(() => { document.getElementById('screen-inv').scrollTop = 0; }); await p.waitForTimeout(300);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'inv-multi.png') });
-  // SNS 게시물의 내 동그라미에 장신구
   await p.evaluate(() => window.cloud.postCreate('장신구 자랑', '', '', ''));
   await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="untitled3"]').click()); await p.waitForTimeout(3000);
-  ok('SNS 게시물 내 동그라미에 장신구', await p.isVisible(`#sns-feed .dc-glasses`) && await p.isVisible(`#sns-feed .dc-cap`));
-  // 탭 바: 릴스(검은 화면)에서도 밝아요
-  await p.evaluate(() => document.querySelector('.tabbar .tab[data-tab="reels"]').click()); await p.waitForTimeout(2000);
-  await p.screenshot({ path: path.join(__dirname, 'shots', 'reels-bar.png') });
+  ok('SNS 게시물 내 동그라미에 장신구', await p.isVisible('#sns-feed .dc-glasses') && await p.isVisible('#sns-feed .dc-cap'));
   ok('화면 오류 없음', p.errs.length === 0); if (p.errs.length) console.log(p.errs.slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close();

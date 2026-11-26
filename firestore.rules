@@ -136,21 +136,27 @@ service cloud.firestore {
     }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
-    // 뽑기 결과: 뽑은 순간의 서버 시각(밀리초 끝 세 자리, 0~999)으로 정해요. 앱이 고를 수 없어요 (천분율 확률은 앱의 gacha.rs와 같아요)
-    // n: 10연차에서 몇 번째인지 (0~9). 같은 순간에 뽑아도 칸마다 다른 간격을 더해 결과가 달라요
-    function pullTier(ts, n) {
-      return pullOf((ts.toMillis() + [0, 383, 761, 127, 512, 894, 266, 649, 38, 421][n]) % 1000);
+    // ----- 뽑기 (중복 없음): 장신구 13종의 천분율 확률. 이미 가진 것은 빼고, 남은 것끼리 같은 비율로 나눠요 -----
+    //   1단계(멸공 내기)에서 뽑기권(pulls)에 서버 시각이 찍히고, 2단계(받기)에서 그 시각과 "그때까지 가진 것"으로 결과가 정해져요.
+    //   앱은 결과를 고를 수 없어요: 아래 pickOk가 받기 묶음의 결과를 하나하나 같은 계산으로 검사해요 (gacha.rs와 같은 계산)
+    function gW() { return {'lambo': 3, 'goldbar': 7, 'wallet': 15, 'watch': 20, 'chain': 25, 'headphones': 40, 'cap': 45, 'sunglasses': 50, 'glasses': 55, 'coffee': 170, 'duck': 180, 'banana': 190, 'branch': 200}; }
+    function gIdx() { return {'lambo': 0, 'goldbar': 1, 'wallet': 2, 'watch': 3, 'chain': 4, 'headphones': 5, 'cap': 6, 'sunglasses': 7, 'glasses': 8, 'coffee': 9, 'duck': 10, 'banana': 11, 'branch': 12}; }
+    // m(0~999)을 남은 무게로 늘려서, k의 구간 안에 들어가는지. r: 남은 무게 합, b: k보다 앞(더 귀한 쪽)의 아직 없는 것들의 무게 합
+    function pickOk(k, m, o) {
+      let ik = gIdx()[k];
+      let r = 1000 - ((('lambo' in o) ? 3 : 0) + (('goldbar' in o) ? 7 : 0) + (('wallet' in o) ? 15 : 0) + (('watch' in o) ? 20 : 0) + (('chain' in o) ? 25 : 0) + (('headphones' in o) ? 40 : 0) + (('cap' in o) ? 45 : 0) + (('sunglasses' in o) ? 50 : 0) + (('glasses' in o) ? 55 : 0) + (('coffee' in o) ? 170 : 0) + (('duck' in o) ? 180 : 0) + (('banana' in o) ? 190 : 0) + (('branch' in o) ? 200 : 0));
+      let b = ((ik > 0 && !('lambo' in o)) ? 3 : 0) + ((ik > 1 && !('goldbar' in o)) ? 7 : 0) + ((ik > 2 && !('wallet' in o)) ? 15 : 0) + ((ik > 3 && !('watch' in o)) ? 20 : 0) + ((ik > 4 && !('chain' in o)) ? 25 : 0) + ((ik > 5 && !('headphones' in o)) ? 40 : 0) + ((ik > 6 && !('cap' in o)) ? 45 : 0) + ((ik > 7 && !('sunglasses' in o)) ? 50 : 0) + ((ik > 8 && !('glasses' in o)) ? 55 : 0) + ((ik > 9 && !('coffee' in o)) ? 170 : 0) + ((ik > 10 && !('duck' in o)) ? 180 : 0) + ((ik > 11 && !('banana' in o)) ? 190 : 0) + ((ik > 12 && !('branch' in o)) ? 200 : 0);
+      return !(k in o) && m * r >= 1000 * b && m * r < 1000 * (b + gW()[k]);
     }
-    function pullOf(m) {
-      return m < 15 ? 'lambo' : m < 40 ? 'goldbar' : m < 75 ? 'wallet' : m < 115 ? 'watch' : m < 160 ? 'chain'
-        : m < 215 ? 'headphones' : m < 275 ? 'cap' : m < 335 ? 'sunglasses' : m < 400 ? 'glasses'
-        : m < 540 ? 'coffee' : m < 690 ? 'duck' : m < 840 ? 'banana' : 'branch';
-    }
-    // 낀 장신구 하나: 내가 뽑은 기록(p)이고, 그 기록의 결과(k)와 같아야 해요
+    // 10번 뽑기에서 칸마다 더하는 간격 (같은 순간에 뽑아도 칸마다 달라요)
+    function gOff(n) { return [0, 383, 761, 127, 512, 894, 266, 649, 38, 421][n]; }
+    // 목록의 앞 n개 (n이 0이면 빈 목록. 규칙은 빈 범위를 자르면 오류가 나요)
+    function upto(l, n) { return n == 0 ? [] : l[0:n]; }
+    function ownedPath(u) { return /databases/$(database)/documents/owned/$(u); }
+    // 낀 장신구 하나: 내 가방(owned)에 있는 것만
     function decoOk(x, uid) {
-      return x is map && x.keys().hasOnly(['k', 'p']) && x.p is string
-        && get(/databases/$(database)/documents/pulls/$(x.p)).data.by == uid
-        && x.k == pullTier(get(/databases/$(database)/documents/pulls/$(x.p)).data.at, get(/databases/$(database)/documents/pulls/$(x.p)).data.get('n', 0));
+      return x is map && x.keys().hasOnly(['k']) && x.k is string
+        && x.k in get(ownedPath(uid)).data.items;
     }
     function isOwner() { return signedIn() && request.auth.token.email == 'owner@money-sim.app'; }
     function adminPath() { return /databases/$(database)/documents/adminAuth/$(request.auth.uid); }
@@ -1048,12 +1054,14 @@ service cloud.firestore {
             && request.resource.data.op.pid is string
             && !exists(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid))
             && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid)).data.by == uid
+            && getAfter(ownedPath(uid)).data.pend == [request.resource.data.op.pid]
             && request.resource.data.bal == resource.data.bal - 10)
-          // 10연차: 뽑기 번호 10개, 딱 100 멸공
+          // 10번 뽑기: 뽑기권 10장, 딱 100 멸공
           || (request.resource.data.op.kind == 'gacha10'
             && request.resource.data.op.pids is list && request.resource.data.op.pids.size() == 10
             && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pids[0])).data.by == uid
             && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pids[9])).data.by == uid
+            && getAfter(ownedPath(uid)).data.pend == request.resource.data.op.pids
             && request.resource.data.bal == resource.data.bal - 100)
         );
 
@@ -1592,24 +1600,62 @@ service cloud.firestore {
       }
     }
 
-    // 뽑기 기록: 나만 읽고, 지갑에서 10 멸공이 같은 묶음으로 빠질 때만 생겨요. 시각(at)이 등급을 정해요
+    // 뽑기권: 멸공을 내는 묶음에서 생기고(서버 시각 at), 받기 묶음에서 결과(k)가 한 번 적혀요
     match /pulls/{pid} {
+      function wAfter() { return getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data; }
       allow get: if signedIn() && resource.data.by == request.auth.uid;
-      allow list: if signedIn() && request.query.limit <= 300 && resource.data.by == request.auth.uid;
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['by', 'at', 'n'])
         && request.resource.data.by == request.auth.uid
         && request.resource.data.at == request.time
-        && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.wt == request.time
+        && request.resource.data.n is int && request.resource.data.n >= 0 && request.resource.data.n <= 9
+        && wAfter().wt == request.time
+        && ((wAfter().op.kind == 'gacha' && wAfter().op.pid == pid && request.resource.data.n == 0)
+          || (wAfter().op.kind == 'gacha10' && wAfter().op.pids[request.resource.data.n] == pid));
+      // 받기: 내 가방의 "받을 것" 자리에 있는 뽑기권만, 정해진 결과로 한 번
+      allow update: if signedIn() && resource.data.by == request.auth.uid
+        && !('k' in resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['k'])
+        && get(ownedPath(request.auth.uid)).data.pend[resource.data.n] == pid
+        && getAfter(ownedPath(request.auth.uid)).data.pend.size() == 0
+        && getAfter(ownedPath(request.auth.uid)).data.items[get(ownedPath(request.auth.uid)).data.items.size() + resource.data.n] == request.resource.data.k
+        && pickOk(request.resource.data.k, (resource.data.at.toMillis() + gOff(resource.data.n)) % 1000,
+             upto(getAfter(ownedPath(request.auth.uid)).data.items, get(ownedPath(request.auth.uid)).data.items.size() + resource.data.n));
+    }
+
+    // 내 가방 (가진 장신구, 중복 없음). 멸공을 낼 때 받을 뽑기권(pend)이 적히고, 받기 묶음에서 결과가 뒤에 붙어요
+    match /owned/{uid} {
+      function oItems() { return resource == null ? [] : resource.data.items; }
+      function oPend() { return resource == null ? [] : resource.data.pend; }
+      function wA() { return getAfter(/databases/$(database)/documents/wallets/$(uid)).data; }
+      function newK(j) { return getAfter(/databases/$(database)/documents/pulls/$(oPend()[j])).data.k; }
+      allow get: if isMe(uid);
+      allow create, update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['items', 'pend'])
+        && request.resource.data.items is list && request.resource.data.pend is list
         && (
-          // 한 번 뽑기
-          (getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.kind == 'gacha'
-            && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.pid == pid
-            && request.resource.data.get('n', 0) == 0)
-          // 10연차: 지갑 기록의 n번째 번호가 이 뽑기예요
-          || (getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.kind == 'gacha10'
-            && request.resource.data.n is int && request.resource.data.n >= 0 && request.resource.data.n <= 9
-            && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.pids[request.resource.data.n] == pid)
+          // 멸공 내기: 가진 것은 그대로, 받을 뽑기권만 적어요 (남은 종류가 모자라면 못 뽑아요)
+          (oPend().size() == 0
+            && wA().wt == request.time && wA().op.kind in ['gacha', 'gacha10']
+            && request.resource.data.items == oItems()
+            && request.resource.data.pend == (wA().op.kind == 'gacha' ? [wA().op.pid] : wA().op.pids)
+            && 13 - oItems().size() >= request.resource.data.pend.size())
+          ||
+          // 받기: 받을 뽑기권 수만큼 결과가 뒤에 붙고, 각 결과는 같은 묶음에서 뽑기권에 적힌 것과 같아요
+          (oPend().size() > 0
+            && request.resource.data.pend.size() == 0
+            && request.resource.data.items.size() == oItems().size() + oPend().size()
+            && upto(request.resource.data.items, oItems().size()) == oItems()
+            && newK(0) == request.resource.data.items[oItems().size()]
+            && (oPend().size() < 2 || newK(1) == request.resource.data.items[oItems().size() + 1])
+            && (oPend().size() < 3 || newK(2) == request.resource.data.items[oItems().size() + 2])
+            && (oPend().size() < 4 || newK(3) == request.resource.data.items[oItems().size() + 3])
+            && (oPend().size() < 5 || newK(4) == request.resource.data.items[oItems().size() + 4])
+            && (oPend().size() < 6 || newK(5) == request.resource.data.items[oItems().size() + 5])
+            && (oPend().size() < 7 || newK(6) == request.resource.data.items[oItems().size() + 6])
+            && (oPend().size() < 8 || newK(7) == request.resource.data.items[oItems().size() + 7])
+            && (oPend().size() < 9 || newK(8) == request.resource.data.items[oItems().size() + 8])
+            && (oPend().size() < 10 || newK(9) == request.resource.data.items[oItems().size() + 9]))
         );
     }
 
