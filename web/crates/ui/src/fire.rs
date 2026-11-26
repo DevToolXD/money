@@ -1375,6 +1375,58 @@ async fn presence_list() -> R {
     Ok(out.into())
 }
 
+/* ---------- 공모전 ---------- */
+async fn contest_list() -> R {
+    let snap = rethrow(get_docs(q(c(&["contests"]), vec![order("at", Some("desc")), lim(20.0)])).await)?;
+    Ok(docs(&snap)
+        .iter()
+        .map(|dd| {
+            let x = data(dd);
+            o(&[("id", get(dd, "id")), ("title", get(&x, "title")), ("open", (get(&x, "open") == JsValue::TRUE).into()), ("n", get(&x, "n")), ("at", n(ms(&get(&x, "at"))))])
+        })
+        .collect::<js_sys::Array>()
+        .into())
+}
+/// 사진들 (표 많은 순, 100개)
+async fn contest_entries(cid: String) -> R {
+    let snap = rethrow(get_docs(q(c(&["contests", &cid, "entries"]), vec![order("votes", Some("desc")), lim(100.0)])).await)?;
+    Ok(docs(&snap)
+        .iter()
+        .map(|dd| {
+            let x = data(dd);
+            o(&[("by", get(dd, "id")), ("img", get(&x, "img")), ("votes", get(&x, "votes")), ("at", n(ms(&get(&x, "at"))))])
+        })
+        .collect::<js_sys::Array>()
+        .into())
+}
+/// 사진 올리기: 내 자리(내 uid)에 하나, 참가 수 +1을 같은 묶음으로
+async fn contest_enter(cid: String, img_: String) -> R {
+    let uid = uid_of()?;
+    let b = batch();
+    m(&b, "set", &[d(&["contests", &cid, "entries", &uid]), o(&[("by", s(&uid)), ("img", s(&img_)), ("at", ts()), ("votes", n(0.0))])])?;
+    m(&b, "update", &[d(&["contests", &cid]), o(&[("n", inc(1.0))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+/// 투표·바꾸기·취소 (old: 지금 내 표, 같은 사진을 다시 누르면 취소)
+async fn contest_vote(cid: String, entry: String, old: String) -> R {
+    let me_ = uid_of()?;
+    let vr = d(&["contests", &cid, "votes", &me_]);
+    let b = batch();
+    if old == entry {
+        m(&b, "delete", &[vr])?;
+        m(&b, "update", &[d(&["contests", &cid, "entries", &entry]), o(&[("votes", inc(-1.0))])])?;
+    } else {
+        m(&b, "set", &[vr, o(&[("entry", s(&entry)), ("at", ts())])])?;
+        m(&b, "update", &[d(&["contests", &cid, "entries", &entry]), o(&[("votes", inc(1.0))])])?;
+        if !old.is_empty() {
+            m(&b, "update", &[d(&["contests", &cid, "entries", &old]), o(&[("votes", inc(-1.0))])])?;
+        }
+    }
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
+
 /* ---------- 뽑기와 장신구 ---------- */
 /// 10 멸공으로 한 번 뽑아요. 등급은 서버가 찍은 시각으로 정해져서, 다시 읽어 그 시각을 돌려줘요 ({id, at})
 async fn gacha_pull() -> R {
@@ -1840,6 +1892,16 @@ fn build() -> js_sys::Object {
     am!(api, "reelGift", |a| reel_gift(sa(&a[0]), sa(&a[1]), num(&a[2])).await);
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "gachaPull", |_a| gacha_pull().await);
+    am!(api, "contestList", |_a| contest_list().await);
+    am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));
+    am!(api, "contestClose", |a| rethrow(update_doc(d(&["contests", &sa(&a[0])]), o(&[("open", false.into()), ("end", ts())])).await));
+    am!(api, "contestEntries", |a| contest_entries(sa(&a[0])).await);
+    am!(api, "contestMyVote", |a| {
+        let sn = get_doc(d(&["contests", &sa(&a[0]), "votes", &uid_of()?])).await?;
+        Ok(if exists(&sn) { get(&data(&sn), "entry") } else { s("") })
+    });
+    am!(api, "contestEnter", |a| contest_enter(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "contestVote", |a| contest_vote(sa(&a[0]), sa(&a[1]), opt_s(&a[2])).await);
     am!(api, "gachaList", |_a| gacha_list().await);
     am!(api, "decoSet", |a| deco_set(sa(&a[0]), opt_s(&a[1])).await);
     am!(api, "giphyGet", |_a| {

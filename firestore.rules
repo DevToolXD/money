@@ -1504,6 +1504,71 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
 
+    // ----- 공모전: 관리자만 열고 닫아요. 사람마다 사진 하나, 한 표 (바꾸기·취소 가능). 표 수는 투표와 같은 묶음에서 1씩만 -----
+    match /contests/{cid} {
+      function contestOpen() { return get(/databases/$(database)/documents/contests/$(cid)).data.open == true; }
+      function entryPath(e) { return /databases/$(database)/documents/contests/$(cid)/entries/$(e); }
+      function votePath(u) { return /databases/$(database)/documents/contests/$(cid)/votes/$(u); }
+      allow read: if signedIn();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly(['title', 'open', 'at', 'n'])
+        && request.resource.data.title is string && request.resource.data.title.matches('^[^<>]{1,40}$')
+        && request.resource.data.open == true && request.resource.data.n == 0
+        && request.resource.data.at == request.time;
+      allow update: if
+        // 종료: 관리자만, 한 번
+        (isOwner() && resource.data.open == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['open', 'end'])
+          && request.resource.data.open == false && request.resource.data.end == request.time)
+        // 참가 수: 내 사진이 같은 묶음에서 새로 생길 때만 1 늘어요
+        || (signedIn() && resource.data.open == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['n'])
+          && request.resource.data.n == resource.data.n + 1
+          && !exists(entryPath(request.auth.uid)) && existsAfter(entryPath(request.auth.uid)));
+
+      match /entries/{e} {
+        allow read: if signedIn();
+        allow create: if signedIn() && e == request.auth.uid && contestOpen()
+          && request.resource.data.keys().hasOnly(['by', 'img', 'at', 'votes'])
+          && request.resource.data.by == request.auth.uid
+          && img(request.resource.data.img, 300000)
+          && request.resource.data.at == request.time
+          && request.resource.data.votes == 0
+          && getAfter(/databases/$(database)/documents/contests/$(cid)).data.n == get(/databases/$(database)/documents/contests/$(cid)).data.n + 1;
+        // 표 수: 같은 묶음에서 내 표가 이 사진으로 오면 +1, 이 사진에서 떠나면 -1
+        allow update: if signedIn() && contestOpen()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes'])
+          && (
+            (request.resource.data.votes == resource.data.votes + 1
+              && (!exists(votePath(request.auth.uid)) || get(votePath(request.auth.uid)).data.entry != e)
+              && getAfter(votePath(request.auth.uid)).data.entry == e)
+            || (request.resource.data.votes == resource.data.votes - 1
+              && exists(votePath(request.auth.uid)) && get(votePath(request.auth.uid)).data.entry == e
+              && (!existsAfter(votePath(request.auth.uid)) || getAfter(votePath(request.auth.uid)).data.entry != e))
+          );
+      }
+      match /votes/{u} {
+        allow get: if signedIn() && u == request.auth.uid;
+        // 투표: 내 사진에는 못 하고, 고른 사진의 표가 같은 묶음에서 1 늘어요
+        allow create: if signedIn() && u == request.auth.uid && contestOpen()
+          && request.resource.data.keys().hasOnly(['entry', 'at'])
+          && request.resource.data.entry is string && request.resource.data.entry != request.auth.uid
+          && request.resource.data.at == request.time
+          && getAfter(entryPath(request.resource.data.entry)).data.votes == get(entryPath(request.resource.data.entry)).data.votes + 1;
+        // 바꾸기: 새 사진 +1, 옛 사진 -1
+        allow update: if signedIn() && u == request.auth.uid && contestOpen()
+          && request.resource.data.keys().hasOnly(['entry', 'at'])
+          && request.resource.data.entry is string && request.resource.data.entry != request.auth.uid
+          && request.resource.data.entry != resource.data.entry
+          && request.resource.data.at == request.time
+          && getAfter(entryPath(request.resource.data.entry)).data.votes == get(entryPath(request.resource.data.entry)).data.votes + 1
+          && getAfter(entryPath(resource.data.entry)).data.votes == get(entryPath(resource.data.entry)).data.votes - 1;
+        // 취소: 옛 사진 -1
+        allow delete: if signedIn() && u == request.auth.uid && contestOpen()
+          && getAfter(entryPath(resource.data.entry)).data.votes == get(entryPath(resource.data.entry)).data.votes - 1;
+      }
+    }
+
     // 뽑기 기록: 나만 읽고, 지갑에서 10 멸공이 같은 묶음으로 빠질 때만 생겨요. 시각(at)이 등급을 정해요
     match /pulls/{pid} {
       allow get: if signedIn() && resource.data.by == request.auth.uid;

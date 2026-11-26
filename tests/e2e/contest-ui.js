@@ -1,0 +1,75 @@
+// 화면: 공모전. owner만 제목을 정해 열고, 사람들은 사진을 하나 올리고 남의 사진에 한 표 (옮기기·취소), owner가 끝내면 등수
+const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
+const emu = fs.readFileSync(path.join(__dirname, '..', 'out', 'firebase.emu.js'), 'utf8');
+const res = []; const ok = (n, v) => { res.push(!!v); console.log((v ? 'PASS ' : 'FAIL ') + n); };
+const DB = 'http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents';
+const H = { 'content-type': 'application/json', authorization: 'Bearer owner' };
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--disable-web-security'] });
+  const mk = async (id, name) => {
+    const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message));
+    await p.route('**/app/firebase.js*', (r) => r.fulfill({ contentType: 'text/javascript', body: emu }));
+    await p.route('**/index.html*', async (r) => { const resp = await r.fetch(); const t = (await resp.text()).replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:*"); r.fulfill({ response: resp, body: t }); });
+    await p.goto('http://127.0.0.1:8765/index.html'); await p.waitForTimeout(3500);
+    await p.evaluate(([u, n]) => window.cloud.signUp(u, 'abc123', n), [id, name]);
+    await p.reload(); await p.waitForTimeout(6000);
+    return p;
+  };
+  const menu = async (p) => { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500); await p.click('.qm-row[data-go="contest"]'); await p.waitForTimeout(2000); };
+  const toast = async (p, t) => { for (let i = 0; i < 60; i++) { if (((await p.textContent('.toast').catch(() => '')) || '').includes(t)) return true; await p.waitForTimeout(250); } return false; };
+  const t = Date.now().toString(36).slice(-4);
+  const O = await mk('owner', '관리자');
+  const A = await mk('ca' + t, '사진가');
+  const B = await mk('cb' + t, '심사위원');
+  await menu(A);
+  ok('보통 사람은 공모전을 못 열어요', !(await A.$('#ct-title')) && (await A.textContent('#contest-root')).includes('아직 열린 공모전이 없어요'));
+  await menu(O);
+  ok('owner는 제목을 적어 열어요', await O.isVisible('#ct-title'));
+  await O.fill('#ct-title', '가을 풍경 사진전'); await O.click('#ct-make');
+  ok('공모전을 열었어요', await toast(O, '공모전을 열었어요'));
+  await O.waitForTimeout(1500);
+  ok('목록에 진행 중', (await O.textContent('#contest-root')).includes('가을 풍경 사진전') && (await O.textContent('#contest-root')).includes('진행 중'));
+  // A: 사진 올리기
+  await menu(A);
+  await A.click('#contest-root [data-cid]'); await A.waitForTimeout(2000);
+  ok('공모전 안: 제목과 사진 올리기', (await A.textContent('.ct-title')) === '가을 풍경 사진전' && await A.isVisible('[data-act="enter"]') && !(await A.$('[data-act="close"]')));
+  await A.setInputFiles('#ct-file', { name: 'a.png', mimeType: 'image/png', buffer: PNG });
+  ok('사진을 올렸어요', await toast(A, '사진을 올렸어요'));
+  await A.waitForTimeout(2000);
+  ok('내 사진은 "내 사진", 올리기 버튼은 사라져요', (await A.textContent('.ct-grid')).includes('내 사진') && !(await A.isVisible('[data-act="enter"]')));
+  // B: 사진 올리고 A 사진에 투표
+  await menu(B);
+  await B.click('#contest-root [data-cid]'); await B.waitForTimeout(2000);
+  await B.setInputFiles('#ct-file', { name: 'b.png', mimeType: 'image/png', buffer: PNG });
+  await toast(B, '사진을 올렸어요'); await B.waitForTimeout(2000);
+  await B.click('.ct-vote'); 
+  ok('투표했어요', await toast(B, '투표했어요'));
+  await B.waitForTimeout(1500);
+  ok('표 수 1, 투표함', (await B.textContent('.ct-grid')).includes('1표') && (await B.textContent('.ct-vote.on')).includes('투표함'));
+  await B.screenshot({ path: path.join(__dirname, 'shots', 'contest.png') });
+  await B.click('.ct-vote.on'); 
+  ok('같은 사진을 다시 누르면 취소', await toast(B, '투표를 취소했어요'));
+  await B.waitForTimeout(1500);
+  await B.click('.ct-vote');
+  await toast(B, '투표했어요'); await B.waitForTimeout(1500);
+  const votes = ((await (await fetch(`${DB}/contests`, { headers: H })).json()).documents || [])[0];
+  const cid = votes.name.split('/').pop();
+  const ent = ((await (await fetch(`${DB}/contests/${cid}/entries`, { headers: H })).json()).documents || []).map((d) => Number(d.fields.votes.integerValue));
+  ok('서버: 사진 2장, 표 합 1', ent.length === 2 && ent.reduce((a, b) => a + b, 0) === 1);
+  // owner 종료
+  await menu(O);
+  await O.click('#contest-root [data-cid]'); await O.waitForTimeout(2000);
+  await O.click('[data-act="close"]'); await O.waitForTimeout(600); await O.click('#alert-ok');
+  ok('공모전을 끝냈어요', await toast(O, '공모전을 끝냈어요'));
+  await O.waitForTimeout(2000);
+  ok('끝나면 1등 표시, 투표 버튼 없음', (await O.textContent('.ct-grid')).includes('1등') && !(await O.$('.ct-vote')) && (await O.textContent('.ct-badge')).includes('종료'));
+  await O.screenshot({ path: path.join(__dirname, 'shots', 'contest-end.png') });
+  const errs = [...O.errs, ...A.errs, ...B.errs];
+  ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
+  console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
+  await b.close();
+  process.exit(res.every(Boolean) ? 0 : 1);
+})();

@@ -19,6 +19,7 @@ pub mod reels;
 pub mod reel_comments;
 pub mod gacha;
 pub mod algo;
+pub mod contest;
 pub mod invite;
 pub mod manage;
 pub mod map;

@@ -336,6 +336,42 @@ await t("뽑기: 10 멸공이 같은 묶음으로 빠질 때만, 장신구는 �
   await assertFails(getDocs(query(collection(pw("uB", "bob"), "pulls"), limit(10))));
   await assertSucceeds(getDocs(query(collection(A, "pulls"), where("by", "==", "uA"), limit(300))));
 });
+await t("공모전: 관리자만 열고 닫고, 사진 하나·한 표, 표 수는 같은 묶음으로만", async () => {
+  await seed(seedBase);
+  const O = pw("uOwner", "owner"), A = pw("uA", "alice"), B = pw("uB", "bob");
+  await assertFails(setDoc(doc(A, "contests/c1"), { title: "사진전", open: true, at: serverTimestamp(), n: 0 }));
+  await assertSucceeds(setDoc(doc(O, "contests/c1"), { title: "사진전", open: true, at: serverTimestamp(), n: 0 }));
+  const enter = (db, uid) => {
+    const b = writeBatch(db);
+    b.set(doc(db, `contests/c1/entries/${uid}`), { by: uid, img: JPEG, at: serverTimestamp(), votes: 0 });
+    b.update(doc(db, "contests/c1"), { n: increment(1) });
+    return b.commit();
+  };
+  await assertFails(setDoc(doc(A, "contests/c1/entries/uA"), { by: "uA", img: JPEG, at: serverTimestamp(), votes: 0 })); // 참가 수 없이
+  await assertFails(enter(A, "uB")); // 남의 자리
+  await assertSucceeds(enter(A, "uA"));
+  await assertSucceeds(enter(B, "uB"));
+  await assertFails(enter(A, "uA")); // 두 번
+  const vote = (db, me, e, delta = 1) => {
+    const b = writeBatch(db);
+    b.set(doc(db, `contests/c1/votes/${me}`), { entry: e, at: serverTimestamp() });
+    b.update(doc(db, `contests/c1/entries/${e}`), { votes: increment(delta) });
+    return b.commit();
+  };
+  await assertFails(vote(A, "uA", "uA")); // 내 사진
+  await assertFails(vote(B, "uB", "uA", 5)); // 표 부풀리기
+  await assertFails(updateDoc(doc(B, "contests/c1/entries/uA"), { votes: increment(1) })); // 투표 없이
+  await assertSucceeds(vote(B, "uB", "uA"));
+  await assertFails(updateDoc(doc(B, "contests/c1/entries/uA"), { votes: increment(1) })); // 같은 표로 또
+  // 취소
+  const un = writeBatch(B); un.delete(doc(B, "contests/c1/votes/uB")); un.update(doc(B, "contests/c1/entries/uA"), { votes: increment(-1) });
+  await assertSucceeds(un.commit());
+  await assertSucceeds(vote(B, "uB", "uA"));
+  await assertFails(updateDoc(doc(A, "contests/c1"), { open: false, end: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(O, "contests/c1"), { open: false, end: serverTimestamp() }));
+  const un2 = writeBatch(B); un2.delete(doc(B, "contests/c1/votes/uB")); un2.update(doc(B, "contests/c1/entries/uA"), { votes: increment(-1) });
+  await assertFails(un2.commit()); // 끝난 뒤엔 못 바꿔요
+});
 await t("접속 표시: 내 것만, 시각만", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");
