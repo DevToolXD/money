@@ -375,6 +375,11 @@ fn frame(t: f64) {
     });
 }
 
+/// 마우스면 true (마우스는 위아래로 끌어도 누름을 풀지 않아요)
+fn is_mouse(e: &web_sys::Event) -> bool {
+    js_sys::Reflect::get(e, &"pointerType".into()).ok().and_then(|v| v.as_string()).as_deref() != Some("touch")
+}
+
 fn bind_press(el: &HtmlElement) {
     let _ = el.class_list().add_1("lg-press");
     let t: &web_sys::EventTarget = el.as_ref();
@@ -419,6 +424,13 @@ fn bind_press(el: &HtmlElement) {
             s.y = cy - r.top();
             s.ox = cx - s.sx;
             s.oy = cy - s.sy;
+            // 손가락으로 화면을 위아래로 넘기기 시작하면 누른 표시를 풀어요. 브라우저가 스크롤을 정하고 취소 알림을 보내기 전까지 버튼이 눌린 채 남아 보이던 것
+            if !s.drop && !is_mouse(&e) && s.oy.abs() > 14.0 && s.oy.abs() > s.ox.abs() {
+                s.down = false;
+                s.target = 0.0;
+                g.kick();
+                return;
+            }
             if s.drop {
                 // 빠르기로 뾰족한 정도를 정해요 (0.9px/ms면 가장 뾰족해요)
                 let t = js_sys::Date::now();

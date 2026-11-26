@@ -1851,15 +1851,24 @@ await t("피드백: 로그인한 사람은 보내고, 관리자만 읽어요", a
 console.log("\n[베타 종료]");
 await t("베타 종료: 관리자만 한 번 시작하고, 그동안만 모든 문서를 지우며, 끝나면 다시 못 해요", async () => {
   await seed(seedBase);
+  await seed(async (db) => {
+    await setDoc(doc(db, "phones/h1"), { uid: "uA", at: 1 });
+    await setDoc(doc(db, "verified/uA"), { at: 1, tail: "5678" });
+    await setDoc(doc(db, "otp/uA"), { h: "x" });
+    await setDoc(doc(db, "otpday/2026-11-26"), { n: 3 });
+    await setDoc(doc(db, "bag/uA"), { items: ["cap"] });
+  });
   const owner = env.authenticatedContext("uO", { email: "owner@money-sim.app", firebase: { sign_in_provider: "password" } }).firestore();
   const alice = pw("uA", "alice");
   await assertFails(deleteDoc(doc(owner, "profiles/uA"))); // 시작 전에는 못 지워요
+  await assertFails(deleteDoc(doc(owner, "phones/h1")));
   await assertFails(setDoc(doc(alice, "meta/beta"), { state: "wiping", at: serverTimestamp() })); // 관리자만
   await assertSucceeds(setDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() }));
   await assertFails(deleteDoc(doc(alice, "profiles/uA"))); // 다른 사람은 여전히 못 지워요
   await assertSucceeds(getDocs(query(collection(owner, "wallets"), limit(300))));
   await assertSucceeds(deleteDoc(doc(owner, "profiles/uA")));
   await assertSucceeds(deleteDoc(doc(owner, "chats/uA_uB")));
+  for (const p of ["phones/h1", "verified/uA", "otp/uA", "otpday/2026-11-26", "bag/uA"]) await assertSucceeds(deleteDoc(doc(owner, p))); // 전화번호 인증 기록도 같이 지워져요
   await assertSucceeds(updateDoc(doc(owner, "meta/beta"), { state: "done", at: serverTimestamp() }));
   await assertFails(deleteDoc(doc(owner, "profiles/uB"))); // 끝난 뒤에는 못 지워요
   await assertFails(updateDoc(doc(owner, "meta/beta"), { state: "wiping", at: serverTimestamp() })); // 다시 못 해요

@@ -2820,3 +2820,10 @@ html.kb-open .dock { visibility: hidden; opacity: 0; pointer-events: none; }
 .pg-btn:disabled { opacity: .45; }
 .pg-link { height: 40px; color: #0a7cff; font-size: 16px; font-weight: 600; text-align: center; }
 .pg-link:disabled { color: #8e8e93; }
+
+/* 전역 button이 글자를 왼쪽에 붙이므로(text-align: inherit), 채워진 알약 버튼은 가운데로 맞춰요 */
+.rc-send, .ct-close, .alert-btn, .del, .gact, .cz-spin, .pg-btn { text-align: center; }
+.rc-send { padding: 0 16px; }
+/* 글을 쓰는 시트는 뒤 화면이 비쳐 글이 흐려 보이지 않게 더 진한 유리로 해요 */
+.sns-panel { background: rgba(255, 255, 255, 0.86); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); }
+html[data-theme="dark"] .sns-panel { background: rgba(44, 44, 48, 0.88); }

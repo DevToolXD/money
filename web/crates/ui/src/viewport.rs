@@ -8,7 +8,6 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 thread_local! {
-    static PENDING: Cell<bool> = const { Cell::new(false) };
     /// 자판이 없을 때 본 가장 큰 화면 높이. iOS 26처럼 자판이 올라오면 innerHeight까지 같이 줄어드는 경우에도 자판을 알아채요
     static BASE: Cell<f64> = const { Cell::new(0.0) };
 }
@@ -30,7 +29,6 @@ fn num(o: &JsValue, k: &str) -> f64 {
 }
 
 fn apply() {
-    PENDING.set(false);
     let (Some(v), Some(w), Some(root)) = (vv(), web_sys::window(), crate::dom::doc().document_element()) else { return };
     let full = w.inner_height().ok().and_then(|x| x.as_f64()).unwrap_or(0.0);
     let (h, top) = (num(&v, "height"), num(&v, "offsetTop"));
@@ -52,12 +50,9 @@ fn apply() {
         crate::dom::toggle(&root, "kb-open", false);
     }
 }
+/// 크기 알림이 오면 바로 맞춰요. 다음 프레임으로 미루면 자판이 올라오는 동안 한 프레임씩 늦어서 판이 아래로 튀었다 올라와요
 fn schedule() {
-    if PENDING.replace(true) {
-        return;
-    }
-    let cb = Closure::once_into_js(apply);
-    let _ = web_sys::window().map(|w| w.request_animation_frame(cb.unchecked_ref()));
+    apply();
 }
 
 pub fn init() {

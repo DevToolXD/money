@@ -521,8 +521,12 @@ async fn beta_end() -> R {
     }
     let mut total = 0.0;
     // 하위 묶음부터 지우고, 위 문서를 지워요
-    let groups = ["messages", "c", "lab", "products", "items"];
-    let tops = ["posts", "calls", "chats", "invites", "jobs", "companies", "mining", "vitals", "inventory", "ranks", "noticeReads", "notices", "adminLog", "adminAuth", "users", "wallets", "profiles"];
+    // 규칙(firestore.rules)에 있는 모든 컬렉션이 들어가야 해요. 새 컬렉션을 만들면 여기에도 넣어요 (전화번호 인증 기록 phones·verified·otp·otpday 포함)
+    let groups = ["messages", "c", "lab", "products", "items", "votes", "entries"];
+    let tops = [
+        "posts", "calls", "chats", "invites", "jobs", "companies", "mining", "vitals", "inventory", "ranks", "noticeReads", "notices", "adminLog", "adminAuth", "bag", "contests", "feedback", "game", "gamePlayers", "lands", "plans",
+        "postGifts", "presence", "trades", "otp", "otpday", "phones", "verified", "owned", "pulls", "users", "wallets", "profiles",
+    ];
     for (is_group, names) in [(true, &groups[..]), (false, &tops[..])] {
         for name in names {
             // 켜져 있는 다른 화면이 다시 만드는 문서가 있어도 끝없이 돌지 않게 몇 번까지만 돌아요
