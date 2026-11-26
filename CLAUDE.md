@@ -35,6 +35,7 @@
 - 상품 그림(`web/crates/goods`)을 고치면 `cd web && cargo run -p goods --example dump`로 확인하고, 예전 JS와 같아야 하는 동안은 `sh tests/goods/same.sh`를 돌려요.
 - `view!` 매크로 안의 속성 닫는 괄호에서 `>`, `>=`는 태그 끝으로 읽혀요. `disabled=move || { a >= b }`처럼 중괄호로 감싸요.
 - 화면 시험: `cd tests && npm run build && EMU=1 node build.mjs && sh e2e/run.sh` (화면 하나를 옮길 때마다 돌려요).
+- 회원가입 전화번호 인증은 Zavu 서버 함수(`server/phone-verify/index.ts`, Zavu는 TypeScript만 돌려서 예외로 TS예요)가 문자를 보내고 확인해요. 고치면 그 폴더에서 `npx zavudev deploy`로 올려요. 비밀값(VERIFIER_EMAIL·VERIFIER_PW·PEPPER)은 Zavu 비밀값에만 있고 저장소에는 넣지 않아요. 이 기능 전(2026-11-26 12:30 UTC)에 만든 계정과 에뮬레이터는 묻지 않아요.
 - 익명 로그인 금지. 사용자 글·사진은 반드시 `esc()`/`safeImg()`를 거쳐요. 인라인 스크립트는 CSP가 막아요.
 - 서버를 아끼는 구조(최근 40개만 듣기, 프로필 캐시, 이자 10분 정산)와 backdrop 사진 찍기 간격을 느슨하게 되돌리지 않아요.
 - 탭 바 뒤 화면 사진(html2canvas)은 껐어요. 찍을 때마다 화면이 50~430ms 멈춰서(폰처럼 느린 CPU로 쟀어요) 렉의 주범이었어요. 탭 바 유리는 화면 바탕색으로 그려요. 다시 켜지 말아요.
