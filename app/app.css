@@ -2784,9 +2784,9 @@ html[data-theme="dark"] .sh-cat, html[data-theme="dark"] .sh-chip { background: 
 @keyframes czJack { 0% { opacity: 0; transform: scale(.6); } 14% { opacity: 1; transform: scale(1.1); } 24% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 .cz-pop { position: absolute; left: 50%; top: 40%; z-index: 3; font-size: 30px; font-weight: 800; color: #ffd84a; text-shadow: 0 0 10px rgba(255, 150, 40, 0.85); pointer-events: none; animation: czPop 1.5s ease-out both; }
 @keyframes czPop { from { opacity: 0; transform: translate(-50%, 10px); } 20% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -44px); } }
-.cz-hold { position: fixed; height: 4px; border-radius: 2px; background: #0a7cff; transform: scaleX(0); transform-origin: left center; animation: cz-hold 10s linear forwards; pointer-events: none; z-index: 80; }
+.cz-hold { position: fixed; height: 4px; border-radius: 2px; background: #0a7cff; transform: scaleX(0); transform-origin: left center; animation: cz-hold 7s linear forwards; pointer-events: none; z-index: 80; }
 @keyframes cz-hold { to { transform: scaleX(1); } }
-.cash[data-gift] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+#attach [data-a="token"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .casino, .cz-reel { transition: none; } .cz-jackpot, .cz-pop { animation-duration: .01s; } }
 
 .sh-empty { margin: 18px 16px 0; padding: 40px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; background: var(--bg-card, #fff); border-radius: 10px; color: var(--text-secondary, #8e8e93); font-size: 15px; }

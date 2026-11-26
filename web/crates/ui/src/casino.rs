@@ -1,4 +1,4 @@
-//! 도박장 (슬롯 3칸): 메시지의 멸공 선물 카드를 10초 동안 꾹 누르면 열려요.
+//! 도박장 (슬롯 3칸): 메시지의 + 메뉴에서 "멸공"(선물하기)을 7초 동안 꾹 누르면 열려요.
 //!   칸마다 별 그림이 나올 확률은 32%예요. 별이 2칸이면 건 돈의 1.5배, 3칸이면 10배, 그 밖(별 0~1칸)은 0배를 돌려받아요.
 //!   건 돈은 먼저 빠지고 배율만큼 돌아와요. 지갑에는 (돌려받는 돈 - 건 돈)만큼 한 번에 바뀌어요.
 //!   결과는 이 기기에서 정해요. 서버(firestore.rules의 'bet')는 건 돈과 배율의 모양만 확인해요.
@@ -26,8 +26,8 @@ const STRIP: usize = 30;
 const STEP: f64 = 100.0 / STRIP as f64;
 /// 그림 5칸(한 바퀴)이 지나가는 시간
 const SPIN_MS: f64 = 420.0;
-/// 손으로 10초를 채우는 시간
-const HOLD_MS: i32 = 10_000;
+/// 손으로 7초를 채우는 시간
+const HOLD_MS: i32 = 7_000;
 
 /// 선 아이콘 안쪽 그림 (viewBox 24, 선 굵기는 CSS에서 1.8)
 const SYMS: [&str; NSYM] = [
@@ -58,7 +58,7 @@ thread_local! {
     static HOLD: Cell<u32> = const { Cell::new(0) };
     static START: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) };
     static BAR: RefCell<Option<Element>> = const { RefCell::new(None) };
-    /// 10초를 채운 뒤 떼었을 때 따라 나오는 클릭(받기 등)을 막는 시각
+    /// 7초를 채운 뒤 떼었을 때 따라 나오는 클릭(선물 시트 열기)을 막는 시각
     static SWALLOW_UNTIL: Cell<f64> = const { Cell::new(0.0) };
 }
 
@@ -391,13 +391,13 @@ fn bind() {
     });
 }
 
-/* ---------- 메시지의 멸공 선물 카드를 10초 꾹 누르기 ---------- */
+/* ---------- + 메뉴의 멸공(선물하기)을 7초 꾹 누르기 ---------- */
 
-/// 메시지 목록(#bubbles)에 꾹 누르기를 붙여요. 카드 밖으로 끌거나 떼면 처음부터예요
+/// 메시지의 + 메뉴(#attach)에서 "멸공"(선물하기)을 7초 꾹 누르면 열려요. 손가락을 끌거나 떼면 처음부터예요
 pub fn bind_hold() {
-    let Some(b) = by_id("bubbles") else { return };
+    let Some(b) = by_id("attach") else { return };
     dom::on(&b, "pointerdown", |e| {
-        let Some(card) = dom::closest(&e, ".cash[data-gift]") else { return };
+        let Some(card) = dom::closest(&e, "[data-a=\"token\"]") else { return };
         if let Some(pe) = e.dyn_ref::<web_sys::PointerEvent>() {
             if pe.button() != 0 {
                 return;
@@ -407,7 +407,7 @@ pub fn bind_hold() {
         hold_start(&card);
     });
     dom::on(&b, "contextmenu", |e| {
-        if dom::closest(&e, ".cash[data-gift]").is_some() {
+        if dom::closest(&e, "[data-a=\"token\"]").is_some() {
             e.prevent_default();
         }
     });
@@ -424,7 +424,7 @@ pub fn bind_hold() {
             hold_end();
         }
     });
-    // 10초를 채운 뒤 떼면, 그 뒤에 나오는 클릭(받기 같은 버튼)은 한 번 막아요
+    // 7초를 채운 뒤 떼면, 그 뒤에 나오는 클릭(선물 시트 열기)은 한 번 막아요
     let cap = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
         if js_sys::Date::now() < SWALLOW_UNTIL.get() {
             e.stop_propagation();
@@ -443,7 +443,7 @@ fn hold_start(card: &HtmlElement) {
         v
     });
     HOLD.set(id);
-    // 진행 막대: 카드 아래쪽에 10초 동안 차요 (CSS 애니메이션이라 다시 그리는 것과 상관없이 움직여요)
+    // 진행 막대: 메뉴 칸 아래쪽에 7초 동안 차요 (CSS 애니메이션이라 다시 그리는 것과 상관없이 움직여요)
     let rect = card.get_bounding_client_rect();
     if let Ok(bar) = dom::doc().create_element("div") {
         bar.set_class_name("cz-hold");
@@ -466,6 +466,10 @@ fn hold_start(card: &HtmlElement) {
         }
         hold_end();
         SWALLOW_UNTIL.set(js_sys::Date::now() + 900.0);
+        // + 메뉴는 닫고 도박장을 열어요 (선물 시트는 안 열려요)
+        if let Some(back) = by_id("attach-back") {
+            let _ = back.class_list().remove_1("is-open");
+        }
         dom::vibrate(24);
         open();
     });

@@ -1,4 +1,4 @@
-// 화면: 도박장 (메시지의 멸공 선물 카드를 10초 꾹 누르면 열려요). 짧게 누르면 안 열리고, 떼도 선물 받기가 눌리지 않아요.
+// 화면: 도박장 (메시지의 + 메뉴에서 "멸공"(선물하기)을 7초 꾹 누르면 열려요). 짧게 누르면 안 열리고, 7초를 채우고 떼도 선물 시트는 안 열려요.
 // 슬롯 3칸은 칸마다 별 32%, 별 2칸 1.5배, 3칸 10배, 그 밖 0배. 돌린 결과의 지갑 변화가 서버 값과 맞아야 해요.
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -22,15 +22,15 @@ const text = async (p, sel) => ((await p.textContent(sel, { timeout: 800 }).catc
 const waitText = async (p, sel, t, n = 40) => { for (let i = 0; i < n; i++) { if ((await text(p, sel)).includes(t)) return true; await p.waitForTimeout(250); } return false; };
 const isOpen = (p) => p.evaluate(() => document.getElementById('casino').classList.contains('is-open'));
 const sleepP = (p, ms) => p.waitForTimeout(ms);
-// 선물 카드의 글자 위를 누르고 있어요 (받기 버튼이 아닌 곳). during은 누르는 동안 한 번 불러요
-const pressCard = async (p, ms, during) => {
-  await p.evaluate(() => [...document.querySelectorAll('#bubbles .cash[data-gift] .cash-tag')].pop()?.scrollIntoView({ block: 'center' }));
-  await p.waitForTimeout(300);
-  const bx = await p.locator('#bubbles .cash[data-gift] .cash-tag').last().boundingBox();
+// + 메뉴를 열고 "멸공"(선물하기)을 누르고 있어요. away면 떼기 전에 손가락을 밖으로 빼서 클릭이 안 되게 해요
+const pressToken = async (p, ms, during, away = false) => {
+  await p.click('#plus'); await p.waitForTimeout(500);
+  const bx = await p.locator('#attach [data-a="token"]').boundingBox();
   await p.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2);
   await p.mouse.down();
   if (during) await during();
   await p.waitForTimeout(ms);
+  if (away) await p.mouse.move(bx.x + bx.width / 2, bx.y - 120, { steps: 4 });
   await p.mouse.up();
 };
 const won = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -67,24 +67,25 @@ const stars = (p) => p.evaluate(() => document.querySelectorAll('.cz-reel.hit').
   ok('선물 카드가 받는 쪽에 와요 (멸공 선물, 데이터 표시)', await waitText(bp, '#bubbles .cash[data-gift]', '멸공 선물'));
   await bp.waitForTimeout(1200);
 
-  // 1) 짧게 누르면 (4초) 도박장은 안 열리고, 선물도 안 받아져요
-  await pressCard(bp, 4000);
+  // 1) 짧게 누르고(3초) 손가락을 빼면 도박장은 안 열려요
+  await pressToken(bp, 3000, null, true);
   await bp.waitForTimeout(500);
-  ok('4초만 누르면 도박장이 안 열려요', !(await isOpen(bp)));
-  await bp.waitForTimeout(1500);
-  ok('짧게 누른 것은 받기로 이어지지 않아요 (받는이 500 그대로)', (await bal(uB)) === 500);
+  ok('3초만 누르면 도박장이 안 열려요', !(await isOpen(bp)));
+  await bp.evaluate(() => document.getElementById('attach-back').classList.remove('is-open'));
+  await bp.waitForTimeout(400);
 
-  // 2) 10초 동안 누르면 열려요. 누르는 동안 진행 막대가 차요
+  // 2) 7초 동안 누르면 열려요. 누르는 동안 진행 막대가 차요
   let barSeen = false;
-  await pressCard(bp, 10600, async () => {
+  await pressToken(bp, 7600, async () => {
     await bp.waitForTimeout(1500);
     barSeen = await bp.evaluate(() => !!document.querySelector('.cz-hold'));
   });
   await bp.waitForTimeout(600);
   ok('누르는 동안 아래쪽에 진행 막대', barSeen);
-  ok('10초를 채우면 도박장이 열려요', await isOpen(bp) && (await text(bp, '#title-casino')) === '도박장');
-  await bp.waitForTimeout(1500);
-  ok('떼도 받기는 안 눌려요 (받는이 500 그대로)', (await bal(uB)) === 500 && !(await text(bp, '#bubbles .cash-state')).includes('받았어요'));
+  ok('7초를 채우면 도박장이 열려요', await isOpen(bp) && (await text(bp, '#title-casino')) === '도박장');
+  ok('+ 메뉴는 닫혀요', !(await bp.evaluate(() => document.getElementById('attach-back').classList.contains('is-open'))));
+  await bp.waitForTimeout(800);
+  ok('떼도 선물 시트는 안 열려요', (await text(bp, '#gift-to')) === '');
   ok('내 멸공 500 표시', (await text(bp, '#cz-bal')) === '500 멸공');
   ok('기본 칩 100, 버튼 문구', (await text(bp, '#cz-spin')) === '100 멸공 걸고 돌리기' && (await bp.getAttribute('[data-bet="0"]', 'class')).includes('on'));
   ok('배율 표: 10배·1.5배·0배', (await text(bp, '.cz-rules')).includes('10배') && (await text(bp, '.cz-rules')).includes('1.5배') && (await text(bp, '.cz-rules')).includes('0배') && (await text(bp, '.cz-rules')).includes('32%'));
