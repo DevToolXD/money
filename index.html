@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://server.arcgisonline.com https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=177">
+<link rel="stylesheet" href="app/app.css?v=183">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -160,7 +160,7 @@
     </header>
     <div class="bubbles" id="bubbles"></div>
     <form class="composer" id="composer"><button class="plus" id="plus" type="button" aria-label="더 보내기"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M13 3v20M3 13h20"/></svg></button>
-      <label class="field-glass"><input id="composer-input" type="text" placeholder="메시지" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" id="send-icon"><path d="M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2"/></svg></button></label></form>
+      <label class="field-glass"><input id="composer-input" type="text" placeholder="메시지" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" aria-label="보내기 · 비어 있으면 음성 메모"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" id="send-icon"><path d="M3.5 10.5v3M7 8v8M10.5 5v14M14 7.5v9M17.5 9.5v5M21 11v2"/></svg></button></label></form>
   </section>
 
   <section class="casino" id="casino" aria-label="도박장">
@@ -207,6 +207,12 @@
   </section>
 
 
+  <section class="sheet dark gp" id="gp-sheet" aria-label="GIF 보내기">
+    <div class="grabber"></div>
+    <div class="sheet-head"><h2>GIF</h2></div>
+    <label class="gp-search"><input id="gp-q" type="search" placeholder="GIPHY 검색" autocomplete="off" aria-label="GIF 검색"></label>
+    <div class="rc-grid gp-grid" id="gp-grid"><p class="rc-gnote">불러오는 중이에요</p></div>
+  </section>
   <section class="sheet dark" id="gift-sheet" aria-label="멸공 보내기">
     <div class="grabber"></div>
     <p class="gift-to" id="gift-to"></p>
@@ -282,6 +288,7 @@
     <button type="button" role="menuitem" data-a="camera"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.500-2.500h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.500"/></svg></span>카메라</button>
     <button type="button" role="menuitem" data-a="photo"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="3"/><circle cx="9" cy="10" r="1.500"/><path d="M5 17l4.500-4.500 3.500 3.500 2.500-2.500L20 16"/></svg></span>사진</button>
     <button type="button" role="menuitem" data-a="draw"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3"/></svg></span>그리기</button>
+    <button type="button" role="menuitem" data-a="gif"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="3.5"/><path d="M10.2 10.4a2 2 0 1 0 .2 3.2V12.2H9M12.8 10v4M15.4 14v-4h2.5M15.4 12h2"/></svg></span>GIF</button>
     <button type="button" role="menuitem" data-a="poll"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>투표</button>
     <button type="button" role="menuitem" data-a="token"><span class="a-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.500"/><path d="M12 7.500v9M9.500 10h4a1.500 1.500 0 0 1 0 3h-3a1.500 1.500 0 0 0 0 3h4"/></svg></span>멸공 선물</button>
   </div></div>
@@ -367,6 +374,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=127"></script>
+<script type="module" src="app/rs/boot.js?v=130"></script>
 </body>
 </html>

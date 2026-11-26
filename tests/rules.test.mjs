@@ -623,6 +623,31 @@ await t("너무 긴 글, 빈 글, 이상한 종류, 잘못된 사진은 막혀�
   }
   await assertSucceeds(send(db, "uA", "uB", { type: "photo", img: JPEG, from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
 });
+await t("GIF와 음성 메모: 정해진 모양만 보낼 수 있어요", async () => {
+  await seed(seedBase);
+  const db = pw("uA", "alice");
+  const at = serverTimestamp();
+  const GIF = "https://media.giphy.com/media/aBcDe12345/200w.webp";
+  const AUD = "data:audio/mp4;base64,AAAAGGZ0eXBtcDQy";
+  const bad = [
+    { type: "gif", gif: "https://evil.example/a.gif", r: 800, from: "uA", to: "uB", at },
+    { type: "gif", gif: GIF + "?x=1", r: 800, from: "uA", to: "uB", at },
+    { type: "gif", gif: GIF, r: 5, from: "uA", to: "uB", at },
+    { type: "voice", audio: "data:audio/mp4;base64," + "A".repeat(190000), dur: 5, bars: "123", from: "uA", to: "uB", at },
+    { type: "voice", audio: "data:text/html;base64,AAAA", dur: 5, bars: "123", from: "uA", to: "uB", at },
+    { type: "voice", audio: AUD, dur: 0, bars: "123", from: "uA", to: "uB", at },
+    { type: "voice", audio: AUD, dur: 61, bars: "123", from: "uA", to: "uB", at },
+    { type: "voice", audio: AUD, dur: 5, bars: "12<script>", from: "uA", to: "uB", at },
+    { type: "voice", audio: AUD, dur: 5, bars: "123", extra: 1, from: "uA", to: "uB", at },
+  ];
+  for (const p of bad) {
+    await assertFails(send(db, "uA", "uB", p).b.commit());
+    await sleep(650);
+  }
+  await assertSucceeds(send(db, "uA", "uB", { type: "gif", gif: GIF, r: 800, from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
+  await sleep(650);
+  await assertSucceeds(send(db, "uA", "uB", { type: "voice", audio: AUD, dur: 9, bars: "0123456789", from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
+});
 await t("메시지는 지울 수도 고칠 수도 없어요 (받은 선물 금액 수정 포함)", async () => {
   await seed(async (s) => {
     await seedBase(s);

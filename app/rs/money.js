@@ -316,6 +316,10 @@ function __wbg_get_imports() {
             const ret = arg0.cancelBubble;
             return ret;
         },
+        __wbg_catch_fd4c7ea14fde9d83: function(arg0, arg1) {
+            const ret = arg0.catch(arg1);
+            return ret;
+        },
         __wbg_childElementCount_86fe9ddc618f0671: function(arg0) {
             const ret = arg0.childElementCount;
             return ret;
@@ -1237,6 +1241,10 @@ function __wbg_get_imports() {
             const ret = new Uint32Array(arg0 >>> 0);
             return ret;
         },
+        __wbg_new_with_length_01b143a7e5dd5a3e: function(arg0) {
+            const ret = new Uint8Array(arg0 >>> 0);
+            return ret;
+        },
         __wbg_new_with_path_string_7a9f5ad85cc85cb7: function() { return handleError(function (arg0, arg1) {
             const ret = new Path2D(getStringFromWasm0(arg0, arg1));
             return ret;
@@ -1947,7 +1955,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000c: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 241, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 246, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

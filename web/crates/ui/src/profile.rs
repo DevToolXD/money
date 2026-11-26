@@ -18,9 +18,18 @@ thread_local! {
 /// 관리자가 준 파란 인증 표시 (사람 정보 캐시에 blue가 있으면)
 pub fn blue(uid: &str) -> &'static str {
     let p = cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::NULL);
-    if cloud::get(&p, "blue").is_truthy() { BLUE } else { "" }
+    if cloud::get(&p, "id").as_string().as_deref() == Some("owner") {
+        GOLD
+    } else if cloud::get(&p, "blue").is_truthy() {
+        BLUE
+    } else {
+        ""
+    }
 }
-pub const BLUE: &str = r##"<svg class="bluechk" viewBox="0 0 24 24" aria-label="인증됨" role="img"><path fill="#0a7cff" stroke="#0a7cff" stroke-width="1.4" stroke-linejoin="round" d="M12 1.8l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3 1 3-2.6 1.9-1 3-3.2-.1L12 22.2l-2.6-1.9-3.2.1-1-3-2.6-1.9 1-3-1-3 2.6-1.9 1-3 3.2.1z"/><path d="M7.8 12.3l3 3 5.6-5.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
+/// 인증 표시 (체크 모양은 8각 도장을 계산으로 그려서 좌우·위아래가 정확히 대칭이에요)
+pub const BLUE: &str = r##"<svg class="bluechk" viewBox="0 0 24 24" aria-label="인증됨" role="img"><path fill="#0a7cff" stroke="#0a7cff" stroke-width="1.6" stroke-linejoin="round" d="M12.00 1.70 L15.33 3.96 L19.28 4.72 L20.04 8.67 L22.30 12.00 L20.04 15.33 L19.28 19.28 L15.33 20.04 L12.00 22.30 L8.67 20.04 L4.72 19.28 L3.96 15.33 L1.70 12.00 L3.96 8.67 L4.72 4.72 L8.67 3.96z"/><path d="M7.9 12.1l2.9 2.9 5.4-5.6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
+/// 관리자(아이디 owner)의 금색 표시
+pub const GOLD: &str = r##"<svg class="bluechk gold" viewBox="0 0 24 24" aria-label="관리자" role="img"><path fill="#f2b705" stroke="#f2b705" stroke-width="1.6" stroke-linejoin="round" d="M12.00 1.70 L15.33 3.96 L19.28 4.72 L20.04 8.67 L22.30 12.00 L20.04 15.33 L19.28 19.28 L15.33 20.04 L12.00 22.30 L8.67 20.04 L4.72 19.28 L3.96 15.33 L1.70 12.00 L3.96 8.67 L4.72 4.72 L8.67 3.96z"/><path d="M7.9 12.1l2.9 2.9 5.4-5.6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
 fn info(uid: &str) -> (String, String, String) {
     let p = cloud::call_now("peek", &[JsValue::from_str(uid)]).unwrap_or(JsValue::NULL);
     let g = |k: &str| cloud::get(&p, k).as_string().unwrap_or_default();

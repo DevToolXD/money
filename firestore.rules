@@ -17,6 +17,9 @@ service cloud.firestore {
       return v is string && v.size() <= max && v.matches('^data:image/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$');
     }
     function photoOk(v) { return v == '' || img(v, 40000); }
+    function audio(v, max) {
+      return v is string && v.size() <= max && v.matches('^data:audio/(mp4|x-m4a|aac|mpeg|webm|ogg)(;codecs=[a-zA-Z0-9.,]+)?;base64,[A-Za-z0-9+/]+={0,2}$');
+    }
 
     // ----- 사람 정보: 로그인한 사람은 볼 수 있고(찾기는 한 번에 20명까지), 내 것만 만들어요 -----
     match /profiles/{uid} {
@@ -1335,6 +1338,17 @@ service cloud.firestore {
               || ((d.type == 'photo' || d.type == 'draw')
                     && d.keys().hasOnly(['type', 'from', 'to', 'at', 'img'])
                     && img(d.img, 140000))
+              // GIF: GIPHY 주소 모양만, r은 세로÷가로(×1000)
+              || (d.type == 'gif'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'gif', 'r'])
+                    && d.gif is string && d.gif.matches('^https://media[.]giphy[.]com/media/[A-Za-z0-9]{5,40}/200w[.]webp$')
+                    && d.r is int && d.r >= 400 && d.r <= 2500)
+              // 음성 메모: 짧은 소리 파일(data:audio) 하나, dur은 초(1~60), bars는 파형 높이 숫자(0~9) 글자
+              || (d.type == 'voice'
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'audio', 'dur', 'bars'])
+                    && audio(d.audio, 180000)
+                    && d.dur is int && d.dur >= 1 && d.dur <= 60
+                    && d.bars is string && d.bars.size() <= 60 && d.bars.matches('^[0-9]*$'))
               || (d.type == 'request' && chatDoc().data.get('group', false) == false
                     && d.keys().hasOnly(['type', 'from', 'to', 'at', 'amount', 'done'])
                     && d.amount is int && d.amount >= 1 && d.amount <= 99999999

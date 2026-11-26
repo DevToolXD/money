@@ -280,6 +280,8 @@ html[data-theme="dark"] .thread[data-wall="white"] {
 .send { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--t-sub); transition: background-color 0.2s, color 0.2s; }
 .send svg { width: 22px; height: 22px; }
 .send.ready { background: #4a9ff9; color: #fff; }
+.send svg { stroke-width: 1.7; }
+.send.ready svg { stroke-width: 2.6; }
 .app.in-thread .dock { transform: translateY(140%); opacity: 0; }
 .dock { transition: transform 0.42s var(--ease), opacity 0.3s; }
 
@@ -2827,3 +2829,48 @@ html.kb-open .dock { visibility: hidden; opacity: 0; pointer-events: none; }
 /* 글을 쓰는 시트는 뒤 화면이 비쳐 글이 흐려 보이지 않게 더 진한 유리로 해요 */
 .sns-panel { background: rgba(255, 255, 255, 0.86); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); }
 html[data-theme="dark"] .sns-panel { background: rgba(44, 44, 48, 0.88); }
+/* 알림은 릴스 댓글 판(260)·글쓰기 판 같은 큰 판과 경고창(300) 위에 떠야 해요. 아래에 깔려서 안내가 안 보이면 버튼이 먹통처럼 보여요 */
+.toast { z-index: 310; }
+
+/* 메시지 + 메뉴 → GIF 고르기 판 */
+.sheet.gp { height: 72%; display: flex; flex-direction: column; background: rgba(34, 37, 43, 0.97); }
+.sheet.gp .sheet-head h2 { color: #fff; }
+.gp-search { display: block; margin: 0 0 8px; }
+.gp-search input { width: 100%; height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 16px; outline: 0; -webkit-user-select: text; user-select: text; }
+.gp-search input::placeholder { color: rgba(255, 255, 255, 0.6); }
+.gp-grid { margin-top: 4px; }
+/* 대화에 온 GIF: 말풍선 없이 둥근 그림만 */
+.gifm { max-width: 62%; }
+.gifm img { display: block; width: 100%; border-radius: 18px; background: rgba(120, 120, 128, 0.18); }
+
+/* ===== 음성 메모 (아이메시지 영상 프레임대로, chat/voice.rs) ===== */
+.composer.rec .plus, .composer.rec .field-glass { display: none; }
+.vrec { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 5px 0 15px; border-radius: 999px; background: var(--t-glass); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); box-shadow: inset 0 0 0 0.8px var(--t-rim), inset 0 2px 1.5px var(--t-rim); transform-origin: right center; }
+.vrec.enter { animation: vIn .38s var(--liquid-soft) both; }
+@keyframes vIn { from { transform: scaleX(.6); opacity: 0; } 40% { opacity: 1; } to { transform: none; opacity: 1; } }
+.vwave { flex: 1; min-width: 0; height: 26px; display: block; }
+.vtime { flex: none; min-width: 34px; font-size: 16px; font-weight: 500; color: #ff3b30; font-variant-numeric: tabular-nums; text-align: right; }
+.vstop { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 59, 48, 0.18); }
+.vstop i { display: block; width: 12px; height: 12px; border-radius: 3px; background: #ff3b30; }
+.vrec.review { padding: 0; gap: 8px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.vx { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--t-fg); background: var(--t-glass); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); box-shadow: inset 0 0 0 0.8px var(--t-rim), inset 0 2px 1.5px var(--t-rim); }
+.vx svg { width: 18px; height: 18px; }
+.vrev { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 5px; border-radius: 999px; background: var(--t-glass); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); box-shadow: inset 0 0 0 0.8px var(--t-rim), inset 0 2px 1.5px var(--t-rim); }
+.vpl { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--t-fg); background: rgba(120, 120, 128, 0.22); }
+.vpl svg { width: 14px; height: 14px; }
+.vchip { flex: none; padding: 0 9px; height: 26px; line-height: 26px; border-radius: 13px; background: rgba(120, 120, 128, 0.16); font-size: 14px; font-weight: 600; color: var(--t-fg); font-variant-numeric: tabular-nums; }
+.vsend { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #0a7cff; color: #fff; }
+.vsend:disabled { opacity: .5; }
+.vsend svg { width: 17px; height: 17px; }
+/* 대화에 온 음성 */
+.bubble.vm { display: flex; align-items: center; gap: 10px; padding: 8px 16px 8px 8px; min-width: 190px; }
+.vplay { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(120, 120, 128, 0.25); color: inherit; }
+.bubble.vm.me .vplay { background: rgba(255, 255, 255, 0.3); }
+.vplay svg { width: 15px; height: 15px; }
+.vbars { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 32px; overflow: hidden; }
+.vbars i { flex: 1 1 0; min-width: 1.4px; max-width: 3px; border-radius: 2px; background: currentColor; opacity: .42; }
+.bubble.vm.playing .vbars i { animation: vbarOn .01s linear forwards; animation-delay: calc(var(--k) / var(--n) * var(--d)); }
+@keyframes vbarOn { to { opacity: 1; } }
+.vlen { flex: none; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .85; }
+@media (prefers-reduced-motion: reduce) { .vrec.enter { animation: none; } }
+.sheet.gp .sheet-head { background: transparent; }

@@ -10,7 +10,7 @@ use wasm_bindgen::JsCast;
 use super::{ctx, find, open_chat, paint_status, render, set_open, toast, uid, update_open, with_chats, Chat, Msg, WALLS};
 use crate::dom::{self, avatar_html, by_id, esc, safe_img};
 
-const WAVE: &str = "M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2";
+const WAVE: &str = "M3.5 10.5v3M7 8v8M10.5 5v14M14 7.5v9M17.5 9.5v5M21 11v2";
 const ARROW: &str = "M12 19V5M5 12l7-7 7 7";
 
 thread_local! {
@@ -32,6 +32,8 @@ pub fn preview(m: &JsValue) -> String {
     let amt = || ko(js_sys::Number::from(cloud::get(m, "amount")).value_of());
     match s(m, "type").as_str() {
         "photo" => "사진".into(),
+        "gif" => "GIF".into(),
+        "voice" => "음성 메시지".into(),
         "draw" => "그림".into(),
         "gift" => format!("멸공 {} 선물", amt()),
         "request" => format!("멸공 {} 요청", amt()),
@@ -57,6 +59,18 @@ fn card_html(m: &JsValue, me: bool, i: usize) -> String {
             } else {
                 let d = t == "draw";
                 format!(r#"<button class="media{}" data-view="{i}" type="button"><img src="{src}" alt="{}" decoding="async" loading="lazy"></button>"#, if d { " drawn" } else { "" }, if d { "그림" } else { "사진" })
+            }
+        }
+        "voice" => super::voice::card_html(m, me, i),
+        "gif" => {
+            let url = s(m, "gif");
+            let src = crate::sns::safe_gif(&url);
+            let r = js_sys::Number::from(cloud::get(m, "r")).value_of();
+            let r = if r.is_finite() { r.clamp(400.0, 2500.0) } else { 800.0 };
+            if src.is_empty() {
+                r#"<div class="bubble">열 수 없는 GIF예요</div>"#.into()
+            } else {
+                format!(r#"<div class="gifm"><img src="{}" alt="GIF" decoding="async" loading="lazy" style="aspect-ratio:1/{:.3}"></div>"#, dom::esc(src), r / 1000.0)
             }
         }
         "gift" | "request" => {
@@ -356,6 +370,7 @@ pub fn open(id: &str) {
 }
 
 pub fn close() {
+    super::voice::leave();
     super::info::close();
     if let Some(f) = UNSUB.with(|u| u.borrow_mut().take()) {
         let _ = f.call0(&JsValue::NULL);
@@ -429,7 +444,8 @@ pub fn init() {
             if let Some(b) = by_id("send") {
                 dom::toggle(&b, "ready", ready);
             }
-            if let Some(p) = by_id("send-icon").and_then(|s| s.first_element_child()) {
+            // send-icon은 SVG라서 by_id(HTML 요소만 찾아요)로는 못 찾아요
+            if let Some(p) = dom::doc().get_element_by_id("send-icon").and_then(|s| s.first_element_child()) {
                 let _ = p.set_attribute("d", if ready { ARROW } else { WAVE });
             }
         });

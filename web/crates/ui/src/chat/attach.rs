@@ -184,6 +184,7 @@ pub fn init() {
                 "photo" => by_id("file-photo").into_iter().for_each(|f| f.click()),
                 "draw" => super::draw::open(),
                 "poll" => super::poll::open(),
+                "gif" => super::gifpick::open(),
                 "token" => {
                     if let Some(c) = open_chat() {
                         super::gift::open(&c.id, &c.other, &c.name);

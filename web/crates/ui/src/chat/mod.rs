@@ -5,6 +5,8 @@
 pub(crate) mod attach;
 mod draw;
 mod gift;
+mod gifpick;
+mod voice;
 pub(crate) mod info;
 mod menu;
 pub(crate) mod people;
@@ -451,11 +453,13 @@ pub fn init(c: Ctx) {
     gift::init();
     poll::init();
     draw::init();
+    voice::init();
     crate::casino::bind_hold();
 }
 
 /// 다른 탭으로 가면 열린 대화를 닫아요
 pub fn leave(tab: &str) {
+    voice::leave();
     if tab != "messages" && open_chat().is_some() {
         thread::close();
     }

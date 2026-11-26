@@ -28,11 +28,19 @@ thread_local! {
     static MANAGE_BOUND: Cell<bool> = const { Cell::new(false) };
 }
 
-async fn giphy_key() -> String {
+/// GIPHY 공개 시험용 키
+pub(crate) const PUBLIC_KEY: &str = "dc6zaTOxFJmzC";
+
+/// GIF 검색 키: 관리자가 넣은 것, 없으면 공개 시험용 키
+pub(crate) async fn giphy_key() -> String {
     if let Some(k) = KEY.with(|k| k.borrow().clone()) {
         return k;
     }
-    let k = cloud::call("giphyGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
+    let mut k = cloud::call("giphyGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
+    // 관리자가 키를 안 넣었으면 GIPHY가 공개해 둔 시험용 키로 써요 (사용 횟수가 적게 제한돼요. 관리 화면에서 내 키를 넣으면 그걸 써요)
+    if k.is_empty() {
+        k = PUBLIC_KEY.to_string();
+    }
     KEY.with(|x| *x.borrow_mut() = Some(k.clone()));
     k
 }
@@ -240,6 +248,44 @@ fn open_gif() {
         q.set_value("");
     }
     search(String::new());
+}
+/// GIPHY에서 GIF를 가져와요: 검색어가 비면 인기 GIF, 있으면 검색 결과 (24개). (주소, 세로÷가로) 목록. 못 가져오면 사람이 읽을 안내 글
+pub(crate) async fn gif_items(q: &str) -> Result<Vec<(String, f64)>, &'static str> {
+    let key = giphy_key().await;
+    if key.is_empty() {
+        return Err("GIF 검색이 아직 준비 중이에요");
+    }
+    let enc = String::from(js_sys::encode_uri_component(q));
+    let url = if q.is_empty() {
+        format!("https://api.giphy.com/v1/gifs/trending?api_key={key}&limit=24&rating=pg-13")
+    } else {
+        format!("https://api.giphy.com/v1/gifs/search?api_key={key}&q={enc}&limit=24&rating=pg-13&lang=ko")
+    };
+    let r = async {
+        let resp = JsFuture::from(web_sys::window().ok_or(JsValue::NULL)?.fetch_with_str(&url)).await?;
+        let f: js_sys::Function = js_sys::Reflect::get(&resp, &"json".into())?.dyn_into()?;
+        JsFuture::from(f.call0(&resp)?.dyn_into::<js_sys::Promise>()?).await
+    }
+    .await;
+    let Ok(j) = r else { return Err("GIF를 불러오지 못했어요") };
+    let items: Vec<(String, f64)> = js_sys::Array::from(&cloud::get(&j, "data"))
+        .iter()
+        .filter_map(|g| {
+            let id = cloud::get(&g, "id").as_string()?;
+            let url = format!("https://media.giphy.com/media/{id}/200w.webp");
+            if crate::sns::safe_gif(&url).is_empty() {
+                return None;
+            }
+            let fw = cloud::get(&cloud::get(&g, "images"), "fixed_width");
+            let num = |k: &str| cloud::get(&fw, k).as_string().and_then(|s| s.parse::<f64>().ok()).unwrap_or(200.0);
+            Some((url, (num("height") / num("width").max(1.0)).clamp(0.4, 2.5)))
+        })
+        .collect();
+    if items.is_empty() {
+        Err("찾는 GIF가 없어요")
+    } else {
+        Ok(items)
+    }
 }
 /// 검색어가 비면 인기 GIF, 있으면 검색 결과 (24개)
 fn search(q: String) {
