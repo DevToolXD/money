@@ -139,10 +139,9 @@ service cloud.firestore {
     }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
-    // ----- 상점: 장신구 값(멸공). 앱(gacha.rs의 ITEMS)과 같아야 해요 -----
+    // ----- 상점: 명품 값(멸공, 명품 순위대로). 앱(shop.rs의 ITEMS)과 같아야 해요 -----
     function shopPrice() {
-      return {'lambo': 100000, 'goldbar': 30000, 'wallet': 8000, 'watch': 5000, 'chain': 3000, 'headphones': 1500, 'cap': 900,
-              'sunglasses': 1200, 'glasses': 800, 'coffee': 150, 'duck': 200, 'banana': 100, 'branch': 50};
+      return {'hermes': 1000000, 'gucci': 720000, 'chanel': 610000, 'prada': 520000, 'dior': 440000, 'burberry': 380000, 'fendi': 320000};
     }
     function bagPath(u) { return /databases/$(database)/documents/bag/$(u); }
     function bagItems(u) { return exists(bagPath(u)) ? get(bagPath(u)).data.items : []; }

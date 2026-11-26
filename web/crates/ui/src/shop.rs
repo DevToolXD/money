@@ -12,35 +12,22 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::dom::{self, by_id, esc};
 
-/// (번호, 이름, 등급, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요
-pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 13] = [
-    ("lambo", "람보르기니", "전설", 100_000, "ground", "#c9dcf2", "#13233f", false),
-    ("goldbar", "금괴", "전설", 30_000, "hand", "#fbe7a1", "#fff6cf", true),
-    ("wallet", "명품 지갑", "영웅", 8_000, "hand", "#f3b5a6", "#4a1424", false),
-    ("watch", "손목시계", "영웅", 5_000, "wrist", "#ee7a4c", "#4b1222", false),
-    ("chain", "금목걸이", "영웅", 3_000, "neck", "#f2b8d6", "#4b0f2c", false),
-    ("headphones", "헤드폰", "희귀", 1_500, "head", "#bccbf2", "#1c2d6b", false),
-    ("sunglasses", "선글라스", "희귀", 1_200, "face", "#ffd6a3", "#5a2a06", false),
-    ("cap", "야구모자", "희귀", 900, "head", "#cfe9d8", "#17432c", false),
-    ("glasses", "안경", "희귀", 800, "face", "#e4e4ec", "#1f1f26", false),
-    ("duck", "고무 오리", "일반", 200, "head", "#fff0a3", "#fff8d2", true),
-    ("coffee", "커피", "일반", 150, "hand", "#ead6c2", "#3d2416", false),
-    ("banana", "바나나", "일반", 100, "hand", "#fde68a", "#fff4c4", true),
-    ("branch", "나뭇가지", "일반", 50, "hand", "#d9e8c4", "#2f4a1c", false),
+/// (번호, 이름, 명품 순위, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요.
+/// 순위는 명품 브랜드 피라미드(1 에르메스 · 2 루이 비통 · 3 구찌 · 4 샤넬 · 5 프라다 · 6 디올 · 7 버버리 · 8 펜디)예요.
+/// 값은 1위 1,000,000 멸공에서 순위마다 약 15%씩 내려가요 (2위 루이 비통 850,000은 사진이 생기면 넣어요)
+pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 7] = [
+    ("hermes", "에르메스 버킨", "1위", 1_000_000, "hand", "#f9cfa8", "#5b2a0a", false),
+    ("gucci", "구찌 GG 호보백", "3위", 720_000, "hand", "#ecd9b6", "#1f4d2b", false),
+    ("chanel", "샤넬 클래식 플랩", "4위", 610_000, "hand", "#dcdce2", "#141414", false),
+    ("prada", "프라다 리나일론 숄더백", "5위", 520_000, "hand", "#d3d7e0", "#171717", false),
+    ("dior", "디올 오블리크 파우치", "6위", 440_000, "hand", "#cbd8ee", "#14223f", false),
+    ("burberry", "버버리 체크 캐시미어 머플러", "7위", 380_000, "neck", "#f2e0b8", "#4a2c10", false),
+    ("fendi", "펜디 FF 토트백", "8위", 320_000, "hand", "#e8dfcf", "#231a12", false),
 ];
-/// 사진 출처 (이름, 작가, 라이선스, 원본 주소)
-const CREDITS: &[(&str, &str, &str, &str)] = &include!("deco_credits.in");
 /// 카테고리 칸 (번호, 이름, 대표 사진, 자리들)
-const CATS: [(&str, &str, &str, &[&str]); 6] = [
-    ("all", "전체", "goldbar", &[]),
-    ("ride", "탈것", "lambo", &["ground"]),
-    ("hand", "손에 들기", "wallet", &["hand", "wrist"]),
-    ("face", "얼굴", "sunglasses", &["face"]),
-    ("head", "머리", "headphones", &["head"]),
-    ("neck", "목", "chain", &["neck"]),
-];
+const CATS: [(&str, &str, &str, &[&str]); 3] = [("all", "전체", "hermes", &[]), ("bag", "가방", "chanel", &["hand"]), ("neck", "목도리", "burberry", &["neck"])];
 /// 알약 칩 (번호, 이름)
-const CHIPS: [(&str, &str); 4] = [("gift", "선물하기 좋은 것"), ("all", "모든 장신구"), ("cheap", "1,000 멸공 이하"), ("rare", "희귀 이상")];
+const CHIPS: [(&str, &str); 4] = [("all", "모든 명품"), ("top", "1~4위"), ("mid", "5~8위"), ("cheap", "40만 멸공 이하")];
 
 thread_local! {
     /// 내 가방 (산 장신구)
@@ -120,7 +107,7 @@ async fn load_bag() {
 
 /* ---------- 상점 화면 ---------- */
 
-/// 지금 고른 카테고리·칩에 맞는 장신구들 (귀한 것부터)
+/// 지금 고른 카테고리·칩에 맞는 명품들 (순위 순)
 fn shown() -> Vec<&'static str> {
     let cat = CAT.with(|c| *c.borrow());
     let chip = CHIP.with(|c| *c.borrow());
@@ -128,11 +115,14 @@ fn shown() -> Vec<&'static str> {
     ITEMS
         .iter()
         .filter(|x| slots.is_empty() || slots.contains(&x.4))
-        .filter(|x| match chip {
-            "gift" => x.3 >= 800 && x.3 <= 8_000,
-            "cheap" => x.3 <= 1_000,
-            "rare" => x.2 != "일반",
-            _ => true,
+        .filter(|x| {
+            let rank: u32 = x.2.trim_end_matches('위').parse().unwrap_or(99);
+            match chip {
+                "top" => rank <= 4,
+                "mid" => (5..=8).contains(&rank),
+                "cheap" => x.3 <= 400_000,
+                _ => true,
+            }
         })
         .map(|x| x.0)
         .collect()
@@ -145,7 +135,7 @@ fn card(k: &str, big: bool) -> String {
         big = if big { " big" } else { "" },
         lt = if *light { " light" } else { "" },
         img = pic(k, "sh-img"),
-        tag = if *r == "전설" || *r == "영웅" { format!("{r} · New") } else { r.to_string() },
+        tag = format!("명품 {r}"),
         price = won(*price),
         on = if own { " owned" } else { "" },
         dis = if own { " disabled" } else { "" },
@@ -157,13 +147,29 @@ fn paint() {
     if !cloud::signed_in() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 상점을 볼 수 있어요</p>"#);
     }
-    // 상품은 모두 내렸어요. 빈 상점만 보여요 (인벤에 이미 있는 장신구는 그대로 낄 수 있어요)
+    let cat = CAT.with(|c| *c.borrow());
+    let chip = CHIP.with(|c| *c.borrow());
+    let cats: String = CATS
+        .iter()
+        .map(|(id, n, k, _)| format!(r#"<button type="button" class="sh-cat{}" data-cat="{id}">{}<span>{n}</span></button>"#, if *id == cat { " on" } else { "" }, pic(k, "sh-ci")))
+        .collect();
+    let chips: String = CHIPS.iter().map(|(id, n)| format!(r#"<button type="button" class="sh-chip{}" data-chip="{id}">{n}</button>"#, if *id == chip { " on" } else { "" })).collect();
+    let list = shown();
+    let cards: String = if list.is_empty() { r#"<p class="sh-none">이 조건에 맞는 명품이 없어요</p>"#.to_string() } else { list.iter().map(|k| card(k, false)).collect() };
+    let title = match chip {
+        "top" => "1~4위 명품",
+        "mid" => "5~8위 명품",
+        "cheap" => "40만 멸공 이하",
+        _ => "명품 순위",
+    };
     dom::set_html_if(
         &root,
         &format!(
-            r#"<header class="sh-top"><h1 id="title-shop">상점</h1><button type="button" class="sh-me" data-go-inv aria-label="내 장신구">{me}</button></header>
-<div class="sh-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5h14l-1 11.5H6zM9 8.5V7a3 3 0 0 1 6 0v1.5"/></svg><b>아직 파는 상품이 없어요</b><span>새 상품이 들어오면 여기에 보여요</span></div>
-<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 장신구 <b>{have}개</b></p>"#,
+            r#"<header class="sh-top"><h1 id="title-shop">상점</h1><button type="button" class="sh-me" data-go-inv aria-label="내 명품">{me}</button></header>
+<div class="sh-cats" role="list">{cats}</div>
+<h2 class="sh-h">명품</h2><div class="sh-chips">{chips}</div>
+<h2 class="sh-h red">{title}</h2><div class="sh-row" id="sh-row">{cards}</div>
+<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 명품 <b>{have}개</b></p>"#,
             me = me_avatar(&my_gear().join(","), "sm"),
             bal = crate::money::w(crate::money::balance().unwrap_or(0.0)),
             have = BAG.with(|b| b.borrow().len()),
@@ -265,12 +271,12 @@ fn close_pager(animate: bool) {
 async fn buy(k: String) {
     let Some((_, n, _, price, ..)) = item(&k) else { return };
     if has(&k) {
-        return crate::shell::toast("이미 가진 장신구예요");
+        return crate::shell::toast("이미 가진 명품이에요");
     }
     if BUSY.replace(true) {
         return;
     }
-    if !crate::shell::ask(&format!("{n}{} 살까요?", eul(n)), &format!("{} 멸공이 빠져요. 산 장신구는 인벤에서 낄 수 있어요.", cloud::fmt_num(*price as f64, 0)), "구입하기", "취소").await {
+    if !crate::shell::ask(&format!("{n}{} 살까요?", eul(n)), &format!("{} 멸공이 빠져요. 산 명품은 인벤에서 걸 수 있어요.", cloud::fmt_num(*price as f64, 0)), "구입하기", "취소").await {
         BUSY.set(false);
         return;
     }
@@ -292,7 +298,7 @@ async fn buy(k: String) {
             BAG.with(|b| b.borrow_mut().push(k.clone()));
             crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{n} 구입"))), ("cat", "쇼핑".into()), ("icon", "gift".into()), ("amt", (-(*price as f64)).into())]));
             dom::vibrate(14);
-            crate::shell::toast(&format!("{n}{} 샀어요. 인벤에서 껴 보세요", eul(n)));
+            crate::shell::toast(&format!("{n}{} 샀어요. 인벤에서 걸어 보세요", eul(n)));
             // 산 카드의 버튼만 바꿔요 (큰 카드 보는 중이어도 그대로)
             for b in dom::qsa(&dom::doc().document_element().expect("html"), &format!(r#"[data-buy="{k}"]"#)) {
                 b.set_text_content(Some("보유 중"));
@@ -307,7 +313,7 @@ async fn buy(k: String) {
     }
 }
 
-/* ---------- 인벤: 산 장신구만, 자리마다 하나씩 끼기 ---------- */
+/* ---------- 인벤: 산 명품만, 가방 하나·머플러 하나씩 걸기 ---------- */
 
 async fn wear(k: String, on: bool) {
     let slot = item(&k).map(|x| x.4).unwrap_or("");
@@ -319,7 +325,7 @@ async fn wear(k: String, on: bool) {
     match cloud::call("decoSet", &[arr.into()]).await {
         Ok(_) => {
             let n = item(&k).map(|x| x.1).unwrap_or("");
-            crate::shell::toast(&if on { format!("{n}{} 꼈어요", eul(n)) } else { format!("{n}{} 뺐어요", eul(n)) });
+            crate::shell::toast(&if on { format!("{n}{} 걸었어요", eul(n)) } else { format!("{n}{} 내렸어요", eul(n)) });
             paint_inv();
             crate::sns::repaint_people();
         }
@@ -338,9 +344,9 @@ fn paint_inv() {
         .filter(|x| bag.iter().any(|b| b == x.0))
         .map(|(k, n, r, ..)| {
             let foot = if now.iter().any(|x| x == k) {
-                format!(r#"<button type="button" class="iv-btn on" data-act="off" data-item="{k}">끼는 중</button>"#)
+                format!(r#"<button type="button" class="iv-btn on" data-act="off" data-item="{k}">거는 중</button>"#)
             } else {
-                format!(r#"<button type="button" class="iv-btn" data-act="wear" data-item="{k}">끼기</button>"#)
+                format!(r#"<button type="button" class="iv-btn" data-act="wear" data-item="{k}">걸기</button>"#)
             };
             format!(r#"<li class="iv-card">{}<b>{n}</b><small>{r}</small>{foot}</li>"#, pic(k, "iv-ti"))
         })
@@ -349,15 +355,14 @@ fn paint_inv() {
     dom::set_html_if(
         &root,
         &format!(
-            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 장신구 <small class="iv-n">{}개</small></h2>{}"#,
+            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 명품 <small class="iv-n">{}개</small></h2>{}"#,
             me_avatar(&now.join(","), "xl"),
-            if names.is_empty() { "끼고 있는 장신구가 없어요".to_string() } else { format!("<b>{}</b> 끼는 중", esc(&names.join(" · "))) },
+            if names.is_empty() { "걸고 있는 명품이 없어요".to_string() } else { format!("<b>{}</b> 걸고 있어요", esc(&names.join(" · "))) },
             bag.len(),
             if bag.is_empty() {
-                if LOADED.get() { r#"<p class="iv-empty">아직 장신구가 없어요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
+                if LOADED.get() { r#"<p class="iv-empty">아직 명품이 없어요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
             } else {
-                let credits: String = CREDITS.iter().map(|(n, a, l, u)| format!(r#"<li>{n}: <a href="{}" target="_blank" rel="noopener noreferrer">{}</a>, {}</li>"#, esc(u), esc(a), esc(l))).collect();
-                format!(r#"<p class="iv-tip">자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 낄 수 있어요</p><ul class="iv-grid">{cards}</ul><details class="gc-cred sh-cred"><summary>사진 출처</summary><ul>{credits}</ul></details>"#)
+                format!(r#"<p class="iv-tip">가방은 하나, 목도리는 하나씩 같이 걸 수 있어요</p><ul class="iv-grid">{cards}</ul>"#)
             }
         ),
     );
