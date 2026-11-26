@@ -1379,6 +1379,10 @@ function __wbg_get_imports() {
             const ret = Promise.race(arg0);
             return ret;
         },
+        __wbg_random_df36b90cd78a7d54: function() {
+            const ret = Math.random();
+            return ret;
+        },
         __wbg_reject_334b730b3c00849b: function(arg0) {
             const ret = Promise.reject(arg0);
             return ret;

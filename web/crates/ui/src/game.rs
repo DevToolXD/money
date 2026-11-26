@@ -1,5 +1,5 @@
 //! 게임 탭: 독소전쟁 대항전. 레드팀(소련)과 블루팀(독일) 중 하나를 골라, 팀원과 함께 누를수록 전선이 밀려요.
-//! 지도는 1942년 독일 최대 판도와 소련을 20개 지역으로 나눠 정확히 10:10에서 시작해요.
+//! 지도는 1942년 독일 최대 판도(10개 지역)와 소련(실제 주 경계로 묶은 16개 지역)에서 시작해요.
 //! 두 팀 클릭 비율만큼의 영토 넓이로 목표 전선이 정해지고, 지도는 그 목표를 향해 한 지역씩 점령해 가요.
 //! 서버를 아끼려고: 클릭은 모아 두었다가 4.5초에 한 번만 보내고(규칙은 4초, 한 번에 200까지),
 //! 전체 점수는 문서 하나만, 게임 탭을 보고 있을 때만 들어요. 랭킹은 30초에 한 번 20명만 읽어요.
@@ -13,7 +13,6 @@ use wasm_bindgen_futures::spawn_local;
 use crate::dom::{self, by_id, esc};
 
 const MAP: &str = include_str!("game_map.json");
-const N: usize = 20;
 /// 한 번에 보내는 최대 클릭 (서버 규칙과 같아요)
 const MAX_FLUSH: f64 = 200.0;
 /// 보내는 간격 (규칙의 4초보다 넉넉하게)
@@ -24,6 +23,7 @@ const MAX_PER_SEC: u32 = 20;
 #[derive(Clone)]
 struct Region {
     name: String,
+    side: String,
     d: String,
     cx: f64,
     cy: f64,
@@ -109,18 +109,19 @@ fn scores() -> (f64, f64) {
 fn target() -> usize {
     let (r, b) = scores();
     if r + b <= 0.0 {
-        return N / 2;
+        return start();
     }
     REGIONS.with(|regs| {
         let regs = regs.borrow();
-        if regs.len() != N {
-            return N / 2;
+        let n = regs.len();
+        if n < 2 {
+            return start();
         }
         let total: f64 = regs.iter().map(|g| g.area).sum();
         let want = total * b / (r + b);
         let mut best = (1usize, f64::MAX);
         let mut acc = 0.0;
-        for (k, g) in regs.iter().enumerate().take(N - 1) {
+        for (k, g) in regs.iter().enumerate().take(n - 1) {
             acc += g.area;
             let d = (acc - want).abs();
             if d < best.1 {
@@ -131,6 +132,13 @@ fn target() -> usize {
     })
 }
 
+/// 지역 수와, 아무도 안 눌렀을 때의 1942년 전선 (독일 지역 수)
+fn count() -> usize {
+    REGIONS.with(|r| r.borrow().len())
+}
+fn start() -> usize {
+    REGIONS.with(|r| r.borrow().iter().filter(|g| g.side == "b").count())
+}
 fn load_regions() {
     if REGIONS.with(|r| !r.borrow().is_empty()) {
         return;
@@ -142,7 +150,7 @@ fn load_regions() {
         .map(|r| {
             let s = |k: &str| cloud::get(&r, k).as_string().unwrap_or_default();
             let f = |k: &str| cloud::get(&r, k).as_f64().unwrap_or(0.0);
-            Region { name: s("name"), d: s("d"), cx: f("cx"), cy: f("cy"), area: f("area") }
+            Region { name: s("name"), side: s("side"), d: s("d"), cx: f("cx"), cy: f("cy"), area: f("area") }
         })
         .collect();
     REGIONS.with(|r| *r.borrow_mut() = v);
@@ -159,6 +167,9 @@ fn build() {
     }
     let Some(root) = by_id("game-root") else { return };
     load_regions();
+    if !GOT.get() {
+        SHOWN.set(start());
+    }
     let ctx = js_sys::JSON::parse(MAP).ok().map(|j| cloud::get(&j, "context").as_string().unwrap_or_default()).unwrap_or_default();
     let k = SHOWN.get();
     let paths: String = REGIONS.with(|r| {
@@ -176,7 +187,7 @@ fn build() {
   <p class="gm-news" id="gm-news"></p>
   <div class="gm-view" id="gm-view"><svg class="gm-map" id="gm-svg" viewBox="0 24 1000 780" role="img" aria-label="전쟁 지도"><path class="gm-ctx" d="{ctx}"/><g id="gm-regs">{paths}</g><g id="gm-fx"></g><g class="gm-lbl"><text id="gm-rt" class="r" x="0" y="0">0</text><text id="gm-bt" class="b" x="0" y="0">0</text></g></svg><button type="button" class="gm-full" id="gm-full">전체 지도</button></div>
 </div>
-<div class="gm-play" id="gm-play"></div>
+<div class="gm-play" id="gm-play"></div><div class="gm-fxl" id="gm-fxl" aria-hidden="true"></div>
 <section class="gm-rank" aria-labelledby="gm-rank-t"><h2 id="gm-rank-t">랭킹</h2><div class="gm-cols" id="gm-rank"></div><p class="gm-mine" id="gm-mine"></p></section>"#
     ));
     BUILT.set(true);
@@ -195,7 +206,8 @@ fn build() {
         dom::on(&p, "pointerdown", |e| {
             if dom::closest(&e, "#gm-hit").is_some() {
                 e.prevent_default();
-                hit();
+                let (x, y) = e.dyn_ref::<web_sys::PointerEvent>().map(|p| (p.client_x() as f64, p.client_y() as f64)).unwrap_or((0.0, 0.0));
+                hit(x, y);
             }
         });
     }
@@ -255,7 +267,7 @@ fn on_play_click(e: web_sys::Event) {
     });
 }
 
-fn hit() {
+fn hit(x: f64, y: f64) {
     if team().is_empty() {
         return;
     }
@@ -267,15 +279,49 @@ fn hit() {
     }
     SEC.set((s0, c + 1));
     PENDING.set(PENDING.get() + 1.0);
-    dom::vibrate(4);
-    if let Some(b) = by_id("gm-hit") {
-        // 누를 때마다 살짝 눌리는 움직임 (CSS 애니메이션을 다시 시작해요)
-        let _ = b.class_list().remove_1("pop");
-        let _ = b.offset_width();
-        let _ = b.class_list().add_1("pop");
-    }
+    dom::vibrate(12);
+    impact(x, y);
     paint_score();
     run();
+}
+
+/// 타격감: 버튼이 꾹 눌렸다 튀어나오고, 누른 자리에서 팀 색 +1과 고리가 튀고, 지도가 살짝 흔들려요.
+/// 모두 transform·opacity 움직임(Web Animations)이라 레이아웃을 다시 계산하지 않아요
+fn impact(x: f64, y: f64) {
+    let t = team();
+    if let Some(b) = by_id("gm-hit") {
+        dom::anim(&b, r#"[{"transform":"scale(1)"},{"transform":"scale(0.9)","offset":0.3},{"transform":"scale(1.03)","offset":0.7},{"transform":"scale(1)"}]"#, r#"{"duration":260,"easing":"cubic-bezier(.2,.8,.2,1)","fill":"none"}"#);
+    }
+    if let Some(v) = by_id("gm-view") {
+        let dx = if js_sys::Math::random() < 0.5 { -3 } else { 3 };
+        dom::anim(&v, &format!(r#"[{{"transform":"translate(0,0)"}},{{"transform":"translate({dx}px,-2px)","offset":0.25}},{{"transform":"translate({}px,2px)","offset":0.6}},{{"transform":"translate(0,0)"}}]"#, -dx), r#"{"duration":180,"easing":"ease-out","fill":"none"}"#);
+    }
+    if dom::reduce_motion() || (x == 0.0 && y == 0.0) {
+        return;
+    }
+    let Some(layer) = by_id("gm-fxl") else { return };
+    // 한꺼번에 너무 많이 쌓이지 않게 (연타해도 가벼워요)
+    if layer.child_element_count() > 14 {
+        if let Some(f) = layer.first_element_child() {
+            f.remove();
+        }
+    }
+    let drift = (js_sys::Math::random() - 0.5) * 60.0;
+    let html = format!(
+        r#"<i class="gm-ring {t}" style="left:{x:.0}px;top:{y:.0}px"></i><b class="gm-plus {t}" style="left:{x:.0}px;top:{y:.0}px;--dx:{drift:.0}px">+1</b>"#
+    );
+    let _ = layer.insert_adjacent_html("beforeend", &html);
+    let l2 = layer.clone();
+    leptos::prelude::set_timeout(
+        move || {
+            for _ in 0..2 {
+                if let Some(f) = l2.first_element_child() {
+                    f.remove();
+                }
+            }
+        },
+        std::time::Duration::from_millis(700),
+    );
 }
 
 /// 숫자·막대·라벨을 바뀐 것만 고쳐요
@@ -304,7 +350,8 @@ fn paint_labels(r: f64, b: f64) {
     let k = SHOWN.get();
     REGIONS.with(|regs| {
         let regs = regs.borrow();
-        if regs.len() != N {
+        let n = regs.len();
+        if n < 2 {
             return;
         }
         let center = |a: &[Region]| {
@@ -312,7 +359,7 @@ fn paint_labels(r: f64, b: f64) {
             (a.iter().map(|g| g.cx * g.area).sum::<f64>() / w, a.iter().map(|g| g.cy * g.area).sum::<f64>() / w)
         };
         // 전선을 따라가는 동안에는 화면에 보이는 전선 가까운 땅 가운데, 전체 보기면 진영 전체 가운데
-        let (b0, r1) = if FULL.get() { (0, N) } else { (k.saturating_sub(3), (k + 3).min(N)) };
+        let (b0, r1) = if FULL.get() { (0, n) } else { (k.saturating_sub(3), (k + 3).min(n)) };
         for (id, part, v) in [("gm-bt", &regs[b0..k], b), ("gm-rt", &regs[k..r1], r)] {
             let Some(el) = svg_el(id) else { continue };
             let (x, y) = center(part);
@@ -384,11 +431,11 @@ fn camera() {
     } else {
         let Some((x0, y0, x1, y1)) = REGIONS.with(|r| {
             let r = r.borrow();
-            if r.len() != N {
+            if r.len() < 2 {
                 return None;
             }
             let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
-            for g in &r[k.saturating_sub(2)..(k + 2).min(N)] {
+            for g in &r[k.saturating_sub(2)..(k + 2).min(r.len())] {
                 let h = g.area.sqrt() * 0.8;
                 x0 = x0.min(g.cx - h);
                 x1 = x1.max(g.cx + h);
@@ -434,7 +481,7 @@ fn watch() {
         if !GOT.replace(true) {
             let k = target();
             SHOWN.set(k);
-            for i in 0..N {
+            for i in 0..count() {
                 if let Some(p) = svg_el(&format!("gm-p{i}")) {
                     let _ = p.set_attribute("class", &format!("gm-reg {}", if i < k { "b" } else { "r" }));
                 }

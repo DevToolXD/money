@@ -45,7 +45,7 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
 
   // 게임: 처음엔 10:10, 팀 고르기
   await go(A, 'game');
-  ok('지도 20개 지역, 처음엔 반반', (await A.evaluate(() => document.querySelectorAll('#gm-regs path').length)) === 20 && (await blues(A)) === 10);
+  ok('지도 26개 지역(소련은 실제 주 경계), 처음엔 1942년 판도', (await A.evaluate(() => document.querySelectorAll('#gm-regs path').length)) === 26 && (await blues(A)) === 10);
   ok('팀 고르기: 레드팀 소련 / 블루팀 독일', (await A.textContent('.gm-team.r')).includes('소련') && (await A.textContent('.gm-team.b')).includes('독일'));
   await A.click('.gm-team.r'); await A.waitForTimeout(600);
   ok('한 번 고르면 못 바꾼다고 확인', (await A.textContent('#alert-body')).includes('바꿀 수 없어요'));
@@ -69,13 +69,16 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
   const pa = (await raw(`gamePlayers/${await A.evaluate(() => window.cloud.uid)}`)).fields || {};
   ok('서버: 내 기록 30', int(pa.clicks) === 30 && pa.team?.stringValue === 'r');
   // 목표 전선: 20 x 10/40 = 5 지역만 독일. 한 지역씩 점령해 가요 (0.2초마다 보며 한 번에 둘 이상 바뀌지 않는지)
-  await A.waitForTimeout(9000);
+  await A.waitForTimeout(16000);
   const seen = (await A.evaluate(() => window.__seen)).filter((v, i, a) => i === 0 || v !== a[i - 1]);
   console.log('독일 지역 수 흐름', seen.join(','));
   ok('한 지역씩 점령 (한 번에 다 바뀌지 않아요)', seen.every((v, i) => i === 0 || Math.abs(v - seen[i - 1]) <= 1) && seen.length > 2);
   // 넓이 기준: 독일 클릭 25% → 독일 땅 넓이가 전체의 25%에 가장 가까운 자리 (유럽 10개 + 모스크바·볼가 = 12)
-  const want = await A.evaluate(() => 12);
-  ok('비율대로 전선: 영토 넓이로 독일 12 지역', (await blues(A)) === want && (await blues(B)) === want);
+  const map = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'web', 'crates', 'ui', 'src', 'game_map.json'), 'utf8'));
+  const areas = map.regions.map((r) => r.area); const tot = areas.reduce((a, b) => a + b, 0);
+  let want = 1, best = Infinity, acc = 0; for (let k = 0; k < areas.length - 1; k++) { acc += areas[k]; const d = Math.abs(acc - tot * 0.25); if (d < best) { best = d; want = k + 1; } }
+  console.log('넓이로 정한 독일 지역 수', want);
+  ok('비율대로 전선: 영토 넓이 25%만큼 독일 땅', (await blues(A)) === want && (await blues(B)) === want);
   ok('점령 소식', (await A.textContent('#gm-news')).includes('점령했어요'));
   console.log('라벨', await A.textContent('#gm-rt'), await A.textContent('#gm-bt'));
   ok('각 진영 가운데 클릭 수', (await A.textContent('#gm-rt')).trim() === '30' && (await A.textContent('#gm-bt')).trim() === '10');

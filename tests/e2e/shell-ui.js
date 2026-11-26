@@ -89,7 +89,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   ok('지도 탭: 위성 사진 조각', (await active(p)) === 'map' && (await p.evaluate(() => document.querySelectorAll('#map-tiles img.map-tile').length)) > 3);
   ok('지도: 워터마크 없이 출처 한 줄', (await text(p, '.map-attr')).includes('Esri'));
   await tab(p, 'game'); await p.waitForTimeout(2500);
-  ok('게임 탭: 지도와 팀 고르기', (await active(p)) === 'game' && (await p.evaluate(() => document.querySelectorAll('#gm-regs path').length)) === 20 && await p.isVisible('.gm-team.r') && await p.isVisible('.gm-team.b'));
+  ok('게임 탭: 지도와 팀 고르기', (await active(p)) === 'game' && (await p.evaluate(() => document.querySelectorAll('#gm-regs path').length)) === 26 && await p.isVisible('.gm-team.r') && await p.isVisible('.gm-team.b'));
   const labels2 = await p.evaluate(() => [...document.querySelectorAll('.tabbar .tab:not(.tab-account) .tab-label')].map((e) => e.textContent));
   ok('둘째 쪽: 놀기·지도·거래·게임', labels2.join(',') === '놀기,지도,거래,게임');
   await p.evaluate(() => window.tabbar.flipPage()); await p.waitForTimeout(700);

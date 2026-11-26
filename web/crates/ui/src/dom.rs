@@ -194,7 +194,27 @@ pub fn vibrate(ms: u32) {
     if let Some(n) = web_sys::window().map(|w| w.navigator()) {
         if let Ok(f) = Reflect::get(&n, &JsValue::from_str("vibrate")).and_then(|f| f.dyn_into::<Function>()) {
             let _ = f.call1(&n, &JsValue::from(ms));
+            return;
         }
+    }
+    ios_tap();
+}
+/// 아이폰(사파리)은 진동 기능이 없어요. iOS 18부터는 스위치 모양 체크박스를 누르면 기기가 "톡" 하고 울려서, 숨긴 스위치를 대신 눌러요
+/// (누르는 순간의 처리 안에서만 울려요)
+fn ios_tap() {
+    thread_local!(static SW: std::cell::RefCell<Option<web_sys::HtmlElement>> = const { std::cell::RefCell::new(None) });
+    let label = SW.with(|s| s.borrow().clone()).or_else(|| {
+        let d = doc();
+        let l: web_sys::HtmlElement = d.create_element("label").ok()?.dyn_into().ok()?;
+        l.set_class_name("haptic");
+        let _ = l.set_attribute("aria-hidden", "true");
+        l.set_inner_html(r#"<input type="checkbox" switch tabindex="-1">"#);
+        d.body()?.append_child(&l).ok()?;
+        SW.with(|s| *s.borrow_mut() = Some(l.clone()));
+        Some(l)
+    });
+    if let Some(l) = label {
+        l.click();
     }
 }
 /// JS 함수 하나로 감싸기: (L) => 새 L. 연구실 숫자 바꾸기(labChange)에 넘겨요
