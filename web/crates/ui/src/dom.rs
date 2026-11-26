@@ -199,22 +199,53 @@ pub fn vibrate(ms: u32) {
     }
     ios_tap();
 }
-/// 아이폰(사파리)은 진동 기능이 없어요. iOS 18부터는 스위치 모양 체크박스를 누르면 기기가 "톡" 하고 울려서, 숨긴 스위치를 대신 눌러요
-/// (누르는 순간의 처리 안에서만 울려요)
+/// 아이폰(사파리)은 진동 기능이 없어요. iOS 18부터는 스위치 모양 체크박스가 바뀔 때 기기가 "톡" 하고 울려서, 숨긴 스위치를 대신 바꿔요.
+/// 조심할 것 (예전엔 이 때문에 입력칸에 글이 안 써지고, 거래 제안이 멈췄어요):
+///  - 그 가짜 클릭이 앱의 다른 클릭 처리기로 퍼지지 않게 스위치에서 바로 멈춰요 (퍼지면 실행 중인 처리기가 다시 불려 오류가 나요)
+///  - 라벨이 아니라 스위치 자체를 바꿔서, 포커스(입력칸의 커서)를 가져가지 않아요
+///  - 글을 쓰는 중이면(입력칸에 커서가 있으면) 울리지 않아요
+///  - 울리는 중에 또 부르면(겹치면) 건너뛰어요
 fn ios_tap() {
-    thread_local!(static SW: std::cell::RefCell<Option<web_sys::HtmlElement>> = const { std::cell::RefCell::new(None) });
-    let label = SW.with(|s| s.borrow().clone()).or_else(|| {
-        let d = doc();
+    thread_local! {
+        static SW: std::cell::RefCell<Option<web_sys::HtmlInputElement>> = const { std::cell::RefCell::new(None) };
+        static BUSY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    if BUSY.with(|b| b.get()) {
+        return;
+    }
+    let d = doc();
+    if let Some(a) = d.active_element() {
+        let tag = a.tag_name();
+        if tag == "INPUT" || tag == "TEXTAREA" || a.has_attribute("contenteditable") {
+            return;
+        }
+    }
+    let sw = SW.with(|s| s.borrow().clone()).or_else(|| {
         let l: web_sys::HtmlElement = d.create_element("label").ok()?.dyn_into().ok()?;
         l.set_class_name("haptic");
         let _ = l.set_attribute("aria-hidden", "true");
         l.set_inner_html(r#"<input type="checkbox" switch tabindex="-1">"#);
+        // 가짜 클릭은 여기서 멈춰요 (앱의 다른 처리기로 퍼지지 않게)
+        let stop = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| e.stop_propagation()).into_js_value();
+        let _ = l.add_event_listener_with_callback("click", stop.unchecked_ref());
         d.body()?.append_child(&l).ok()?;
-        SW.with(|s| *s.borrow_mut() = Some(l.clone()));
-        Some(l)
+        let i: web_sys::HtmlInputElement = l.query_selector("input").ok()??.dyn_into().ok()?;
+        let _ = i.add_event_listener_with_callback("click", stop.unchecked_ref());
+        SW.with(|s| *s.borrow_mut() = Some(i.clone()));
+        Some(i)
     });
-    if let Some(l) = label {
-        l.click();
+    if let Some(i) = sw {
+        // 지금 실행 중인 처리기가 끝난 바로 뒤(같은 터치 안)에 바꿔요. 처리기 안에서 바로 클릭하면 그 처리기가 다시 불려 오류가 나요
+        BUSY.with(|b| b.set(true));
+        let run = Closure::once_into_js(move |_v: JsValue| {
+            i.click();
+            BUSY.with(|b| b.set(false));
+        });
+        let f: Function = run.unchecked_into();
+        let p = js_sys::Promise::resolve(&JsValue::UNDEFINED);
+        if let Ok(then) = Reflect::get(&p, &JsValue::from_str("then")).and_then(|t| t.dyn_into::<Function>()) {
+            let _ = then.call1(&p, &f);
+        }
     }
 }
 /// JS 함수 하나로 감싸기: (L) => 새 L. 연구실 숫자 바꾸기(labChange)에 넘겨요

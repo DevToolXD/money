@@ -612,6 +612,10 @@ fn haptics() {
     let d = crate::dom::doc();
     let tap = Closure::<dyn FnMut(web_sys::Event)>::new(|e: web_sys::Event| {
         let Some(t) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) else { return };
+        // 진동 대신 바꾸는 숨은 스위치의 클릭은 세지 않아요
+        if t.closest(".haptic").ok().flatten().is_some() {
+            return;
+        }
         if t.closest("button, a, [role=button], [role=tab], [role=switch], [role=option], label, summary, input[type=checkbox], input[type=radio], select, .row, .card, li").ok().flatten().is_some() {
             crate::dom::vibrate(8);
         }
