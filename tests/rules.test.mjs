@@ -303,6 +303,26 @@ await t("GIF 댓글: GIPHY 주소만", async () => {
   await assertFails(reply("javascript:alert(1)"));
   await assertSucceeds(reply("https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/200w.webp"));
 });
+await t("10연차: 100 멸공에 뽑기 10개, 칸마다 다른 결과로 낄 수 있어요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  const ten = (db, bal, k = 10) => {
+    const refs = Array.from({ length: 10 }, () => doc(collection(db, "pulls")));
+    const b = writeBatch(db);
+    refs.slice(0, k).forEach((r, n) => b.set(r, { by: "uA", at: serverTimestamp(), n }));
+    b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "gacha10", pids: refs.map((r) => r.id) } });
+    return { b, refs };
+  };
+  await assertFails(ten(A, 1250000 - 10).b.commit()); // 10 멸공만 내기
+  const ok = ten(A, 1250000 - 100);
+  await assertSucceeds(ok.b.commit());
+  const OFF = [0, 383, 761, 127, 512, 894, 266, 649, 38, 421];
+  const T = [[15, "lambo"], [40, "goldbar"], [75, "wallet"], [115, "watch"], [160, "chain"], [215, "headphones"], [275, "cap"], [335, "sunglasses"], [400, "glasses"], [540, "coffee"], [690, "duck"], [840, "banana"], [1000, "branch"]];
+  const snap = await getDoc(doc(A, `pulls/${ok.refs[7].id}`));
+  const k = T.find(([x]) => (snap.data().at.toMillis() + OFF[7]) % 1000 < x)[1];
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: k === "lambo" ? "branch" : "lambo", p: ok.refs[7].id }] }));
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [{ k, p: ok.refs[7].id }] }));
+});
 await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");

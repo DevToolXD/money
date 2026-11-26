@@ -20,7 +20,7 @@ const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]
   await p.evaluate((u) => window.cloud.signUp(u, 'abc123', '뽑기왕'), id);
   await p.reload(); await p.waitForTimeout(6000);
   const uid = await p.evaluate(() => window.cloud.uid);
-  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { bal: { integerValue: '100' } } }) });
+  await fetch(`${DB}/wallets/${uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { bal: { integerValue: '200' } } }) });
   await p.waitForTimeout(1500);
   const toast = async (t) => { for (let i = 0; i < 60; i++) { if (((await p.textContent('.toast').catch(() => '')) || '').includes(t)) return true; await p.waitForTimeout(250); } return false; };
   const menu = async (go) => { await p.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await p.waitForTimeout(500); await p.click(`.qm-row[data-go="${go}"]`); await p.waitForTimeout(1500); };
@@ -29,7 +29,7 @@ const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]
   ok('메뉴에 뽑기·인벤', rows.includes('뽑기') && rows.includes('인벤'));
   await p.click('.qm-row[data-go="gacha"]'); await p.waitForTimeout(1500);
   const g = await p.textContent('#gacha-root');
-  ok('뽑기 화면: 10 멸공 버튼과 등급별 확률', g.includes('10 멸공으로 뽑기') && g.includes('람보르기니') && g.includes('1.5%') && g.includes('명품 지갑') && g.includes('전설') && g.includes('영웅') && g.includes('희귀') && g.includes('일반'));
+  ok('뽑기 화면: 10 멸공 버튼과 등급별 확률', g.includes('1번 뽑기') && g.includes('10번 뽑기') && g.includes('100 멸공') && g.includes('람보르기니') && g.includes('1.5%') && g.includes('명품 지갑') && g.includes('전설') && g.includes('영웅') && g.includes('희귀') && g.includes('일반'));
   ok('장신구 13종 사진', (await p.$$('#gacha-root .gc-tile img')).length === 13);
   ok('사진 출처', (await p.textContent('.gc-cred')).includes('사진 출처'));
   await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha.png') });
@@ -37,16 +37,25 @@ const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]
   ok('결과 창', await p.isVisible('#gc-result .gc-card'));
   const shown = await p.getAttribute('#gc-result [data-act="wear"]', 'data-item');
   const pulls = (await raw('pulls')).documents || [];
-  ok('서버: 뽑기 하나, 지갑 90', pulls.length === 1 && int((await raw(`wallets/${uid}`)).fields?.bal) === 90);
+  ok('서버: 뽑기 하나, 지갑 190', pulls.length === 1 && int((await raw(`wallets/${uid}`)).fields?.bal) === 190);
   ok('결과는 서버 시각으로 정한 등급과 같아요', shown === tierOf(pulls[0].fields.at.timestampValue));
   await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha-result.png') });
   await p.click('#gc-result [data-act="wear"]');
   ok('바로 끼기', await toast('꼈어요'));
+  await p.waitForTimeout(2500);
+  // 10번 뽑기
+  await menu('gacha');
+  await p.click('#gc-go10'); await p.waitForTimeout(5500);
+  ok('10번 뽑기: 10칸 결과', (await p.$$('#gc-result .gc-r10')).length === 10);
+  const all = ((await raw('pulls?pageSize=50')).documents || []);
+  ok('서버: 뽑기 11개, 지갑 90', all.length === 11 && int((await raw(`wallets/${uid}`)).fields?.bal) === 90);
+  await p.screenshot({ path: path.join(__dirname, 'shots', 'gacha-10.png') });
+  await p.click('#gc-result [data-act="close"]'); await p.waitForTimeout(600);
   await p.waitForTimeout(1000);
   ok('서버: 프로필에 장신구', ((await raw(`profiles/${uid}`)).fields?.decos?.arrayValue?.values?.[0]?.mapValue?.fields?.k?.stringValue) === shown);
   await menu('inv');
   ok('인벤: 끼는 중, 내 동그라미에 장신구', (await p.textContent('#inv-root')).includes('끼는 중') && await p.isVisible(`#inv-root .iv-hero .dc-${shown}`));
-  ok('안 뽑은 건 잠겨 있어요', (await p.$$('#inv-root .iv-card.locked')).length === 12);
+  ok('안 뽑은 건 잠겨 있어요', (await p.$$('#inv-root .iv-card.locked')).length + (await p.$$('#inv-root .iv-card:not(.locked)')).length === 13 && (await p.$$('#inv-root .iv-card.locked')).length < 13);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'inv.png') });
   await p.click('#inv-root [data-act="off"]');
   ok('빼기', await toast('뺐어요'));
@@ -57,8 +66,9 @@ const tierOf = (iso) => { const ms = new Date(iso).getTime(); return T.find(([x]
   const put = (id, ms) => fetch(`${DB}/pulls/${id}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { by: { stringValue: uid }, at: { timestampValue: new Date(Math.floor(Date.now() / 1000) * 1000 + ms).toISOString() } } }) });
   await put('tglasses', 350); await put('tcap', 250);
   await menu('inv'); await p.waitForTimeout(1500);
-  for (const k of ['glasses', 'cap']) { if (shown !== k) { await p.click(`#inv-root [data-act="wear"][data-item="${k}"]`); await toast('꼈어요'); await p.waitForTimeout(1200); } }
+  for (const k of ['glasses', 'cap']) { if (shown !== k) { await p.click(`#inv-root [data-act="wear"][data-item="${k}"]`); await toast('꼈어요'); await p.waitForTimeout(2200); } }
   const decos = ((await raw(`profiles/${uid}`)).fields?.decos?.arrayValue?.values || []).map((v) => v.mapValue.fields.k.stringValue);
+  console.log('decos', decos, await p.textContent('#inv-root .iv-hero'));
   ok('여러 개 같이 끼기 (자리마다 하나)', decos.includes('glasses') && decos.includes('cap') && await p.isVisible('#inv-root .iv-hero .dc-glasses') && await p.isVisible('#inv-root .iv-hero .dc-cap'));
   await p.evaluate(() => { document.getElementById('screen-inv').scrollTop = 0; }); await p.waitForTimeout(400);
   await p.screenshot({ path: path.join(__dirname, 'shots', 'inv-multi.png') });

@@ -150,12 +150,22 @@ fn on_feed(e: web_sys::Event) {
                 match crate::chat::people::chat_with(&item.by, &uid_id, &n, &ph).await {
                     Ok(cid) => {
                         crate::chat::thread::open(&cid);
-                        // 무슨 글을 보고 연락했는지 입력칸에 적어 둬요 (보내기는 직접 눌러요)
-                        if let Some(i) = by_id("composer-input").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
-                            i.set_value(&format!("거래 글 \"{}\" 보고 연락드려요", item.title));
-                            // 글을 넣었다고 알려야 보내기 버튼이 음성(파형)에서 보내기 화살표로 바뀌어요
-                            if let Ok(ev) = web_sys::Event::new("input") {
-                                let _ = i.dispatch_event(&ev);
+                        // 제안하기를 누르면 "거래 글 ○○ 보고 연락드려요"를 바로 보내요 (같은 글에는 한 번만)
+                        let key = format!("offered:{}", item.id);
+                        if dom::store_get(&key, "") != "1" {
+                            let text = format!("거래 글 \"{}\" 보고 연락드려요", item.title);
+                            let (c2, to, t2) = (cid.clone(), item.by.clone(), text.clone());
+                            let r = crate::chat::queue_send(move || {
+                                let payload = dom::obj(&[("type", "text".into()), ("text", JsValue::from_str(&t2))]);
+                                cloud::call_now("send", &[JsValue::from_str(&c2), JsValue::from_str(&to), payload, JsValue::from_str(&t2)])
+                            })
+                            .await;
+                            match r {
+                                Ok(_) => {
+                                    dom::store_set(&key, "1");
+                                    crate::shell::toast("판매자에게 제안을 보냈어요");
+                                }
+                                Err(_) => crate::shell::toast("제안을 보내지 못했어요. 대화창에서 다시 보내 주세요"),
                             }
                         }
                     }

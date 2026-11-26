@@ -2406,9 +2406,10 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
 
 /* ===== 릴스: 한 화면에 한 게시물, 위아래로 넘기면 딱 맞춰 멈춰요 ===== */
 #screen-reels { padding: 0; overflow: hidden; background: #000; }
-.reels { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; background: #000; }
+.reels { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: #000; }
+.rl-track { position: absolute; inset: 0; will-change: transform; }
 .reels::-webkit-scrollbar { display: none; }
-.rl-s { position: relative; height: 100%; touch-action: pan-y; scroll-snap-align: start; scroll-snap-stop: always; overflow: hidden; color: #fff; contain: strict; }
+.rl-s { position: absolute; left: 0; right: 0; height: 100%; overflow: hidden; color: #fff; contain: strict; }
 .rl-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
 .rl-s.has-photo .rl-bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0) 22%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.62) 100%); }
 .rl-big { position: absolute; left: 28px; right: 76px; top: 50%; transform: translateY(-50%); margin: 0; font-size: 28px; line-height: 36px; font-weight: 800; letter-spacing: -0.02em; word-break: keep-all; overflow-wrap: anywhere; white-space: pre-wrap; text-shadow: 0 2px 14px rgba(0, 0, 0, 0.18); display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; }
@@ -2579,14 +2580,14 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .av-on .on-dot { z-index: 3; }
 .dc-glasses, .dc-sunglasses { width: 86%; left: 7%; top: 28%; z-index: 2; }
 .dc-cap { width: 108%; left: -4%; top: -36%; z-index: 2; }
-.dc-headphones { width: 128%; left: -14%; top: -18%; z-index: 2; }
+.dc-headphones { width: 114%; left: -7%; top: -58%; z-index: 2; }
 .dc-duck { width: 54%; left: 23%; top: -42%; z-index: 2; }
-.dc-chain { width: 74%; left: 13%; top: 66%; }
+.dc-chain { width: 66%; left: 17%; top: 74%; }
 .dc-watch { width: 44%; left: -18%; top: 60%; transform: rotate(-18deg); }
 .dc-wallet, .dc-goldbar, .dc-banana, .dc-branch, .dc-coffee { right: -26%; top: 50%; width: 58%; transform: rotate(10deg); }
 .dc-banana, .dc-branch { width: 66%; top: 40%; }
 .dc-coffee { width: 40%; right: -18%; top: 46%; transform: none; }
-.dc-lambo { width: 170%; left: -35%; top: 66%; z-index: 2; }
+.dc-lambo { width: 150%; left: -25%; top: 70%; z-index: 2; }
 .dv .avatar { margin: 0; }
 .dv.sm .avatar { width: 44px; height: 44px; font-size: 15px; }
 .dv.md .avatar { width: 72px; height: 72px; font-size: 24px; }
@@ -2734,3 +2735,21 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .tb-hand svg { width: 26px; height: 26px; }
 @keyframes tbSwipe { 0% { transform: translateX(10px); opacity: 0.4; } 25% { opacity: 1; } 55% { transform: translateX(-14px); opacity: 1; } 100% { transform: translateX(10px); opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) { .tb-hand { animation: none; } }
+
+/* 뽑기 버튼 두 개 (1번 / 10번) */
+.gc-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 340px; }
+.gc-btns .gc-go { display: grid; place-content: center; gap: 1px; height: 60px; border-radius: 30px; font-size: 17px; }
+.gc-btns .gc-go small { font-size: 12px; font-weight: 600; opacity: 0.85; }
+.gc-btns .gc-go.ten { background: linear-gradient(135deg, #7b5cff, #0a7cff); }
+/* 10번 뽑기 결과: 10칸이 차례로 튀어나와요 */
+.gc-card.ten { max-width: 360px; }
+.gc-card.ten .gc-big { width: 120px; height: 90px; }
+.gc-ten { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; width: 100%; margin: 6px 0 2px; padding: 0; }
+.gc-r10 { display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border-radius: 10px; background: rgba(120, 120, 128, 0.1); animation: gcPop 0.42s cubic-bezier(.3, 1.4, .5, 1) both; }
+.gc-r10 .gc-ti { width: 40px; height: 40px; }
+.gc-r10 b { font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.gc-r10.t4 { background: linear-gradient(160deg, rgba(255, 214, 102, 0.5), rgba(255, 176, 32, 0.2)); }
+.gc-r10.t3 { background: linear-gradient(160deg, rgba(190, 140, 255, 0.4), rgba(142, 68, 236, 0.12)); }
+.gc-r10.t2 { background: linear-gradient(160deg, rgba(120, 180, 255, 0.35), rgba(45, 127, 249, 0.1)); }
+@keyframes gcPop { 0% { opacity: 0; transform: scale(0.5) translateY(10px); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .gc-r10 { animation: none; } }

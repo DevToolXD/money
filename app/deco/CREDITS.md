@@ -7,7 +7,7 @@
 - 지갑 (`wallet.webp`): Eugenepik, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Leather_bi-fold_wallet_by_Eugene_Pik_(2021)_04.jpg
 - 손목시계 (`watch.webp`): Aditya Oberai, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:Analog_Wrist_Watch.jpg
 - 금목걸이 (`chain.webp`): The Metropolitan Museum of Art, CC0, https://commons.wikimedia.org/wiki/File:Gold_chain_in_three_strands_MET_DP257487.jpg
-- 헤드폰 (`headphones.webp`): 多多123, CC BY 4.0, https://commons.wikimedia.org/wiki/File:MDR-ZX310.jpg
+- 헤드폰 (`headphones.webp`): Action-Max (작가 미상), Public domain, https://commons.wikimedia.org/wiki/File:Action-Max-Stereo-Headphones.jpg
 - 야구모자 (`cap.webp`): TexasRebel, Public domain, https://commons.wikimedia.org/wiki/File:Baseball_cap.jpg
 - 선글라스 (`sunglasses.webp`): Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2023_Okulary_przeciws%C5%82oneczne_Ray-Ban_(1).jpg
 - 안경 (`glasses.webp`): Jacek Halicki, CC BY-SA 4.0, https://commons.wikimedia.org/wiki/File:2023_Okulary_korekcyjne_Ray-Ban_(1).jpg

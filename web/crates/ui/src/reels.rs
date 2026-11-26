@@ -45,8 +45,9 @@ pub fn repaint() {
             let big = if pic.is_empty() && !text.is_empty() { format!(r#"<p class="rl-big">{}</p>"#, esc(text)) } else { String::new() };
             let cap = if !pic.is_empty() && !text.is_empty() { format!(r#"<p class="rl-cap">{}</p>"#, esc(text)) } else { String::new() };
             format!(
-                r#"<section class="rl-s{photo}" data-id="{id}"><div class="rl-bg" style="{bg}"></div>{big}<div class="rl-side"><button type="button" class="rl-btn{on}" data-act="like" aria-label="좋아요">{heart}<span>{lk}</span></button><button type="button" class="rl-btn" data-act="replies" aria-label="댓글">{bubble}<span>{rc}</span></button></div><div class="rl-info"><button type="button" class="rl-who" data-uid="{by}">{av}<b>{name}{bl}</b><small>{ago}</small></button>{cap}</div></section>"#,
+                r#"<section class="rl-s{photo}" data-id="{id}" style="top:{top}%"><div class="rl-bg" style="{bg}"></div>{big}<div class="rl-side"><button type="button" class="rl-btn{on}" data-act="like" aria-label="좋아요">{heart}<span>{lk}</span></button><button type="button" class="rl-btn" data-act="replies" aria-label="댓글">{bubble}<span>{rc}</span></button></div><div class="rl-info"><button type="button" class="rl-who" data-uid="{by}">{av}<b>{name}{bl}</b><small>{ago}</small></button>{cap}</div></section>"#,
                 photo = if pic.is_empty() { "" } else { " has-photo" },
+                top = i * 100,
                 id = esc(id),
                 on = if *liked { " on" } else { "" },
                 heart = svg(HEART),
@@ -60,20 +61,112 @@ pub fn repaint() {
                 ago = crate::sns::ago(*at),
             )
         })
-        .collect();
-    dom::set_html_if(&el, &html);
+        .collect::<String>();
+    let n = posts.len();
+    if IDX.get() >= n {
+        IDX.set(n - 1);
+    }
+    dom::set_html_if(&el, &format!(r#"<div class="rl-track" id="rl-track">{html}</div>"#));
+    // 다시 그려도 보던 칸에 그대로 있어요
+    place(0.0, false);
+}
+
+/* ---------- 넘기기 (쇼츠처럼): 손가락을 따라오다가, 놓으면 0.3초 안에 다음·이전 칸으로 딱 넘어가요 ---------- */
+
+/// 칸 위치에 손가락이 끈 만큼(dy px)을 더해 옮겨요. snap이면 짧은 움직임으로
+fn place(dy: f64, snap: bool) {
+    let Some(t) = by_id("rl-track") else { return };
+    let st = t.style();
+    let _ = st.set_property("transition", if snap { "transform 0.3s cubic-bezier(.2,.8,.2,1)" } else { "none" });
+    let _ = st.set_property("transform", &format!("translate3d(0, calc({}% + {dy:.1}px), 0)", -(IDX.get() as f64) * 100.0));
+}
+fn go_to(i: usize) {
+    let n = crate::sns::reel_posts().len();
+    if n == 0 {
+        return;
+    }
+    let i = i.min(n - 1);
+    let changed = i != IDX.get();
+    IDX.set(i);
+    place(0.0, true);
+    if changed {
+        dom::vibrate(5);
+        leptos::prelude::set_timeout(settle, std::time::Duration::from_millis(320));
+    }
 }
 
 fn bind() {
     let Some(el) = by_id("reels") else { return };
-    // 스크롤 중에는 아무것도 읽지 않고, 멈추고 0.2초 뒤 한 번만 봐요
-    dom::on(&el, "scroll", |_| {
-        let Some(w) = web_sys::window() else { return };
-        w.clear_timeout_with_handle(SETTLE.get());
-        let cb = Closure::once_into_js(settle);
-        SETTLE.set(w.set_timeout_with_callback_and_timeout_and_arguments_0(wasm_bindgen::JsCast::unchecked_ref(&cb), 200).unwrap_or(0));
+    // 손가락 넘기기: 누를 때 화면 높이를 한 번만 재고, 움직이는 동안은 transform만 바꿔요
+    let e1 = el.clone();
+    dom::on(&el, "pointerdown", move |e| {
+        let Some(p) = wasm_bindgen::JsCast::dyn_ref::<web_sys::PointerEvent>(&e) else { return };
+        if !p.is_primary() {
+            return;
+        }
+        DRAG.set((p.client_y() as f64, js_sys::Date::now(), true, false, e1.client_height().max(1) as f64, 0.0));
+    });
+    dom::on(&el, "pointermove", |e| {
+        let (y0, t0, on, moved, h, _) = DRAG.get();
+        if !on {
+            return;
+        }
+        let Some(p) = wasm_bindgen::JsCast::dyn_ref::<web_sys::PointerEvent>(&e) else { return };
+        let mut dy = p.client_y() as f64 - y0;
+        if !moved && dy.abs() < 8.0 {
+            return;
+        }
+        // 첫 칸에서 아래로, 마지막 칸에서 위로 끌면 고무줄처럼 덜 따라와요
+        let n = crate::sns::reel_posts().len();
+        if (IDX.get() == 0 && dy > 0.0) || (IDX.get() + 1 >= n && dy < 0.0) {
+            dy *= 0.3;
+        }
+        DRAG.set((y0, t0, true, true, h, dy));
+        place(dy, false);
+    });
+    for ev in ["pointerup", "pointercancel"] {
+        dom::on(&el, ev, |_| {
+            let (_, t0, on, moved, h, dy) = DRAG.get();
+            if !on {
+                return;
+            }
+            DRAG.set((0.0, 0.0, false, moved, h, 0.0));
+            if !moved {
+                return;
+            }
+            let v = dy / (js_sys::Date::now() - t0).max(1.0); // px/ms
+            let i = IDX.get();
+            if dy < -h * 0.18 || v < -0.35 {
+                go_to(i + 1);
+            } else if (dy > h * 0.18 || v > 0.35) && i > 0 {
+                go_to(i - 1);
+            } else {
+                place(0.0, true);
+            }
+        });
+    }
+    // 컴퓨터: 바퀴를 굴리면 한 칸씩
+    dom::on(&el, "wheel", |e| {
+        let Some(w) = wasm_bindgen::JsCast::dyn_ref::<web_sys::WheelEvent>(&e) else { return };
+        e.prevent_default();
+        if js_sys::Date::now() - WHEEL.get() < 450.0 || w.delta_y().abs() < 12.0 {
+            return;
+        }
+        WHEEL.set(js_sys::Date::now());
+        let i = IDX.get();
+        if w.delta_y() > 0.0 {
+            go_to(i + 1);
+        } else if i > 0 {
+            go_to(i - 1);
+        }
     });
     dom::on(&el, "click", |e| {
+        // 끌어서 넘긴 뒤 손을 뗄 때의 누름은 버튼으로 치지 않아요
+        if DRAG.get().3 {
+            DRAG.set((0.0, 0.0, false, false, 0.0, 0.0));
+            e.stop_propagation();
+            return;
+        }
         if let Some(b) = dom::closest(&e, "[data-uid]") {
             let uid = dom::data(&b, "uid");
             return crate::profile::show(&uid, &person(&uid).0, None);
@@ -117,15 +210,16 @@ thread_local! {
     static LAST_TAP: std::cell::RefCell<(String, f64)> = const { std::cell::RefCell::new((String::new(), 0.0)) };
     static BOUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// 스크롤이 멈추면 보는 중인 게시물을 알려주는 시계, 지금 보는 게시물 번호
-    static SETTLE: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+    /// 지금 보는 칸, 끌기 (시작 y, 시각, 누르는 중, 움직였는지, 화면 높이, 끈 거리), 마지막 바퀴 시각
+    static IDX: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static DRAG: std::cell::Cell<(f64, f64, bool, bool, f64, f64)> = const { std::cell::Cell::new((0.0, 0.0, false, false, 0.0, 0.0)) };
+    static WHEEL: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
     static WATCHING: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
 }
 
 /// 스크롤이 멈춘 뒤 한 번만: 지금 화면의 게시물을 본 것으로 적고, 6초 넘게 보면 그 사람에게 관심을 더해요 (추천 알고리즘)
 fn settle() {
-    let Some(el) = by_id("reels") else { return };
-    let h = el.client_height().max(1);
-    let i = ((el.scroll_top() as f64) / h as f64).round() as usize;
+    let i = IDX.get();
     let posts = crate::sns::reel_posts();
     let Some(p) = posts.get(i) else { return };
     let (id, by) = (p.0.clone(), p.1.clone());
@@ -155,9 +249,8 @@ pub fn open() {
     repaint();
     // 추천 순서가 새로 정해졌으면 맨 위부터 봐요
     if crate::sns::reel_posts().first().map(|p| p.0.clone()) != before {
-        if let Some(el) = by_id("reels") {
-            el.set_scroll_top(0);
-        }
+        IDX.set(0);
+        place(0.0, false);
     }
     leptos::prelude::set_timeout(settle, std::time::Duration::from_millis(1200));
 }

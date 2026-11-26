@@ -1439,10 +1439,24 @@ async fn gacha_pull() -> R {
     let sn = rethrow(get_doc(r.clone()).await)?;
     Ok(o(&[("id", get(&r, "id")), ("at", n(ms(&get(&data(&sn), "at"))))]))
 }
-/// 내가 뽑은 것 모두 ({id, at})
+/// 10연차: 100 멸공으로 10개를 한 묶음에. 모두 같은 서버 시각이라 하나만 다시 읽어요 ({ids, at})
+async fn gacha_pull10() -> R {
+    let uid = uid_of()?;
+    let refs: Vec<JsValue> = (0..10).map(|_| new_id(c(&["pulls"]))).collect();
+    let ids: js_sys::Array = refs.iter().map(|r| get(r, "id")).collect();
+    let b = batch();
+    for (i, r) in refs.iter().enumerate() {
+        m(&b, "set", &[r.clone(), o(&[("by", s(&uid)), ("at", ts()), ("n", n(i as f64))])])?;
+    }
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-100.0)), ("wt", ts()), ("op", o(&[("kind", s("gacha10")), ("pids", ids.clone().into())]))])])?;
+    rethrow(commit(&b).await)?;
+    let sn = rethrow(get_doc(refs[0].clone()).await)?;
+    Ok(o(&[("ids", ids.into()), ("at", n(ms(&get(&data(&sn), "at"))))]))
+}
+/// 내가 뽑은 것 모두 ({id, at, n})
 async fn gacha_list() -> R {
     let snap = rethrow(get_docs(q(c(&["pulls"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(300.0)])).await)?;
-    Ok(docs(&snap).iter().map(|dd| o(&[("id", get(dd, "id")), ("at", n(ms(&get(&data(dd), "at"))))])).collect::<js_sys::Array>().into())
+    Ok(docs(&snap).iter().map(|dd| { let x = data(dd); let k = get(&x, "n"); o(&[("id", get(dd, "id")), ("at", n(ms(&get(&x, "at")))), ("n", if k.as_f64().is_some() { k } else { n(0.0) })]) }).collect::<js_sys::Array>().into())
 }
 /// 장신구 끼기: [{k: 장신구, p: 뽑기 번호}] 목록 그대로 (빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
 async fn deco_set(list: JsValue) -> R {
@@ -1908,6 +1922,7 @@ fn build() -> js_sys::Object {
     am!(api, "contestEnter", |a| contest_enter(sa(&a[0]), sa(&a[1])).await);
     am!(api, "contestVote", |a| contest_vote(sa(&a[0]), sa(&a[1]), opt_s(&a[2])).await);
     am!(api, "gachaList", |_a| gacha_list().await);
+    am!(api, "gachaPull10", |_a| gacha_pull10().await);
     am!(api, "decoSet", |a| deco_set(a[0].clone()).await);
     am!(api, "giphyGet", |_a| {
         let sn = get_doc(d(&["meta", "giphy"])).await?;

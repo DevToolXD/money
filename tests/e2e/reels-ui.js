@@ -39,10 +39,24 @@ const GIFS = { data: [{ id: 'aBcDe12345', images: { fixed_width: { width: '200',
   const B = await mk('구경꾼', 'rb' + t);
   await fetch(`${DB}/meta/giphy`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { key: { stringValue: 'testkey1234567' } } }) });
   await fetch(`${DB}/wallets/${B.uid}?updateMask.fieldPaths=bal`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { bal: { integerValue: '5000' } } }) });
+  for (const t of ['넘기기 시험 하나', '넘기기 시험 둘']) { await A.evaluate((t) => window.cloud.postCreate(t, '', '', ''), t); await A.waitForTimeout(400); }
   await A.evaluate(() => window.cloud.postCreate('오늘 첫 릴스예요', '', '', ''));
   await B.reload(); await B.waitForTimeout(6000);
   await go(B, 'reels');
-  await B.click('#reels [data-act="replies"]'); await B.waitForTimeout(1500);
+  // 쇼츠처럼 넘기기: 위로 끌면 손가락을 따라오다가 놓으면 0.3초 안에 다음 칸
+  const tf = () => B.evaluate(() => getComputedStyle(document.getElementById('rl-track')).transform);
+  const y0 = await B.evaluate(() => document.querySelector('#rl-track .rl-s').getBoundingClientRect().top);
+  await B.mouse.move(200, 600); await B.mouse.down(); for (let i = 1; i <= 6; i++) { await B.mouse.move(200, 600 - i * 50); await B.waitForTimeout(16); } await B.mouse.up();
+  await B.waitForTimeout(350);
+  const h = await B.evaluate(() => document.getElementById('reels').clientHeight);
+  const m1 = await tf();
+  ok('위로 넘기면 다음 칸으로 (0.3초 안에 딱)', m1.includes(`-${h}`) || m1.endsWith(`, -${h})`));
+  await B.mouse.move(200, 300); await B.mouse.down(); for (let i = 1; i <= 6; i++) { await B.mouse.move(200, 300 + i * 50); await B.waitForTimeout(16); } await B.mouse.up();
+  await B.waitForTimeout(350);
+  ok('아래로 넘기면 이전 칸으로', (await tf()).endsWith(', 0)') || (await tf()) === 'none');
+  await B.mouse.move(200, 600); await B.mouse.down(); await B.mouse.move(200, 590); await B.mouse.move(200, 570); await B.waitForTimeout(400); await B.mouse.up(); await B.waitForTimeout(350);
+  ok('조금만 끌면 제자리로 돌아와요', (await tf()).endsWith(', 0)') || (await tf()) === 'none');
+  await B.evaluate(() => document.querySelector('#reels .rl-s[style*="top:0%"] [data-act="replies"]').click()); await B.waitForTimeout(1500);
   ok('댓글을 누르면 어두운 판이 올라와요', await B.isVisible('#rc .rc-sheet') && await B.evaluate(() => document.getElementById('rc').classList.contains('on')));
   ok('게시물은 위로 작게 줄어요', await B.evaluate(() => document.documentElement.classList.contains('rc-open') && getComputedStyle(document.getElementById('reels')).transform.startsWith('matrix(0.52')));
   const l1 = await B.textContent('#rc-list');

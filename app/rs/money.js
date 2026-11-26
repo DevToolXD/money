@@ -1022,6 +1022,10 @@ function __wbg_get_imports() {
             const ret = Number.isInteger(arg0);
             return ret;
         },
+        __wbg_isPrimary_736ba39364387331: function(arg0) {
+            const ret = arg0.isPrimary;
+            return ret;
+        },
         __wbg_isSafeInteger_1a35ba4d31e71d38: function(arg0) {
             const ret = Number.isSafeInteger(arg0);
             return ret;
@@ -1940,7 +1944,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000c: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 230, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 231, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

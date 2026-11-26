@@ -44,10 +44,18 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   await trade(B);
   ok('다른 사람: 제안하기', (await B.textContent('#trade-feed')).includes('자전거') && await B.isVisible('#trade-feed [data-act="offer"]'));
   await B.click('#trade-feed [data-act="offer"]'); await B.waitForTimeout(3000);
-  ok('제안하면 글쓴이와 대화가 열리고 입력칸에 글 제목', (await B.textContent('#thread-name')).includes('파는사람') && (await B.inputValue('#composer-input')).includes('자전거'));
-  ok('미리 넣은 글이면 버튼은 보내기(음성 아님), 안 읽은 수 0은 숨김', await B.evaluate(() => document.getElementById('send').classList.contains('ready')) && await B.isHidden('#thread-badge'));
-  await B.click('#send'); await B.waitForTimeout(2000);
-  ok('보내져요', (await B.textContent('#bubbles')).includes('자전거'));
+  ok('제안하면 글쓴이와 대화가 열려요', (await B.textContent('#thread-name')).includes('파는사람'));
+  ok('제안 메시지가 바로 보내져요', (await B.textContent('#bubbles')).includes('거래 글 "자전거" 보고 연락드려요') && (await B.inputValue('#composer-input')) === '');
+  ok('안 읽은 수 0은 숨겨요', await B.isHidden('#thread-badge'));
+  await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]')?.click() || (window.tabbar.flipPage(), 0)); await A.waitForTimeout(800);
+  await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="messages"]')?.click()); await A.waitForTimeout(2500);
+  ok('판매자 대화 목록에 제안이 와요', (await A.textContent('#screen-messages')).includes('보고 연락드려요'));
+  await A.evaluate(() => { window.tabbar.flipPage(); }); await A.waitForTimeout(700);
+  await A.evaluate(() => document.querySelector('.tabbar .tab[data-tab="trade"]').click()); await A.waitForTimeout(2000);
+  // 같은 글에 다시 제안해도 한 번만 보내요
+  await B.click('#thread-back'); await B.waitForTimeout(1200);
+  await B.click('#trade-feed [data-act="offer"]'); await B.waitForTimeout(3000);
+  ok('같은 글에 다시 제안해도 한 번만', ((await B.textContent('#bubbles')).match(/보고 연락드려요/g) || []).length === 1);
   // 완료 표시
   await A.click('#trade-feed [data-act="done"]');
   ok('완료로 표시', await toast(A, '거래 완료로 표시했어요'));

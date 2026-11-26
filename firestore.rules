@@ -137,8 +137,9 @@ service cloud.firestore {
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
     // 뽑기 결과: 뽑은 순간의 서버 시각(밀리초 끝 세 자리, 0~999)으로 정해요. 앱이 고를 수 없어요 (천분율 확률은 앱의 gacha.rs와 같아요)
-    function pullTier(ts) {
-      return pullOf(ts.toMillis() % 1000);
+    // n: 10연차에서 몇 번째인지 (0~9). 같은 순간에 뽑아도 칸마다 다른 간격을 더해 결과가 달라요
+    function pullTier(ts, n) {
+      return pullOf((ts.toMillis() + [0, 383, 761, 127, 512, 894, 266, 649, 38, 421][n]) % 1000);
     }
     function pullOf(m) {
       return m < 15 ? 'lambo' : m < 40 ? 'goldbar' : m < 75 ? 'wallet' : m < 115 ? 'watch' : m < 160 ? 'chain'
@@ -149,7 +150,7 @@ service cloud.firestore {
     function decoOk(x, uid) {
       return x is map && x.keys().hasOnly(['k', 'p']) && x.p is string
         && get(/databases/$(database)/documents/pulls/$(x.p)).data.by == uid
-        && x.k == pullTier(get(/databases/$(database)/documents/pulls/$(x.p)).data.at);
+        && x.k == pullTier(get(/databases/$(database)/documents/pulls/$(x.p)).data.at, get(/databases/$(database)/documents/pulls/$(x.p)).data.get('n', 0));
     }
     function isOwner() { return signedIn() && request.auth.token.email == 'owner@money-sim.app'; }
     function adminPath() { return /databases/$(database)/documents/adminAuth/$(request.auth.uid); }
@@ -1042,11 +1043,19 @@ service cloud.firestore {
         && request.resource.data.bal >= 0
         && request.resource.data.rate == resource.data.rate
         && request.resource.data.t == resource.data.t
-        && request.resource.data.op.kind == 'gacha'
-        && request.resource.data.op.pid is string
-        && !exists(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid))
-        && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid)).data.by == uid
-        && request.resource.data.bal == resource.data.bal - 10;
+        && (
+          (request.resource.data.op.kind == 'gacha'
+            && request.resource.data.op.pid is string
+            && !exists(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid))
+            && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pid)).data.by == uid
+            && request.resource.data.bal == resource.data.bal - 10)
+          // 10연차: 뽑기 번호 10개, 딱 100 멸공
+          || (request.resource.data.op.kind == 'gacha10'
+            && request.resource.data.op.pids is list && request.resource.data.op.pids.size() == 10
+            && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pids[0])).data.by == uid
+            && getAfter(/databases/$(database)/documents/pulls/$(request.resource.data.op.pids[9])).data.by == uid
+            && request.resource.data.bal == resource.data.bal - 100)
+        );
 
       // 릴스 선물 (따로 둔 까닭: 위 줄에 더하면 규칙 계산 한도를 넘어요)
       function reelGiftPath(g) { return /databases/$(database)/documents/postGifts/$(g); }
@@ -1588,12 +1597,20 @@ service cloud.firestore {
       allow get: if signedIn() && resource.data.by == request.auth.uid;
       allow list: if signedIn() && request.query.limit <= 300 && resource.data.by == request.auth.uid;
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['by', 'at'])
+        && request.resource.data.keys().hasOnly(['by', 'at', 'n'])
         && request.resource.data.by == request.auth.uid
         && request.resource.data.at == request.time
-        && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.kind == 'gacha'
-        && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.pid == pid
-        && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.wt == request.time;
+        && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.wt == request.time
+        && (
+          // 한 번 뽑기
+          (getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.kind == 'gacha'
+            && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.pid == pid
+            && request.resource.data.get('n', 0) == 0)
+          // 10연차: 지갑 기록의 n번째 번호가 이 뽑기예요
+          || (getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.kind == 'gacha10'
+            && request.resource.data.n is int && request.resource.data.n >= 0 && request.resource.data.n <= 9
+            && getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data.op.pids[request.resource.data.n] == pid)
+        );
     }
 
     // 릴스 선물: 보낸 사람 지갑이 같은 묶음에서 그만큼 줄어야 만들어지고, 받는 사람만 한 번 받을 수 있어요
