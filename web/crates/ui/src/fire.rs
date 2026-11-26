@@ -1781,6 +1781,11 @@ fn opt_s(v: &JsValue) -> String {
 fn build() -> js_sys::Object {
     let api = js_sys::Object::new();
     getter(&api, "uid", || s(&st(&get(&current(), "uid"))));
+    // 계정을 만든 시각 (밀리초, 모르면 0). 공지는 이 뒤에 올라온 것만 보여줘요
+    getter(&api, "createdAt", || {
+        let t = js_sys::Date::parse(&st(&get(&get(&current(), "metadata"), "creationTime")));
+        n(if t.is_nan() { 0.0 } else { t })
+    });
     getter(&api, "user", || {
         let u = current();
         if u.is_null() || u.is_undefined() {

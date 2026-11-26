@@ -44,6 +44,16 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   const listed = await M.page.textContent('#notices-root');
   ok('설정의 공지 화면에 두 공지가 있어요', listed.includes('서버 점검') && listed.includes('저녁 메뉴'));
   await M.page.screenshot({ path: S + '/ui-notice-4-screen.png' });
+  // 공지를 보낸 뒤에 가입한 사람: 팝업도, 공지 목록에도 없어요
+  const N = await open(b);
+  await N.page.waitForTimeout(1500);
+  await N.page.evaluate((u) => window.cloud.signUp(u, 'abc123', '새사람'), 'uinew' + sfx);
+  await N.page.reload(); await N.page.waitForTimeout(6000);
+  ok('공지 뒤에 가입한 사람에게는 팝업이 안 떠요', !(await N.page.evaluate(() => !!document.querySelector('.notice-full'))));
+  await N.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await N.page.waitForTimeout(500); await N.page.click('.qm-row[data-go=\"account\"]'); await N.page.waitForTimeout(900);
+  await N.page.evaluate(() => document.getElementById('open-notices').click()); await N.page.waitForTimeout(1500);
+  const nl = await N.page.textContent('#notices-root');
+  ok('공지 목록에도 가입 전 공지는 없어요', !nl.includes('서버 점검') && !nl.includes('저녁 메뉴'));
   await O.page.evaluate(() => document.querySelector('.tabbar .tab-account').click()); await O.page.waitForTimeout(500); await O.page.click('.qm-row[data-go=\"account\"]'); await O.page.waitForTimeout(900);
   await O.page.evaluate(() => document.getElementById('open-manage').click()); await O.page.waitForTimeout(1500);
   await O.page.screenshot({ path: S + '/ui-notice-5-manage.png', fullPage: true });
@@ -51,7 +61,7 @@ const call = (p, fn, args) => p.evaluate(([f, a]) => window.cloud[f](...a).then(
   await O.page.click('#mg-people .mg-person');
   const grantAmt = await O.page.inputValue('#mg-grant-amt');
   ok('멸공 칸은 미리 채워지지 않아요', grantAmt === '');
-  const errs = [...O.errs, ...M.errs];
+  const errs = [...O.errs, ...M.errs, ...N.errs];
   ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
   console.log(`\n${res.filter(Boolean).length}/${res.length} 통과`);
   await b.close(); process.exit(res.every(Boolean) ? 0 : 1);

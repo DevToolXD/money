@@ -55,7 +55,9 @@ pub fn refresh() {
     spawn_local(async move {
         let got = async {
             let ids = cloud::notice_ids().await?;
-            cloud::notice_list(&ids).await
+            // 계정을 만들기 전에 올라온 공지는 보여주지 않아요 (그때 있던 사람에게만 보낸 공지예요)
+            let since = cloud::cloud().and_then(|c| cloud::get(&c, "createdAt").as_f64()).unwrap_or(0.0);
+            cloud::notice_list(&ids).await.map(|l| l.into_iter().filter(|n| n.at == 0.0 || n.at >= since).collect::<Vec<_>>())
         }
         .await;
         state.set(match got {
