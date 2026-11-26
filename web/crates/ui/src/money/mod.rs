@@ -252,13 +252,26 @@ pub fn wallet_op(f: Function) -> Promise {
         if wait > 0.0 {
             dom::sleep(wait as i32).await;
         }
-        let out = match f.call0(&JsValue::NULL) {
-            Ok(v) => match v.dyn_into::<Promise>() {
-                Ok(p) => JsFuture::from(p).await,
-                Err(v) => Ok(v),
-            },
-            Err(e) => Err(e),
+        let call = |f: &Function| {
+            let r = f.call0(&JsValue::NULL);
+            async move {
+                match r {
+                    Ok(v) => match v.dyn_into::<Promise>() {
+                        Ok(p) => JsFuture::from(p).await,
+                        Err(v) => Ok(v),
+                    },
+                    Err(e) => Err(e),
+                }
+            }
         };
+        let mut out = call(&f).await;
+        // 다른 기기·관리자 지급·받기 등으로 지갑이 2초 안에 막 바뀌었으면 서버가 거절해요. 2.5초 쉬고 한 번만 다시 보내요
+        if let Err(e) = &out {
+            if cloud::get(e, "code").as_string().is_some_and(|c| c.contains("permission-denied")) {
+                dom::sleep(2500).await;
+                out = call(&f).await;
+            }
+        }
         LAST_WRITE.set(now());
         out
     });

@@ -53,10 +53,11 @@ const REELS: &[Part] = &[
     Part { d: "M12 13.5v6l5-3Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
 // 게임: 두 깃발이 마주 보는 대항전
+// 게임: 게임 콘솔 패드 (십자키와 버튼 두 개)
 const GAME: &[Part] = &[
-    Part { d: "M5 24.5V4.5M23 24.5V4.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-    Part { d: "M5 5h8l-2 3.5 2 3.5H5M23 5h-8l2 3.5-2 3.5h8", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-    Part { d: "M11 20l3-3 3 3", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M9 8.5h10a5 5 0 0 1 4.9 4l1.4 6.4a2.8 2.8 0 0 1-4.8 2.5L17.8 18.6h-7.6l-2.7 2.8a2.8 2.8 0 0 1-4.8-2.5l1.4-6.4A5 5 0 0 1 9 8.5z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M9 11.8v4.4M6.8 14h4.4", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
+    Part { d: "M19.2 11.6a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2zM21.4 14a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2z", stroke: 0.0, fill: true, alpha: 1.0, evenodd: false, transform: None },
 ];
 const INVENTORY: &[Part] = &[
     Part { d: "M7 12a7 7 0 0 1 14 0v10.500a1.500 1.500 0 0 1-1.500 1.500h-11A1.500 1.500 0 0 1 7 22.500Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },

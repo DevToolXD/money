@@ -311,6 +311,31 @@ await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await assertFails(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "<script>" }));
   await assertSucceeds(getDoc(doc(A, "meta/giphy")));
 });
+await t("뽑기: 10 멸공이 같은 묶음으로 빠질 때만, 장신구는 뽑은 등급만 낄 수 있어요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  const pull = (db, bal) => {
+    const r = doc(collection(db, "pulls"));
+    const b = writeBatch(db);
+    b.set(r, { by: "uA", at: serverTimestamp() });
+    b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "gacha", pid: r.id } });
+    return { b, r };
+  };
+  await assertFails(pull(A, 1250000 - 1).b.commit()); // 덜 내기
+  await assertFails(setDoc(doc(A, "pulls/x1"), { by: "uA", at: serverTimestamp() })); // 돈 없이
+  const ok = pull(A, 1250000 - 10);
+  await assertSucceeds(ok.b.commit());
+  const snap = await getDoc(doc(A, `pulls/${ok.r.id}`));
+  const m = snap.data().at.toMillis() % 100;
+  const tier = m < 5 ? "gucci" : m < 30 ? "glasses" : "branch";
+  const others = ["gucci", "glasses", "branch"].filter((x) => x !== tier);
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { deco: others[0], decoPull: ok.r.id })); // 다른 등급
+  await assertFails(updateDoc(doc(pw("uB", "bob"), "profiles/uB"), { deco: tier, decoPull: ok.r.id })); // 남의 뽑기
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { deco: tier, decoPull: ok.r.id }));
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { deco: "", decoPull: "" }));
+  await assertFails(getDocs(query(collection(pw("uB", "bob"), "pulls"), limit(10))));
+  await assertSucceeds(getDocs(query(collection(A, "pulls"), where("by", "==", "uA"), limit(300))));
+});
 await t("접속 표시: 내 것만, 시각만", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");

@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=153">
+<link rel="stylesheet" href="app/app.css?v=157">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -103,6 +103,14 @@
       <div class="card inv-hero"><span class="inv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6"/><path d="M18 8v6M15 11h6"/></svg></span><h2>친구를 초대하고 50 멸공을 받으세요</h2><p>내 초대 링크로 친구가 가입하면, 친구 한 명마다 50 멸공을 받을 수 있어요. 받기는 아래에서 직접 눌러요.</p><button class="btn primary" id="invite-share" type="button">초대 링크 복사</button></div>
       <h2 class="section-title">초대한 친구</h2>
       <div class="card"><ul class="list" id="invite-list"><li class="inv-empty">아직 초대한 친구가 없어요</li></ul></div>
+    </section>
+    <section class="screen" id="screen-gacha" data-screen="gacha" data-title="뽑기" aria-labelledby="title-gacha">
+      <header class="large-title"><h1 id="title-gacha">뽑기</h1></header>
+      <div id="gacha-root"></div>
+    </section>
+    <section class="screen" id="screen-inv" data-screen="inv" data-title="인벤" aria-labelledby="title-inv">
+      <header class="large-title"><h1 id="title-inv">인벤</h1></header>
+      <div id="inv-root"></div>
     </section>
     <section class="screen" id="screen-feedback" data-screen="feedback" data-title="피드백" aria-labelledby="title-feedback">
       <header class="large-title"><h1 id="title-feedback">피드백</h1></header>
@@ -298,6 +306,10 @@
       <div class="pl-people" id="pl-people" hidden></div>
     </div>
   </section></div>
+  <!-- 뽑기 결과 -->
+  <div class="gc-result" id="gc-result" hidden></div>
+  <!-- 장신구 색 (모든 장신구 그림이 같이 써요) -->
+  <svg class="deco-defs" width="0" height="0" aria-hidden="true"><defs><linearGradient id="dgS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset=".5" stop-color="#9aa6b6"/><stop offset="1" stop-color="#e3e8ef"/></linearGradient><linearGradient id="dgG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff0a8"/><stop offset=".45" stop-color="#d4a017"/><stop offset=".7" stop-color="#fbe38a"/><stop offset="1" stop-color="#a8780c"/></linearGradient></defs></svg>
   <!-- 릴스 댓글: 게시물은 위로 작게 줄고, 아래에서 어두운 판이 올라와요 (인스타 릴스처럼) -->
   <div class="rc" id="rc" hidden>
     <div class="rc-top" id="rc-top" aria-label="댓글 닫기"></div>
@@ -332,6 +344,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=100"></script>
+<script type="module" src="app/rs/boot.js?v=106"></script>
 </body>
 </html>

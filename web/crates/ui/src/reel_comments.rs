@@ -97,7 +97,7 @@ pub fn open(id: &str) {
     let me = my_uid();
     let (n, ph) = person(&me);
     if let Some(m) = by_id("rc-me") {
-        m.set_inner_html(&dom::avatar_html(&n, &ph, "avatar contact rc-av"));
+        m.set_inner_html(&crate::presence::wrap(dom::avatar_html(&n, &ph, "avatar contact rc-av"), &me));
     }
     paint_list(None);
     rc.set_hidden(false);
@@ -152,7 +152,7 @@ fn row(uid: &str, at: f64, body: &str, cls: &str) -> String {
     format!(
         r#"<li class="rc-row{cls}"><button type="button" class="rc-who" data-uid="{u}">{av}</button><div class="rc-txt"><p class="rc-name"><b>{n}</b>{bl} <small>{ago}</small></p>{body}</div></li>"#,
         u = esc(uid),
-        av = dom::avatar_html(&n, &ph, "avatar contact rc-av"),
+        av = crate::presence::wrap(dom::avatar_html(&n, &ph, "avatar contact rc-av"), uid),
         n = esc(&n),
         bl = crate::profile::blue(uid),
         ago = crate::sns::ago(at),
@@ -214,7 +214,10 @@ fn post_reply(text: String, gif: String) {
         let r = cloud::call("postCreate", &[JsValue::from_str(&text), JsValue::from_str(""), JsValue::from_str(&id), JsValue::from_str(""), JsValue::from_str(&gif)]).await;
         BUSY.set(false);
         match r {
-            Ok(_) => load(id).await,
+            Ok(_) => {
+                crate::algo::bump(&POST.with(|p| p.borrow().1.clone()), 2.0);
+                load(id).await
+            }
             Err(_) => crate::shell::toast("댓글을 달지 못했어요"),
         }
     });
@@ -338,6 +341,7 @@ fn send_gift() {
             Ok(_) => {
                 crate::money::log(&dom::obj(&[("t", js_sys::Date::now().into()), ("name", JsValue::from_str(&format!("{n}님 릴스에 선물"))), ("cat", "송금".into()), ("icon", "gift".into()), ("amt", (-amt).into())]));
                 dom::vibrate(12);
+                crate::algo::bump(&by, 3.0);
                 crate::shell::toast(&format!("{n}님에게 멸공 {}을 선물했어요", cloud::fmt_num(amt, 0)));
                 set_mode("");
             }

@@ -1072,12 +1072,8 @@ impl Bar {
         let plain = entry.is_none();
         if plain && self.plain_for.as_deref() != active.as_deref() {
             self.plain_for = active.clone();
-            let el = js_sys::Reflect::get(&self.backdrop, &"activeEl".into()).ok().and_then(|e| e.dyn_into::<web_sys::Element>().ok());
-            let mut bg = el.and_then(|e| win().get_computed_style(&e).ok().flatten()).and_then(|c| c.get_property_value("background-color").ok()).unwrap_or_default();
-            let c = parse_color(&bg);
-            if c[3] < 0.5 {
-                bg = crate::dom::doc().document_element().and_then(|r| win().get_computed_style(&r).ok().flatten()).and_then(|c| c.get_property_value("--bg-canvas").ok()).unwrap_or_else(|| "#f2f2f7".into());
-            }
+            // 어느 화면이든 앱 바탕색(밝은 테마는 연한 회색)으로 유리를 그려요. 릴스·지도처럼 화면이 검어도 막대가 검게 되지 않아요
+            let bg = crate::dom::doc().document_element().and_then(|r| win().get_computed_style(&r).ok().flatten()).and_then(|c| c.get_property_value("--bg-canvas").ok()).unwrap_or_else(|| "#f2f2f7".into());
             let c = parse_color(if bg.trim().is_empty() { "#f2f2f7" } else { &bg });
             let px = [(c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8, 255];
             if self.plain_px != px {

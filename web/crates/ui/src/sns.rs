@@ -22,12 +22,13 @@ struct Post {
     place: String,
     last: String,
     gif: String,
+    sh: f64,
 }
 impl Post {
     fn from_js(v: &JsValue) -> Post {
         let s = |k: &str| cloud::get(v, k).as_string().unwrap_or_default();
         let n = |k: &str| cloud::get(v, k).as_f64().unwrap_or(0.0);
-        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), liked: cloud::get(v, "liked") == JsValue::TRUE, rc: n("rc"), place: s("topic"), last: s("last"), gif: s("gif") }
+        Post { id: s("id"), by: s("by"), text: s("text"), img: s("img"), at: n("at"), likes: n("likes"), liked: cloud::get(v, "liked") == JsValue::TRUE, rc: n("rc"), place: s("topic"), last: s("last"), gif: s("gif"), sh: n("sh") }
     }
 }
 
@@ -43,6 +44,10 @@ thread_local! {
     static BOUND: Cell<bool> = const { Cell::new(false) };
     static BUSY: Cell<bool> = const { Cell::new(false) };
     /// 릴스로 받은 선물 (번호, 보낸 사람, 멸공, 받았는지, 시각)과 마지막으로 읽은 때
+    /// 추천 순서 (피드, 릴스)와 정한 시각. 탭을 열 때 1분이 지났으면 다시 정해요
+    static FEED_ORDER: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static REEL_ORDER: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static ORDER_AT: Cell<(f64, f64)> = const { Cell::new((0.0, 0.0)) };
     static GIFTS: RefCell<Vec<(String, String, f64, bool, f64)>> = const { RefCell::new(Vec::new()) };
     static GIFT_AT: Cell<f64> = const { Cell::new(0.0) };
     static CLAIMING: Cell<bool> = const { Cell::new(false) };
@@ -82,14 +87,53 @@ pub fn safe_gif(u: &str) -> &str {
         ""
     }
 }
-/// 릴스 탭이 쓰는 게시물 목록 (번호, 쓴 사람, 글, 사진, 시각, 좋아요 수, 내가 좋아요, 댓글 수)
+/// 추천 순서 정하기 (reels: 릴스용). force가 아니면 1분 안에는 다시 정하지 않아요 (보는 중에 섞이지 않게)
+pub fn rerank(reels: bool, force: bool) {
+    let (fa, ra) = ORDER_AT.get();
+    let at = if reels { ra } else { fa };
+    let now = js_sys::Date::now();
+    if !force && now - at < 60_000.0 && at > 0.0 {
+        return;
+    }
+    let order = POSTS.with(|p| {
+        let p = p.borrow();
+        if p.is_empty() {
+            return Vec::new();
+        }
+        let list: Vec<crate::algo::P> = p.iter().map(|x| crate::algo::P { id: &x.id, by: &x.by, at: x.at, likes: x.likes, rc: x.rc, sh: x.sh, img: !x.img.is_empty(), liked: x.liked }).collect();
+        crate::algo::rank(&list, reels)
+    });
+    if order.is_empty() {
+        return;
+    }
+    if reels {
+        REEL_ORDER.with(|o| *o.borrow_mut() = order);
+        ORDER_AT.set((fa, now));
+    } else {
+        FEED_ORDER.with(|o| *o.borrow_mut() = order);
+        ORDER_AT.set((now, ra));
+    }
+}
+fn ordered(reels: bool) -> Vec<Post> {
+    let mut v = POSTS.with(|p| p.borrow().clone());
+    let order = if reels { REEL_ORDER.with(|o| o.borrow().clone()) } else { FEED_ORDER.with(|o| o.borrow().clone()) };
+    if !order.is_empty() {
+        crate::algo::apply(&mut v, &order, |p| &p.id);
+    }
+    v
+}
+/// 릴스 탭이 쓰는 게시물 목록, 추천 순서 (번호, 쓴 사람, 글, 사진, 시각, 좋아요 수, 내가 좋아요, 댓글 수)
 pub fn reel_posts() -> Vec<(String, String, String, String, f64, f64, bool, f64)> {
-    POSTS.with(|p| p.borrow().iter().map(|x| (x.id.clone(), x.by.clone(), x.text.clone(), x.img.clone(), x.at, x.likes, x.liked, x.rc)).collect())
+    ordered(true).iter().map(|x| (x.id.clone(), x.by.clone(), x.text.clone(), x.img.clone(), x.at, x.likes, x.liked, x.rc)).collect()
 }
 /// 좋아요 누르기·취소 (릴스에서도 써요)
 pub fn toggle_like(id: &str) {
     let id = id.to_string();
     let on = !POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).map(|p| p.liked).unwrap_or(false));
+    if on {
+        let by = POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).map(|p| p.by.clone()).unwrap_or_default());
+        crate::algo::bump(&by, 1.0);
+    }
     patch(&id, |p| {
         p.liked = on;
         p.likes = (p.likes + if on { 1.0 } else { -1.0 }).max(0.0);
@@ -131,7 +175,7 @@ pub fn repaint_people() {
 fn paint_top() {
     if let Some(m) = by_id("sns-me") {
         let (n, ph) = me();
-        m.set_inner_html(&if cloud::signed_in() { dom::avatar_html(&n, &ph, "avatar contact sns-me-av") } else { String::new() });
+        m.set_inner_html(&if cloud::signed_in() { crate::presence::wrap(dom::avatar_html(&n, &ph, "avatar contact sns-me-av"), &my_uid()) } else { String::new() });
     }
     let Some(el) = by_id("sns-people") else { return };
     let html: String = PEOPLE.with(|p| {
@@ -167,7 +211,7 @@ fn card(p: &Post) -> String {
         r#"<article class="sns-card" data-id="{id}"><header class="sns-ch"><button type="button" class="sns-who" data-uid="{by}">{av}<span><b>{name}{bl}</b><small>{ago}</small></span></button>{more}</header>{media}{cm}<footer class="sns-act"><button type="button" class="sns-like{on}" data-act="like" aria-label="{ll}" aria-pressed="{pr}">{heart}<span>{likes}</span></button><button type="button" data-act="replies" aria-label="댓글 {rc}개">{bubble}<span>{rc}</span></button><button type="button" data-act="share" aria-label="공유">{share}</button></footer></article>"#,
         id = esc(&p.id),
         by = esc(&p.by),
-        av = dom::avatar_html(&name, &photo, "avatar contact sns-cav"),
+        av = crate::presence::wrap(dom::avatar_html(&name, &photo, "avatar contact sns-cav"), &p.by),
         name = esc(&name),
         bl = crate::profile::blue(&p.by),
         ago = ago(p.at),
@@ -190,7 +234,7 @@ fn paint_feed() {
         el.set_inner_html("");
         return;
     }
-    let html: String = POSTS.with(|p| p.borrow().iter().map(card).collect());
+    let html: String = ordered(false).iter().map(card).collect();
     let was_empty = el.query_selector(".sns-card").ok().flatten().is_none();
     let filled = !html.is_empty();
     // 같은 내용이면 다시 그리지 않아요 (실시간 듣기가 자주 불러요)
@@ -228,7 +272,12 @@ fn watch() {
     let cb = Closure::<dyn FnMut(JsValue)>::new(|list: JsValue| {
         let posts: Vec<Post> = js_sys::Array::from(&list).iter().map(|v| Post::from_js(&v)).collect();
         let who: js_sys::Array = posts.iter().map(|p| JsValue::from_str(&p.by)).collect();
+        let first = POSTS.with(|p| p.borrow().is_empty());
         POSTS.with(|p| *p.borrow_mut() = posts);
+        if first {
+            rerank(false, true);
+            rerank(true, true);
+        }
         paint_feed();
         load_last();
         spawn_local(async move {
@@ -304,6 +353,8 @@ fn send_reply(id: String, input: web_sys::HtmlInputElement) {
         BUSY.set(false);
         match r {
             Ok(_) => {
+                let by = POSTS.with(|p| p.borrow().iter().find(|p| p.id == id).map(|p| p.by.clone()).unwrap_or_default());
+                crate::algo::bump(&by, 2.0);
                 LAST.with(|l| l.borrow_mut().insert(id.clone(), (my_uid(), t)));
                 if OPEN.with(|o| *o.borrow() == id) {
                     load_replies(id).await;
@@ -338,7 +389,7 @@ async fn load_replies(id: String) {
         .iter()
         .map(|r| {
             let (n, ph) = person(&r.by);
-            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), dom::avatar_html(&n, &ph, "avatar contact sns-cav"), esc(&n), crate::profile::blue(&r.by), ago(r.at), if r.gif.is_empty() { esc(&r.text) } else { format!(r#"<img class="sns-gif" src="{}" alt="GIF" loading="lazy">"#, esc(safe_gif(&r.gif))) })
+            format!(r#"<li class="sns-r"><button type="button" class="sns-who" data-uid="{}">{}</button><div><b>{}{}</b> <small>{}</small><p>{}</p></div></li>"#, esc(&r.by), crate::presence::wrap(dom::avatar_html(&n, &ph, "avatar contact sns-cav"), &r.by), esc(&n), crate::profile::blue(&r.by), ago(r.at), if r.gif.is_empty() { esc(&r.text) } else { format!(r#"<img class="sns-gif" src="{}" alt="GIF" loading="lazy">"#, esc(safe_gif(&r.gif))) })
         })
         .collect();
     if let Some(l) = by_id("sns-rl") {
@@ -738,6 +789,8 @@ pub fn open() {
     }
     watch();
     gifts_refresh(false);
+    rerank(false, false);
+    paint_feed();
     if LOADED.replace(true) {
         return;
     }

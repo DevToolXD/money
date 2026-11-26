@@ -34,7 +34,7 @@ fn pod(u: Option<&JsValue>, n: usize) -> String {
             r#"<div class="rk-col g{n}" data-uid="{}" data-name="{}" data-rank="{n}">{CROWN}<span class="rk-n">{n}</span>{}<b class="rk-name">{}{}</b><span class="rk-val">{}</span></div>"#,
             esc(&s(u, "uid")),
             esc(&s(u, "name")),
-            avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"),
+            crate::presence::wrap(avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"), &s(u, "uid")),
             esc(&s(u, "name")),
             crate::profile::blue(&s(u, "uid")),
             fmt_tok(cloud::get(u, "bal").as_f64().unwrap_or(0.0))
@@ -61,7 +61,7 @@ fn paint(list: &[JsValue], my_rank: &str) {
                         esc(&s(u, "name")),
                         i + 4,
                         i + 4,
-                        avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"),
+                        crate::presence::wrap(avatar_html(&s(u, "name"), &photo_of(&s(u, "uid")), "avatar contact"), &s(u, "uid")),
                         esc(&s(u, "name")),
                         crate::profile::blue(&s(u, "uid")),
                         fmt_tok(cloud::get(u, "bal").as_f64().unwrap_or(0.0))
@@ -79,7 +79,7 @@ fn paint(list: &[JsValue], my_rank: &str) {
         m.set_hidden(bal.is_none());
         m.set_inner_html(&format!(
             r#"<span class="rk-mn">{my_rank}</span>{}<b>{}{}</b><span class="rk-mval">{} 멸공</span>"#,
-            avatar_html(&dom::store_get("profile-name", "나"), &dom::store_get("profile-photo", ""), "avatar contact"),
+            crate::presence::wrap(avatar_html(&dom::store_get("profile-name", "나"), &dom::store_get("profile-photo", ""), "avatar contact"), &me),
             esc(&dom::store_get("profile-name", "나")),
             crate::profile::blue(&me),
             fmt_tok(bal.unwrap_or(0.0))

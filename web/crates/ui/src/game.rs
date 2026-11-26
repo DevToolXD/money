@@ -1,6 +1,6 @@
 //! 게임 탭: 독소전쟁 대항전. 레드팀(소련)과 블루팀(독일) 중 하나를 골라, 팀원과 함께 누를수록 전선이 밀려요.
 //! 지도는 1942년 독일 최대 판도와 소련을 20개 지역으로 나눠 정확히 10:10에서 시작해요.
-//! 두 팀 클릭 비율로 지켜야 할 지역 수(목표 전선)가 정해지고, 지도는 그 목표를 향해 한 지역씩 점령해 가요.
+//! 두 팀 클릭 비율만큼의 영토 넓이로 목표 전선이 정해지고, 지도는 그 목표를 향해 한 지역씩 점령해 가요.
 //! 서버를 아끼려고: 클릭은 모아 두었다가 4.5초에 한 번만 보내고(규칙은 4초, 한 번에 200까지),
 //! 전체 점수는 문서 하나만, 게임 탭을 보고 있을 때만 들어요. 랭킹은 30초에 한 번 20명만 읽어요.
 
@@ -104,13 +104,31 @@ fn scores() -> (f64, f64) {
     let t = team();
     (SR.get() + if t == "r" { p } else { 0.0 }, SB.get() + if t == "b" { p } else { 0.0 })
 }
-/// 두 팀 비율로 정한 목표 전선 (독일이 가진 지역 수, 양쪽 모두 최소 한 지역은 남아요)
+/// 두 팀 클릭 비율로 정한 목표 전선: 독일 땅의 넓이가 독일 클릭 비율과 가장 가까워지는 자리
+/// (지역 개수가 아니라 차지한 영토 넓이로 따져요. 양쪽 모두 최소 한 지역은 남아요. 아무도 안 눌렀으면 1942년 판도)
 fn target() -> usize {
     let (r, b) = scores();
     if r + b <= 0.0 {
         return N / 2;
     }
-    ((N as f64) * b / (r + b)).round().clamp(1.0, (N - 1) as f64) as usize
+    REGIONS.with(|regs| {
+        let regs = regs.borrow();
+        if regs.len() != N {
+            return N / 2;
+        }
+        let total: f64 = regs.iter().map(|g| g.area).sum();
+        let want = total * b / (r + b);
+        let mut best = (1usize, f64::MAX);
+        let mut acc = 0.0;
+        for (k, g) in regs.iter().enumerate().take(N - 1) {
+            acc += g.area;
+            let d = (acc - want).abs();
+            if d < best.1 {
+                best = (k + 1, d);
+            }
+        }
+        best.0
+    })
 }
 
 fn load_regions() {
@@ -155,7 +173,7 @@ fn build() {
 <div class="gm-card">
   <div class="gm-top"><span class="gm-side r"><i></i>소련 <b id="gm-rp">50%</b></span><span class="gm-side b">독일 <b id="gm-bp">50%</b><i></i></span></div>
   <div class="gm-bar" aria-hidden="true"><span class="gm-bar-r" id="gm-bar"></span></div>
-  <p class="gm-news" id="gm-news">전선이 팽팽해요. 많이 누르는 쪽이 밀어붙여요</p>
+  <p class="gm-news" id="gm-news"></p>
   <div class="gm-view" id="gm-view"><svg class="gm-map" id="gm-svg" viewBox="0 24 1000 780" role="img" aria-label="전쟁 지도"><path class="gm-ctx" d="{ctx}"/><g id="gm-regs">{paths}</g><g id="gm-fx"></g><g class="gm-lbl"><text id="gm-rt" class="r" x="0" y="0">0</text><text id="gm-bt" class="b" x="0" y="0">0</text></g></svg><button type="button" class="gm-full" id="gm-full">전체 지도</button></div>
 </div>
 <div class="gm-play" id="gm-play"></div>

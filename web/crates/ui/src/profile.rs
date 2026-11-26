@@ -35,7 +35,7 @@ fn paint(el: &web_sys::HtmlElement, uid: &str, name: &str, rank: Option<usize>) 
         r#"<div class="pf-card lg-card" role="dialog" aria-modal="true" aria-label="{n}"><span class="pf-grab"></span><button type="button" class="pf-x glass-btn" data-act="close" aria-label="닫기">{X}</button><div class="pf-av">{av}</div><h2 class="pf-name">{n}{bl}</h2><p class="pf-sub">{id}{rk}</p>{btn}</div>"#,
         n = esc(&name),
         bl = blue(uid),
-        av = dom::avatar_html(&name, &photo, "avatar contact pf-avatar"),
+        av = crate::presence::wrap(dom::avatar_html(&name, &photo, "avatar contact pf-avatar"), uid),
         id = if id.is_empty() { String::new() } else { format!("@{}", esc(&id)) },
         rk = rank.map(|r| format!(r#"<span class="pf-rank">{r}위</span>"#)).unwrap_or_default(),
         btn = if me { String::new() } else { format!(r#"<button type="button" class="pf-msg lg-btn" data-act="msg">{SEND}<span>메시지</span></button>"#) },

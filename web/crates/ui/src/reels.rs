@@ -66,6 +66,13 @@ pub fn repaint() {
 
 fn bind() {
     let Some(el) = by_id("reels") else { return };
+    // 스크롤 중에는 아무것도 읽지 않고, 멈추고 0.2초 뒤 한 번만 봐요
+    dom::on(&el, "scroll", |_| {
+        let Some(w) = web_sys::window() else { return };
+        w.clear_timeout_with_handle(SETTLE.get());
+        let cb = Closure::once_into_js(settle);
+        SETTLE.set(w.set_timeout_with_callback_and_timeout_and_arguments_0(wasm_bindgen::JsCast::unchecked_ref(&cb), 200).unwrap_or(0));
+    });
     dom::on(&el, "click", |e| {
         if let Some(b) = dom::closest(&e, "[data-uid]") {
             let uid = dom::data(&b, "uid");
@@ -109,6 +116,32 @@ fn double_tap(e: &web_sys::Event) {
 thread_local! {
     static LAST_TAP: std::cell::RefCell<(String, f64)> = const { std::cell::RefCell::new((String::new(), 0.0)) };
     static BOUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// 스크롤이 멈추면 보는 중인 게시물을 알려주는 시계, 지금 보는 게시물 번호
+    static SETTLE: std::cell::Cell<i32> = const { std::cell::Cell::new(0) };
+    static WATCHING: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// 스크롤이 멈춘 뒤 한 번만: 지금 화면의 게시물을 본 것으로 적고, 6초 넘게 보면 그 사람에게 관심을 더해요 (추천 알고리즘)
+fn settle() {
+    let Some(el) = by_id("reels") else { return };
+    let h = el.client_height().max(1);
+    let i = ((el.scroll_top() as f64) / h as f64).round() as usize;
+    let posts = crate::sns::reel_posts();
+    let Some(p) = posts.get(i) else { return };
+    let (id, by) = (p.0.clone(), p.1.clone());
+    if WATCHING.with(|w| *w.borrow() == id) {
+        return;
+    }
+    WATCHING.with(|w| *w.borrow_mut() = id.clone());
+    crate::algo::seen(&id);
+    leptos::prelude::set_timeout(
+        move || {
+            if WATCHING.with(|w| *w.borrow() == id) && dom::screen_active("reels") && !dom::doc_hidden() {
+                crate::algo::bump(&by, 0.5);
+            }
+        },
+        std::time::Duration::from_millis(6000),
+    );
 }
 /// 릴스 탭을 열 때
 pub fn open() {
@@ -117,5 +150,14 @@ pub fn open() {
     }
     crate::sns::ensure_watch();
     crate::sns::gifts_refresh(false);
+    let before = crate::sns::reel_posts().first().map(|p| p.0.clone());
+    crate::sns::rerank(true, false);
     repaint();
+    // 추천 순서가 새로 정해졌으면 맨 위부터 봐요
+    if crate::sns::reel_posts().first().map(|p| p.0.clone()) != before {
+        if let Some(el) = by_id("reels") {
+            el.set_scroll_top(0);
+        }
+    }
+    leptos::prelude::set_timeout(settle, std::time::Duration::from_millis(1200));
 }

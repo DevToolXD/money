@@ -73,7 +73,9 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
   const seen = (await A.evaluate(() => window.__seen)).filter((v, i, a) => i === 0 || v !== a[i - 1]);
   console.log('독일 지역 수 흐름', seen.join(','));
   ok('한 지역씩 점령 (한 번에 다 바뀌지 않아요)', seen.every((v, i) => i === 0 || Math.abs(v - seen[i - 1]) <= 1) && seen.length > 2);
-  ok('비율대로 전선: 독일 5 지역', (await blues(A)) === 5 && (await blues(B)) === 5);
+  // 넓이 기준: 독일 클릭 25% → 독일 땅 넓이가 전체의 25%에 가장 가까운 자리 (유럽 10개 + 모스크바·볼가 = 12)
+  const want = await A.evaluate(() => 12);
+  ok('비율대로 전선: 영토 넓이로 독일 12 지역', (await blues(A)) === want && (await blues(B)) === want);
   ok('점령 소식', (await A.textContent('#gm-news')).includes('점령했어요'));
   console.log('라벨', await A.textContent('#gm-rt'), await A.textContent('#gm-bt'));
   ok('각 진영 가운데 클릭 수', (await A.textContent('#gm-rt')).trim() === '30' && (await A.textContent('#gm-bt')).trim() === '10');

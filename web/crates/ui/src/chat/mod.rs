@@ -459,3 +459,8 @@ pub fn leave(tab: &str) {
         thread::close();
     }
 }
+
+/// 1:1 대화 상대들 (추천 알고리즘이 친한 사람으로 봐요)
+pub fn partners() -> Vec<String> {
+    CHATS.with(|c| c.borrow().iter().filter(|c| !c.group && !c.other.is_empty()).map(|c| c.other.clone()).collect())
+}

@@ -137,7 +137,7 @@ async fn send() {
             sheet_open(false, "");
             toast(&format!("{}님에게 멸공 {}을 보냈어요", g.name, ko(g.amt)));
         }
-        Err(_) => toast("보내지 못했어요. 잠시 뒤 다시 해 주세요"),
+        Err(e) => toast(&format!("보내지 못했어요. {}", cloud::why(&cloud::get(&e, "code").as_string().unwrap_or_default()))),
     }
     BUSY.set(false);
 }

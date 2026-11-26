@@ -1375,6 +1375,36 @@ async fn presence_list() -> R {
     Ok(out.into())
 }
 
+/* ---------- 뽑기와 장신구 ---------- */
+/// 10 멸공으로 한 번 뽑아요. 등급은 서버가 찍은 시각으로 정해져서, 다시 읽어 그 시각을 돌려줘요 ({id, at})
+async fn gacha_pull() -> R {
+    let uid = uid_of()?;
+    let r = new_id(c(&["pulls"]));
+    let b = batch();
+    m(&b, "set", &[r.clone(), o(&[("by", s(&uid)), ("at", ts())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0)), ("wt", ts()), ("op", o(&[("kind", s("gacha")), ("pid", get(&r, "id"))]))])])?;
+    rethrow(commit(&b).await)?;
+    let sn = rethrow(get_doc(r.clone()).await)?;
+    Ok(o(&[("id", get(&r, "id")), ("at", n(ms(&get(&data(&sn), "at"))))]))
+}
+/// 내가 뽑은 것 모두 ({id, at})
+async fn gacha_list() -> R {
+    let snap = rethrow(get_docs(q(c(&["pulls"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(300.0)])).await)?;
+    Ok(docs(&snap).iter().map(|dd| o(&[("id", get(dd, "id")), ("at", n(ms(&get(&data(dd), "at"))))])).collect::<js_sys::Array>().into())
+}
+/// 장신구 끼기 (빈 글자면 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
+async fn deco_set(item: String, pull: String) -> R {
+    let uid = uid_of()?;
+    rethrow(update_doc(d(&["profiles", &uid]), o(&[("deco", s(&item)), ("decoPull", s(&pull))])).await)?;
+    let cc = read_cache(&uid);
+    let dd = get(&cc, "d");
+    if dd.is_object() {
+        set(&dd, "deco", &s(&item));
+        write_cache(&uid, &dd);
+    }
+    Ok(JsValue::UNDEFINED)
+}
+
 /* ---------- 릴스 선물 ---------- */
 /// 글쓴이에게 멸공을 보내요: 선물 문서와 내 지갑을 같은 묶음으로 (규칙이 금액을 맞춰 봐요)
 async fn reel_gift(post: String, to: String, amount: f64) -> R {
@@ -1809,6 +1839,9 @@ fn build() -> js_sys::Object {
     am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
     am!(api, "reelGift", |a| reel_gift(sa(&a[0]), sa(&a[1]), num(&a[2])).await);
     am!(api, "reelGifts", |_a| reel_gifts().await);
+    am!(api, "gachaPull", |_a| gacha_pull().await);
+    am!(api, "gachaList", |_a| gacha_list().await);
+    am!(api, "decoSet", |a| deco_set(sa(&a[0]), opt_s(&a[1])).await);
     am!(api, "giphyGet", |_a| {
         let sn = get_doc(d(&["meta", "giphy"])).await?;
         Ok(if exists(&sn) { get(&data(&sn), "key") } else { s("") })

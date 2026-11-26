@@ -15,7 +15,9 @@ thread_local! {
     static SEQ: Cell<u32> = const { Cell::new(0) };
 }
 
-const ITEMS: [(&str, &str, &str); 3] = [
+const ITEMS: [(&str, &str, &str); 5] = [
+    ("gacha", "뽑기", r#"<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><circle cx="12" cy="12" r="2.4"/>"#),
+    ("inv", "인벤", r#"<path d="M5 8.5h14v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5M5 12.5h14"/>"#),
     ("account", "프로필", r#"<circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/>"#),
     ("invite", "친구 초대", r#"<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/>"#),
     ("feedback", "피드백", r#"<path d="M20 12a8 7 0 0 1-12.5 5.8L4 19l1.2-3.4A8 7 0 1 1 20 12z"/><path d="M12 8.5v4M12 15.3h.01"/>"#),
@@ -51,6 +53,8 @@ fn root() -> Option<web_sys::HtmlElement> {
             match to.as_str() {
                 "invite" => crate::invite::open(),
                 "feedback" => crate::feedback::open(),
+                "gacha" => crate::gacha::open_gacha(),
+                "inv" => crate::gacha::open_inv(),
                 _ => {}
             }
             return;
