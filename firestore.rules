@@ -1599,6 +1599,24 @@ service cloud.firestore {
         && request.resource.data.items == old().concat([wA().op.k]);
     }
 
+    // ----- 회원가입 전화번호 인증 (server/phone-verify, Zavu 함수). 쓰기는 인증 전용 계정만 해요 -----
+    // phones/{번호 해시} = 그 번호로 인증한 계정 (번호 하나에 계정 하나). verified/{uid} = 인증 끝난 계정. otp는 보낸 인증번호(해시)
+    function isVerifier() { return signedIn() && request.auth.token.email == 'pv-b7917ab47e9eb46d478a@money-sim.app'; }
+    match /otp/{uid} {
+      allow get, create, update, delete: if isVerifier();
+    }
+    match /otpday/{d} {
+      allow get, create, update: if isVerifier();
+    }
+    match /phones/{h} {
+      allow get: if isVerifier();
+      allow create: if isVerifier() && request.resource.data.keys().hasOnly(['uid', 'at']) && request.resource.data.uid is string;
+    }
+    match /verified/{uid} {
+      allow get: if isMe(uid) || isVerifier() || isOwner();
+      allow create, update: if isVerifier() && request.resource.data.keys().hasOnly(['at', 'tail']);
+    }
+
     // 릴스 선물: 보낸 사람 지갑이 같은 묶음에서 그만큼 줄어야 만들어지고, 받는 사람만 한 번 받을 수 있어요
     match /postGifts/{gid} {
       function walletAfter() { return getAfter(/databases/$(database)/documents/wallets/$(request.auth.uid)).data; }

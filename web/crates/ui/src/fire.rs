@@ -1444,6 +1444,19 @@ async fn deco_buy(k: String, price: f64, items: JsValue) -> R {
     rethrow(commit(&b).await)?;
     Ok(JsValue::UNDEFINED)
 }
+/// 전화번호 인증 서버(Zavu 함수)에 보낼 로그인 토큰
+async fn id_token() -> R {
+    let u = current();
+    if u.is_null() || u.is_undefined() {
+        return Err(fail("not-signed-in", "로그인이 필요해요"));
+    }
+    aw(m(&u, "getIdToken", &[])).await
+}
+/// 이 계정이 전화번호 인증을 끝냈나 (verified/{uid} 문서가 있나)
+async fn phone_verified() -> R {
+    let sn = rethrow(get_doc(d(&["verified", &uid_of()?])).await)?;
+    Ok(exists(&sn).into())
+}
 /// 도박장(슬롯): 건 돈(bet)만큼 빠졌다가 배율만큼 돌아와요. 지갑은 net(= 돌려받는 돈 - 건 돈)만큼 바뀌어요.
 /// 서버는 이 모양만 받아요 (100의 배수, 잃으면 -건 돈, 1.5배면 +절반, 10배면 +9배: firestore.rules의 'bet')
 async fn casino_bet(bet: f64, net: f64) -> R {
@@ -1789,6 +1802,7 @@ fn opt_s(v: &JsValue) -> String {
 fn build() -> js_sys::Object {
     let api = js_sys::Object::new();
     getter(&api, "uid", || s(&st(&get(&current(), "uid"))));
+    getter(&api, "emu", || get(&fbo(), "emu").is_truthy().into());
     // 계정을 만든 시각 (밀리초, 모르면 0). 공지는 이 뒤에 올라온 것만 보여줘요
     getter(&api, "createdAt", || {
         let t = js_sys::Date::parse(&st(&get(&get(&current(), "metadata"), "creationTime")));
@@ -1906,6 +1920,8 @@ fn build() -> js_sys::Object {
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "decoBag", |_a| deco_bag().await);
     am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
+    am!(api, "idToken", |_a| id_token().await);
+    am!(api, "phoneVerified", |_a| phone_verified().await);
     am!(api, "casinoBet", |a| casino_bet(num(&a[0]), num(&a[1])).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));

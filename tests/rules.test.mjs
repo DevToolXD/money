@@ -311,6 +311,23 @@ await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await assertFails(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "<script>" }));
   await assertSucceeds(getDoc(doc(A, "meta/giphy")));
 });
+await t("전화번호 인증: 인증 전용 계정만 phones·verified·otp를 쓰고, 본인은 자기 인증 여부만 읽어요", async () => {
+  await seed(seedBase);
+  const V = pw("uV", "pv-b7917ab47e9eb46d478a");
+  const A = pw("uA", "alice");
+  await assertFails(setDoc(doc(A, "verified/uA"), { at: 1, tail: "5678" })); // 스스로 인증했다고 쓸 수 없어요
+  await assertFails(setDoc(doc(A, "phones/h1"), { uid: "uA", at: 1 }));
+  await assertFails(setDoc(doc(A, "otp/uA"), { h: "x" }));
+  await assertSucceeds(setDoc(doc(V, "otp/uA"), { h: "x", c: "y", exp: 1, sent: 1, day: "d", n: 1, tries: 0 }));
+  await assertSucceeds(setDoc(doc(V, "phones/h1"), { uid: "uA", at: 1 }));
+  await assertFails(setDoc(doc(V, "phones/h1"), { uid: "uB", at: 2 })); // 이미 있는 번호를 다른 계정으로 바꿀 수 없어요
+  await assertSucceeds(setDoc(doc(V, "verified/uA"), { at: 1, tail: "5678" }));
+  await assertFails(setDoc(doc(V, "verified/uB"), { at: 1, tail: "5678", extra: 1 }));
+  await assertSucceeds(getDoc(doc(A, "verified/uA")));
+  await assertFails(getDoc(doc(A, "verified/uB"))); // 남의 인증 여부는 못 봐요
+  await assertFails(getDoc(doc(A, "phones/h1")));
+  await assertFails(getDoc(doc(A, "otp/uA")));
+});
 await t("도박장: 건 돈은 100의 배수, 잃으면 -건 돈, 1.5배는 +절반, 10배는 +9배만 지갑에 들어가요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");

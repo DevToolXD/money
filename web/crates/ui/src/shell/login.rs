@@ -320,7 +320,7 @@ pub fn render_auth(c: &JsValue) {
     }
 }
 
-async fn logout() {
+pub(crate) async fn logout() {
     if let Some(c) = cloud::cloud() {
         if let Ok(p) = cloud::call_now("signOut", &[]) {
             let _ = cloud::settle(p).await;
