@@ -1072,8 +1072,8 @@ impl Bar {
         let plain = entry.is_none();
         if plain && self.plain_for.as_deref() != active.as_deref() {
             self.plain_for = active.clone();
-            // 어느 화면이든 앱 바탕색(밝은 테마는 연한 회색)으로 유리를 그려요. 릴스·지도처럼 화면이 검어도 막대가 검게 되지 않아요
-            let bg = crate::dom::doc().document_element().and_then(|r| win().get_computed_style(&r).ok().flatten()).and_then(|c| c.get_property_value("--bg-canvas").ok()).unwrap_or_else(|| "#f2f2f7".into());
+            // 어느 화면·모드든 밝은 회색으로 유리를 그려요. 릴스·지도처럼 화면이 검거나 다크 모드여도 막대가 검게 되지 않아요
+            let bg = String::from("#f2f2f7");
             let c = parse_color(if bg.trim().is_empty() { "#f2f2f7" } else { &bg });
             let px = [(c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8, 255];
             if self.plain_px != px {
@@ -1098,7 +1098,8 @@ impl Bar {
         } else {
             0.0
         };
-        let dark = crate::dom::doc().document_element().and_then(|r| r.get_attribute("data-theme")).as_deref() == Some("dark");
+        // 다크 모드여도 밝은 유리로 그려요 (막대가 검게 되지 않게)
+        let dark = false;
         let g = self.g.as_ref().unwrap();
         let gl = &g.gl;
         let f = |v: f64| v as f32;

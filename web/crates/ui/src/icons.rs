@@ -52,7 +52,6 @@ const REELS: &[Part] = &[
     Part { d: "M4 9.5h20M9.5 4l3 5.5M16 4l3 5.5", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
     Part { d: "M12 13.5v6l5-3Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
-// 게임: 두 깃발이 마주 보는 대항전
 // 게임: 게임 콘솔 패드 (십자키와 버튼 두 개)
 const GAME: &[Part] = &[
     Part { d: "M9 8.5h10a5 5 0 0 1 4.9 4l1.4 6.4a2.8 2.8 0 0 1-4.8 2.5L17.8 18.6h-7.6l-2.7 2.8a2.8 2.8 0 0 1-4.8-2.5l1.4-6.4A5 5 0 0 1 9 8.5z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },

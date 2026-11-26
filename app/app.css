@@ -427,22 +427,7 @@ html[data-theme="dark"] .lg-card, html[data-theme="dark"] .lg-btn { background: 
   -webkit-touch-callout: none;
 }
 
-html[data-theme="dark"] .tabbar {
-  --tab-ink: #ffffff;
-  --tab-accent: #ffffff;
-  --tab-pill: rgba(255, 255, 255, 0.15);
-  --tab-tint: rgba(255, 255, 255, 0.05);
-  --tab-edge: rgba(255, 255, 255, 0.3);
-  --tab-shadow: 0.5;
-  --tab-platter: rgba(36, 36, 42, 0.5);
-  --tab-platter-ring: rgba(255, 255, 255, 0.14);
-  --tab-glass-base: #35353d;
-  --tab-glass-keep: 0.42;
-  --tab-glass-desat: 0.5;
-  --tab-line: rgba(255, 255, 255, 0.22);
-  --tab-plat-shadow: 0.45;
-  --tab-plat-rim: 0.3;
-}
+/* 탭 바는 다크 모드에서도 밝은 유리예요 (어느 화면·모드에서도 막대가 검게 되지 않아요) */
 
 .platter {
   position: absolute;
@@ -457,7 +442,7 @@ html[data-theme="dark"] .tabbar {
   transition: scale 0.24s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 html[data-theme="dark"] .platter {
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14);
 }
 .platter-main { left: 0; right: var(--side-col); }
 .platter-side { right: 0; width: var(--bar-h); }
@@ -2465,7 +2450,7 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
 .gm-bar-r { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; border-radius: 3px 0 0 3px; background: #e5484d; transition: width 0.6s var(--liquid, ease); }
 .gm-view { position: relative; aspect-ratio: 1000 / 780; border-radius: 8px; overflow: hidden; background: #bcd3e4; contain: paint; }
 .gm-map { --s: 1; position: absolute; inset: 0; display: block; width: 100%; height: 100%; transform-origin: 0 0; transition: transform 0.9s cubic-bezier(.3, .8, .2, 1); will-change: transform; }
-.gm-full { position: absolute; right: 8px; bottom: 8px; height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; font-weight: 700; color: var(--text-primary); background: rgba(255, 255, 255, 0.82); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.gm-full { position: absolute; right: 8px; bottom: 8px; height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; font-weight: 700; color: #111; background: rgba(255, 255, 255, 0.82); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .gm-ring { fill: none; stroke-width: calc(5px / var(--s)); transform-box: fill-box; transform-origin: center; opacity: 0; animation: gmRing 0.95s cubic-bezier(.2, .8, .2, 1) forwards; }
 .gm-ring.r { stroke: #ff6b6f; }
 .gm-ring.b { stroke: #6f97ff; }
