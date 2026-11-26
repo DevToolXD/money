@@ -1427,59 +1427,31 @@ async fn contest_vote(cid: String, entry: String, old: String) -> R {
     Ok(JsValue::UNDEFINED)
 }
 
-/* ---------- 뽑기와 장신구 ---------- */
-/// 내 가방: {items: 가진 장신구(뽑은 순서), pend: 아직 받지 않은 뽑기권, at: 그 뽑기권의 서버 시각}
-async fn gacha_owned() -> R {
-    let uid = uid_of()?;
-    let sn = rethrow(get_doc(d(&["owned", &uid])).await)?;
-    let (items, pend) = if exists(&sn) { (get(&data(&sn), "items"), get(&data(&sn), "pend")) } else { (js_sys::Array::new().into(), js_sys::Array::new().into()) };
-    let p: js_sys::Array = pend.clone().dyn_into().unwrap_or_default();
-    let at = if p.length() > 0 {
-        let t = rethrow(get_doc(d(&["pulls", &jstr(&p.get(0))])).await)?;
-        n(ms(&get(&data(&t), "at")))
-    } else {
-        n(0.0)
-    };
-    Ok(o(&[("items", items), ("pend", pend), ("at", at)]))
+/* ---------- 상점의 장신구 ---------- */
+/// 내 가방: 상점에서 산 장신구들
+async fn deco_bag() -> R {
+    let sn = rethrow(get_doc(d(&["bag", &uid_of()?])).await)?;
+    Ok(if exists(&sn) { get(&data(&sn), "items") } else { js_sys::Array::new().into() })
 }
-/// 1단계 멸공 내기: 뽑기권 count장(1 또는 10)과 내 가방의 "받을 것"을 같은 묶음으로. 서버 시각을 다시 읽어 돌려줘요 ({ids, at})
-async fn gacha_charge(count: usize, items: JsValue) -> R {
+/// 장신구 사기: 지갑에서 값이 빠지고 같은 묶음에서 가방에 붙어요 (items: 지금 가방)
+async fn deco_buy(k: String, price: f64, items: JsValue) -> R {
     let uid = uid_of()?;
-    let refs: Vec<JsValue> = (0..count).map(|_| new_id(c(&["pulls"]))).collect();
-    let ids: js_sys::Array = refs.iter().map(|r| get(r, "id")).collect();
+    let all: js_sys::Array = items.dyn_into::<js_sys::Array>().unwrap_or_default();
+    all.push(&s(&k));
     let b = batch();
-    for (i, r) in refs.iter().enumerate() {
-        m(&b, "set", &[r.clone(), o(&[("by", s(&uid)), ("at", ts()), ("n", n(i as f64))])])?;
-    }
-    m(&b, "set", &[d(&["owned", &uid]), o(&[("items", items), ("pend", ids.clone().into())])])?;
-    let op = if count == 1 { o(&[("kind", s("gacha")), ("pid", get(&refs[0], "id"))]) } else { o(&[("kind", s("gacha10")), ("pids", ids.clone().into())]) };
-    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-10.0 * count as f64)), ("wt", ts()), ("op", op)])])?;
-    rethrow(commit(&b).await)?;
-    let sn = rethrow(get_doc(refs[0].clone()).await)?;
-    Ok(o(&[("ids", ids.into()), ("at", n(ms(&get(&data(&sn), "at"))))]))
-}
-/// 2단계 받기: 뽑기권마다 결과를 적고, 가방에 붙여요 (규칙이 결과를 같은 계산으로 검사해요)
-async fn gacha_resolve(ids: JsValue, ks: JsValue, items: JsValue) -> R {
-    let uid = uid_of()?;
-    let ids: js_sys::Array = ids.dyn_into().unwrap_or_default();
-    let ks: js_sys::Array = ks.dyn_into().unwrap_or_default();
-    let all: js_sys::Array = items.dyn_into::<js_sys::Array>().unwrap_or_default().concat(&ks);
-    let b = batch();
-    for i in 0..ids.length() {
-        m(&b, "update", &[d(&["pulls", &jstr(&ids.get(i))]), o(&[("k", ks.get(i))])])?;
-    }
-    m(&b, "set", &[d(&["owned", &uid]), o(&[("items", all.into()), ("pend", js_sys::Array::new().into())])])?;
+    m(&b, "set", &[d(&["bag", &uid]), o(&[("items", all.into())])])?;
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-price)), ("wt", ts()), ("op", o(&[("kind", s("deco")), ("k", s(&k))]))])])?;
     rethrow(commit(&b).await)?;
     Ok(JsValue::UNDEFINED)
 }
-/// 장신구 끼기: [{k: 장신구, p: 뽑기 번호}] 목록 그대로 (빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
+/// 장신구 끼기: 낀 장신구 번호 목록 그대로 (gear, 빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
 async fn deco_set(list: JsValue) -> R {
     let uid = uid_of()?;
-    rethrow(update_doc(d(&["profiles", &uid]), o(&[("decos", list.clone())])).await)?;
+    rethrow(update_doc(d(&["profiles", &uid]), o(&[("gear", list.clone())])).await)?;
     let cc = read_cache(&uid);
     let dd = get(&cc, "d");
     if dd.is_object() {
-        set(&dd, "decos", &list);
+        set(&dd, "gear", &list);
         write_cache(&uid, &dd);
     }
     Ok(JsValue::UNDEFINED)
@@ -1924,9 +1896,8 @@ fn build() -> js_sys::Object {
     am!(api, "postCreate", |a| post_create(opt_s(&a[0]), opt_s(&a[1]), opt_s(&a[2]), opt_s(&a[3]), opt_s(&a[4])).await);
     am!(api, "reelGift", |a| reel_gift(sa(&a[0]), sa(&a[1]), num(&a[2])).await);
     am!(api, "reelGifts", |_a| reel_gifts().await);
-    am!(api, "gachaOwned", |_a| gacha_owned().await);
-    am!(api, "gachaCharge", |a| gacha_charge(if num(&a[0]) >= 10.0 { 10 } else { 1 }, a[1].clone()).await);
-    am!(api, "gachaResolve", |a| gacha_resolve(a[0].clone(), a[1].clone(), a[2].clone()).await);
+    am!(api, "decoBag", |_a| deco_bag().await);
+    am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));
     am!(api, "contestClose", |a| rethrow(update_doc(d(&["contests", &sa(&a[0])]), o(&[("open", false.into()), ("end", ts())])).await));

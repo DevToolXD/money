@@ -370,6 +370,7 @@ fn setup_tabbar(first: &str) {
         }
         crate::chat::leave(&name);
         crate::reel_comments::close();
+        crate::shop::leave();
 
         set_title(&name);
         if let Some(sc) = screen(&name) {

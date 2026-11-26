@@ -26,8 +26,8 @@ pub fn online_uids(me: &str) -> Vec<String> {
 }
 /// 동그라미에 접속 점을 붙여요 (접속 중이 아니면 그대로)
 pub fn wrap(avatar: String, uid: &str) -> String {
-    // 뽑기로 얻어 낀 장신구(테두리·든 물건)도 여기서 얹어요
-    let deco = crate::gacha::deco_html(&crate::gacha::deco_of(uid));
+    // 상점에서 사서 낀 장신구도 여기서 얹어요
+    let deco = crate::shop::deco_html(&crate::shop::deco_of(uid));
     if online(uid) {
         format!(r#"<span class="av-on">{avatar}{deco}<i class="on-dot" aria-label="접속 중"></i></span>"#)
     } else if !deco.is_empty() {

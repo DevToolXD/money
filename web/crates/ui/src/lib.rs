@@ -17,7 +17,7 @@ pub mod viewport;
 pub mod presence;
 pub mod reels;
 pub mod reel_comments;
-pub mod gacha;
+pub mod shop;
 pub mod algo;
 pub mod contest;
 pub mod invite;

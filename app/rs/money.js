@@ -395,10 +395,6 @@ function __wbg_get_imports() {
             const ret = arg0.composedPath();
             return ret;
         },
-        __wbg_concat_a93602fe6b72cec9: function(arg0, arg1) {
-            const ret = arg0.concat(arg1);
-            return ret;
-        },
         __wbg_construct_8670bb4c2b062969: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.construct(arg0, arg1);
             return ret;
@@ -1607,6 +1603,9 @@ function __wbg_get_imports() {
         __wbg_set_passive_ac655beafedbb0a5: function(arg0, arg1) {
             arg0.passive = arg1 !== 0;
         },
+        __wbg_set_scrollLeft_e19ceb8a71841d6f: function(arg0, arg1) {
+            arg0.scrollLeft = arg1;
+        },
         __wbg_set_scrollTop_9abe010024623249: function(arg0, arg1) {
             arg0.scrollTop = arg1;
         },
@@ -1948,7 +1947,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_generic_000000000000000c: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 232, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [F64], shim_idx: 234, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_45f4c9feb7a848a0___convert__closures_____invoke___f64______true_);
             return ret;
         },

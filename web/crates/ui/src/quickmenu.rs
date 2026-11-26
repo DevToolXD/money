@@ -17,7 +17,7 @@ thread_local! {
 
 const ITEMS: [(&str, &str, &str); 6] = [
     ("contest", "공모전", r#"<path d="M8 4.5h8v5a4 4 0 0 1-8 0z"/><path d="M8 6.5H5.5a2.5 2.5 0 0 0 2.6 3M16 6.5h2.5a2.5 2.5 0 0 1-2.6 3M12 13.5V17M8.5 20h7M9.5 17h5"/>"#),
-    ("gacha", "뽑기", r#"<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><circle cx="12" cy="12" r="2.4"/>"#),
+    ("shop", "상점", r#"<path d="M4.5 8.5h15l-1.2 11a1.5 1.5 0 0 1-1.5 1.3H7.2a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M8.5 8.5V7a3.5 3.5 0 0 1 7 0v1.5"/>"#),
     ("inv", "인벤", r#"<path d="M5 8.5h14v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5M5 12.5h14"/>"#),
     ("account", "프로필", r#"<circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.6-5.6 7.2-5.6s6.4 2 7.2 5.6"/>"#),
     ("invite", "친구 초대", r#"<circle cx="9" cy="8.5" r="3.5"/><path d="M2.8 20c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><path d="M18.5 8v6M15.5 11h6"/>"#),
@@ -54,9 +54,9 @@ fn root() -> Option<web_sys::HtmlElement> {
             match to.as_str() {
                 "invite" => crate::invite::open(),
                 "feedback" => crate::feedback::open(),
-                "gacha" => crate::gacha::open_gacha(),
+                "shop" => crate::shop::open(),
                 "contest" => crate::contest::open(),
-                "inv" => crate::gacha::open_inv(),
+                "inv" => crate::shop::open_inv(),
                 _ => {}
             }
             return;
