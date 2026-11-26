@@ -45,6 +45,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   ok('다른 사람: 제안하기', (await B.textContent('#trade-feed')).includes('자전거') && await B.isVisible('#trade-feed [data-act="offer"]'));
   await B.click('#trade-feed [data-act="offer"]'); await B.waitForTimeout(3000);
   ok('제안하면 글쓴이와 대화가 열리고 입력칸에 글 제목', (await B.textContent('#thread-name')).includes('파는사람') && (await B.inputValue('#composer-input')).includes('자전거'));
+  ok('미리 넣은 글이면 버튼은 보내기(음성 아님), 안 읽은 수 0은 숨김', await B.evaluate(() => document.getElementById('send').classList.contains('ready')) && await B.isHidden('#thread-badge'));
+  await B.click('#send'); await B.waitForTimeout(2000);
+  ok('보내져요', (await B.textContent('#bubbles')).includes('자전거'));
   // 완료 표시
   await A.click('#trade-feed [data-act="done"]');
   ok('완료로 표시', await toast(A, '거래 완료로 표시했어요'));

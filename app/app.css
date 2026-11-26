@@ -2725,3 +2725,12 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .iv-card.t4 small { color: #c48a00; } .iv-card.t3 small { color: #8e44ec; } .iv-card.t2 small { color: #2d7ff9; }
 .iv-tip { margin: -4px var(--gutter, 16px) 10px; font-size: 13px; color: var(--text-secondary); }
 .iv-hero { padding: 40px 16px 26px; }
+#thread-badge[hidden] { display: none; }
+/* 처음 한 번: 탭 바 넘기기 안내 (손가락이 왼쪽으로 쓸어요) */
+.tb-hint { position: absolute; left: 50%; bottom: calc(var(--dock-bottom, 20px) + var(--bar-h) + 16px); z-index: 60; display: flex; align-items: center; gap: 8px; padding: 10px 16px 10px 12px; border-radius: 22px; background: rgba(28, 28, 30, 0.9); color: #fff; font-size: 14px; white-space: nowrap; pointer-events: none; opacity: 0; transform: translate(-50%, 8px); transition: opacity 0.3s ease, transform 0.4s var(--liquid, ease); }
+.tb-hint.on { opacity: 1; transform: translate(-50%, 0); }
+.tb-hint b { font-weight: 600; }
+.tb-hand { display: grid; width: 26px; height: 26px; animation: tbSwipe 1.4s ease-in-out 2; }
+.tb-hand svg { width: 26px; height: 26px; }
+@keyframes tbSwipe { 0% { transform: translateX(10px); opacity: 0.4; } 25% { opacity: 1; } 55% { transform: translateX(-14px); opacity: 1; } 100% { transform: translateX(10px); opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .tb-hand { animation: none; } }

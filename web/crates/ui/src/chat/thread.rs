@@ -268,7 +268,10 @@ pub fn open(id: &str) {
         let _ = tav.style().set_property("background-image", &if tp.is_empty() { String::new() } else { format!("url({tp})") });
         dom::toggle(&tav, "photo", !tp.is_empty());
     }
-    dom::set_text("thread-badge", &with_chats(|cs| cs.iter().filter(|c| c.unread).count()).to_string());
+    // 뒤로 버튼의 안 읽은 대화 수: 0이면 숫자를 숨겨요
+    let unread = with_chats(|cs| cs.iter().filter(|c| c.unread && c.id != id).count());
+    dom::set_text("thread-badge", &unread.to_string());
+    dom::set_hidden("thread-badge", unread == 0);
     if let Some(f) = UNSUB.with(|u| u.borrow_mut().take()) {
         let _ = f.call0(&JsValue::NULL);
     }

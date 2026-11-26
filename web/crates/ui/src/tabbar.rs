@@ -888,8 +888,19 @@ impl Bar {
         self.out.push(Out::Change(self.tabs[index].clone(), index));
     }
 
+    // 넘길 수 있다고 알려주기: 바 안의 내용을 다음 쪽 방향으로 amt만큼(0~1) 살짝 밀었다가, 0을 주면 제자리로 돌아와요
+    fn peek(&mut self, amt: f64) {
+        if self.reduced() {
+            return;
+        }
+        let dir = if self.page == 0 { 1.0 } else { -1.0 };
+        self.page_s.target = self.page as f64 + dir * amt;
+        self.request_render();
+    }
+
     // 핫바를 다음 쪽으로 넘겨요: 바 안의 내용만 짧고 굵게 튕기며 옆으로 밀려요
     fn flip_page(&mut self) {
+        crate::dom::store_set("tb-hint", "1"); // 한 번 넘겨 봤으면 넘기기 안내는 다시 안 나와요
         self.page = 1 - self.page;
         self.apply_page_dom();
         self.mark_current();
@@ -1194,6 +1205,39 @@ fn on<E: JsCast + 'static>(t: &web_sys::EventTarget, ev: &str, f: impl FnMut(E) 
     crate::dom::on(t, ev, move |e: web_sys::Event| f(e.unchecked_into()));
 }
 
+/// 처음 한 번: 탭 바를 옆으로 넘길 수 있다고 알려줘요 (쇼츠의 "위로 넘기기" 안내처럼).
+/// 바 안의 탭들이 다음 쪽으로 살짝 밀렸다 돌아오기를 두 번 하고, 그 위로 손가락이 왼쪽으로 쓸어요
+pub fn hint_once() {
+    if crate::dom::store_get("tb-hint", "") == "1" {
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async {
+        crate::dom::sleep(1800).await;
+        // 그새 넘겨 봤거나 다른 창(대화·시트)이 떠 있으면 그만둬요
+        let busy = || crate::dom::store_get("tb-hint", "") == "1" || crate::dom::app_el().is_some_and(|a| a.class_list().contains("in-thread"));
+        if busy() {
+            return;
+        }
+        crate::dom::store_set("tb-hint", "1");
+        let Some(app) = crate::dom::app_el() else { return };
+        let Ok(el) = crate::dom::doc().create_element("div") else { return };
+        el.set_class_name("tb-hint");
+        let _ = el.set_attribute("aria-hidden", "true");
+        el.set_inner_html(r#"<span class="tb-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 9.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V14c0 3.6-2.4 6.5-6 6.5-2.4 0-3.8-1-5-2.8L4.6 14a1.5 1.5 0 0 1 2.4-1.8L9 14"/></svg></span><b>탭 바를 옆으로 밀면 다른 탭이 나와요</b>"#);
+        let _ = app.append_child(&el);
+        let _ = el.class_list().add_1("on");
+        for _ in 0..2 {
+            with(|b| b.peek(0.32));
+            crate::dom::sleep(650).await;
+            with(|b| b.peek(0.0));
+            crate::dom::sleep(750).await;
+        }
+        let _ = el.class_list().remove_1("on");
+        crate::dom::sleep(400).await;
+        el.remove();
+    });
+}
+
 /// 탭 바를 만들어요. 밖에서 부르는 일(busy·requestRender·dropShots·setShot·flipPage)을 가진 JS 객체를 돌려줘요 (window.tabbar)
 pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_gl: bool) -> JsValue {
     let q = |s: &str| nav.query_selector(s).ok().flatten().and_then(|e| e.dyn_into::<HtmlElement>().ok());
@@ -1398,6 +1442,9 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
     }).into_js_value());
     set("flipPage", Closure::<dyn FnMut()>::new(|| {
         with(|b| b.flip_page());
+    }).into_js_value());
+    set("peek", Closure::<dyn FnMut(JsValue)>::new(|a: JsValue| {
+        with(|b| b.peek(a.as_f64().unwrap_or(0.0)));
     }).into_js_value());
     api.into()
 }

@@ -580,6 +580,7 @@ pub fn start() {
     ranking::init();
     crate::beta::beta_init();
     crate::viewport::init();
+    crate::tabbar::hint_once();
     login::init();
     account::init();
     setup_tabbar(&first);

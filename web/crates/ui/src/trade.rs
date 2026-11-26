@@ -153,6 +153,10 @@ fn on_feed(e: web_sys::Event) {
                         // 무슨 글을 보고 연락했는지 입력칸에 적어 둬요 (보내기는 직접 눌러요)
                         if let Some(i) = by_id("composer-input").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok()) {
                             i.set_value(&format!("거래 글 \"{}\" 보고 연락드려요", item.title));
+                            // 글을 넣었다고 알려야 보내기 버튼이 음성(파형)에서 보내기 화살표로 바뀌어요
+                            if let Ok(ev) = web_sys::Event::new("input") {
+                                let _ = i.dispatch_event(&ev);
+                            }
                         }
                     }
                     Err(_) => crate::shell::toast("대화를 열지 못했어요"),
