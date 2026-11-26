@@ -25,9 +25,6 @@ thread_local! {
     static STARTED: Cell<bool> = const { Cell::new(false) };
     static BOOTED: Cell<bool> = const { Cell::new(false) };
     static CTX_OBJ: RefCell<JsValue> = const { RefCell::new(JsValue::NULL) };
-    /// 한 번이라도 열어 본 탭 (처음 열 때만 불러오는 화면을 따로 보여줘요)
-    static OPENED: RefCell<std::collections::HashSet<String>> = RefCell::new(std::collections::HashSet::new());
-    static TAB_SEQ: Cell<u32> = const { Cell::new(0) };
 }
 fn win() -> web_sys::Window {
     web_sys::window().expect("window")
@@ -379,52 +376,19 @@ fn setup_tabbar(first: &str) {
         if let Some(sc) = screen(&name) {
             update_chrome(&sc);
         }
-        // 무거운 화면 그리기는 알약이 거의 도착한 뒤에 해요. 누른 순간에 같이 하면 알약 움직임의 첫 프레임들이 밀려 버벅여요.
-        // 처음 여는 탭이면 그동안 불러오는 화면(돌아가는 고리)을 따로 보여줘요
-        let heavy = matches!(name.as_str(), "money" | "ranking" | "untitled3" | "trade" | "reels" | "map" | "game" | "play");
-        let first = OPENED.with(|o| o.borrow_mut().insert(name.clone()));
-        let seq = TAB_SEQ.with(|s| {
-            s.set(s.get().wrapping_add(1));
-            s.get()
-        });
-        if heavy && first {
-            if let Some(sc) = screen(&name) {
-                let _ = sc.class_list().add_1("tab-loading");
-            }
+        match name.as_str() {
+            "money" => crate::money::render(),
+            "ranking" => ranking::load(false),
+            "untitled3" => crate::sns::open(),
+            "trade" => crate::trade::open(),
+            "reels" => crate::reels::open(),
+            "map" => crate::map::open(),
+            "game" => crate::game::open(),
+            "play" => crate::play::open(),
+            _ => {}
         }
-        let n2 = name.clone();
-        wasm_bindgen_futures::spawn_local(async move {
-            if heavy {
-                dom::sleep(if first { 420 } else { 260 }).await;
-            }
-            // 그사이 다른 탭으로 옮겼으면 그 탭 일만 해요
-            if TAB_SEQ.with(|s| s.get()) != seq {
-                if let Some(sc) = screen(&n2) {
-                    let _ = sc.class_list().remove_1("tab-loading");
-                }
-                OPENED.with(|o| o.borrow_mut().remove(&n2));
-                return;
-            }
-            match n2.as_str() {
-                "money" => crate::money::render(),
-                "ranking" => ranking::load(false),
-                "untitled3" => crate::sns::open(),
-                "trade" => crate::trade::open(),
-                "reels" => crate::reels::open(),
-                "map" => crate::map::open(),
-                "game" => crate::game::open(),
-                "play" => crate::play::open(),
-                _ => {}
-            }
-            if let Some(sc) = screen(&n2) {
-                if sc.class_list().contains("tab-loading") {
-                    dom::sleep(250).await;
-                    let _ = sc.class_list().remove_1("tab-loading");
-                }
-            }
-            invoke(&backdrop(), "setActive", &[JsValue::from_str(&n2)]);
-            invoke(&tabbar(), "requestRender", &[]);
-        });
+        invoke(&backdrop(), "setActive", &[JsValue::from_str(&name)]);
+        invoke(&tabbar(), "requestRender", &[]);
     });
     // 이미 선택된 탭을 다시 누르면 맨 위로
     dom::on(&nav, "tabreselect", move |e| {
@@ -468,6 +432,13 @@ fn setup_tabbar(first: &str) {
 /* ---------- 로그인한 계정이면 서버에서 지갑, 대화, 설정을 불러와요 ---------- */
 
 pub(crate) fn boot(cloud_v: JsValue) {
+    // 처음 들어올 때의 불러오는 화면은 로그인 상태를 알고 첫 화면을 그린 다음 프레임에 걷어요
+    wasm_bindgen_futures::spawn_local(async {
+        dom::sleep(120).await;
+        if let Some(b) = by_id("boot-load") {
+            let _ = b.class_list().add_1("done");
+        }
+    });
     set_global("__booted", &true.into());
     BOOTED.set(true);
     login::render_auth(&cloud_v);

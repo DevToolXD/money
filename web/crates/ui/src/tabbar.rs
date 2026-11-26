@@ -711,15 +711,7 @@ impl Bar {
             return;
         }
         let Some(tab) = self.tab_of(e) else { return };
-        if self.geo.is_empty() {
-            return;
-        }
-        // 손을 뗀 알림을 놓쳐서 누름이 남아 있으면(가끔 바가 안 넘어가던 원인) 버리고 새로 눌러요
-        if self.press.as_ref().is_some_and(|p| p.id != e.pointer_id() || now() - p.lt > 1500.0) {
-            self.press = None;
-            let _ = self.nav.class_list().remove_1("is-pressed");
-        }
-        if self.press.is_some() {
+        if self.press.is_some() || self.geo.is_empty() {
             return;
         }
         let Some(index) = self.index_of(&tab) else { return };
@@ -758,7 +750,7 @@ impl Bar {
         p.lx = cx;
         p.lt = t;
         // 빠르게 휙 넘기면 선택을 옮기는 게 아니라 핫바를 넘겨요. 렌즈는 제자리로 돌아가요
-        if !p.flick && p.tab_index < 4 && dx.abs() > 10.0 && v.abs() > 0.25 {
+        if !p.flick && p.tab_index < 4 && dx.abs() > 10.0 && v.abs() > 0.4 {
             p.flick = true;
             self.x.use_(MOVE);
             self.x.target = self.geo[p.tab_index].cx;
@@ -795,7 +787,7 @@ impl Bar {
         self.grab.target = 0.0;
 
         let dx = num(e, "clientX") - p.x0;
-        let flipped = commit && p.tab_index < 4 && (p.flick || (dx.abs() >= 36.0 && now() - p.t0 < 650.0));
+        let flipped = commit && p.tab_index < 4 && (p.flick || (dx.abs() >= 40.0 && now() - p.t0 < 420.0));
         let mut index = p.tab_index;
         if p.dragging && !flipped {
             let ahead = self.x.target + self.x.v * 0.1;
@@ -908,7 +900,7 @@ impl Bar {
 
     // 핫바를 다음 쪽으로 넘겨요: 바 안의 내용만 짧고 굵게 튕기며 옆으로 밀려요
     fn flip_page(&mut self) {
-        crate::dom::store_set("tb-hint2", "1"); // 한 번 넘겨 봤으면 넘기기 안내는 다시 안 나와요
+        crate::dom::store_set("tb-hint", "1"); // 한 번 넘겨 봤으면 넘기기 안내는 다시 안 나와요
         self.page = 1 - self.page;
         self.apply_page_dom();
         self.mark_current();
@@ -1103,8 +1095,7 @@ impl Bar {
                 }
             }
         }
-        // 뒤 화면 사진이 없으면 캔버스가 바탕색으로 판을 칠하지 않아요. CSS 유리 판(backdrop-filter)이 실제 뒤 화면을 흐려 비춰서 진짜 유리처럼 보여요
-        let glass_on = entry.is_some() && !plain && self.bar_a.is_some() && self.bar_b.is_some();
+        let glass_on = (entry.is_some() || plain) && self.bar_a.is_some() && self.bar_b.is_some();
         if glass_on != self.glass_on {
             self.glass_on = glass_on;
             if !glass_on {
@@ -1217,22 +1208,17 @@ fn on<E: JsCast + 'static>(t: &web_sys::EventTarget, ev: &str, f: impl FnMut(E) 
 /// 처음 한 번: 탭 바를 옆으로 넘길 수 있다고 알려줘요 (쇼츠의 "위로 넘기기" 안내처럼).
 /// 바 안의 탭들이 다음 쪽으로 살짝 밀렸다 돌아오기를 두 번 하고, 그 위로 손가락이 왼쪽으로 쓸어요
 pub fn hint_once() {
-    if crate::dom::store_get("tb-hint2", "") == "1" {
+    if crate::dom::store_get("tb-hint", "") == "1" {
         return;
     }
     wasm_bindgen_futures::spawn_local(async {
         crate::dom::sleep(1800).await;
         // 그새 넘겨 봤거나 다른 창(대화·시트)이 떠 있으면 그만둬요
-        let busy = || crate::dom::store_get("tb-hint2", "") == "1" || crate::dom::app_el().is_some_and(|a| a.class_list().contains("in-thread"));
+        let busy = || crate::dom::store_get("tb-hint", "") == "1" || crate::dom::app_el().is_some_and(|a| a.class_list().contains("in-thread"));
         if busy() {
             return;
         }
-        let n: u32 = crate::dom::store_get("tb-hint-n", "0").parse().unwrap_or(0);
-        if n >= 4 {
-            crate::dom::store_set("tb-hint2", "1");
-            return;
-        }
-        crate::dom::store_set("tb-hint-n", &(n + 1).to_string());
+        crate::dom::store_set("tb-hint", "1");
         let Some(app) = crate::dom::app_el() else { return };
         let Ok(el) = crate::dom::doc().create_element("div") else { return };
         el.set_class_name("tb-hint");
@@ -1241,7 +1227,7 @@ pub fn hint_once() {
         let _ = app.append_child(&el);
         let _ = el.class_list().add_1("on");
         for _ in 0..2 {
-            with(|b| b.peek(0.45));
+            with(|b| b.peek(0.32));
             crate::dom::sleep(650).await;
             with(|b| b.peek(0.0));
             crate::dom::sleep(750).await;
@@ -1327,10 +1313,6 @@ pub fn create(nav: HtmlElement, backdrop: JsValue, page_root: HtmlElement, use_g
         with(|b| b.on_up(&e, true));
     });
     on(nt, "pointercancel", |e: web_sys::PointerEvent| {
-        with(|b| b.on_up(&e, false));
-    });
-    // 손가락 잡기를 잃으면(다른 창이 떠서 등) 누름을 끝내요. 누름이 남아 바가 안 움직이던 일을 막아요
-    on(nt, "lostpointercapture", |e: web_sys::PointerEvent| {
         with(|b| b.on_up(&e, false));
     });
     {
