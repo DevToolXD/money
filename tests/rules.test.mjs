@@ -311,6 +311,32 @@ await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await assertFails(setDoc(doc(pw("uOwner", "owner"), "meta/giphy"), { key: "<script>" }));
   await assertSucceeds(getDoc(doc(A, "meta/giphy")));
 });
+await t("도박장: 건 돈은 100의 배수, 잃으면 -건 돈, 1.5배는 +절반, 10배는 +9배만 지갑에 들어가요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  const bet = (amt, delta) => {
+    const b = writeBatch(A);
+    b.update(doc(A, "wallets/uA"), { bal: increment(delta), wt: serverTimestamp(), op: { kind: "bet", amt } });
+    return b.commit();
+  };
+  await assertSucceeds(bet(100, -100)); // 잃음: 건 돈만큼 빠져요
+  await assertFails(bet(100, -100)); // 2초 안에 또 쓸 수 없어요
+  await sleep(2100);
+  await assertSucceeds(bet(100, 50)); // 2칸: 1.5배 (절반이 더해져요)
+  await sleep(2100);
+  await assertSucceeds(bet(100, 900)); // 3칸: 10배 (9배가 더해져요)
+  await sleep(2100);
+  await assertFails(bet(100, 1000)); // 10배보다 더 받을 수 없어요
+  await assertFails(bet(100, 0)); // 건 돈을 안 내고 0배도 안 돼요
+  await assertFails(bet(100, -50)); // 덜 빠지는 것도 안 돼요
+  await assertFails(bet(100, 30)); // 1.5배가 아니에요
+  await assertFails(bet(150, -150)); // 100의 배수가 아니에요
+  await assertFails(bet(200000, -200000)); // 너무 큰 돈은 안 돼요
+  await assertFails(bet(0, 0)); // 0은 안 돼요
+  let bal;
+  await env.withSecurityRulesDisabled(async (c) => { bal = (await getDoc(doc(c.firestore(), "wallets/uA"))).data().bal; });
+  if (bal !== 1250000 - 100 + 50 + 900) throw new Error("지갑이 " + bal + "이에요");
+});
 await t("상점: 정해진 값만 내고 가방에 하나씩, 이미 있으면 못 사고, 가방에 있는 것만 껴요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");

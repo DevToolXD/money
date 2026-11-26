@@ -2,6 +2,7 @@
 
 pub mod backdrop;
 pub mod beta;
+pub mod casino;
 pub mod bounce;
 pub mod icons;
 pub mod tabbar;

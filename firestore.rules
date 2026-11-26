@@ -1022,6 +1022,18 @@ service cloud.firestore {
             && !exists(companyPath(request.resource.data.op.cid))
             && existsAfter(companyPath(request.resource.data.op.cid))
             && request.resource.data.bal == resource.data.bal - 10)
+          ||
+          // 도박장(슬롯): 건 돈은 100~100000 사이 100의 배수만. 지갑은 잃으면 -건 돈, 2칸이면 +건 돈의 절반(1.5배), 3칸이면 +건 돈의 9배(10배)만 바뀌어요
+          (request.resource.data.op.kind == 'bet'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.amt is int
+            && request.resource.data.op.amt >= 100
+            && request.resource.data.op.amt <= 100000
+            && request.resource.data.op.amt % 100 == 0
+            && (request.resource.data.bal - resource.data.bal == -request.resource.data.op.amt
+              || (request.resource.data.bal - resource.data.bal) * 2 == request.resource.data.op.amt
+              || request.resource.data.bal - resource.data.bal == request.resource.data.op.amt * 9))
 
         );
 

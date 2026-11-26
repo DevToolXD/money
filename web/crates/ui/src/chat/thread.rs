@@ -80,7 +80,7 @@ fn card_html(m: &JsValue, me: bool, i: usize) -> String {
             } else {
                 format!(r#"<button class="cash-btn" data-act="{}" data-i="{i}" type="button">{}</button>"#, if gift { "accept" } else { "pay" }, if gift { "받기" } else { "보내기" })
             };
-            format!(r#"<div class="cash"><p class="cash-tag">{}</p><div class="cash-amt"><b>{}</b><span>멸공</span></div>{btn}</div>"#, if gift { "멸공 선물" } else { "멸공 요청" }, ko(amount))
+            format!(r#"<div class="cash"{attr}><p class="cash-tag">{}</p><div class="cash-amt"><b>{}</b><span>멸공</span></div>{btn}</div>"#, if gift { "멸공 선물" } else { "멸공 요청" }, ko(amount), attr = if gift { r#" data-gift"# } else { "" })
         }
         "poll" => {
             let poll = cloud::get(m, "poll");

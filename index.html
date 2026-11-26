@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=170">
+<link rel="stylesheet" href="app/app.css?v=171">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -162,6 +162,10 @@
       <label class="field-glass"><input id="composer-input" type="text" placeholder="메시지" autocomplete="off" aria-label="메시지 입력"><button class="send" id="send" type="submit" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" id="send-icon"><path d="M5 10v4M9 6v12M13 3v18M17 8v8M21 11v2"/></svg></button></label></form>
   </section>
 
+  <section class="casino" id="casino" aria-label="도박장">
+    <header class="cz-top"><button class="glass-btn" id="casino-close" type="button">닫기</button></header>
+    <div id="casino-root"></div>
+  </section>
   <div class="dim" id="dim"></div>
   <section class="sheet" id="sheet" aria-label="프로필 편집">
     <div class="grabber"></div>
@@ -347,6 +351,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=121"></script>
+<script type="module" src="app/rs/boot.js?v=122"></script>
 </body>
 </html>

@@ -435,14 +435,15 @@ html[data-theme="dark"] .lg-card, html[data-theme="dark"] .lg-btn { background: 
   bottom: 0;
   z-index: -3;
   border-radius: 999px;
-  background: var(--tab-platter);
-  -webkit-backdrop-filter: blur(22px) saturate(1.9);
-  backdrop-filter: blur(22px) saturate(1.9);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14);
+  /* 리퀴드 글라스: 뒤 화면을 실제로 흐리고(채도 1.5배) 아주 옅게만 칠해요. 45도 빛 0.5px 흰 선과 위쪽 반사로 유리 테두리를 그려요 */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.28) 55%, rgba(255, 255, 255, 0.4));
+  -webkit-backdrop-filter: blur(14px) saturate(1.5) brightness(1.06);
+  backdrop-filter: blur(14px) saturate(1.5) brightness(1.06);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.75), inset 0.5px 1px 1px rgba(255, 255, 255, 0.85), inset -0.5px -1px 1px rgba(255, 255, 255, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.1);
   transition: scale 0.24s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 html[data-theme="dark"] .platter {
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.75), inset 0.5px 1px 1px rgba(255, 255, 255, 0.85), inset -0.5px -1px 1px rgba(255, 255, 255, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 .platter-main { left: 0; right: var(--side-col); }
 .platter-side { right: 0; width: var(--bar-h); }
@@ -2289,6 +2290,9 @@ html[data-theme="dark"] .pl-chip { background: rgba(255, 255, 255, 0.1); }
 /* 자판이 올라오면 앱 틀을 실제로 보이는 크기에 맞춰요 (viewport.rs). 입력창이 자판 바로 위에 붙어요 */
 html.kb-open .app { height: var(--vvh, 100dvh); transform: translate3d(0, var(--vvt, 0px), 0); }
 html.kb-open .composer { padding-bottom: 8px; }
+/* 로그인 판: 자판이 올라와 판이 짧아져도 글칸이 눌려 사라지지 않게(줄어들지 않게) 하고, 넘치면 스크롤해요 */
+.login-body > * { flex-shrink: 0; }
+html.kb-open .login-body { margin-top: calc(var(--safe-top) + 64px); padding-bottom: 16px; }
 
 /* ===== 애플식 리퀴드 모션: 모든 곳에 같은 스프링 =====
    눌렀을 때: 살짝 작아졌다가, 떼면 스프링으로 튕기듯 돌아와요. 올라오는 판·대화·알림도 같은 스프링을 써요.
@@ -2336,6 +2340,7 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
   background: linear-gradient(180deg, rgba(30, 30, 44, 0.86) 0%, rgba(22, 22, 32, 0.9) 100%); -webkit-backdrop-filter: blur(34px) saturate(150%); backdrop-filter: blur(34px) saturate(150%);
   transform-origin: 50% 76px; will-change: transform, clip-path, opacity; }
 .ci.on .ci-panel { animation: ciOpen 0.36s linear both; }
+.ci.on .ci-panel.still { animation: none; }
 .ci.closing .ci-panel { animation: ciClose 0.22s cubic-bezier(0.4, 0, 0.7, 0.6) both; }
 @keyframes ciOpen {
   0%   { opacity: 0.2; transform: scale(0.66); clip-path: inset(0 0 42% 0 round 44px); }
@@ -2740,3 +2745,55 @@ html[data-theme="dark"] .sh-cat, html[data-theme="dark"] .sh-chip { background: 
 .sh-card.big .sh-img { max-height: none; }
 .sh-card.big .sh-band { padding-bottom: 22px; }
 @media (prefers-reduced-motion: reduce) { .sh-pager, .sh-card, .sh-buy { transition: none; } }
+
+/* ===== 도박장 (슬롯 3칸, 메시지의 멸공 선물 카드를 10초 꾹 누르면 열려요). 어두운 방에 호박색 불빛이 도는 분위기예요 ===== */
+.casino { position: fixed; inset: 0; z-index: 70; color: #f5f5f7; background: radial-gradient(120% 70% at 50% -5%, #3a1a10 0%, #1a0d0b 42%, #09080a 100%) #09080a; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; visibility: hidden; transform: translateY(100%); transition: transform .42s cubic-bezier(.2, .9, .2, 1), visibility 0s linear .42s; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 32px); }
+.casino.is-open { visibility: visible; transform: none; transition: transform .42s cubic-bezier(.2, .9, .2, 1), visibility 0s; }
+.cz-top { position: sticky; top: 0; z-index: 2; display: flex; padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 6px; }
+.casino .glass-btn { color: #fff; background: rgba(255, 255, 255, 0.12); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35), inset 0.5px 1px 1px rgba(255, 255, 255, 0.3); -webkit-backdrop-filter: blur(12px) saturate(1.5); backdrop-filter: blur(12px) saturate(1.5); }
+#casino-root { padding: 0 0 4px; }
+.cz-title { margin: 6px 16px 0; font-size: 36px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+.cz-bal { margin: 4px 16px 0; font-size: 15px; color: rgba(255, 255, 255, 0.55); }
+.cz-bal b { color: #ffcf5a; font-weight: 700; }
+.cz-card { position: relative; overflow: hidden; margin: 16px 16px 0; padding: 14px; border-radius: 14px; background: linear-gradient(180deg, #221615, #140d0d); box-shadow: inset 0 0 0 1px rgba(255, 168, 64, 0.38), inset 0 1px 0 rgba(255, 220, 160, 0.18), 0 0 36px rgba(255, 110, 40, 0.14); }
+.cz-machine { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.cz-reel { position: relative; height: 116px; overflow: hidden; border-radius: 10px; background: #0b090b; box-shadow: inset 0 14px 18px -8px rgba(0, 0, 0, 0.9), inset 0 -14px 18px -8px rgba(0, 0, 0, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.06); transition: box-shadow .3s, background-color .3s; }
+.cz-reel.hit { background: #1c1306; box-shadow: inset 0 0 0 1.5px #ffb43a, inset 0 0 22px rgba(255, 170, 40, 0.28), 0 0 18px rgba(255, 160, 40, 0.45); }
+.cz-strip { position: absolute; left: 0; right: 0; top: 0; height: 3000%; will-change: transform; }
+.cz-cell { display: flex; align-items: center; justify-content: center; height: calc(100% / 30); color: #ece6dc; }
+.cz-reel.hit .cz-cell { color: #ffcf5a; filter: drop-shadow(0 0 6px rgba(255, 180, 60, 0.8)); }
+.cz-ic { width: 60px; height: 60px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cz-ic.sm { width: 20px; height: 20px; color: #ffcf5a; }
+.cz-result { margin: 14px 0 2px; min-height: 22px; text-align: center; font-size: 16px; font-weight: 600; color: rgba(255, 255, 255, 0.6); }
+.cz-result.win { color: #ffcf5a; text-shadow: 0 0 10px rgba(255, 160, 40, 0.5); }
+.casino .section-title { color: #fff; }
+.cz-chips { display: flex; gap: 8px; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+.cz-chips::-webkit-scrollbar { display: none; }
+.cz-chip { flex: none; border: 0; border-radius: 999px; padding: 10px 16px; background: rgba(255, 255, 255, 0.08); color: #fff; font-size: 15px; font-weight: 600; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14); }
+.cz-chip.on { background: #ffb43a; color: #1a1000; box-shadow: 0 0 14px rgba(255, 170, 50, 0.45); }
+.cz-spin { display: block; margin: 14px 16px 0; width: calc(100% - 32px); height: 54px; padding: 0 16px; border: 0; border-radius: 999px; background: linear-gradient(180deg, #ff6b3d, #e0352b); color: #fff; font-size: 17px; font-weight: 700; text-align: center; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 22px rgba(255, 70, 40, 0.35); }
+.cz-spin:disabled { opacity: .45; }
+.casino .cz-rules { margin: 0 16px; padding: 4px 16px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1); }
+.cz-rules ul { list-style: none; margin: 0; padding: 0; }
+.cz-rules li { display: flex; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 16px; color: #f2f2f2; }
+.cz-rules li:last-child { border-bottom: 0; }
+.cz-rules li > span:nth-child(2) { flex: 1; }
+.cz-rules b { font-weight: 700; color: #ffcf5a; }
+.cz-sym { display: inline-flex; align-items: center; gap: 2px; width: 66px; flex: none; }
+.cz-note { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: rgba(255, 255, 255, 0.5); }
+.cz-jackpot { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none; font-size: 48px; font-weight: 900; letter-spacing: .06em; color: #ffd84a; text-shadow: 0 0 10px rgba(255, 140, 40, 0.95), 0 0 30px rgba(255, 60, 90, 0.7); background: radial-gradient(closest-side, rgba(40, 10, 0, 0.75), rgba(40, 10, 0, 0)); animation: czJack 2.4s ease both; }
+@keyframes czJack { 0% { opacity: 0; transform: scale(.6); } 14% { opacity: 1; transform: scale(1.1); } 24% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.cz-pop { position: absolute; left: 50%; top: 40%; z-index: 3; font-size: 30px; font-weight: 800; color: #ffd84a; text-shadow: 0 0 10px rgba(255, 150, 40, 0.85); pointer-events: none; animation: czPop 1.5s ease-out both; }
+@keyframes czPop { from { opacity: 0; transform: translate(-50%, 10px); } 20% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -44px); } }
+.cz-hold { position: fixed; height: 4px; border-radius: 2px; background: #0a7cff; transform: scaleX(0); transform-origin: left center; animation: cz-hold 10s linear forwards; pointer-events: none; z-index: 80; }
+@keyframes cz-hold { to { transform: scaleX(1); } }
+.cash[data-gift] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .casino, .cz-reel { transition: none; } .cz-jackpot, .cz-pop { animation-duration: .01s; } }
+
+/* 처음 여는 탭: 화면을 그리는 동안 따로 불러오는 화면을 보여줘요 (shell/mod.rs의 tab-loading) */
+.screen.tab-loading::before { content: ""; position: absolute; inset: 0; z-index: 40; background: var(--bg-canvas); }
+.screen.tab-loading::after { content: ""; position: absolute; left: 50%; top: 42%; z-index: 41; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: 2.5px solid rgba(120, 120, 128, 0.22); border-top-color: #0a7cff; animation: tabSpin 0.8s linear infinite; }
+@keyframes tabSpin { to { transform: rotate(360deg); } }
+.sh-empty { margin: 18px 16px 0; padding: 40px 20px; display: grid; justify-items: center; gap: 8px; text-align: center; background: var(--bg-card, #fff); border-radius: 10px; color: var(--text-secondary, #8e8e93); font-size: 15px; }
+.sh-empty svg { width: 40px; height: 40px; color: var(--text-primary, #000); margin-bottom: 4px; }
+.sh-empty b { color: var(--text-primary, #000); font-size: 19px; font-weight: 700; }

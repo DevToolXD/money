@@ -1444,6 +1444,14 @@ async fn deco_buy(k: String, price: f64, items: JsValue) -> R {
     rethrow(commit(&b).await)?;
     Ok(JsValue::UNDEFINED)
 }
+/// 도박장(슬롯): 건 돈(bet)만큼 빠졌다가 배율만큼 돌아와요. 지갑은 net(= 돌려받는 돈 - 건 돈)만큼 바뀌어요.
+/// 서버는 이 모양만 받아요 (100의 배수, 잃으면 -건 돈, 1.5배면 +절반, 10배면 +9배: firestore.rules의 'bet')
+async fn casino_bet(bet: f64, net: f64) -> R {
+    let b = batch();
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(net)), ("wt", ts()), ("op", o(&[("kind", s("bet")), ("amt", bet.into())]))])])?;
+    rethrow(commit(&b).await)?;
+    Ok(JsValue::UNDEFINED)
+}
 /// 장신구 끼기: 낀 장신구 번호 목록 그대로 (gear, 빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
 async fn deco_set(list: JsValue) -> R {
     let uid = uid_of()?;
@@ -1898,6 +1906,7 @@ fn build() -> js_sys::Object {
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "decoBag", |_a| deco_bag().await);
     am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
+    am!(api, "casinoBet", |a| casino_bet(num(&a[0]), num(&a[1])).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));
     am!(api, "contestClose", |a| rethrow(update_doc(d(&["contests", &sa(&a[0])]), o(&[("open", false.into()), ("end", ts())])).await));

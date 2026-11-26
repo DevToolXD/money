@@ -157,31 +157,13 @@ fn paint() {
     if !cloud::signed_in() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 상점을 볼 수 있어요</p>"#);
     }
-    let cat = CAT.with(|c| *c.borrow());
-    let chip = CHIP.with(|c| *c.borrow());
-    let cats: String = CATS
-        .iter()
-        .map(|(id, n, k, _)| format!(r#"<button type="button" class="sh-cat{}" data-cat="{id}">{}<span>{n}</span></button>"#, if *id == cat { " on" } else { "" }, pic(k, "sh-ci")))
-        .collect();
-    let chips: String = CHIPS.iter().map(|(id, n)| format!(r#"<button type="button" class="sh-chip{}" data-chip="{id}">{n}</button>"#, if *id == chip { " on" } else { "" })).collect();
-    let list = shown();
-    let cards: String = if list.is_empty() { r#"<p class="sh-none">이 조건에 맞는 장신구가 없어요</p>"#.to_string() } else { list.iter().map(|k| card(k, false)).collect() };
-    let credits: String = CREDITS.iter().map(|(n, a, l, u)| format!(r#"<li>{n}: <a href="{}" target="_blank" rel="noopener noreferrer">{}</a>, {}</li>"#, esc(u), esc(a), esc(l))).collect();
-    let title = match chip {
-        "gift" => "선물하기 좋은 것",
-        "cheap" => "1,000 멸공 이하",
-        "rare" => "희귀 이상",
-        _ => "최신 장신구",
-    };
+    // 상품은 모두 내렸어요. 빈 상점만 보여요 (인벤에 이미 있는 장신구는 그대로 낄 수 있어요)
     dom::set_html_if(
         &root,
         &format!(
             r#"<header class="sh-top"><h1 id="title-shop">상점</h1><button type="button" class="sh-me" data-go-inv aria-label="내 장신구">{me}</button></header>
-<div class="sh-cats" role="list">{cats}</div>
-<h2 class="sh-h">장신구</h2><div class="sh-chips">{chips}</div>
-<h2 class="sh-h red">{title}</h2><div class="sh-row" id="sh-row">{cards}</div>
-<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 장신구 <b>{have}개</b></p>
-<details class="gc-cred sh-cred"><summary>사진 출처</summary><ul>{credits}</ul></details>"#,
+<div class="sh-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8.5h14l-1 11.5H6zM9 8.5V7a3 3 0 0 1 6 0v1.5"/></svg><b>아직 파는 상품이 없어요</b><span>새 상품이 들어오면 여기에 보여요</span></div>
+<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 장신구 <b>{have}개</b></p>"#,
             me = me_avatar(&my_gear().join(","), "sm"),
             bal = crate::money::w(crate::money::balance().unwrap_or(0.0)),
             have = BAG.with(|b| b.borrow().len()),
@@ -372,9 +354,10 @@ fn paint_inv() {
             if names.is_empty() { "끼고 있는 장신구가 없어요".to_string() } else { format!("<b>{}</b> 끼는 중", esc(&names.join(" · "))) },
             bag.len(),
             if bag.is_empty() {
-                if LOADED.get() { r#"<p class="iv-empty">아직 장신구가 없어요. 메뉴의 상점에서 사 보세요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
+                if LOADED.get() { r#"<p class="iv-empty">아직 장신구가 없어요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
             } else {
-                format!(r#"<p class="iv-tip">자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 낄 수 있어요</p><ul class="iv-grid">{cards}</ul>"#)
+                let credits: String = CREDITS.iter().map(|(n, a, l, u)| format!(r#"<li>{n}: <a href="{}" target="_blank" rel="noopener noreferrer">{}</a>, {}</li>"#, esc(u), esc(a), esc(l))).collect();
+                format!(r#"<p class="iv-tip">자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 낄 수 있어요</p><ul class="iv-grid">{cards}</ul><details class="gc-cred sh-cred"><summary>사진 출처</summary><ul>{credits}</ul></details>"#)
             }
         ),
     );

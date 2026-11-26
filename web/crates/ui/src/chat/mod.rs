@@ -451,6 +451,7 @@ pub fn init(c: Ctx) {
     gift::init();
     poll::init();
     draw::init();
+    crate::casino::bind_hold();
 }
 
 /// 다른 탭으로 가면 열린 대화를 닫아요

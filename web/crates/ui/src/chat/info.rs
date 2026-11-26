@@ -109,6 +109,12 @@ fn paint() {
         tabs = tabs.iter().map(|(k, n)| format!(r#"<button type="button" role="tab" class="ci-tab{}" data-tab="{k}" aria-selected="{}">{n}</button>"#, if *k == tab { " on" } else { "" }, *k == tab)).collect::<String>(),
         body = body(&c, &tab),
     ));
+    // 열린 채로 다시 그릴 때(정보·배경·사진 탭 바꾸기)는 여는 움직임을 다시 하지 않아요
+    if OPEN.get() {
+        if let Some(p) = el.query_selector(".ci-panel").ok().flatten() {
+            let _ = p.class_list().add_1("still");
+        }
+    }
 }
 
 fn toggle(f: fn(&mut Chat)) {
