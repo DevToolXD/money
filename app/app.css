@@ -2572,16 +2572,24 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .gk-save { flex: none; width: auto; height: 44px; margin: 0; padding: 0 18px; border-radius: 12px; }
 .rc-search input::-webkit-search-cancel-button, .rc-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 
-/* ===== 장신구 (뽑기): 동그라미 둘레 테두리와 든 물건. 사진보다 20% 큰 판을 위에 얹어요 ===== */
-.deco-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
-.av-on { position: relative; }
-.deco { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; pointer-events: none; z-index: 1; }
-.deco svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.av-on .on-dot { z-index: 2; }
-.dv { position: relative; display: inline-grid; flex: none; }
+/* ===== 장신구 (뽑기): 테두리 없이 물건 사진(누끼)만, 동그라미 위 제자리에 얹어요 ===== */
+.deco-defs { display: none; }
+.av-on, .dv { position: relative; display: inline-grid; flex: none; overflow: visible; }
+.deco { position: absolute; height: auto; max-width: none; pointer-events: none; z-index: 1; -webkit-user-drag: none; filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.28)); }
+.av-on .on-dot { z-index: 3; }
+.dc-glasses, .dc-sunglasses { width: 86%; left: 7%; top: 28%; z-index: 2; }
+.dc-cap { width: 108%; left: -4%; top: -36%; z-index: 2; }
+.dc-headphones { width: 128%; left: -14%; top: -18%; z-index: 2; }
+.dc-duck { width: 54%; left: 23%; top: -42%; z-index: 2; }
+.dc-chain { width: 74%; left: 13%; top: 66%; }
+.dc-watch { width: 44%; left: -18%; top: 60%; transform: rotate(-18deg); }
+.dc-wallet, .dc-goldbar, .dc-banana, .dc-branch, .dc-coffee { right: -26%; top: 50%; width: 58%; transform: rotate(10deg); }
+.dc-banana, .dc-branch { width: 66%; top: 40%; }
+.dc-coffee { width: 40%; right: -18%; top: 46%; transform: none; }
+.dc-lambo { width: 170%; left: -35%; top: 66%; z-index: 2; }
 .dv .avatar { margin: 0; }
 .dv.sm .avatar { width: 44px; height: 44px; font-size: 15px; }
-.dv.md .avatar { width: 64px; height: 64px; font-size: 22px; }
+.dv.md .avatar { width: 72px; height: 72px; font-size: 24px; }
 .dv.lg .avatar { width: 120px; height: 120px; font-size: 40px; }
 .dv.xl .avatar { width: 110px; height: 110px; font-size: 38px; }
 
@@ -2689,3 +2697,31 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 .gm-fxl .gm-ring.b { border-color: rgba(63, 115, 255, 0.85); }
 @keyframes gmTap { 0% { opacity: 0.9; transform: scale(0.3); } 100% { opacity: 0; transform: scale(1.5); } }
 @media (prefers-reduced-motion: reduce) { .gm-fxl { display: none; } }
+
+/* 뽑기: 등급별 장신구 사진 칸 */
+.gc-odds { margin: 0 var(--gutter, 16px) 14px; padding: 6px 14px 14px; }
+.gc-tierh { display: flex; justify-content: space-between; margin: 12px 2px 8px; font-size: 15px; font-weight: 800; }
+.gc-tierh em { font-style: normal; color: var(--text-secondary); font-weight: 700; }
+.gc-tierh.t4 { color: #d08a00; } .gc-tierh.t3 { color: #8e44ec; } .gc-tierh.t2 { color: #2d7ff9; } .gc-tierh.t1 { color: #6b7280; }
+.gc-tiles { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; }
+.gc-tile { display: grid; justify-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; background: rgba(120, 120, 128, 0.08); text-align: center; }
+.gc-tile.t4 { background: linear-gradient(160deg, rgba(255, 214, 102, 0.35), rgba(255, 176, 32, 0.12)); }
+.gc-tile.t3 { background: linear-gradient(160deg, rgba(190, 140, 255, 0.28), rgba(142, 68, 236, 0.08)); }
+.gc-tile.t2 { background: linear-gradient(160deg, rgba(120, 180, 255, 0.25), rgba(45, 127, 249, 0.08)); }
+.gc-ti { width: 54px; height: 54px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2)); }
+.gc-tile b { font-size: 12px; font-weight: 700; word-break: keep-all; }
+.gc-tile small { font-size: 11px; color: var(--text-secondary); }
+.gc-cred { margin: 0 var(--gutter, 16px) 20px; font-size: 12px; color: var(--text-secondary); }
+.gc-cred summary { cursor: pointer; font-weight: 600; }
+.gc-cred ul { margin: 6px 0 0; padding-left: 18px; line-height: 18px; }
+.gc-cred a { color: inherit; }
+.gc-big { width: 150px; height: 120px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.25)); }
+.gc-card .dv { margin: 18px 0 26px; }
+.gc-card.t4 { box-shadow: 0 0 0 2px #f5d061, 0 0 60px rgba(245, 200, 60, 0.55); }
+.gc-card.t3 { box-shadow: 0 0 0 2px #b98cff, 0 0 40px rgba(142, 68, 236, 0.35); }
+.gc-card.t4 .gc-tier { color: #c48a00; } .gc-card.t3 .gc-tier { color: #8e44ec; } .gc-card.t2 .gc-tier { color: #2d7ff9; }
+.iv-ti { width: 62px; height: 62px; object-fit: contain; margin-bottom: 6px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)); }
+.iv-card.locked .iv-ti { filter: grayscale(1); opacity: 0.3; }
+.iv-card.t4 small { color: #c48a00; } .iv-card.t3 small { color: #8e44ec; } .iv-card.t2 small { color: #2d7ff9; }
+.iv-tip { margin: -4px var(--gutter, 16px) 10px; font-size: 13px; color: var(--text-secondary); }
+.iv-hero { padding: 40px 16px 26px; }

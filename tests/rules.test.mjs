@@ -326,13 +326,15 @@ await t("뽑기: 10 멸공이 같은 묶음으로 빠질 때만, 장신구는 �
   const ok = pull(A, 1250000 - 10);
   await assertSucceeds(ok.b.commit());
   const snap = await getDoc(doc(A, `pulls/${ok.r.id}`));
-  const m = snap.data().at.toMillis() % 100;
-  const tier = m < 5 ? "gucci" : m < 30 ? "glasses" : "branch";
-  const others = ["gucci", "glasses", "branch"].filter((x) => x !== tier);
-  await assertFails(updateDoc(doc(A, "profiles/uA"), { deco: others[0], decoPull: ok.r.id })); // 다른 등급
-  await assertFails(updateDoc(doc(pw("uB", "bob"), "profiles/uB"), { deco: tier, decoPull: ok.r.id })); // 남의 뽑기
-  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { deco: tier, decoPull: ok.r.id }));
-  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { deco: "", decoPull: "" }));
+  const m = snap.data().at.toMillis() % 1000;
+  const T = [[15, "lambo"], [40, "goldbar"], [75, "wallet"], [115, "watch"], [160, "chain"], [215, "headphones"], [275, "cap"], [335, "sunglasses"], [400, "glasses"], [540, "coffee"], [690, "duck"], [840, "banana"], [1000, "branch"]];
+  const tier = T.find(([x]) => m < x)[1];
+  const other = tier === "lambo" ? "branch" : "lambo";
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: other, p: ok.r.id }] })); // 다른 결과
+  await assertFails(updateDoc(doc(pw("uB", "bob"), "profiles/uB"), { decos: [{ k: tier, p: ok.r.id }] })); // 남의 뽑기
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: tier, p: ok.r.id }, { k: "lambo", p: "nope" }] })); // 하나라도 가짜
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [{ k: tier, p: ok.r.id }] }));
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { decos: [] }));
   await assertFails(getDocs(query(collection(pw("uB", "bob"), "pulls"), limit(10))));
   await assertSucceeds(getDocs(query(collection(A, "pulls"), where("by", "==", "uA"), limit(300))));
 });

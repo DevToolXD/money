@@ -38,13 +38,16 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
         && request.resource.data.name is string
         && (request.resource.data.name.matches('^[^<>]{1,20}$')))
-        // 장신구 끼기: 내가 뽑은 것만, 그 뽑기의 등급과 같은 것만. 빈 글자면 빼기
+        // 장신구 끼기 (여러 개, 최대 6): 하나하나가 내가 뽑은 것이고 그 결과와 같아야 해요. 빈 목록이면 모두 빼기
         || (isMe(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deco', 'decoPull'])
-        && (request.resource.data.deco == ''
-          || (request.resource.data.decoPull is string
-            && get(/databases/$(database)/documents/pulls/$(request.resource.data.decoPull)).data.by == uid
-            && request.resource.data.deco == pullTier(get(/databases/$(database)/documents/pulls/$(request.resource.data.decoPull)).data.at))))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['decos', 'deco', 'decoPull'])
+        && request.resource.data.decos is list && request.resource.data.decos.size() <= 6
+        && (request.resource.data.decos.size() < 1 || decoOk(request.resource.data.decos[0], uid))
+        && (request.resource.data.decos.size() < 2 || decoOk(request.resource.data.decos[1], uid))
+        && (request.resource.data.decos.size() < 3 || decoOk(request.resource.data.decos[2], uid))
+        && (request.resource.data.decos.size() < 4 || decoOk(request.resource.data.decos[3], uid))
+        && (request.resource.data.decos.size() < 5 || decoOk(request.resource.data.decos[4], uid))
+        && (request.resource.data.decos.size() < 6 || decoOk(request.resource.data.decos[5], uid)))
         // 파란 인증 표시: 관리자만 주고 뺄 수 있어요
         || (isOwner()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blue'])
@@ -133,9 +136,20 @@ service cloud.firestore {
     }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
-    // 뽑기 등급: 뽑은 순간의 서버 시각(밀리초 끝 두 자리)으로 정해요. 앱이 고를 수 없어요 (5% 구찌 지갑, 25% 안경, 70% 나뭇가지)
+    // 뽑기 결과: 뽑은 순간의 서버 시각(밀리초 끝 세 자리, 0~999)으로 정해요. 앱이 고를 수 없어요 (천분율 확률은 앱의 gacha.rs와 같아요)
     function pullTier(ts) {
-      return ts.toMillis() % 100 < 5 ? 'gucci' : (ts.toMillis() % 100 < 30 ? 'glasses' : 'branch');
+      return pullOf(ts.toMillis() % 1000);
+    }
+    function pullOf(m) {
+      return m < 15 ? 'lambo' : m < 40 ? 'goldbar' : m < 75 ? 'wallet' : m < 115 ? 'watch' : m < 160 ? 'chain'
+        : m < 215 ? 'headphones' : m < 275 ? 'cap' : m < 335 ? 'sunglasses' : m < 400 ? 'glasses'
+        : m < 540 ? 'coffee' : m < 690 ? 'duck' : m < 840 ? 'banana' : 'branch';
+    }
+    // 낀 장신구 하나: 내가 뽑은 기록(p)이고, 그 기록의 결과(k)와 같아야 해요
+    function decoOk(x, uid) {
+      return x is map && x.keys().hasOnly(['k', 'p']) && x.p is string
+        && get(/databases/$(database)/documents/pulls/$(x.p)).data.by == uid
+        && x.k == pullTier(get(/databases/$(database)/documents/pulls/$(x.p)).data.at);
     }
     function isOwner() { return signedIn() && request.auth.token.email == 'owner@money-sim.app'; }
     function adminPath() { return /databases/$(database)/documents/adminAuth/$(request.auth.uid); }

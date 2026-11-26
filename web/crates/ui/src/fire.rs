@@ -1444,14 +1444,14 @@ async fn gacha_list() -> R {
     let snap = rethrow(get_docs(q(c(&["pulls"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(300.0)])).await)?;
     Ok(docs(&snap).iter().map(|dd| o(&[("id", get(dd, "id")), ("at", n(ms(&get(&data(dd), "at"))))])).collect::<js_sys::Array>().into())
 }
-/// 장신구 끼기 (빈 글자면 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
-async fn deco_set(item: String, pull: String) -> R {
+/// 장신구 끼기: [{k: 장신구, p: 뽑기 번호}] 목록 그대로 (빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
+async fn deco_set(list: JsValue) -> R {
     let uid = uid_of()?;
-    rethrow(update_doc(d(&["profiles", &uid]), o(&[("deco", s(&item)), ("decoPull", s(&pull))])).await)?;
+    rethrow(update_doc(d(&["profiles", &uid]), o(&[("decos", list.clone())])).await)?;
     let cc = read_cache(&uid);
     let dd = get(&cc, "d");
     if dd.is_object() {
-        set(&dd, "deco", &s(&item));
+        set(&dd, "decos", &list);
         write_cache(&uid, &dd);
     }
     Ok(JsValue::UNDEFINED)
@@ -1903,7 +1903,7 @@ fn build() -> js_sys::Object {
     am!(api, "contestEnter", |a| contest_enter(sa(&a[0]), sa(&a[1])).await);
     am!(api, "contestVote", |a| contest_vote(sa(&a[0]), sa(&a[1]), opt_s(&a[2])).await);
     am!(api, "gachaList", |_a| gacha_list().await);
-    am!(api, "decoSet", |a| deco_set(sa(&a[0]), opt_s(&a[1])).await);
+    am!(api, "decoSet", |a| deco_set(a[0].clone()).await);
     am!(api, "giphyGet", |_a| {
         let sn = get_doc(d(&["meta", "giphy"])).await?;
         Ok(if exists(&sn) { get(&data(&sn), "key") } else { s("") })
