@@ -363,20 +363,20 @@ await t("상점: 정해진 값만 내고 가방에 하나씩, 이미 있으면 �
     b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "deco", k } });
     return b.commit();
   };
-  await assertFails(buy(A, "neon", 1250000 - 100, ["neon"])); // 덜 내기
-  await assertFails(buy(A, "neon", 1250000 - 500, ["neon", "stars"])); // 하나 값으로 둘
+  await assertFails(buy(A, "neon", 1250000 - 50, ["neon"])); // 덜 내기
+  await assertFails(buy(A, "neon", 1250000 - 100, ["neon", "stars"])); // 하나 값으로 둘
   await assertFails(setDoc(doc(A, "bag/uA"), { items: ["neon"] })); // 돈 없이
-  await assertFails(buy(A, "gold", 1250000 - 500, ["gold"])); // 이제 안 파는 것
-  await assertSucceeds(buy(A, "neon", 1250000 - 500, ["neon"]));
+  await assertFails(buy(A, "gold", 1250000 - 100, ["gold"])); // 이제 안 파는 것
+  await assertSucceeds(buy(A, "neon", 1250000 - 100, ["neon"]));
   await sleep(2100);
-  await assertFails(buy(A, "neon", 1250000 - 1000, ["neon", "neon"])); // 두 번
-  await assertSucceeds(buy(A, "stars", 1250000 - 1000, ["neon", "stars"]));
+  await assertFails(buy(A, "neon", 1250000 - 200, ["neon", "neon"])); // 두 번
+  await assertSucceeds(buy(A, "stars", 1250000 - 200, ["neon", "stars"]));
   await assertFails(updateDoc(doc(A, "profiles/uA"), { gear: ["crown"] })); // 안 산 것
   await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { gear: ["neon"] }));
   await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { gear: [] }));
   await assertFails(getDoc(doc(pw("uB", "bob"), "bag/uA")));
   await sleep(2100);
-  await assertFails(buy(pw("uB", "bob"), "crown", 1250000 - 500, ["crown"])); // 남의 지갑으로는 못 사요
+  await assertFails(buy(pw("uB", "bob"), "crown", 1250000 - 100, ["crown"])); // 남의 지갑으로는 못 사요
 });
 await t("공모전: 관리자만 열고 닫고, 사진 하나·한 표, 표 수는 같은 묶음으로만", async () => {
   await seed(seedBase);

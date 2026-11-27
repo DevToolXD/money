@@ -14,7 +14,7 @@ use crate::dom::{self, by_id, esc};
 
 /// (번호, 이름, 종류, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요. 값은 일단 모두 같아요.
 /// 프레임은 vote 저장소의 일반 프레임 11종이에요. 모두 같은 자리("frame")라서 한 번에 하나만 걸 수 있어요
-pub const PRICE: u32 = 500;
+pub const PRICE: u32 = 100;
 pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 11] = [
     ("neon", "네온 프레임", "링", PRICE, "frame", "#d5f3ff", "#121033", false),
     ("stars", "별빛 프레임", "링", PRICE, "frame", "#d9d0f5", "#1d1450", false),
