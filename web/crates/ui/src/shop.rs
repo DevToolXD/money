@@ -104,11 +104,32 @@ fn me_avatar(keys: &str, cls: &str) -> String {
     let photo = if g("photo").is_empty() { dom::store_get("profile-photo", "") } else { g("photo") };
     format!(r#"<span class="dv {cls}">{}{}</span>"#, dom::avatar_html(&name, &photo, "avatar contact"), deco_html(keys))
 }
-/// 프레임을 보여 주는 그림: 샘플 동그라미(가운데 70%)에 프레임을 얹어요
+/// 내 이름·사진 (미리보기 얼굴). 사진은 길어서 CSS 변수(--me-photo)에 한 번만 넣어요
+fn me_look() -> (String, String) {
+    let p = cloud::call_now("peek", &[JsValue::from_str(&my_uid())]).unwrap_or(JsValue::NULL);
+    let g = |k: &str| cloud::get(&p, k).as_string().unwrap_or_default();
+    let name = if g("name").is_empty() { dom::store_get("profile-name", "나") } else { g("name") };
+    let photo = if g("photo").is_empty() { dom::store_get("profile-photo", "") } else { g("photo") };
+    (name, dom::safe_img(&photo, 40000).to_string())
+}
+fn set_me_photo() {
+    let (_, photo) = me_look();
+    if let Some(root) = dom::doc().document_element().and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+        let st = root.style();
+        if photo.is_empty() {
+            let _ = st.remove_property("--me-photo");
+        } else {
+            let _ = st.set_property("--me-photo", &format!("url({photo})"));
+        }
+    }
+}
+/// 프레임을 보여 주는 그림: 내 프로필(사진 또는 이름 글자)에 프레임을 얹어요 (프레임은 가운데 70%가 사진 자리예요)
 fn pic(k: &str, cls: &str) -> String {
     let n = item(k).map(|x| x.1).unwrap_or("");
     let (b, f) = art(k);
-    format!(r#"<span class="fr-demo {cls}" role="img" aria-label="{n}"><span class="fr-box"><span class="deco-art da-b">{b}</span><i class="fr-face"></i><span class="deco-art da-a">{f}</span></span></span>"#)
+    let (name, photo) = me_look();
+    let face = if photo.is_empty() { format!(r#"<span class="fr-ava">{}</span>"#, esc(&dom::initials(&name))) } else { r#"<span class="fr-ava photo"></span>"#.to_string() };
+    format!(r#"<span class="fr-demo {cls}" role="img" aria-label="{n}"><span class="fr-box"><span class="deco-art da-b">{b}</span><i class="fr-face">{face}</i><span class="deco-art da-a">{f}</span></span></span>"#)
 }
 
 async fn load_bag() {
@@ -144,6 +165,7 @@ fn card(k: &str, big: bool) -> String {
 }
 fn paint() {
     let Some(root) = by_id("shop-root") else { return };
+    set_me_photo();
     if !cloud::signed_in() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 상점을 볼 수 있어요</p>"#);
     }
@@ -326,6 +348,7 @@ async fn wear(k: String, on: bool) {
 }
 fn paint_inv() {
     let Some(root) = by_id("inv-root") else { return };
+    set_me_photo();
     if !cloud::signed_in() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 인벤을 볼 수 있어요</p>"#);
     }

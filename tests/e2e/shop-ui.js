@@ -30,6 +30,7 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
   const names = await p.evaluate(() => [...document.querySelectorAll('#sh-row .sh-card')].map((c) => c.querySelector('b').textContent + '|' + c.querySelector('.sh-foot span').textContent));
   ok('이름과 값(모두 500 멸공)', names.join(' / ') === ['네온', '별빛', '벚꽃', '불꽃', '파도', '나비', '왕관', '고양이', '토끼', '천사', '악마'].map((n) => n + ' 프레임|500 멸공').join(' / '));
   ok('프레임 그림 11장이 모두 있어요 (vote 저장소의 그림)', await p.evaluate(() => { const d = [...document.querySelectorAll('#sh-row .fr-demo')]; return d.length === 11 && d.every((x) => x.querySelector('.da-b').innerHTML.length > 100); }));
+  ok('미리보기는 내 프로필 (사진이 없으면 내 이름 글자)', await p.evaluate(() => [...document.querySelectorAll('#sh-row .fr-ava')].length === 11 && [...document.querySelectorAll('#sh-row .fr-ava')].every((e) => e.textContent === '후교')));
   ok('프레임이 움직여요 (애니메이션)', await p.evaluate(() => [...document.querySelectorAll('#sh-row .fr-demo *')].some((e) => getComputedStyle(e).animationName.startsWith('av'))));
   await p.click('.sh-cat[data-cat="ring"]'); await p.waitForTimeout(400);
   ok('카테고리: 링 2개', (await p.$$('#sh-row .sh-card')).length === 2);
@@ -50,6 +51,12 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
   await p.mouse.move(200, 300); await p.mouse.down(); for (let i = 1; i <= 8; i++) { await p.mouse.move(200, 300 + i * 25); await p.waitForTimeout(16); } await p.mouse.up(); await p.waitForTimeout(800);
   ok('끌어내리면 닫혀요', await p.isHidden('#sh-pager'));
   await p.screenshot({ path: path.join(__dirname, 'shots', 'shop.png') });
+  for (const k of ['flame', 'ocean']) {
+    await p.evaluate((k) => document.querySelector(`#sh-row .sh-card[data-k="${k}"]`).scrollIntoView({ inline: 'center', block: 'nearest' }), k); await p.waitForTimeout(300);
+    await p.click(`#sh-row .sh-card[data-k="${k}"] .sh-pic`); await p.waitForTimeout(900);
+    await p.screenshot({ path: path.join(__dirname, 'shots', `shop-${k}.png`) });
+    await p.click('#sh-pager [data-close]'); await p.waitForTimeout(800);
+  }
   const buy = async (k) => { await p.evaluate((k) => document.querySelector(`#sh-row [data-buy="${k}"]`).scrollIntoView({ inline: 'center', block: 'nearest' }), k); await p.waitForTimeout(300); await p.click(`#sh-row [data-buy="${k}"]`); await p.waitForTimeout(600); };
   // 사기
   await buy('devil');
@@ -68,7 +75,9 @@ const int = (f) => Number(f?.integerValue ?? f?.doubleValue ?? 0);
   ok('멸공이 모자라면 못 사요 (남은 0)', short && int((await raw(`wallets/${uid}`)).fields?.bal) === 0);
   await p.evaluate(() => document.getElementById('alert-ok').click()); await p.waitForTimeout(600);
   // 인벤
+  await p.evaluate(() => window.cloud.setPhoto('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')); await p.waitForTimeout(2500);
   await menu('inv');
+  ok('인벤 미리보기도 내 사진', await p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--me-photo').includes('data:image/png') && !!document.querySelector('#inv-root .fr-ava.photo')));
   ok('인벤: 산 것만 (4개)', (await p.$$('#inv-root .iv-card')).length === 4);
   await p.click('#inv-root [data-act="wear"][data-item="devil"]'); await toast('걸었어요'); await p.waitForTimeout(1500);
   await p.click('#inv-root [data-act="wear"][data-item="stars"]'); await p.waitForTimeout(2300);
