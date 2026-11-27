@@ -2617,6 +2617,7 @@ html.kb-open .rc-bar { padding-bottom: 10px; }
 @keyframes avGlow{from{opacity:.55;transform:scale(.97)}to{opacity:1;transform:scale(1.03)}}
 @keyframes avLick{0%{transform:scaleY(.8) skewX(-7deg)}50%{transform:scaleY(1.14) skewX(5deg)}100%{transform:scaleY(.88) skewX(-3deg)}}
 @keyframes avSpinR{to{transform:rotate(-360deg)}}
+@keyframes avRipple{from{transform:scale(1);opacity:.85}to{transform:scale(1.24);opacity:0}}
 @media (prefers-reduced-motion: reduce) { .deco-art *, .deco-art { animation: none !important; } }
 .dv .avatar { margin: 0; }
 .dv.sm .avatar { width: 44px; height: 44px; font-size: 15px; }
