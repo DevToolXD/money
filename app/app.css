@@ -2398,13 +2398,13 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
 .palette button { transition: transform 0.3s var(--liquid, ease); }
 .palette button[aria-pressed="true"] { transform: scale(1.18); box-shadow: inset 0 0 0 2.5px #fff, 0 0 0 2.5px rgba(0, 0, 0, 0.55); }
 
-/* ===== 지도: 화면 가득 위성 사진 (Esri World Imagery). 탭 바와 확대 버튼은 사진 위에 떠요 ===== */
+/* ===== 지도: 화면 가득 일반 지도 (CARTO Voyager). 탭 바와 확대 버튼은 지도 위에 떠요 ===== */
 #screen-map { padding: 0; overflow: hidden; background: #0d1117; }
 .map-card { position: absolute; inset: 0; overflow: hidden; background: #0d1117; }
 .map-view { position: absolute; inset: 0; touch-action: none; overflow: hidden; -webkit-user-select: none; user-select: none; }
 .map-world { position: absolute; inset: 0; will-change: transform; transform-origin: 0 0; }
 .map-tiles { position: absolute; inset: 0; }
-.map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; pointer-events: none; -webkit-user-drag: none; background: #0d1117; }
+.map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; pointer-events: none; -webkit-user-drag: none; background: #e9e5dc; }
 .map-ctl { position: absolute; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 66px); display: grid; gap: 8px; }
 .map-ctl .glass-btn { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
 .map-ctl svg { width: 22px; height: 22px; }

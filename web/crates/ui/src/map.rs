@@ -1,4 +1,4 @@
-//! 지도 탭: 위성사진 지도 (Esri World Imagery 타일, 키·워터마크 없음, 출처만 작게 적어요).
+//! 지도 탭: 일반 지도 (CARTO Voyager 타일, OpenStreetMap 자료, 키 없음. 한국은 한글 지명). 출처만 작게 적어요.
 //! 위치 권한은 묻지 않아요 (처음엔 서울, 마지막으로 본 자리를 기억해요).
 //! 렉 없이: 끌기·핀치·두 번 톡 확대는 지도 덩어리 하나에 transform만 걸고, 손을 떼거나 많이 벗어날 때만 타일을 다시 깔아요.
 
@@ -42,6 +42,12 @@ thread_local! {
     static PENDING: Cell<bool> = const { Cell::new(false) };
 }
 
+/// CARTO Voyager 일반 지도 (키 없음, OpenStreetMap 자료라 한국은 한글 지명·길 이름). 화면이 선명하면 2배 그림으로 받아요
+fn carto(z: i32, x: i64, y: i64) -> String {
+    let sub = ["a", "b", "c", "d"][((x + y).rem_euclid(4)) as usize];
+    let at2 = if web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0) >= 1.5 { "@2x" } else { "" };
+    format!("https://{sub}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{at2}.png")
+}
 fn world(lat: f64, lon: f64, z: i32) -> (f64, f64) {
     let n = TILE * 2f64.powi(z);
     let s = lat.to_radians().clamp(-1.4844, 1.4844);
@@ -92,7 +98,14 @@ fn render() {
                 keep.push(key.clone());
                 let el = t.entry(key).or_insert_with(|| {
                     let img: web_sys::HtmlElement = dom::doc().create_element("img").unwrap().unchecked_into();
-                    let _ = img.set_attribute("src", &format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{ty}/{wx}"));
+                    let _ = img.set_attribute("src", &carto(z, wx, ty));
+                    // 못 받은 칸은 OpenStreetMap 기본 타일로 한 번 더 받아 봐요
+                    let el2 = img.clone();
+                    dom::on(&img, "error", move |_| {
+                        if el2.get_attribute("src").is_some_and(|u| u.contains("cartocdn")) {
+                            let _ = el2.set_attribute("src", &format!("https://tile.openstreetmap.org/{z}/{wx}/{ty}.png"));
+                        }
+                    });
                     let _ = img.set_attribute("alt", "");
                     let _ = img.set_attribute("draggable", "false");
                     let _ = img.set_attribute("decoding", "async");
