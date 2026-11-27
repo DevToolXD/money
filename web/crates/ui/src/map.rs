@@ -1,6 +1,5 @@
-//! 지도 탭: 위성사진 지도. 관리자가 구글 지도 키(meta/gmaps)를 넣으면 구글 위성 지도(Map Tiles API, 한글 지명),
-//! 없거나 구글이 안 될 때는 Esri World Imagery 타일을 써요 (출처만 작게 적어요).
-//! 구글 세션 토큰은 기기에 저장해 두고 만료될 때까지 다시 써요 (토큰 만들기도 사용량이라 아껴요).
+//! 지도 탭: 위성사진 지도. 관리자가 브이월드 키(meta/vworld)를 넣으면 한국 안은 브이월드 위성 사진 + 한글 지명(Hybrid),
+//! 한국 밖이거나 키가 없거나 브이월드가 안 될 때는 Esri World Imagery 타일을 써요 (출처만 작게 적어요).
 //! 위치 권한은 묻지 않아요 (처음엔 서울, 마지막으로 본 자리를 기억해요).
 //! 렉 없이: 끌기·핀치·두 번 톡 확대는 지도 덩어리 하나에 transform만 걸고, 손을 떼거나 많이 벗어날 때만 타일을 다시 깔아요.
 
@@ -9,7 +8,7 @@ use std::collections::HashMap;
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::spawn_local;
 
 use crate::dom::{self, by_id};
 
@@ -43,21 +42,30 @@ thread_local! {
     static G: RefCell<Gst> = RefCell::new(Gst { base: Tf { s: 1.0, ..Tf::default() }, cur: Tf { s: 1.0, ..Tf::default() }, ..Gst::default() });
     static BOUND: Cell<bool> = const { Cell::new(false) };
     static PENDING: Cell<bool> = const { Cell::new(false) };
-    /// 구글 타일 (키, 세션). None이면 Esri
-    static GOOGLE: RefCell<Option<(String, String)>> = const { RefCell::new(None) };
+    /// 브이월드 키. None이면 Esri
+    static VKEY: RefCell<Option<String>> = const { RefCell::new(None) };
     static FAILS: Cell<u32> = const { Cell::new(0) };
     static SRC_LOADED: Cell<bool> = const { Cell::new(false) };
     static MANAGE_BOUND: Cell<bool> = const { Cell::new(false) };
 }
 
 const ESRI_ATTR: &str = "Esri, Maxar, Earthstar Geographics";
-const SESS_KEY: &str = "gm-sess";
+const V_ATTR: &str = "VWorld (국토교통부) · Esri";
+const V_MAX_Z: i32 = 18;
 
-fn tile_src(z: i32, x: i64, y: i64) -> String {
-    GOOGLE.with(|g| match &*g.borrow() {
-        Some((k, sess)) => format!("https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session={sess}&key={k}"),
-        None => format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"),
-    })
+fn esri(z: i32, x: i64, y: i64) -> String {
+    format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}")
+}
+fn vkey() -> Option<String> {
+    VKEY.with(|k| k.borrow().clone())
+}
+/// 이 타일이 한국 둘레 안인가 (브이월드는 한국만 있어요)
+fn in_korea(z: i32, x: i64, y: i64) -> bool {
+    let (la, lo) = unworld((x as f64 + 0.5) * TILE, (y as f64 + 0.5) * TILE, z);
+    (32.5..=39.0).contains(&la) && (124.0..=132.5).contains(&lo)
+}
+fn vworld(key: &str, layer: &str, ext: &str, z: i32, x: i64, y: i64) -> String {
+    format!("https://api.vworld.kr/req/wmts/1.0.0/{key}/{layer}/{z}/{y}/{x}.{ext}")
 }
 /// 깔린 타일을 모두 지우고 새 출처로 다시 깔아요
 fn reset_tiles() {
@@ -66,94 +74,88 @@ fn reset_tiles() {
             el.remove();
         }
     });
-    let google = GOOGLE.with(|g| g.borrow().is_some());
-    dom::set_text("map-attr", if google { "Google" } else { ESRI_ATTR });
+    dom::set_text("map-attr", if vkey().is_some() { V_ATTR } else { ESRI_ATTR });
     schedule();
 }
-/// 구글이 안 되면(키가 틀리거나 세션이 끝남) 저장한 세션을 버리고 Esri로 돌아가요
-fn google_failed() {
-    if GOOGLE.with(|g| g.borrow_mut().take()).is_some() {
-        dom::store_set(SESS_KEY, "");
+/// 브이월드가 안 되면(키가 틀리거나 막힘) 모두 Esri로 돌아가요
+fn vworld_failed() {
+    if VKEY.with(|k| k.borrow_mut().take()).is_some() {
         reset_tiles();
     }
 }
-
-async fn js_fetch(url: &str, init: &JsValue) -> Option<JsValue> {
-    let w = web_sys::window()?;
-    let f: js_sys::Function = js_sys::Reflect::get(&w, &"fetch".into()).ok()?.dyn_into().ok()?;
-    let p: js_sys::Promise = f.call2(&w, &url.into(), init).ok()?.dyn_into().ok()?;
-    let r = JsFuture::from(p).await.ok()?;
-    if !js_sys::Reflect::get(&r, &"ok".into()).ok()?.is_truthy() {
-        return None;
+fn fail_once() {
+    if FAILS.with(|f| { f.set(f.get() + 1); f.get() }) >= 8 {
+        vworld_failed();
     }
-    let jp: js_sys::Promise = js_sys::Reflect::get(&r, &"json".into()).ok()?.dyn_into::<js_sys::Function>().ok()?.call0(&r).ok()?.dyn_into().ok()?;
-    JsFuture::from(jp).await.ok()
 }
 
-/// 구글 세션: 저장해 둔 게 1시간 넘게 남았으면 그대로, 아니면 새로 만들어요
-async fn google_session(key: &str) -> Option<String> {
-    let tag = &key[key.len().saturating_sub(6)..];
-    let saved = dom::store_get(SESS_KEY, "");
-    let p: Vec<&str> = saved.split('|').collect();
-    if p.len() == 3 && p[0] == tag && p[2].parse::<f64>().unwrap_or(0.0) > js_sys::Date::now() + 3_600_000.0 {
-        return Some(p[1].to_string());
-    }
-    let body = r#"{"mapType":"satellite","language":"ko-KR","region":"KR","layerTypes":["layerRoadmap"]}"#;
-    let init = dom::obj(&[("method", "POST".into()), ("headers", dom::obj(&[("content-type", "application/json".into())])), ("body", body.into())]);
-    let j = js_fetch(&format!("https://tile.googleapis.com/v1/createSession?key={key}"), &init).await?;
-    let sess = cloud::get(&j, "session").as_string()?;
-    let exp = cloud::get(&j, "expiry").as_string().and_then(|e| e.parse::<f64>().ok()).unwrap_or(0.0) * 1000.0;
-    dom::store_set(SESS_KEY, &format!("{tag}|{sess}|{exp}"));
-    Some(sess)
-}
 fn load_source() {
     if SRC_LOADED.replace(true) {
         return;
     }
     spawn_local(async {
-        let key = cloud::call("gmapsGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
+        let key = cloud::call("vworldGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
         if key.is_empty() {
             return;
         }
-        if let Some(sess) = google_session(&key).await {
-            FAILS.set(0);
-            GOOGLE.with(|g| *g.borrow_mut() = Some((key, sess)));
-            reset_tiles();
-        }
+        FAILS.set(0);
+        VKEY.with(|k| *k.borrow_mut() = Some(key));
+        reset_tiles();
     });
 }
 
-/// 관리 탭: 구글 지도 키 넣기
+/// 키로 서울 타일 하나를 받아 봐서 되는 키인지 확인해요
+async fn key_works(key: &str) -> bool {
+    let Ok(img) = web_sys::HtmlImageElement::new() else { return false };
+    let (tx, rx) = futures_channel_like();
+    let (ok, err) = (tx.clone(), tx);
+    let a = Closure::once_into_js(move || ok.set(Some(true)));
+    let b = Closure::once_into_js(move || err.set(Some(false)));
+    img.set_onload(Some(a.unchecked_ref()));
+    img.set_onerror(Some(b.unchecked_ref()));
+    img.set_src(&vworld(key, "Satellite", "jpeg", 12, 1745, 3175));
+    for _ in 0..60 {
+        if let Some(v) = rx.get() {
+            return v;
+        }
+        dom::sleep(100).await;
+    }
+    false
+}
+fn futures_channel_like() -> (std::rc::Rc<Cell<Option<bool>>>, std::rc::Rc<Cell<Option<bool>>>) {
+    let c = std::rc::Rc::new(Cell::new(None));
+    (c.clone(), c)
+}
+
+/// 관리 탭: 브이월드 키 넣기
 pub fn bind_manage() {
     if MANAGE_BOUND.replace(true) {
         return;
     }
-    let input = || by_id("gmaps-key").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok());
+    let input = || by_id("vworld-key").and_then(|e| e.dyn_into::<web_sys::HtmlInputElement>().ok());
     spawn_local(async move {
-        let k = cloud::call("gmapsGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
+        let k = cloud::call("vworldGet", &[]).await.ok().and_then(|v| v.as_string()).unwrap_or_default();
         if let Some(i) = input() {
             i.set_value(&k);
         }
     });
-    if let Some(b) = by_id("gmaps-save") {
+    if let Some(b) = by_id("vworld-save") {
         dom::on(&b, "click", move |_| {
             let k: String = input().map(|i| i.value()).unwrap_or_default().trim().to_string();
-            if !(30..=64).contains(&k.len()) || !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
-                return crate::shell::toast("구글 지도 키는 영문·숫자·_·- 30~64자예요");
+            if !(20..=64).contains(&k.len()) || !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                return crate::shell::toast("브이월드 키는 영문·숫자·- 20~64자예요");
             }
             spawn_local(async move {
-                // 저장하기 전에 정말 되는 키인지 세션을 만들어 봐요
-                dom::store_set(SESS_KEY, "");
-                let Some(sess) = google_session(&k).await else {
-                    return crate::shell::toast("이 키로 구글 지도를 열지 못했어요. Map Tiles API가 켜져 있는지 확인해 주세요");
-                };
-                match cloud::call("gmapsSet", &[JsValue::from_str(&k)]).await {
+                if !key_works(&k).await {
+                    return crate::shell::toast("이 키로 지도를 열지 못했어요. 키와 사이트 주소 등록을 확인해 주세요");
+                }
+                match cloud::call("vworldSet", &[JsValue::from_str(&k)]).await {
                     Ok(_) => {
                         FAILS.set(0);
-                        GOOGLE.with(|g| *g.borrow_mut() = Some((k, sess)));
+                        VKEY.with(|x| *x.borrow_mut() = Some(k));
                         SRC_LOADED.set(true);
                         reset_tiles();
-                        crate::shell::toast("구글 지도 키를 저장했어요");
+                        crate::shell::toast("브이월드 키를 저장했어요");
                     }
                     Err(e) => crate::shell::toast(&format!("저장하지 못했어요. {}", cloud::why(&e.code))),
                 }
@@ -210,29 +212,44 @@ fn render() {
                 let wx = tx.rem_euclid(n);
                 let key = format!("{z}/{tx}/{ty}");
                 keep.push(key.clone());
-                let el = t.entry(key).or_insert_with(|| {
-                    let img: web_sys::HtmlElement = dom::doc().create_element("img").unwrap().unchecked_into();
-                    let _ = img.set_attribute("src", &tile_src(z, wx, ty));
-                    if GOOGLE.with(|g| g.borrow().is_some()) {
-                        // 구글에 없는 칸은 그 칸만 Esri로. 많이 실패하면(키·세션 문제) 모두 Esri로 돌아가요
-                        let el2 = img.clone();
-                        dom::on(&img, "error", move |_| {
-                            if el2.get_attribute("src").is_some_and(|u| u.contains("googleapis")) {
-                                let _ = el2.set_attribute("src", &format!("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{ty}/{wx}"));
-                                if FAILS.with(|f| { f.set(f.get() + 1); f.get() }) >= 8 {
-                                    google_failed();
+                let vk = vkey().filter(|_| z <= V_MAX_Z && in_korea(z, wx, ty));
+                let pos = format!("translate3d({}px,{}px,0)", tx as f64 * TILE - ox, ty as f64 * TILE - oy);
+                let el = t.entry(key.clone()).or_insert_with(|| {
+                    let img = new_tile(&layer, "map-tile");
+                    match &vk {
+                        Some(k) => {
+                            let _ = img.set_attribute("src", &vworld(k, "Satellite", "jpeg", z, wx, ty));
+                            // 그 칸만 못 받으면 그 칸만 Esri로. 많이 실패하면(키·사이트 주소 문제) 모두 Esri로 돌아가요
+                            let el2 = img.clone();
+                            dom::on(&img, "error", move |_| {
+                                if el2.get_attribute("src").is_some_and(|u| u.contains("vworld")) {
+                                    let _ = el2.set_attribute("src", &esri(z, wx, ty));
+                                    fail_once();
                                 }
-                            }
-                        });
+                            });
+                        }
+                        None => {
+                            let _ = img.set_attribute("src", &esri(z, wx, ty));
+                        }
                     }
-                    let _ = img.set_attribute("alt", "");
-                    let _ = img.set_attribute("draggable", "false");
-                    let _ = img.set_attribute("decoding", "async");
-                    img.set_class_name("map-tile");
-                    let _ = layer.append_child(&img);
                     img
                 });
-                let _ = el.style().set_property("transform", &format!("translate3d({}px,{}px,0)", tx as f64 * TILE - ox, ty as f64 * TILE - oy));
+                let _ = el.style().set_property("transform", &pos);
+                // 한글 지명·길 이름 (브이월드 Hybrid, 투명 그림)이 사진 위에 겹쳐요
+                if let Some(k) = &vk {
+                    let hk = format!("h/{key}");
+                    keep.push(hk.clone());
+                    let h = t.entry(hk).or_insert_with(|| {
+                        let img = new_tile(&layer, "map-tile map-tile-h");
+                        let _ = img.set_attribute("src", &vworld(k, "Hybrid", "png", z, wx, ty));
+                        let i2 = img.clone();
+                        dom::on(&img, "error", move |_| {
+                            let _ = i2.style().set_property("display", "none");
+                        });
+                        img
+                    });
+                    let _ = h.style().set_property("transform", &pos);
+                }
             }
         }
         t.retain(|k, el| {
@@ -244,6 +261,15 @@ fn render() {
         });
     });
     dom::store_set("map-last", &format!("{lat:.5},{lon:.5},{z}"));
+}
+fn new_tile(layer: &web_sys::Element, class: &str) -> web_sys::HtmlElement {
+    let img: web_sys::HtmlElement = dom::doc().create_element("img").unwrap().unchecked_into();
+    let _ = img.set_attribute("alt", "");
+    let _ = img.set_attribute("draggable", "false");
+    let _ = img.set_attribute("decoding", "async");
+    img.set_class_name(class);
+    let _ = layer.append_child(&img);
+    img
 }
 fn schedule() {
     if PENDING.replace(true) {

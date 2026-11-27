@@ -303,15 +303,15 @@ await t("GIF 댓글: GIPHY 주소만", async () => {
   await assertFails(reply("javascript:alert(1)"));
   await assertSucceeds(reply("https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/200w.webp"));
 });
-await t("구글 지도 키: 모두 읽고 관리자만 써요", async () => {
+await t("브이월드 지도 키: 모두 읽고 관리자만 써요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice"), O = pw("uOwner", "owner");
-  const K = "AIzaSyA1234567890abcdefghijklmnopqrstuv";
-  await assertFails(setDoc(doc(A, "meta/gmaps"), { key: K }));
-  await assertSucceeds(setDoc(doc(O, "meta/gmaps"), { key: K }));
-  await assertFails(setDoc(doc(O, "meta/gmaps"), { key: "short" }));
-  await assertFails(setDoc(doc(O, "meta/gmaps"), { key: K, x: 1 }));
-  await assertSucceeds(getDoc(doc(A, "meta/gmaps")));
+  const K = "1A2B3C4D-1234-5678-9ABC-DEF012345678";
+  await assertFails(setDoc(doc(A, "meta/vworld"), { key: K }));
+  await assertSucceeds(setDoc(doc(O, "meta/vworld"), { key: K }));
+  await assertFails(setDoc(doc(O, "meta/vworld"), { key: "short" }));
+  await assertFails(setDoc(doc(O, "meta/vworld"), { key: K, x: 1 }));
+  await assertSucceeds(getDoc(doc(A, "meta/vworld")));
 });
 await t("GIF 검색 키: 모두 읽고 관리자만 써요", async () => {
   await seed(seedBase);

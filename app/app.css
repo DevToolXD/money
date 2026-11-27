@@ -2405,6 +2405,7 @@ button:active, .row:active, .chat-row:active, .sns-p:active, .rk-row:active, .rk
 .map-world { position: absolute; inset: 0; will-change: transform; transform-origin: 0 0; }
 .map-tiles { position: absolute; inset: 0; }
 .map-tile { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; pointer-events: none; -webkit-user-drag: none; background: #0d1117; }
+.map-tile-h { background: transparent; z-index: 1; }
 .map-ctl { position: absolute; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 66px); display: grid; gap: 8px; }
 .map-ctl .glass-btn { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; }
 .map-ctl svg { width: 22px; height: 22px; }
