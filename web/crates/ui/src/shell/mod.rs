@@ -145,6 +145,7 @@ pub(crate) fn go_screen(name: &str) {
     show_screen(name);
     if name == "manage" {
         crate::reel_comments::bind_manage();
+        crate::map::bind_manage();
     }
     if name == "manage" {
         crate::manage::refresh();

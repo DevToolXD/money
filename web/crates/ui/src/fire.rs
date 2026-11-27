@@ -1943,6 +1943,11 @@ fn build() -> js_sys::Object {
         Ok(if exists(&sn) { get(&data(&sn), "key") } else { s("") })
     });
     am!(api, "giphySet", |a| rethrow(set_doc(d(&["meta", "giphy"]), o(&[("key", s(&sa(&a[0])))])).await));
+    am!(api, "gmapsGet", |_a| {
+        let sn = get_doc(d(&["meta", "gmaps"])).await?;
+        Ok(if exists(&sn) { get(&data(&sn), "key") } else { s("") })
+    });
+    am!(api, "gmapsSet", |a| rethrow(set_doc(d(&["meta", "gmaps"]), o(&[("key", s(&sa(&a[0])))])).await));
     am!(api, "reelGiftClaim", |a| reel_gift_claim(sa(&a[0])).await);
     am!(api, "postShare", |a| rethrow(update_doc(d(&["posts", &sa(&a[0])]), o(&[("sh", inc(1.0))])).await));
     // 팔로우: 내 설정 문서의 follows (사람 번호 → true)

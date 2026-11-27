@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://server.arcgisonline.com https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://tile.googleapis.com https://server.arcgisonline.com https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -49,7 +49,7 @@
           <button type="button" class="glass-btn round" id="map-zin" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
           <button type="button" class="glass-btn round" id="map-zout" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
         </div>
-        <span class="map-attr">Esri, Maxar, Earthstar Geographics</span>
+        <span class="map-attr" id="map-attr">Esri, Maxar, Earthstar Geographics</span>
       </div>
     </section>
     <section class="screen" id="screen-reels" data-screen="reels" data-title="릴스" data-notitle aria-label="릴스">
@@ -87,6 +87,8 @@
       <div class="card"><ul class="list fb-list" id="fb-list"><li class="inv-empty">불러오는 중이에요</li></ul></div>
       <h2 class="section-title">GIF 검색 (GIPHY)</h2>
       <div class="card gk-card"><p class="beta-x">릴스 댓글에서 GIF를 검색하려면 GIPHY 키가 필요해요. developers.giphy.com 에서 무료로 만든 키를 붙여 넣으세요. 키는 서버에 저장돼 모두가 같이 써요.</p><div class="gk-row"><input id="giphy-key" class="gk-in" maxlength="64" autocomplete="off" spellcheck="false" placeholder="GIPHY API 키" aria-label="GIPHY API 키"><button class="btn primary gk-save" id="giphy-save" type="button">저장</button></div></div>
+      <h2 class="section-title">구글 지도</h2>
+      <div class="card gk-card"><p class="beta-x">지도 탭을 구글 위성 지도로 보려면 구글 지도 키가 필요해요. Google Cloud에서 Map Tiles API를 켜고 만든 키를 붙여 넣으세요. 키가 없으면 지금 지도(Esri)를 써요.</p><div class="gk-row"><input id="gmaps-key" class="gk-in" maxlength="64" autocomplete="off" spellcheck="false" placeholder="구글 지도 API 키" aria-label="구글 지도 API 키"><button class="btn primary gk-save" id="gmaps-save" type="button">저장</button></div></div>
       <h2 class="section-title">베타 종료</h2>
       <div class="card beta-card"><p class="beta-x" id="beta-text">모든 사람의 데이터(관리자 포함)를 한꺼번에 지워요. 딱 한 번만 할 수 있고 되돌릴 수 없어요. 끝나면 로그아웃되고, 관리자는 owner로 다시 로그인하면 새로 시작해요.</p><button class="btn beta-btn" id="beta-end" type="button">베타 종료하고 모두 초기화</button></div>
     </section>
@@ -374,6 +376,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=141"></script>
+<script type="module" src="app/rs/boot.js?v=142"></script>
 </body>
 </html>
