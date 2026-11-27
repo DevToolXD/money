@@ -72,7 +72,8 @@ fn disable(id: &str, on: bool) {
 }
 
 /// 서버 함수에 보내요. 글자(text/plain)로 보내서 브라우저가 미리 묻는 요청(CORS 사전 요청) 없이 바로 가요
-async fn post(op: &str, phone: &str, code: &str) -> Result<(), String> {
+/// 서버 함수에 보내요. 성공하면 "이미 인증된 계정"이었는지(true)를 돌려줘요
+async fn post(op: &str, phone: &str, code: &str) -> Result<bool, String> {
     let token = cloud::call("idToken", &[]).await.map_err(|_| "not_signed_in".to_string())?;
     let body = js_sys::JSON::stringify(&dom::obj(&[("op", op.into()), ("idToken", token), ("phone", phone.into()), ("code", code.into())])).map(String::from).unwrap_or_default();
     let w = web_sys::window().ok_or("server")?;
@@ -83,7 +84,7 @@ async fn post(op: &str, phone: &str, code: &str) -> Result<(), String> {
     let jp: js_sys::Promise = js_sys::Reflect::get(&resp, &"json".into()).ok().and_then(|f| f.dyn_into::<js_sys::Function>().ok()).and_then(|f| f.call0(&resp).ok()).and_then(|p| p.dyn_into().ok()).ok_or("server")?;
     let j = JsFuture::from(jp).await.map_err(|_| "server".to_string())?;
     if cloud::get(&j, "ok").is_truthy() {
-        Ok(())
+        Ok(cloud::get(&j, "already").is_truthy())
     } else {
         Err(cloud::get(&j, "code").as_string().unwrap_or_else(|| "server".into()))
     }
@@ -113,7 +114,11 @@ async fn send() {
     BUSY.set(false);
     disable("pg-send", false);
     match r {
-        Ok(()) => {
+        Ok(true) => {
+            hide();
+            crate::shell::toast("이미 전화번호 인증을 마쳤어요");
+        }
+        Ok(false) => {
             msg("문자로 인증번호 6자리를 보냈어요. 5분 안에 넣어 주세요", true);
             dom::set_hidden("pg-code-row", false);
             dom::set_hidden("pg-check", false);
@@ -143,7 +148,7 @@ async fn check_code() {
     BUSY.set(false);
     disable("pg-check", false);
     match r {
-        Ok(()) => {
+        Ok(_) => {
             msg("인증했어요", true);
             dom::vibrate(14);
             dom::sleep(500).await;
@@ -208,17 +213,22 @@ fn hide() {
 /// 로그인한 뒤 한 번: 새 계정인데 아직 인증 안 했으면 인증 화면을 띄워요
 pub async fn check() {
     let Some(c) = cloud::cloud() else { return };
-    if cloud::get(&c, "emu").is_truthy() {
+    // 시험(에뮬레이터)에서는 묻지 않아요. 인증 화면 시험만 저장소에 pg-force를 넣어서 켜요
+    if cloud::get(&c, "emu").is_truthy() && dom::store_get("pg-force", "") != "1" {
         return;
     }
     let created = cloud::get(&c, "createdAt").as_f64().unwrap_or(0.0);
     if created < CUTOFF {
         return;
     }
-    match cloud::call("phoneVerified", &[]).await {
-        Ok(v) if v.is_truthy() => {}
-        Ok(_) => show(),
-        Err(_) => {}
+    // 읽지 못하면(네트워크 등) 한 번 더 해 보고, 그래도 안 되면 인증 화면을 띄워요 (새 계정이 인증 없이 지나가지 않게. 이미 인증했으면 서버가 알려 줘서 바로 닫혀요)
+    for attempt in 0..2 {
+        match cloud::call("phoneVerified", &[]).await {
+            Ok(v) if v.is_truthy() => return,
+            Ok(_) => return show(),
+            Err(_) if attempt == 0 => dom::sleep(1500).await,
+            Err(_) => return show(),
+        }
     }
 }
 

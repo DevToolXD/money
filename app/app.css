@@ -2901,3 +2901,5 @@ html[data-theme="dark"] .sns-panel { background: rgba(44, 44, 48, 0.88); }
 /* 인벤 위쪽 동그라미: 아래로 늘어지는 머플러가 글자를 덮지 않게 */
 .iv-hero { gap: 30px; }
 .iv-hero .dv { margin-bottom: 44px; }
+/* 숨김(hidden)이 레이아웃 CSS(display)에 덮이지 않게 */
+.pg [hidden] { display: none !important; }

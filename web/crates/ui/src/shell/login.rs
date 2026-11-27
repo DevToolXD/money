@@ -68,7 +68,7 @@ fn set_mode(on: bool, animate: bool) {
     let apply = move || {
         SIGNUP.set(on);
         dom::set_text("login-title", if on { "계정 만들기" } else { "로그인" });
-        dom::set_text("login-sub", if on { "아이디와 비밀번호만 정하면 바로 시작할 수 있어요." } else { "아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요." });
+        dom::set_text("login-sub", if on { "아이디와 비밀번호를 정하면, 이어서 휴대폰 번호 인증을 해요. 한 사람이 계정 하나만 만들 수 있어요." } else { "아이디와 비밀번호로 대화와 프로필을 어디서나 이어서 쓸 수 있어요." });
         dom::set_text("login-submit", if on { "계정 만들기" } else { "로그인" });
         if let Some(sw) = by_id("login-switch") {
             sw.set_inner_html(if on { "이미 계정이 있나요? <b>로그인</b>" } else { "계정이 없나요? <b>계정 만들기</b>" });
