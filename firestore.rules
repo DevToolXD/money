@@ -1226,11 +1226,11 @@ service cloud.firestore {
       allow write: if isOwner() && request.resource.data.keys().hasOnly(['key'])
         && request.resource.data.key is string && request.resource.data.key.matches('^[A-Za-z0-9]{10,64}$');
     }
-    // 브이월드 지도 키 (브라우저용 공개 키): 누구나 읽고, 관리자만 바꿔요
-    match /meta/vworld {
+    // 구글 지도 키 (Map Tiles API, 브라우저용 공개 키): 누구나 읽고, 관리자만 바꿔요
+    match /meta/gmaps {
       allow get: if signedIn();
       allow write: if isOwner() && request.resource.data.keys().hasOnly(['key'])
-        && request.resource.data.key is string && request.resource.data.key.matches('^[A-Za-z0-9-]{20,64}$');
+        && request.resource.data.key is string && request.resource.data.key.matches('^[A-Za-z0-9_-]{30,64}$');
     }
     match /meta/noticeIndex {
       allow get: if signedIn();
