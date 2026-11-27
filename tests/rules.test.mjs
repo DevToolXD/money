@@ -363,20 +363,20 @@ await t("상점: 정해진 값만 내고 가방에 하나씩, 이미 있으면 �
     b.update(doc(db, "wallets/uA"), { bal, wt: serverTimestamp(), op: { kind: "deco", k } });
     return b.commit();
   };
-  await assertFails(buy(A, "fendi", 1250000 - 100, ["fendi"])); // 덜 내기
-  await assertFails(buy(A, "fendi", 1250000 - 320, ["fendi", "hermes"])); // 하나 값으로 둘
-  await assertFails(setDoc(doc(A, "bag/uA"), { items: ["fendi"] })); // 돈 없이
-  await assertFails(buy(A, "lambo", 1250000 - 100000, ["lambo"])); // 이제 안 파는 것
-  await assertSucceeds(buy(A, "fendi", 1250000 - 320, ["fendi"]));
+  await assertFails(buy(A, "gold", 1250000 - 100, ["gold"])); // 덜 내기
+  await assertFails(buy(A, "gold", 1250000 - 500, ["gold", "neon"])); // 하나 값으로 둘
+  await assertFails(setDoc(doc(A, "bag/uA"), { items: ["gold"] })); // 돈 없이
+  await assertFails(buy(A, "hermes", 1250000 - 1000, ["hermes"])); // 이제 안 파는 것
+  await assertSucceeds(buy(A, "gold", 1250000 - 500, ["gold"]));
   await sleep(2100);
-  await assertFails(buy(A, "fendi", 1250000 - 640, ["fendi", "fendi"])); // 두 번
-  await assertSucceeds(buy(A, "chanel", 1250000 - 320 - 610, ["fendi", "chanel"])); // 샤넬 4위 610
-  await assertFails(updateDoc(doc(A, "profiles/uA"), { gear: ["hermes"] })); // 안 산 것
-  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { gear: ["fendi", "chanel"] }));
+  await assertFails(buy(A, "gold", 1250000 - 1000, ["gold", "gold"])); // 두 번
+  await assertSucceeds(buy(A, "neon", 1250000 - 1000, ["gold", "neon"]));
+  await assertFails(updateDoc(doc(A, "profiles/uA"), { gear: ["crown"] })); // 안 산 것
+  await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { gear: ["gold"] }));
   await assertSucceeds(updateDoc(doc(A, "profiles/uA"), { gear: [] }));
   await assertFails(getDoc(doc(pw("uB", "bob"), "bag/uA")));
   await sleep(2100);
-  await assertFails(buy(pw("uB", "bob"), "hermes", 1250000 - 1000, ["hermes"])); // 남의 지갑으로는 못 사요
+  await assertFails(buy(pw("uB", "bob"), "crown", 1250000 - 500, ["crown"])); // 남의 지갑으로는 못 사요
 });
 await t("공모전: 관리자만 열고 닫고, 사진 하나·한 표, 표 수는 같은 묶음으로만", async () => {
   await seed(seedBase);

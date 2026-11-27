@@ -1,8 +1,8 @@
 //! 상점 (메뉴 → 상점): 애플 스토어 앱의 "제품" 탭과 같은 모양·움직임이에요.
-//!   큰 제목과 오른쪽 위 내 동그라미 → 가로로 넘기는 흰 카테고리 칸 → 알약 칩 → 빨간 섹션 제목과 색 배경의 긴 제품 카드 줄.
+//!   큰 제목과 오른쪽 위 내 동그라미 → 가로로 넘기는 흰 카테고리 칸 → 색 배경의 긴 제품 카드 줄.
 //!   카드를 누르면 그 카드가 그 자리에서 화면 가득 커지고(FLIP: transform만 움직여요), 옆으로 넘기며 보다가, 아래로 끌어내리면 제자리로 돌아가요.
-//! 파는 것은 동그라미 사진에 얹는 장신구(실제 사진 누끼)예요. 멸공으로 바로 사고, 같은 것은 한 번만 살 수 있어요 (서버 규칙이 값과 중복을 검사해요).
-//! 산 장신구는 메뉴 → 인벤에서 자리(얼굴·머리·목·손목·손·발밑)마다 하나씩 같이 껴요.
+//! 파는 것은 프로필 사진(동그라미) 둘레에 두르는 프레임이에요 (디스코드의 아바타 장식처럼). 모두 직접 그린 SVG고, 값은 모두 같아요.
+//!   멸공으로 바로 사고, 같은 것은 한 번만 살 수 있어요 (서버 규칙이 값과 중복을 검사해요). 산 프레임은 메뉴 → 인벤에서 걸어요 (한 번에 하나).
 
 use std::cell::{Cell, RefCell};
 
@@ -12,22 +12,23 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::dom::{self, by_id, esc};
 
-/// (번호, 이름, 명품 순위, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요.
-/// 순위는 명품 브랜드 피라미드(1 에르메스 · 2 루이 비통 · 3 구찌 · 4 샤넬 · 5 프라다 · 6 디올 · 7 버버리 · 8 펜디)예요.
-/// 값은 1위 1,000 멸공에서 순위마다 약 15%씩 내려가요 (2위 루이 비통 850은 사진이 생기면 넣어요)
-pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 7] = [
-    ("hermes", "에르메스 버킨", "1위", 1_000, "hand", "#f9cfa8", "#5b2a0a", false),
-    ("gucci", "구찌 GG 호보백", "3위", 720, "hand", "#ecd9b6", "#1f4d2b", false),
-    ("chanel", "샤넬 클래식 플랩", "4위", 610, "hand", "#dcdce2", "#141414", false),
-    ("prada", "프라다 리나일론 숄더백", "5위", 520, "hand", "#d3d7e0", "#171717", false),
-    ("dior", "디올 오블리크 파우치", "6위", 440, "hand", "#cbd8ee", "#14223f", false),
-    ("burberry", "버버리 체크 캐시미어 머플러", "7위", 380, "neck", "#f2e0b8", "#4a2c10", false),
-    ("fendi", "펜디 FF 토트백", "8위", 320, "hand", "#e8dfcf", "#231a12", false),
+/// (번호, 이름, 종류, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요. 값은 일단 모두 같아요.
+/// 프레임은 모두 같은 자리("frame")라서 한 번에 하나만 걸 수 있어요
+pub const PRICE: u32 = 500;
+pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 8] = [
+    ("gold", "금빛 프레임", "링", PRICE, "frame", "#fbe9a6", "#5a3d00", false),
+    ("neon", "네온 프레임", "링", PRICE, "frame", "#cfeef7", "#121033", false),
+    ("stars", "별빛 프레임", "링", PRICE, "frame", "#d9d0f5", "#1d1450", false),
+    ("laurel", "월계수 프레임", "자연", PRICE, "frame", "#d3ecc8", "#183d1a", false),
+    ("sakura", "벚꽃 프레임", "자연", PRICE, "frame", "#fbd3e1", "#5a1c36", false),
+    ("flame", "불꽃 프레임", "자연", PRICE, "frame", "#ffd9b8", "#5c1308", false),
+    ("cat", "고양이 귀 프레임", "머리", PRICE, "frame", "#ddd9ff", "#241f6b", false),
+    ("crown", "왕관 프레임", "머리", PRICE, "frame", "#fff1b5", "#4f3600", false),
 ];
-/// 카테고리 칸 (번호, 이름, 대표 사진, 자리들)
-const CATS: [(&str, &str, &str, &[&str]); 3] = [("all", "전체", "hermes", &[]), ("bag", "가방", "chanel", &["hand"]), ("neck", "목도리", "burberry", &["neck"])];
-/// 알약 칩 (번호, 이름)
-const CHIPS: [(&str, &str); 4] = [("all", "모든 명품"), ("top", "1~4위"), ("mid", "5~8위"), ("cheap", "400 멸공 이하")];
+/// 카테고리 칸 (번호, 이름, 대표 사진, 종류들)
+const CATS: [(&str, &str, &str, &[&str]); 4] = [("all", "전체", "gold", &[]), ("ring", "링", "neon", &["링"]), ("nature", "자연", "sakura", &["자연"]), ("head", "머리 장식", "crown", &["머리"])];
+/// 알약 칩 (지금은 값이 모두 같아서 없어요)
+const CHIPS: [(&str, &str); 0] = [];
 
 thread_local! {
     /// 내 가방 (산 장신구)
@@ -70,7 +71,7 @@ fn has(k: &str) -> bool {
 pub fn deco_html(keys: &str) -> String {
     keys.split(',')
         .filter_map(item)
-        .map(|(k, n, ..)| format!(r#"<img class="deco dc-{k}" src="app/deco/{k}.webp" alt="{n}" draggable="false" decoding="async">"#))
+        .map(|(k, n, ..)| format!(r#"<img class="deco dc-{k}" src="app/deco/{k}.svg" alt="{n}" draggable="false" decoding="async">"#))
         .collect()
 }
 /// 이 사람이 낀 장신구 번호들 (쉼표로 이어요, 프로필 캐시에서)
@@ -92,9 +93,10 @@ fn me_avatar(keys: &str, cls: &str) -> String {
     let photo = if g("photo").is_empty() { dom::store_get("profile-photo", "") } else { g("photo") };
     format!(r#"<span class="dv {cls}">{}{}</span>"#, dom::avatar_html(&name, &photo, "avatar contact"), deco_html(keys))
 }
+/// 프레임을 보여 주는 그림: 샘플 동그라미 위에 프레임을 얹어요 (프레임은 가운데 70%가 사진 자리예요)
 fn pic(k: &str, cls: &str) -> String {
     let n = item(k).map(|x| x.1).unwrap_or("");
-    format!(r#"<img class="{cls}" src="app/deco/{k}.webp" alt="{n}" draggable="false" decoding="async">"#)
+    format!(r#"<span class="fr-demo {cls}"><i></i><img src="app/deco/{k}.svg" alt="{n}" draggable="false" decoding="async"></span>"#)
 }
 
 async fn load_bag() {
@@ -107,25 +109,11 @@ async fn load_bag() {
 
 /* ---------- 상점 화면 ---------- */
 
-/// 지금 고른 카테고리·칩에 맞는 명품들 (순위 순)
+/// 지금 고른 카테고리에 맞는 프레임들
 fn shown() -> Vec<&'static str> {
     let cat = CAT.with(|c| *c.borrow());
-    let chip = CHIP.with(|c| *c.borrow());
     let slots: &[&str] = CATS.iter().find(|c| c.0 == cat).map(|c| c.3).unwrap_or(&[]);
-    ITEMS
-        .iter()
-        .filter(|x| slots.is_empty() || slots.contains(&x.4))
-        .filter(|x| {
-            let rank: u32 = x.2.trim_end_matches('위').parse().unwrap_or(99);
-            match chip {
-                "top" => rank <= 4,
-                "mid" => (5..=8).contains(&rank),
-                "cheap" => x.3 <= 400,
-                _ => true,
-            }
-        })
-        .map(|x| x.0)
-        .collect()
+    ITEMS.iter().filter(|x| slots.is_empty() || slots.contains(&x.2)).map(|x| x.0).collect()
 }
 fn card(k: &str, big: bool) -> String {
     let Some((_, n, r, price, _, top, band, light)) = item(k) else { return String::new() };
@@ -135,7 +123,7 @@ fn card(k: &str, big: bool) -> String {
         big = if big { " big" } else { "" },
         lt = if *light { " light" } else { "" },
         img = pic(k, "sh-img"),
-        tag = format!("명품 {r}"),
+        tag = format!("프레임 · {r}"),
         price = won(*price),
         on = if own { " owned" } else { "" },
         dis = if own { " disabled" } else { "" },
@@ -148,28 +136,20 @@ fn paint() {
         return dom::set_html_if(&root, r#"<p class="sns-empty">로그인하면 상점을 볼 수 있어요</p>"#);
     }
     let cat = CAT.with(|c| *c.borrow());
-    let chip = CHIP.with(|c| *c.borrow());
     let cats: String = CATS
         .iter()
         .map(|(id, n, k, _)| format!(r#"<button type="button" class="sh-cat{}" data-cat="{id}">{}<span>{n}</span></button>"#, if *id == cat { " on" } else { "" }, pic(k, "sh-ci")))
         .collect();
-    let chips: String = CHIPS.iter().map(|(id, n)| format!(r#"<button type="button" class="sh-chip{}" data-chip="{id}">{n}</button>"#, if *id == chip { " on" } else { "" })).collect();
     let list = shown();
-    let cards: String = if list.is_empty() { r#"<p class="sh-none">이 조건에 맞는 명품이 없어요</p>"#.to_string() } else { list.iter().map(|k| card(k, false)).collect() };
-    let title = match chip {
-        "top" => "1~4위 명품",
-        "mid" => "5~8위 명품",
-        "cheap" => "400 멸공 이하",
-        _ => "명품 순위",
-    };
+    let cards: String = if list.is_empty() { r#"<p class="sh-none">이 종류의 프레임이 없어요</p>"#.to_string() } else { list.iter().map(|k| card(k, false)).collect() };
+    let title = CATS.iter().find(|c| c.0 == cat).map(|c| if c.0 == "all" { "프레임 모음".to_string() } else { format!("{} 프레임", c.1) }).unwrap_or_default();
     dom::set_html_if(
         &root,
         &format!(
-            r#"<header class="sh-top"><h1 id="title-shop">상점</h1><button type="button" class="sh-me" data-go-inv aria-label="내 명품">{me}</button></header>
+            r#"<header class="sh-top"><h1 id="title-shop">상점</h1><button type="button" class="sh-me" data-go-inv aria-label="내 프레임">{me}</button></header>
 <div class="sh-cats" role="list">{cats}</div>
-<h2 class="sh-h">명품</h2><div class="sh-chips">{chips}</div>
 <h2 class="sh-h red">{title}</h2><div class="sh-row" id="sh-row">{cards}</div>
-<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 명품 <b>{have}개</b></p>"#,
+<p class="sh-bal">내 멸공 <b>{bal}</b> · 가진 프레임 <b>{have}개</b></p>"#,
             me = me_avatar(&my_gear().join(","), "sm"),
             bal = crate::money::w(crate::money::balance().unwrap_or(0.0)),
             have = BAG.with(|b| b.borrow().len()),
@@ -271,12 +251,12 @@ fn close_pager(animate: bool) {
 async fn buy(k: String) {
     let Some((_, n, _, price, ..)) = item(&k) else { return };
     if has(&k) {
-        return crate::shell::toast("이미 가진 명품이에요");
+        return crate::shell::toast("이미 가진 프레임이에요");
     }
     if BUSY.replace(true) {
         return;
     }
-    if !crate::shell::ask(&format!("{n}{} 살까요?", eul(n)), &format!("{} 멸공이 빠져요. 산 명품은 인벤에서 걸 수 있어요.", cloud::fmt_num(*price as f64, 0)), "구입하기", "취소").await {
+    if !crate::shell::ask(&format!("{n}{} 살까요?", eul(n)), &format!("{} 멸공이 빠져요. 산 프레임은 인벤에서 걸 수 있어요.", cloud::fmt_num(*price as f64, 0)), "구입하기", "취소").await {
         BUSY.set(false);
         return;
     }
@@ -313,7 +293,7 @@ async fn buy(k: String) {
     }
 }
 
-/* ---------- 인벤: 산 명품만, 가방 하나·머플러 하나씩 걸기 ---------- */
+/* ---------- 인벤: 산 프레임만, 하나씩 걸기 ---------- */
 
 async fn wear(k: String, on: bool) {
     let slot = item(&k).map(|x| x.4).unwrap_or("");
@@ -355,14 +335,14 @@ fn paint_inv() {
     dom::set_html_if(
         &root,
         &format!(
-            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 명품 <small class="iv-n">{}개</small></h2>{}"#,
+            r#"<div class="card iv-hero">{}<p>{}</p></div><h2 class="section-title">내 프레임 <small class="iv-n">{}개</small></h2>{}"#,
             me_avatar(&now.join(","), "xl"),
-            if names.is_empty() { "걸고 있는 명품이 없어요".to_string() } else { format!("<b>{}</b> 걸고 있어요", esc(&names.join(" · "))) },
+            if names.is_empty() { "걸고 있는 프레임이 없어요".to_string() } else { format!("<b>{}</b> 걸고 있어요", esc(&names.join(" · "))) },
             bag.len(),
             if bag.is_empty() {
-                if LOADED.get() { r#"<p class="iv-empty">아직 명품이 없어요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
+                if LOADED.get() { r#"<p class="iv-empty">아직 프레임이 없어요</p>"#.to_string() } else { r#"<p class="iv-empty">불러오는 중이에요</p>"#.to_string() }
             } else {
-                format!(r#"<p class="iv-tip">가방은 하나, 목도리는 하나씩 같이 걸 수 있어요</p><ul class="iv-grid">{cards}</ul>"#)
+                format!(r#"<p class="iv-tip">프레임은 한 번에 하나만 걸 수 있어요</p><ul class="iv-grid">{cards}</ul>"#)
             }
         ),
     );
