@@ -13,20 +13,28 @@ use wasm_bindgen_futures::spawn_local;
 use crate::dom::{self, by_id, esc};
 
 /// (번호, 이름, 종류, 값(멸공), 자리, 카드 위쪽 색, 아래 띠 색, 띠가 밝은지). 값은 서버 규칙(shopPrice)과 같아야 해요. 값은 일단 모두 같아요.
-/// 프레임은 모두 같은 자리("frame")라서 한 번에 하나만 걸 수 있어요
+/// 프레임은 vote 저장소의 일반 프레임 11종이에요. 모두 같은 자리("frame")라서 한 번에 하나만 걸 수 있어요
 pub const PRICE: u32 = 500;
-pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 8] = [
-    ("gold", "금빛 프레임", "링", PRICE, "frame", "#fbe9a6", "#5a3d00", false),
-    ("neon", "네온 프레임", "링", PRICE, "frame", "#cfeef7", "#121033", false),
+pub const ITEMS: [(&str, &str, &str, u32, &str, &str, &str, bool); 11] = [
+    ("neon", "네온 프레임", "링", PRICE, "frame", "#d5f3ff", "#121033", false),
     ("stars", "별빛 프레임", "링", PRICE, "frame", "#d9d0f5", "#1d1450", false),
-    ("laurel", "월계수 프레임", "자연", PRICE, "frame", "#d3ecc8", "#183d1a", false),
     ("sakura", "벚꽃 프레임", "자연", PRICE, "frame", "#fbd3e1", "#5a1c36", false),
     ("flame", "불꽃 프레임", "자연", PRICE, "frame", "#ffd9b8", "#5c1308", false),
-    ("cat", "고양이 귀 프레임", "머리", PRICE, "frame", "#ddd9ff", "#241f6b", false),
+    ("ocean", "파도 프레임", "자연", PRICE, "frame", "#cdeef7", "#0b3f5a", false),
+    ("butterfly", "나비 프레임", "자연", PRICE, "frame", "#e3dcff", "#2b2060", false),
     ("crown", "왕관 프레임", "머리", PRICE, "frame", "#fff1b5", "#4f3600", false),
+    ("cat", "고양이 프레임", "머리", PRICE, "frame", "#e4e4ea", "#1f2024", false),
+    ("bunny", "토끼 프레임", "머리", PRICE, "frame", "#ffe6ee", "#6a2a40", false),
+    ("halo", "천사 프레임", "머리", PRICE, "frame", "#fff6cc", "#5a4700", false),
+    ("devil", "악마 프레임", "머리", PRICE, "frame", "#ffd0d0", "#3a0008", false),
 ];
+/// 프레임 그림 (번호, 사진 아래에 깔리는 층, 사진 위에 얹히는 층). vote 저장소 avatarArt.ts와 같은 HTML이에요
+const ART: &[(&str, &str, &str)] = &include!("frame_art.in");
+fn art(k: &str) -> (&'static str, &'static str) {
+    ART.iter().find(|a| a.0 == k).map(|a| (a.1, a.2)).unwrap_or(("", ""))
+}
 /// 카테고리 칸 (번호, 이름, 대표 사진, 종류들)
-const CATS: [(&str, &str, &str, &[&str]); 4] = [("all", "전체", "gold", &[]), ("ring", "링", "neon", &["링"]), ("nature", "자연", "sakura", &["자연"]), ("head", "머리 장식", "crown", &["머리"])];
+const CATS: [(&str, &str, &str, &[&str]); 4] = [("all", "전체", "neon", &[]), ("ring", "링", "stars", &["링"]), ("nature", "자연", "sakura", &["자연"]), ("head", "머리 장식", "crown", &["머리"])];
 /// 알약 칩 (지금은 값이 모두 같아서 없어요)
 const CHIPS: [(&str, &str); 0] = [];
 
@@ -71,7 +79,10 @@ fn has(k: &str) -> bool {
 pub fn deco_html(keys: &str) -> String {
     keys.split(',')
         .filter_map(item)
-        .map(|(k, n, ..)| format!(r#"<img class="deco dc-{k}" src="app/deco/{k}.svg" alt="{n}" draggable="false" decoding="async">"#))
+        .map(|(k, ..)| {
+            let (b, f) = art(k);
+            format!(r#"<span class="deco-art da-b" aria-hidden="true">{b}</span><span class="deco-art da-a" aria-hidden="true">{f}</span>"#)
+        })
         .collect()
 }
 /// 이 사람이 낀 장신구 번호들 (쉼표로 이어요, 프로필 캐시에서)
@@ -93,10 +104,11 @@ fn me_avatar(keys: &str, cls: &str) -> String {
     let photo = if g("photo").is_empty() { dom::store_get("profile-photo", "") } else { g("photo") };
     format!(r#"<span class="dv {cls}">{}{}</span>"#, dom::avatar_html(&name, &photo, "avatar contact"), deco_html(keys))
 }
-/// 프레임을 보여 주는 그림: 샘플 동그라미 위에 프레임을 얹어요 (프레임은 가운데 70%가 사진 자리예요)
+/// 프레임을 보여 주는 그림: 샘플 동그라미(가운데 70%)에 프레임을 얹어요
 fn pic(k: &str, cls: &str) -> String {
     let n = item(k).map(|x| x.1).unwrap_or("");
-    format!(r#"<span class="fr-demo {cls}"><i></i><img src="app/deco/{k}.svg" alt="{n}" draggable="false" decoding="async"></span>"#)
+    let (b, f) = art(k);
+    format!(r#"<span class="fr-demo {cls}" role="img" aria-label="{n}"><span class="fr-box"><span class="deco-art da-b">{b}</span><i class="fr-face"></i><span class="deco-art da-a">{f}</span></span></span>"#)
 }
 
 async fn load_bag() {
