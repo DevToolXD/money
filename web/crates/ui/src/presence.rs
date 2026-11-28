@@ -39,7 +39,7 @@ pub fn wrap(avatar: String, uid: &str) -> String {
     }
 }
 
-/// 월급: 앱을 켜 두고 본 시간 10분마다 20 멸공이 들어와요 (받을 게 있으면 지갑 쓰기 줄에 서서 받아요)
+/// 월급: 앱을 켜 두고 본 시간 5분마다 20 멸공이 들어와요 (받을 게 있으면 지갑 쓰기 줄에 서서 받아요)
 fn pay_salary() {
     if BUSY.replace(true) {
         return;
@@ -59,7 +59,7 @@ fn pay_salary() {
                 crate::notify::show_info("월급", &format!("월급 {} 멸공이 들어왔어요", amt as i64));
                 crate::money::log(&dom::obj(&[
                     ("t", js_sys::Date::now().into()),
-                    ("name", "월급 (10분마다 20 멸공)".into()),
+                    ("name", "월급 (5분마다 20 멸공)".into()),
                     ("cat", "월급".into()),
                     ("icon", "gift".into()),
                     ("amt", amt.into()),
@@ -109,10 +109,23 @@ fn tick() {
 }
 
 /// 로그인한 뒤 한 번 불러요
+/// 처음 들어왔을 때 한 번, 월급을 아주 간단히 알려요
+fn tip() {
+    if dom::store_get("salary-tip", "") == "1" {
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async {
+        dom::sleep(2500).await;
+        crate::notify::show_info("멸공 월급", "5분마다 20 멸공을 받아요 (앱을 보는 동안만)");
+        dom::store_set("salary-tip", "1");
+    });
+}
+
 pub fn start() {
     if TIMER.get() != 0 {
         return;
     }
+    tip();
     tick();
     let cb = Closure::<dyn FnMut()>::new(tick).into_js_value();
     if let Some(w) = web_sys::window() {
@@ -120,6 +133,8 @@ pub fn start() {
     }
     dom::on(&dom::doc(), "visibilitychange", |_| {
         if !dom::doc_hidden() {
+            // 뒤에 가 있던 시간은 월급 시간에 넣지 않아요 (돌아온 때부터 다시 세요)
+            let _ = cloud::call_now("playResume", &[]);
             tick();
         }
     });

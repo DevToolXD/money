@@ -1050,7 +1050,7 @@ service cloud.firestore {
             && getAfter(casinoPath(uid)).data.net == casinoBefore(uid) + (request.resource.data.bal - resource.data.bal)
             && getAfter(casinoPath(uid)).data.net <= 100000)
           ||
-          // 월급: 앱을 켜 두고 본 시간(presence.play) 10분마다 20 멸공. 받은 횟수(presence.paid)가 같은 묶음에서 n만큼 늘고, 10분 x 받은 횟수가 본 시간을 넘지 못해요
+          // 월급: 앱을 켜 두고 본 시간(presence.play) 5분마다 20 멸공. 받은 횟수(presence.paid)가 같은 묶음에서 n만큼 늘고, 5분 x 받은 횟수가 본 시간을 넘지 못해요
           (request.resource.data.op.kind == 'salary'
             && request.resource.data.rate == resource.data.rate
             && request.resource.data.t == resource.data.t
@@ -1059,7 +1059,7 @@ service cloud.firestore {
             && request.resource.data.op.n <= 6
             && request.resource.data.bal == resource.data.bal + 20 * request.resource.data.op.n
             && getAfter(presencePath(uid)).data.get('paid', 0) == get(presencePath(uid)).data.get('paid', 0) + request.resource.data.op.n
-            && getAfter(presencePath(uid)).data.get('paid', 0) * 600000 <= get(presencePath(uid)).data.get('play', 0))
+            && getAfter(presencePath(uid)).data.get('paid', 0) * 300000 <= get(presencePath(uid)).data.get('play', 0))
 
         );
 
@@ -1356,8 +1356,10 @@ service cloud.firestore {
         function chatDoc() { return get(/databases/$(database)/documents/chats/$(cid)); }
         function body(d) {
           return (d.type == 'text'
-                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'text'])
-                    && d.text is string && d.text.size() >= 1 && d.text.size() <= 1000)
+                    && d.keys().hasOnly(['type', 'from', 'to', 'at', 'text', 're'])
+                    && d.text is string && d.text.size() >= 1 && d.text.size() <= 1000
+                    // 답장: 답장하는 글의 앞부분(80자까지)을 말풍선 위에 인용해요
+                    && (!('re' in d) || (d.re is string && d.re.size() >= 1 && d.re.size() <= 80)))
               || ((d.type == 'photo' || d.type == 'draw')
                     && d.keys().hasOnly(['type', 'from', 'to', 'at', 'img'])
                     && img(d.img, 140000))

@@ -2902,3 +2902,33 @@ html[data-theme="dark"] .inst-bar { background: rgba(235, 235, 245, 0.14); color
 /* 월급 같은 대화가 아닌 알림의 동그라미 (notify.rs show_info) */
 .nb-coin { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: var(--apple-blue); color: #fff; }
 .nb-coin svg { width: 26px; height: 26px; }
+
+/* ===== 밀어서 답장 (reply.rs): 말풍선을 오른쪽으로 밀면 손가락을 따라가고 왼쪽에 답장 화살표가 나타나요 ===== */
+.bubbles .line { position: relative; touch-action: pan-y; transform: translateX(var(--rx, 0px)); transition: transform 0.34s var(--ease); }
+.bubbles .line.swp { transition: none; }
+.bubbles .line::before { content: ""; position: absolute; left: calc(6px - var(--rx, 0px)); top: 50%; width: 32px; height: 32px; margin-top: -16px; border-radius: 50%; background: rgba(120, 120, 128, 0.16) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 6.5 4.5 11.5l5 5'/%3E%3Cpath d='M5 11.5h8.5a5.5 5.5 0 0 1 5.5 5.5v1'/%3E%3C/svg%3E") center / 18px no-repeat; opacity: var(--rp, 0); transform: scale(calc(0.6 + 0.4 * var(--rp, 0))); pointer-events: none; }
+.reply-bar { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; margin: 0 12px 2px; padding: 8px 8px 8px 14px; border-radius: 18px; background: #fff; box-shadow: inset 3px 0 0 #0a7cff; animation: rbIn 0.28s var(--ease) both; }
+.rb-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.rb-main b { font-size: 12px; font-weight: 700; color: #0a7cff; }
+.rb-main span { font-size: 14px; color: #6e6e73; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-x { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: rgba(120, 120, 128, 0.16); color: #6e6e73; }
+.rb-x svg { width: 14px; height: 14px; }
+.bubble .rq { display: block; margin-bottom: 5px; padding-left: 8px; border-left: 2px solid rgba(60, 60, 67, 0.35); font-size: 13px; line-height: 17px; opacity: 0.75; max-height: 36px; overflow: hidden; }
+.bubble.me .rq { border-left-color: rgba(255, 255, 255, 0.75); }
+@keyframes rbIn { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .reply-bar { animation: none; } .bubbles .line { transition: none; } }
+
+/* 흰 판은 어두운 막 위에서도 회색이 되지 않고 하얀색이에요 (사람 카드, 위쪽 알림) */
+.pf-card.lg-card { background: rgba(255, 255, 255, 0.97); }
+.note-banner { z-index: 300; background: rgba(255, 255, 255, 0.97); }
+html[data-theme="dark"] .pf-card.lg-card, html[data-theme="dark"] .note-banner { background: rgba(44, 44, 48, 0.97); }
+
+/* ===== 사진 조정 (crop.rs): 까만 화면, 가운데 정사각형 틀 안이 프로필 사진이 되고 밖은 어둡게 보여요 ===== */
+.crop { position: fixed; inset: 0; z-index: 350; display: flex; flex-direction: column; background: #000; color: #fff; -webkit-user-select: none; user-select: none; }
+.crop-top { flex: none; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; height: calc(env(safe-area-inset-top, 0px) + 58px); padding: env(safe-area-inset-top, 0px) 10px 0; }
+.crop-back { width: 44px; height: 44px; display: grid; place-items: center; color: #fff; }
+.crop-back svg { width: 26px; height: 26px; }
+.crop-save { height: 44px; padding: 0 14px; color: #fff; font-size: 17px; font-weight: 600; }
+.crop-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+.crop-img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; will-change: transform; -webkit-user-drag: none; }
+.crop-frame { position: absolute; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.62); pointer-events: none; }

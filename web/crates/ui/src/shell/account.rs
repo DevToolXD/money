@@ -44,8 +44,9 @@ pub fn init() {
         dom::on(&f, "change", |_| {
             let Some(file) = crate::chat::take_file("file-profile") else { return };
             leptos::task::spawn_local(async move {
+                // 사진을 골랐으면 조정 화면이 떠요 (끌고 모아서 틀 안에 맞추고 저장). 뒤로 가면 그대로예요
+                let Some(data) = crate::crop::edit(file).await else { return };
                 let r = async {
-                    let data = crate::chat::read_image(file, 160.0, 36000, 0.8, true).await.map_err(|_| ())?;
                     dom::store_set("profile-photo", &data);
                     apply_profile();
                     if cloud::signed_in() {

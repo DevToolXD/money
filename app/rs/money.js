@@ -549,6 +549,10 @@ function __wbg_get_imports() {
         __wbg_fill_cb36fe21a8d46cd7: function(arg0) {
             arg0.fill();
         },
+        __wbg_firstChild_8ba00f6fe3423297: function(arg0) {
+            const ret = arg0.firstChild;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
         __wbg_firstElementChild_a60f6eaf7d453487: function(arg0) {
             const ret = arg0.firstElementChild;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);

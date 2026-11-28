@@ -1466,8 +1466,8 @@ async fn presence_beat() -> R {
         }
     }
 }
-/// 월급: 앱을 켜 두고 본 시간 10분마다 20 멸공 (firestore.rules의 600000·20과 같아요)
-const SALARY_MS: f64 = 600_000.0;
+/// 월급: 앱을 켜 두고 본 시간 5분마다 20 멸공 (firestore.rules의 300000·20과 같아요)
+const SALARY_MS: f64 = 300_000.0;
 const SALARY: f64 = 20.0;
 /// 아직 안 받은 월급 횟수 (한 번에 최대 6번). 본 시간을 모를 때는 0
 fn salary_due() -> f64 {
@@ -2066,6 +2066,10 @@ fn build() -> js_sys::Object {
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "decoBag", |_a| deco_bag().await);
     am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
+    am!(api, "playResume", |_a| {
+        PLAY_AT.set(now());
+        Ok(JsValue::UNDEFINED)
+    });
     am!(api, "salaryDue", |_a| Ok(n(salary_due())));
     am!(api, "salaryClaim", |a| salary_claim(num(&a[0])).await);
     am!(api, "casinoBet", |a| casino_bet(num(&a[0]), num(&a[1])).await);

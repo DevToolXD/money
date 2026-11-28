@@ -144,7 +144,9 @@ pub(crate) fn row_of(c: &Chat, i: usize, fresh: i64) -> Row {
     let ty = s(&m.raw, "type");
     let card = if !ty.is_empty() && ty != "text" { card_html(&m.raw, m.me, i) } else { String::new() };
     let b = if card.is_empty() {
-        format!(r#"<div class="bubble{}{}{}" data-i="{i}">{}</div>"#, if m.me { " me" } else { "" }, if last { " last" } else { "" }, if i as i64 == fresh { " fresh" } else { "" }, esc(&m.text))
+        let re = s(&m.raw, "re");
+        let quote = if re.is_empty() { String::new() } else { format!(r#"<span class="rq">{}</span>"#, esc(&dom::cut(&re, 80))) };
+        format!(r#"<div class="bubble{}{}{}" data-i="{i}">{quote}{}</div>"#, if m.me { " me" } else { "" }, if last { " last" } else { "" }, if i as i64 == fresh { " fresh" } else { "" }, esc(&m.text))
     } else {
         card
     };
@@ -371,6 +373,7 @@ pub fn open(id: &str) {
 
 pub fn close() {
     super::voice::leave();
+    super::reply::clear();
     super::info::close();
     if let Some(f) = UNSUB.with(|u| u.borrow_mut().take()) {
         let _ = f.call0(&JsValue::NULL);
@@ -471,6 +474,9 @@ pub fn init() {
             leptos::task::spawn_local(async move {
                 let (id, other) = (c.id.clone(), c.other.clone());
                 let payload = dom::obj(&[("type", "text".into()), ("text", JsValue::from_str(&text))]);
+                if let Some(q) = super::reply::take() {
+                    let _ = Reflect::set(&payload, &JsValue::from_str("re"), &JsValue::from_str(&q));
+                }
                 let t2 = text.clone();
                 if super::queue_send(move || cloud::call_now("send", &[JsValue::from_str(&id), JsValue::from_str(&other), payload, JsValue::from_str(&t2)])).await.is_err() {
                     toast("보내지 못했어요");

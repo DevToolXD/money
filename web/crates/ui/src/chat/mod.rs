@@ -11,6 +11,7 @@ pub(crate) mod info;
 mod menu;
 pub(crate) mod people;
 mod poll;
+mod reply;
 pub(crate) mod thread;
 
 pub use attach::{read_image, take_file};
@@ -454,12 +455,14 @@ pub fn init(c: Ctx) {
     poll::init();
     draw::init();
     voice::init();
+    reply::init();
     crate::casino::bind_hold();
 }
 
 /// 다른 탭으로 가면 열린 대화를 닫아요
 pub fn leave(tab: &str) {
     voice::leave();
+    reply::clear();
     if tab != "messages" && open_chat().is_some() {
         thread::close();
     }

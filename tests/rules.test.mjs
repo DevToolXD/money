@@ -472,7 +472,7 @@ await t("플레이 시간: 실제 지난 시간보다 빨리 늘지 않고, 줄�
   await seed((d) => setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000) }));
   await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 50000 }));
 });
-await t("월급: 본 시간 10분마다 20 멸공, 받은 횟수는 같은 묶음으로만 늘고 본 시간을 넘을 수 없어요", async () => {
+await t("월급: 본 시간 5분마다 20 멸공, 받은 횟수는 같은 묶음으로만 늘고 본 시간을 넘을 수 없어요", async () => {
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000), play: 1250000, paid: 0 }); });
   const A = pw("uA", "alice");
   const claim = (n, paid, bal = 20 * n) => {
@@ -481,22 +481,22 @@ await t("월급: 본 시간 10분마다 20 멸공, 받은 횟수는 같은 묶�
     b.update(doc(A, "presence/uA"), { paid });
     return b.commit();
   };
-  // 본 시간 1,250,000ms = 10분 2번(1,200,000)
-  await assertFails(claim(3, 3)); // 3번은 아직 안 됐어요 (1,800,000 > 1,250,000)
-  await assertFails(claim(2, 2, 50)); // 20 x 2가 아니에요
-  await assertFails(claim(2, 1)); // 받은 횟수가 n만큼 안 늘었어요
-  await assertFails(claim(2, 3)); // 받은 횟수를 더 늘려요
+  // 본 시간 1,250,000ms = 5분 4번(1,200,000)
+  await assertFails(claim(5, 5)); // 5번은 아직 안 됐어요 (1,500,000 > 1,250,000)
+  await assertFails(claim(4, 4, 50)); // 20 x 4가 아니에요
+  await assertFails(claim(4, 1)); // 받은 횟수가 n만큼 안 늘었어요
+  await assertFails(claim(4, 5)); // 받은 횟수를 더 늘려요
   await assertFails(claim(0, 0, 0)); // 0번
-  await assertFails(updateDoc(doc(A, "presence/uA"), { paid: 2 })); // 지갑 없이 받은 횟수만
-  await assertFails(updateDoc(doc(A, "wallets/uA"), { bal: increment(40), wt: serverTimestamp(), op: { kind: "salary", n: 2 } })); // 받은 횟수 없이 돈만
-  await assertSucceeds(claim(2, 2));
+  await assertFails(updateDoc(doc(A, "presence/uA"), { paid: 4 })); // 지갑 없이 받은 횟수만
+  await assertFails(updateDoc(doc(A, "wallets/uA"), { bal: increment(80), wt: serverTimestamp(), op: { kind: "salary", n: 4 } })); // 받은 횟수 없이 돈만
+  await assertSucceeds(claim(4, 4));
   await sleep(2100);
-  await assertFails(claim(1, 3)); // 이미 다 받았어요 (3번째는 1,800,000 필요)
-  await assertFails(claim(2, 2)); // 같은 걸 또
+  await assertFails(claim(1, 5)); // 이미 다 받았어요 (5번째는 1,500,000 필요)
+  await assertFails(claim(4, 4)); // 같은 걸 또
   // 1분마다 쓰는 본 시간에서 받은 횟수를 바꿀 수 없어요
   await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 0 }));
   await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 9 }));
-  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 2 }));
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 4 }));
   // 남의 것
   await assertFails(updateDoc(doc(pw("uB", "bob"), "presence/uA"), { paid: 9 }));
 });
@@ -725,6 +725,31 @@ await t("GIF와 음성 메모: 정해진 모양만 보낼 수 있어요", async 
   await assertSucceeds(send(db, "uA", "uB", { type: "gif", gif: GIF, r: 800, from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
   await sleep(650);
   await assertSucceeds(send(db, "uA", "uB", { type: "voice", audio: AUD, dur: 9, bars: "0123456789", from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
+});
+await t("답장: 글에 인용(re, 1~80자 글)을 붙일 수 있어요", async () => {
+  await seed(seedBase);
+  const db = pw("uA", "alice");
+  const m = (extra) => ({ type: "text", text: "응", from: "uA", to: "uB", at: serverTimestamp(), ...extra });
+  await assertSucceeds(send(db, "uA", "uB", m({ re: "안녕하세요" })).b.commit());
+  await sleep(700);
+  await assertFails(send(db, "uA", "uB", m({ re: "" })).b.commit()); // 빈 인용
+  await sleep(700);
+  await assertFails(send(db, "uA", "uB", m({ re: "가".repeat(81) })).b.commit()); // 너무 길어요
+  await sleep(700);
+  await assertFails(send(db, "uA", "uB", m({ re: 5 })).b.commit()); // 글이 아니에요
+  await sleep(700);
+  await assertFails(send(db, "uA", "uB", m({ re: "a", extra: 1 })).b.commit()); // 다른 칸
+  await sleep(700);
+  await assertFails(send(db, "uA", "uB", { type: "gif", gif: "https://media.giphy.com/media/aBcDe12345/200w.webp", r: 800, re: "x", from: "uA", to: "uB", at: serverTimestamp() }).b.commit()); // 글이 아닌 메시지에는 인용 못 붙여요
+});
+await t("음성 메모: 실제 소리 크기(수 KB~17만 글자)도 보낼 수 있어요", async () => {
+  await seed(seedBase);
+  const db = pw("uA", "alice");
+  const b64 = (n) => { let s = "AAAAGGZ0eXBtcDQy"; const c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; while (s.length < n) s += c[(s.length * 7) % 64]; return s.slice(0, n); };
+  for (const [n, mime] of [[2000, "audio/mp4"], [20000, "audio/mp4"], [50000, "audio/mp4;codecs=mp4a.40.2"], [100000, "audio/webm;codecs=opus"], [170000, "audio/mp4"]]) {
+    await assertSucceeds(send(db, "uA", "uB", { type: "voice", audio: `data:${mime};base64,${b64(n)}`, dur: 5, bars: "0123456789", from: "uA", to: "uB", at: serverTimestamp() }).b.commit());
+    await sleep(700);
+  }
 });
 await t("메시지는 지울 수도 고칠 수도 없어요 (받은 선물 금액 수정 포함)", async () => {
   await seed(async (s) => {

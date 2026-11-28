@@ -42,7 +42,10 @@ fn apply() {
     // innerHeight가 같이 줄어드는 iOS 26도, 자판이 없을 때의 높이(base)와 비교해서 알아채요
     if h > 0.0 && (full - h > 120.0 || (typing && base - h > 120.0)) {
         let _ = st.set_property("--vvh", &format!("{h}px"));
-        let _ = st.set_property("--vvt", &format!("{top}px"));
+        // 화면 틀(layout viewport)이 자판과 함께 줄어든 경우(iOS 26)는 보이는 곳과 틀이 같아서 아래로 옮길 게 없어요.
+        // 이때 offsetTop을 따라 옮기면 자판이 올라오는 동안 판이 아래로 튀었다 올라와요 (영상에서 본 버벅임)
+        let shift = if full - h > 120.0 { top } else { 0.0 };
+        let _ = st.set_property("--vvt", &format!("{shift}px"));
         crate::dom::toggle(&root, "kb-open", true);
     } else {
         let _ = st.remove_property("--vvh");

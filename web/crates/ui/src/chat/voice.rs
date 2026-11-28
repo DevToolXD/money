@@ -450,7 +450,8 @@ async fn send() {
         Err(_) => return toast("음성을 읽지 못했어요"),
     };
     let bytes = Uint8Array::new(&buf).to_vec();
-    let mime = g(&blob, "type").as_string().filter(|m| m.starts_with("audio/")).unwrap_or_else(|| "audio/mp4".into());
+    // 기기마다 이름 뒤에 코덱이 붙거나 공백이 섞여 와요(audio/mp4; codecs=...). 서버가 받는 모양(audio/mp4 같은 이름만)으로 정리해요
+    let mime = g(&blob, "type").as_string().map(|m| m.split(';').next().unwrap_or("").trim().to_lowercase()).filter(|m| m.starts_with("audio/") && m.chars().all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '+')).unwrap_or_else(|| "audio/mp4".into());
     let audio = format!("data:{mime};base64,{}", b64(&bytes));
     if audio.len() > MAX_CHARS {
         if let Some(b) = by_id("vsend") {
@@ -461,7 +462,8 @@ async fn send() {
     let dur = DUR.get().round().clamp(1.0, 60.0);
     let payload = dom::obj(&[("type", "voice".into()), ("audio", JsValue::from_str(&audio)), ("dur", dur.into()), ("bars", JsValue::from_str(&bars_text()))]);
     let (id, other) = (c.id.clone(), c.other.clone());
-    let ok = queue_send(move || cloud::call_now("send", &[JsValue::from_str(&id), JsValue::from_str(&other), payload, JsValue::from_str("음성 메시지")])).await.is_ok();
+    let sent = queue_send(move || cloud::call_now("send", &[JsValue::from_str(&id), JsValue::from_str(&other), payload, JsValue::from_str("음성 메시지")])).await;
+    let ok = sent.is_ok();
     if ok {
         dom::vibrate(8);
         reset();
@@ -469,7 +471,9 @@ async fn send() {
         if let Some(b) = by_id("vsend") {
             let _ = b.remove_attribute("disabled");
         }
-        toast("음성을 보내지 못했어요");
+        // 왜 안 갔는지 알 수 있게 오류 이름을 같이 보여 줘요 (예: permission-denied)
+        let code = sent.err().and_then(|e| g(&e, "code").as_string().or_else(|| e.as_string())).unwrap_or_default();
+        toast(&if code.is_empty() { "음성을 보내지 못했어요".to_string() } else { format!("음성을 보내지 못했어요 ({})", dom::cut(&code, 40)) });
     }
 }
 

@@ -1,5 +1,5 @@
-// 서버+화면: 월급. 앱을 켜 두고 본 시간 10분마다 20 멸공이 지갑에 들어와요 (본 시간은 1분마다 쌓여요).
-// 시험을 빠르게 하려고 본 시간을 9분 59초(599,000ms)로 미리 적어 두고, 앱을 켜 둔 채 1분 뒤 10분을 넘으면 20 멸공이 들어오는지 봐요.
+// 서버+화면: 월급. 앱을 켜 두고 본 시간 5분마다 20 멸공이 지갑에 들어와요 (본 시간은 1분마다 쌓여요).
+// 시험을 빠르게 하려고 본 시간을 4분 59초(299,000ms)로 미리 적어 두고, 앱을 켜 둔 채 1분 뒤 10분을 넘으면 20 멸공이 들어오는지 봐요.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -24,20 +24,20 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   const uid = await P0.evaluate(() => window.cloud.uid);
   await P0.context().close();
   // 본 시간을 9분 59초로 적어 둬요
-  await fetch(`${DB}/presence/${uid}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { at: { timestampValue: new Date().toISOString() }, play: { integerValue: '599000' }, paid: { integerValue: '0' } } }) });
+  await fetch(`${DB}/presence/${uid}`, { method: 'PATCH', headers: H, body: JSON.stringify({ fields: { at: { timestampValue: new Date().toISOString() }, play: { integerValue: '299000' }, paid: { integerValue: '0' } } }) });
   const bal = async () => Number(((await raw(`wallets/${uid}`)).fields.bal || {}).integerValue || 0);
   const bal0 = await bal();
   const P = await open();
   await P.evaluate(([u]) => window.cloud.signIn(u, 'abc123'), [id]);
   await P.reload(); await P.waitForTimeout(6000);
-  ok('켜자마자는 월급이 없어요 (아직 10분이 안 됐어요)', (await bal()) === bal0);
+  ok('켜자마자는 월급이 없어요 (아직 5분이 안 됐어요)', (await bal()) === bal0);
   let got = false, toast = '';
   for (let i = 0; i < 100 && !got; i++) { await P.waitForTimeout(1000); got = (await bal()) - bal0 === 20; }
   toast = (await P.textContent('#toast').catch(() => '')) || '';
-  ok('1분쯤 뒤 10분을 넘기면 20 멸공이 들어와요', got);
+  ok('1분쯤 뒤 5분을 넘기면 20 멸공이 들어와요', got);
   const pr = (await raw(`presence/${uid}`)).fields;
   ok('받은 횟수(paid)가 1이에요', pr.paid && Number(pr.paid.integerValue) === 1);
-  ok('본 시간이 10분을 넘었어요', Number(pr.play.integerValue) >= 600000);
+  ok('본 시간이 5분을 넘었어요', Number(pr.play.integerValue) >= 300000);
   ok('알림이 떠요', toast.includes('월급 20 멸공') || (await P.evaluate(() => document.body.textContent)).includes('월급 20 멸공'));
   await P.waitForTimeout(4000);
   ok('바로 또 들어오지 않아요 (한 번에 20만)', (await bal()) - bal0 === 20);
