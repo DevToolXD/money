@@ -24,7 +24,6 @@ pub mod algo;
 pub mod contest;
 pub mod invite;
 pub mod manage;
-pub mod map;
 pub mod game;
 pub mod money;
 pub mod notices;

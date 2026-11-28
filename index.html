@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://tile.openstreetmap.org https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -41,16 +41,6 @@
     <section class="screen toss" id="screen-money" data-screen="money" data-title="돈" data-notitle aria-label="돈">
       <div id="money-guest"><h2 class="guest-title">로그인 하세요</h2><button class="btn primary js-open-login" type="button">로그인</button></div>
       <div id="money-root"></div>
-    </section>
-    <section class="screen" id="screen-map" data-screen="map" data-title="지도" data-notitle aria-label="지도">
-      <div class="map-card">
-        <div class="map-view" id="map-view" aria-label="지도" role="application"><div class="map-world" id="map-world"><div class="map-tiles" id="map-tiles"></div></div></div>
-        <div class="map-ctl">
-          <button type="button" class="glass-btn round" id="map-zin" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-          <button type="button" class="glass-btn round" id="map-zout" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-        </div>
-        <span class="map-attr">© OpenStreetMap · © CARTO</span>
-      </div>
     </section>
     <section class="screen" id="screen-reels" data-screen="reels" data-title="릴스" data-notitle aria-label="릴스">
       <div class="reels" id="reels"></div>
@@ -374,6 +364,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=142"></script>
+<script type="module" src="app/rs/boot.js?v=143"></script>
 </body>
 </html>

@@ -36,10 +36,6 @@ const TRADE: &[Part] = &[
     Part { d: "M22 18.5H6.5l4 4", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
 ];
 // 지도: 접힌 지도
-const MAP: &[Part] = &[
-    Part { d: "M3.5 7.2 10 4.5l8 2.7 6.5-2.7v16.3L18 23.5l-8-2.7-6.5 2.7Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-    Part { d: "M10 4.5v16.3M18 7.2v16.3", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
-];
 // 놀기: 달력 위에 별 (약속)
 const PLAY: &[Part] = &[
     Part { d: "M4.5 8.5a2.5 2.5 0 0 1 2.5-2.5h14a2.5 2.5 0 0 1 2.5 2.5V22a2.5 2.5 0 0 1-2.5 2.5H7A2.5 2.5 0 0 1 4.5 22Z", stroke: 1.5, fill: false, alpha: 1.0, evenodd: false, transform: None },
@@ -120,7 +116,6 @@ pub fn icon(name: &str) -> Option<&'static [Part]> {
         "reels" => REELS,
         "game" => GAME,
         "play" => PLAY,
-        "map" => MAP,
         "trade" => TRADE,
         "untitled" | "blank2" | "blank3" | "blank4" | "blank5" | "blank6" => UNTITLED,
         "inventory" => INVENTORY,
