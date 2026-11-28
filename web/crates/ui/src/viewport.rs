@@ -42,10 +42,9 @@ fn apply() {
     // innerHeight가 같이 줄어드는 iOS 26도, 자판이 없을 때의 높이(base)와 비교해서 알아채요
     if h > 0.0 && (full - h > 120.0 || (typing && base - h > 120.0)) {
         let _ = st.set_property("--vvh", &format!("{h}px"));
-        // 화면 틀(layout viewport)이 자판과 함께 줄어든 경우(iOS 26)는 보이는 곳과 틀이 같아서 아래로 옮길 게 없어요.
-        // 이때 offsetTop을 따라 옮기면 자판이 올라오는 동안 판이 아래로 튀었다 올라와요 (영상에서 본 버벅임)
-        let shift = if full - h > 120.0 { top } else { 0.0 };
-        let _ = st.set_property("--vvt", &format!("{shift}px"));
+        // 아이폰은 자판이 올라오면 보이는 화면(visual viewport)을 위로 밀어 올려요. offsetTop만큼 앱 틀을 내려서 보이는 자리에 맞춰요
+        // (화면 틀이 같이 줄어드는 기기에서도 offsetTop을 안 따라가면 앱이 보이는 곳 위로 올라가 하얀 화면만 남아요)
+        let _ = st.set_property("--vvt", &format!("{top}px"));
         crate::dom::toggle(&root, "kb-open", true);
     } else {
         let _ = st.remove_property("--vvh");
@@ -73,7 +72,7 @@ pub fn init() {
             // 대화 입력줄과 릴스 댓글줄은 늘 맨 아래 붙어 있어서 건드리지 않아요
             if let Some(a) = crate::dom::doc().active_element() {
                 let fixed_bar = a.closest("#composer, .rc-bar").ok().flatten().is_some();
-                if !fixed_bar && a.closest(".login-body, .sheet, .ci-panel, .sns-panel, .pl-form, .screen").ok().flatten().is_some() {
+                if !fixed_bar && a.closest(".login-body, .sheet, .ci-panel, .sns-panel, .pl-form").ok().flatten().is_some() {
                     if let Ok(f) = Reflect::get(&a, &"scrollIntoView".into()).and_then(|f| f.dyn_into::<js_sys::Function>()) {
                         let _ = f.call1(&a, &crate::dom::obj(&[("block", "center".into()), ("behavior", "smooth".into())]));
                     }
