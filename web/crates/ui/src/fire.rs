@@ -497,7 +497,16 @@ async fn feedback_list() -> R {
 /* ----- 친구 초대 ----- */
 async fn invites_list() -> R {
     let snap = rethrow(get_docs(q(c(&["invites"]), vec![w(s("by"), "==", s(&uid_of()?)), lim(100.0)])).await)?;
-    Ok(docs(&snap).iter().map(|dd| { let v = data(dd); o(&[("uid", get(dd, "id")), ("at", n(ms(&get(&v, "at")))), ("claimed", (get(&v, "claimed") == JsValue::TRUE).into())]) }).collect::<js_sys::Array>().into())
+    // 받지 않은 친구마다 그 친구의 플레이 시간을 읽어요 (3시간을 채워야 받을 수 있어요)
+    let out = js_sys::Array::new();
+    for dd in docs(&snap).iter() {
+        let v = data(dd);
+        let claimed = get(&v, "claimed") == JsValue::TRUE;
+        let uid = get(dd, "id");
+        let play = if claimed { 0.0 } else { play_of(&uid.as_string().unwrap_or_default()).await };
+        out.push(&o(&[("uid", uid), ("at", n(ms(&get(&v, "at")))), ("claimed", claimed.into()), ("play", n(play))]));
+    }
+    Ok(out.into())
 }
 async fn invite_claim(r: String) -> R {
     let b = batch();
@@ -1365,9 +1374,45 @@ async fn claim_gift(cid: String, mid: String, amount: JsValue) -> R {
     Ok(JsValue::UNDEFINED)
 }
 /* ---------- 접속 중 표시 ---------- */
+thread_local! {
+    /// 내가 모은 플레이 시간(ms)과 마지막으로 잘 쓴 때(내 시계). 모르면 None (처음이거나 쓰기에 실패했어요)
+    static PLAY: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+    static PLAY_AT: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
+}
+/// 1분에 한 번: 접속 시각을 쓰고, 지난 박자와 이번 사이 시간(2분 안일 때만, 서버 시각 오차 3초는 빼고)을 플레이 시간에 더해요.
+/// 서버(firestore.rules)는 한 번에 늘어나는 양을 지난 기록과 지금 사이로 막아서, 이 값은 실제 시간보다 빨리 늘 수 없어요
 async fn presence_beat() -> R {
-    set_doc(d(&["presence", &uid_of()?]), o(&[("at", ts())])).await?;
-    Ok(JsValue::UNDEFINED)
+    let r = d(&["presence", &uid_of()?]);
+    let sent = now();
+    let play = match PLAY.get() {
+        Some(p) => {
+            let gap = sent - PLAY_AT.get();
+            let inc = if gap <= 150_000.0 { (gap - 3000.0).clamp(0.0, 90_000.0).floor() } else { 0.0 };
+            p + inc
+        }
+        None => {
+            let sn = get_doc(r.clone()).await?;
+            if exists(&sn) { num(&get(&data(&sn), "play")).max(0.0).floor() } else { 0.0 }
+        }
+    };
+    match set_doc(r, o(&[("at", ts()), ("play", n(play))])).await {
+        Ok(_) => {
+            PLAY.set(Some(play));
+            PLAY_AT.set(sent);
+            Ok(JsValue::UNDEFINED)
+        }
+        Err(e) => {
+            PLAY.set(None);
+            Err(e)
+        }
+    }
+}
+/// 누군가의 플레이 시간(ms)
+async fn play_of(uid: &str) -> f64 {
+    match get_doc(d(&["presence", uid])).await {
+        Ok(sn) if exists(&sn) => num(&get(&data(&sn), "play")).max(0.0),
+        _ => 0.0,
+    }
 }
 /// 최근 3분 안에 들어온 사람들: [uid, 시각(ms)] 목록
 async fn presence_list() -> R {
@@ -1447,19 +1492,6 @@ async fn deco_buy(k: String, price: f64, items: JsValue) -> R {
     m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(-price)), ("wt", ts()), ("op", o(&[("kind", s("deco")), ("k", s(&k))]))])])?;
     rethrow(commit(&b).await)?;
     Ok(JsValue::UNDEFINED)
-}
-/// 전화번호 인증 서버(Zavu 함수)에 보낼 로그인 토큰
-async fn id_token() -> R {
-    let u = current();
-    if u.is_null() || u.is_undefined() {
-        return Err(fail("not-signed-in", "로그인이 필요해요"));
-    }
-    aw(m(&u, "getIdToken", &[])).await
-}
-/// 이 계정이 전화번호 인증을 끝냈나 (verified/{uid} 문서가 있나)
-async fn phone_verified() -> R {
-    let sn = rethrow(get_doc(d(&["verified", &uid_of()?])).await)?;
-    Ok(exists(&sn).into())
 }
 /// 도박장(슬롯): 건 돈(bet)만큼 빠졌다가 배율만큼 돌아와요. 지갑은 net(= 돌려받는 돈 - 건 돈)만큼 바뀌어요.
 /// 서버는 이 모양만 받아요 (100의 배수, 잃으면 -건 돈, 1.5배면 +절반, 10배면 +9배: firestore.rules의 'bet')
@@ -1924,8 +1956,6 @@ fn build() -> js_sys::Object {
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "decoBag", |_a| deco_bag().await);
     am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
-    am!(api, "idToken", |_a| id_token().await);
-    am!(api, "phoneVerified", |_a| phone_verified().await);
     am!(api, "casinoBet", |a| casino_bet(num(&a[0]), num(&a[1])).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));

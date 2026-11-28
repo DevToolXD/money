@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://media.giphy.com; font-src 'self'; connect-src 'self' https://fn.zavu.dev https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; manifest-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src 'self' data: blob:; img-src 'self' data: blob: https://media.giphy.com; font-src 'self'; connect-src 'self' https://api.giphy.com https://*.googleapis.com wss://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src 'self' about: blob:; child-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <script src="app/guard.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="자본주의">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="app/tokens.css?v=2">
-<link rel="stylesheet" href="app/app.css?v=192">
+<link rel="stylesheet" href="app/app.css?v=193">
 <link rel="stylesheet" href="app/glass.css?v=1">
 </head>
 <body>
@@ -91,7 +91,7 @@
     </section>
     <section class="screen" id="screen-invite" data-screen="invite" data-title="친구 초대" aria-labelledby="title-invite">
       <header class="large-title"><h1 id="title-invite">친구 초대</h1></header>
-      <div class="card inv-hero"><span class="inv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6"/><path d="M18 8v6M15 11h6"/></svg></span><h2>친구를 초대하고 50 멸공을 받으세요</h2><p>내 초대 링크로 친구가 가입하면, 친구 한 명마다 50 멸공을 받을 수 있어요. 받기는 아래에서 직접 눌러요.</p><button class="btn primary" id="invite-share" type="button">초대 링크 복사</button></div>
+      <div class="card inv-hero"><span class="inv-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.6 6.5-5.6s5.9 2 6.5 5.6"/><path d="M18 8v6M15 11h6"/></svg></span><h2>친구를 초대하고 50 멸공을 받으세요</h2><p>내 초대 링크로 가입한 친구가 앱을 3시간 플레이하면, 친구 한 명마다 50 멸공을 받을 수 있어요. 3시간이 차면 아래에서 직접 눌러 받아요.</p><button class="btn primary" id="invite-share" type="button">초대 링크 복사</button></div>
       <h2 class="section-title">초대한 친구</h2>
       <div class="card"><ul class="list" id="invite-list"><li class="inv-empty">아직 초대한 친구가 없어요</li></ul></div>
     </section>
@@ -241,21 +241,6 @@
     <div class="walls"><button class="wall-opt" type="button" data-pick="white" aria-pressed="false"><i data-wall="white"></i>흰색</button><button class="wall-opt" type="button" data-pick="sunset" aria-pressed="false"><i data-wall="sunset"></i>노을</button><button class="wall-opt" type="button" data-pick="aurora" aria-pressed="false"><i data-wall="aurora"></i>오로라</button><button class="wall-opt" type="button" data-pick="night" aria-pressed="false"><i data-wall="night"></i>밤하늘</button><button class="wall-opt" type="button" data-pick="mint" aria-pressed="false"><i data-wall="mint"></i>민트</button></div>
   </section>
 
-  <section class="pg" id="phone-gate" aria-labelledby="pg-title" hidden>
-    <div class="pg-body">
-      <h1 class="pg-title" id="pg-title">전화번호 인증</h1>
-      <p class="pg-sub">한 사람이 계정 하나만 쓰도록 휴대폰 번호를 한 번 확인해요. 번호는 다른 사람에게 보이지 않아요.</p>
-      <div class="pg-card">
-        <label><span>휴대폰 번호</span><input id="pg-phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-1234-5678" maxlength="13"></label>
-        <label id="pg-code-row" hidden><span>인증번호</span><input id="pg-code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6자리" maxlength="6"></label>
-      </div>
-      <p class="pg-msg" id="pg-msg" role="alert"></p>
-      <button class="pg-btn" id="pg-send" type="button">인증번호 받기</button>
-      <button class="pg-btn" id="pg-check" type="button" hidden>확인</button>
-      <button class="pg-link" id="pg-resend" type="button" hidden>인증번호 다시 받기</button>
-      <button class="pg-link" id="pg-logout" type="button">로그아웃</button>
-    </div>
-  </section>
   <section class="login" id="login" aria-label="로그인" hidden>
     <div class="slides" id="slides" aria-hidden="true"><i style="background-image:url(assets/login/1.jpg?v=3)"></i><i style="background-image:url(assets/login/2.jpg?v=3)"></i><i style="background-image:url(assets/login/3.jpg?v=3)"></i><i style="background-image:url(assets/login/4.jpg?v=3)"></i><i style="background-image:url(assets/login/5.jpg?v=3)"></i></div><div class="scrim" aria-hidden="true"></div>
     <button class="glass-btn round lg" id="login-close" type="button" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -364,6 +349,6 @@
 </div>
 
 <script type="module" src="app/firebase.js?v=58"></script>
-<script type="module" src="app/rs/boot.js?v=144"></script>
+<script type="module" src="app/rs/boot.js?v=145"></script>
 </body>
 </html>

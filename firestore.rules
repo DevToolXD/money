@@ -846,6 +846,7 @@ service cloud.firestore {
         && resource.data.claimed == false && request.resource.data.claimed == true
         && getAfter(walletPath(request.auth.uid)).data.op.kind == 'invite'
         && getAfter(walletPath(request.auth.uid)).data.op.ref == uid
+        && get(/databases/$(database)/documents/presence/$(uid)).data.get('play', 0) >= 10800000
         && getAfter(walletPath(request.auth.uid)).data.wt == request.time;
     }
 
@@ -946,7 +947,7 @@ service cloud.firestore {
             && get(companyPath(request.resource.data.op.cid)).data.get('pay', 0) + request.resource.data.op.amt * 100 == getAfter(companyPath(request.resource.data.op.cid)).data.pay
             && request.resource.data.bal == resource.data.bal - request.resource.data.op.amt)
           ||
-          // 친구 초대 보상 받기: 내가 초대한 친구의 초대 기록(invites)이 같은 묶음에서 '받음'으로 바뀌고, 50 토큰이 들어와요 (한 친구에 한 번)
+          // 친구 초대 보상 받기: 내가 초대한 친구가 3시간(10800000ms) 이상 플레이했고, 그 친구의 초대 기록(invites)이 같은 묶음에서 '받음'으로 바뀌고, 50 토큰이 들어와요 (한 친구에 한 번)
           (request.resource.data.op.kind == 'invite'
             && request.resource.data.rate == resource.data.rate
             && request.resource.data.t == resource.data.t
@@ -954,6 +955,7 @@ service cloud.firestore {
             && request.resource.data.op.amt == 50
             && get(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.by == uid
             && get(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.claimed == false
+            && get(/databases/$(database)/documents/presence/$(request.resource.data.op.ref)).data.get('play', 0) >= 10800000
             && getAfter(/databases/$(database)/documents/invites/$(request.resource.data.op.ref)).data.claimed == true
             && request.resource.data.bal == resource.data.bal + 50)
           ||
@@ -1453,11 +1455,20 @@ service cloud.firestore {
     // SNS (무제 탭): 글·사진 하나, 좋아요·리포스트는 내 표시만, 댓글 수는 댓글을 쓰는 같은 묶음에서만 1 늘어요
     function postPath(id) { return /databases/$(database)/documents/posts/$(id); }
     // ----- 접속 중 표시: 앱이 켜져 있는 동안 1분에 한 번 시각만 써요 -----
+    // play는 앱을 켜 두고 보고 있던 시간(밀리초)을 모은 값이에요. 한 번에 늘어나는 양은 지난 기록과 지금 사이(서버 시각)와 2분을 넘을 수 없어요 (초대 보상의 3시간 조건에 써요)
     match /presence/{uid} {
       allow get, list: if signedIn();
-      allow create, update: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['at'])
-        && request.resource.data.at == request.time;
+      allow create: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['at', 'play'])
+        && request.resource.data.at == request.time
+        && request.resource.data.play == 0;
+      allow update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['at', 'play'])
+        && request.resource.data.at == request.time
+        && request.resource.data.play is int
+        && request.resource.data.play >= resource.data.get('play', 0)
+        && request.resource.data.play - resource.data.get('play', 0) <= 120000
+        && request.resource.data.play - resource.data.get('play', 0) <= request.time.toMillis() - resource.data.at.toMillis();
     }
 
     // ----- 게임(독소전쟁 대항전): 팀(r 소련, b 독일)을 한 번 고르고, 누른 횟수를 4초 이상 모아 한 번에 올려요 (한 번에 1~200).

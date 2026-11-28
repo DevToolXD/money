@@ -29,6 +29,10 @@ const raw = async (p) => (await (await fetch(`${DB}/${p}`, { headers: H })).json
   ok('친구 초대 화면 문구', (await A.textContent('#screen-invite')).includes('친구를 초대하고 50 멸공을 받으세요'));
   await A.waitForTimeout(1500);
   ok('초대한 친구가 보여요', (await A.textContent('#invite-list')).includes('새친구'));
+  ok('3시간 전에는 받기 버튼이 없고 플레이 시간이 보여요', !(await A.$('#invite-list [data-claim]')) && (await A.textContent('#invite-list')).includes('/ 3시간'));
+  // 친구가 3시간을 채웠다고 서버에 적어요 (실제로는 앱을 켜 두는 동안 1분마다 조금씩 늘어요)
+  await fetch(`http://127.0.0.1:8081/v1/projects/money-sim-36ed8/databases/(default)/documents/presence/${uB}`, { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer owner' }, body: JSON.stringify({ fields: { at: { timestampValue: new Date().toISOString() }, play: { integerValue: '10800000' } } }) });
+  await A.reload(); await A.waitForTimeout(6000); await menu(A, 'invite'); await A.waitForTimeout(1800);
   const bal0 = Number((await raw(`wallets/${uA}`)).fields.bal.integerValue);
   await A.click('#invite-list [data-claim]'); await A.waitForTimeout(2500);
   ok('받기를 누르면 50 멸공', Number((await raw(`wallets/${uA}`)).fields.bal.integerValue) - bal0 === 50);

@@ -417,10 +417,29 @@ await t("공모전: 관리자만 열고 닫고, 사진 하나·한 표, 표 수�
 await t("접속 표시: 내 것만, 시각만", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");
-  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp() }));
-  await assertFails(setDoc(doc(A, "presence/uB"), { at: serverTimestamp() }));
-  await assertFails(setDoc(doc(A, "presence/uA"), { at: Timestamp.fromMillis(Date.now() + 9e8) }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp() })); // play 없이는 못 만들어요
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 5000 })); // 처음은 0
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 0 }));
+  await assertFails(setDoc(doc(A, "presence/uB"), { at: serverTimestamp(), play: 0 }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: Timestamp.fromMillis(Date.now() + 9e8), play: 0 }));
   await assertSucceeds(getDocs(query(collection(pw("uB", "bob"), "presence"), limit(10))));
+});
+await t("플레이 시간: 실제 지난 시간보다 빨리 늘지 않고, 줄지도 않아요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000), play: 100000 }); });
+  const A = pw("uA", "alice");
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 100000 + 61000 })); // 지난 기록 이후 60초인데 61초
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 99000 })); // 줄이기
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp() })); // 지우기
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 100000.5 })); // 정수가 아니에요
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 100000 + 55000 }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 100000 + 55000 + 55000 })); // 방금 썼는데 또 55초
+  // 오래 쉬었다 와도 한 번에 2분까지만
+  await seed((d) => setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 3600000), play: 0 }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 121000 }));
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 120000 }));
+  // play가 없던 옛 문서도 이어 써요
+  await seed((d) => setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000) }));
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 50000 }));
 });
 await t("게임: 팀 고르기·점수는 4초마다 1~200씩, 팀 점수와 같은 묶음으로만", async () => {
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "game/main"), { r: 0, b: 0 }); });
@@ -1842,7 +1861,7 @@ await t("단톡방: 글은 대화 아이디로 보내고, 주고받기와 요청
 });
 
 console.log("\n[친구 초대]");
-await t("친구 초대: 가입하는 묶음에서만 한 번 남기고, 초대한 사람만 50 토큰을 한 번 받아요", async () => {
+await t("친구 초대: 가입하는 묶음에서만 한 번 남기고, 친구가 3시간 플레이한 뒤 초대한 사람만 50 토큰을 한 번 받아요", async () => {
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "profiles/uN"), { id: "newbie", name: "새친구", photo: "" }); });
   const nb = pw("uN", "newbie"), alice = pw("uA", "alice"), bob = pw("uB", "bob");
   const join = (by, withWallet = true) => { const b = writeBatch(nb); b.set(doc(nb, "invites/uN"), { by, at: serverTimestamp(), claimed: false }); if (withWallet) b.set(doc(nb, "wallets/uN"), { bal: 0, rate: 0, t: serverTimestamp(), wt: serverTimestamp(), op: { kind: "init" } }); return b; };
@@ -1855,6 +1874,10 @@ await t("친구 초대: 가입하는 묶음에서만 한 번 남기고, 초대�
   await assertFails(getDocs(query(collection(bob, "invites"), where("by", "==", "uA"), limit(100))));
   await seed((d) => setDoc(doc(d, "wallets/uA"), { bal: 10, rate: 0, t: EPOCH, wt: EPOCH, op: { kind: "init" } }));
   const claim = (db, uid, amt = 50) => { const b = writeBatch(db); b.update(doc(db, "invites/uN"), { claimed: true }); b.update(doc(db, "wallets/" + uid), { bal: increment(amt), wt: serverTimestamp(), op: { kind: "invite", ref: "uN", amt } }); return b; };
+  await assertFails(claim(alice, "uA").commit()); // 친구가 플레이한 적이 없어요
+  await seed((d) => setDoc(doc(d, "presence/uN"), { at: EPOCH, play: 10799999 }));
+  await assertFails(claim(alice, "uA").commit()); // 3시간에 1밀리초 모자라요
+  await seed((d) => setDoc(doc(d, "presence/uN"), { at: EPOCH, play: 10800000 }));
   await assertFails(claim(bob, "uB").commit()); // 초대한 사람이 아니에요
   await assertFails(claim(alice, "uA", 500).commit()); // 50이 아니에요
   await assertFails(updateDoc(doc(alice, "invites/uN"), { claimed: true })); // 지갑 없이

@@ -460,7 +460,6 @@ pub(crate) fn boot(cloud_v: JsValue) {
             toast("계정 정보를 만들지 못했어요. 새로고침해 주세요");
         }
         crate::money::start_wallet();
-        crate::phone::check().await;
         crate::notices::check();
         crate::chat::start();
         crate::presence::start();
@@ -670,7 +669,3 @@ fn preload() {
     });
 }
 
-/// 로그아웃 (전화번호 인증 화면에서도 써요)
-pub(crate) async fn logout() {
-    login::logout().await
-}

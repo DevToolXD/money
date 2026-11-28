@@ -2080,6 +2080,7 @@ button.row { width: 100%; background: none; text-align: left; color: inherit; }
 .inv-row { display: flex; align-items: center; gap: 12px; }
 .inv-av { width: 40px; height: 40px; font-size: 14px; flex: none; }
 .inv-claim { width: auto; height: 36px; padding: 0 14px; font-size: 14px; margin: 0; }
+.inv-wait { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
 .inv-done { font-size: 14px; font-weight: 700; color: var(--text-secondary); }
 
 /* 베타 종료 */
@@ -2818,27 +2819,8 @@ html.kb-open .dock { visibility: hidden; opacity: 0; pointer-events: none; }
 @keyframes bootSpin { to { transform: rotate(360deg); } }
 @keyframes bootGone { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 
-/* ===== 전화번호 인증 (새 계정은 한 번 해야 앱을 써요, phone.rs) ===== */
-.pg { position: fixed; inset: 0; z-index: 120; background: #f2f2f7; color: #000; overflow-y: auto; }
-.pg[hidden] { display: none; }
-.pg-body { max-width: 430px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 56px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px); display: flex; flex-direction: column; gap: 12px; }
-.pg-body > * { flex-shrink: 0; }
-.pg-title { margin: 0; font-size: 36px; font-weight: 800; letter-spacing: -.02em; }
-.pg-sub { margin: 0 0 6px; font-size: 16px; line-height: 23px; color: #6e6e73; }
-.pg-card { background: #fff; border-radius: 10px; }
-.pg-card label { display: flex; align-items: center; gap: 12px; padding: 14px 16px; font-size: 16px; }
-.pg-card label + label { border-top: 0.5px solid #e5e5ea; }
-.pg-card label span { width: 84px; flex: none; color: #000; font-weight: 600; }
-.pg-card input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 17px; color: #000; }
-.pg-msg { margin: 0; min-height: 20px; font-size: 14px; font-weight: 600; color: #ff3b30; }
-.pg-msg.good { color: #0a7cff; }
-.pg-btn { height: 52px; border-radius: 999px; background: #0a7cff; color: #fff; font-size: 17px; font-weight: 700; text-align: center; }
-.pg-btn:disabled { opacity: .45; }
-.pg-link { height: 40px; color: #0a7cff; font-size: 16px; font-weight: 600; text-align: center; }
-.pg-link:disabled { color: #8e8e93; }
-
 /* 전역 button이 글자를 왼쪽에 붙이므로(text-align: inherit), 채워진 알약 버튼은 가운데로 맞춰요 */
-.rc-send, .ct-close, .alert-btn, .del, .gact, .cz-spin, .pg-btn { text-align: center; }
+.rc-send, .ct-close, .alert-btn, .del, .gact, .cz-spin { text-align: center; }
 .rc-send { padding: 0 16px; }
 /* 글을 쓰는 시트는 뒤 화면이 비쳐 글이 흐려 보이지 않게 더 진한 유리로 해요 */
 .sns-panel { background: rgba(255, 255, 255, 0.86); -webkit-backdrop-filter: blur(30px) saturate(1.6); backdrop-filter: blur(30px) saturate(1.6); }

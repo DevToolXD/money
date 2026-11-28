@@ -1,11 +1,13 @@
-//! 친구 초대: 내 초대 링크(…/?ref=내 번호)를 보내고, 그 링크로 친구가 가입하면 친구 한 명마다 50 멸공을 받을 수 있어요.
-//! 자동으로 들어오지 않고, 이 화면에서 "받기"를 눌러야 들어와요 (서버 규칙: invites, 지갑 op 'invite').
+//! 친구 초대: 내 초대 링크(…/?ref=내 번호)를 보내고, 그 링크로 가입한 친구가 앱을 3시간 플레이하면 친구 한 명마다 50 멸공을 받을 수 있어요.
+//! 자동으로 들어오지 않고, 3시간을 채운 뒤 이 화면에서 "받기"를 눌러야 들어와요 (서버 규칙: invites, presence.play, 지갑 op 'invite').
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::dom::{self, by_id, esc};
 
+/// 초대 보상을 받으려면 친구가 채워야 하는 플레이 시간 (firestore.rules의 10800000과 같아요)
+const NEED_MS: f64 = 10_800_000.0;
 const SITE: &str = "https://www.xn--sn3bu3q0e19c.com/";
 
 /// 앱을 열 때: 주소에 초대 표시(?ref=)가 있으면 기억해 둬요 (가입할 때 써요)
@@ -74,17 +76,32 @@ pub fn open() {
                 let photo = cloud::get(&p, "photo").as_string().unwrap_or_default();
                 let done = cloud::get(x, "claimed") == JsValue::TRUE;
                 let at = cloud::date_ko(cloud::get(x, "at").as_f64().unwrap_or(0.0));
+                let play = cloud::get(x, "play").as_f64().unwrap_or(0.0);
+                let ready = play >= NEED_MS;
+                let sub = if done { format!("{at} 가입") } else { format!("{at} 가입 · 플레이 {} / 3시간", clock(play)) };
                 format!(
-                    r#"<li class="row inv-row">{}<span class="row-main"><b>{}</b><span>{} 가입</span></span>{}</li>"#,
+                    r#"<li class="row inv-row">{}<span class="row-main"><b>{}</b><span>{}</span></span>{}</li>"#,
                     dom::avatar_html(&name, &photo, "avatar contact inv-av"),
                     esc(&name),
-                    esc(&at),
-                    if done { r#"<span class="inv-done">받음</span>"#.to_string() } else { format!(r#"<button type="button" class="btn primary inv-claim" data-claim="{}">50 멸공 받기</button>"#, esc(&uid)) }
+                    esc(&sub),
+                    if done {
+                        r#"<span class="inv-done">받음</span>"#.to_string()
+                    } else if ready {
+                        format!(r#"<button type="button" class="btn primary inv-claim" data-claim="{}">50 멸공 받기</button>"#, esc(&uid))
+                    } else {
+                        r#"<span class="inv-wait">플레이 중</span>"#.to_string()
+                    }
                 )
             })
             .collect();
         l.set_inner_html(&rows);
     });
+}
+
+/// 1시간 20분처럼
+fn clock(ms: f64) -> String {
+    let m = (ms / 60_000.0).floor() as i64;
+    if m < 60 { format!("{m}분") } else { format!("{}시간 {}분", m / 60, m % 60) }
 }
 
 fn claim(r: String) {
