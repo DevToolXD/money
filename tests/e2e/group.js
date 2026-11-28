@@ -52,7 +52,7 @@ const open = async (b) => {
   const OUT = process.env.CI_SHOTS;
   const shot = async (ms, name) => { await B.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), ms); await B.waitForTimeout(60); if (OUT) await B.screenshot({ path: `${OUT}/${name}.png` }); };
   for (const ms of [0, 40, 100, 135, 180, 240, 360]) await shot(ms, 'o' + ms);
-  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(1500);
+  await B.evaluate(() => document.getAnimations().forEach((a) => { try { a.finish(); } catch (e) {} })); await B.waitForTimeout(1500);
   const mem = (await B.textContent('#cinfo .ci-mems')) || '';
   ok('대화 정보에서 대화 상대가 보여요', await B.isVisible('#cinfo .ci-panel') && mem.includes('가나다') && (await B.textContent('#cinfo')).includes('명'));
   await B.screenshot({ path: require('path').join(__dirname, 'shots', 'group-members.png') });
@@ -65,10 +65,10 @@ const open = async (b) => {
   ok('알림 가리기 켜짐', (await B.getAttribute('#cinfo [data-act="mute"].ci-sw', 'aria-checked')) === 'true');
   await B.click('#cinfo [data-act="close"]');
   for (const ms of [0, 60, 100, 150, 200]) await shot(ms, 'c' + ms);
-  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(500);
+  await B.evaluate(() => document.getAnimations().forEach((a) => { try { a.finish(); } catch (e) {} })); await B.waitForTimeout(500);
   ok('닫으면 사라져요', !(await B.isVisible('#cinfo .ci-panel')));
   await B.evaluate(() => document.getElementById('thread-avatar').click()); await B.waitForTimeout(800);
-  await B.evaluate(() => document.getAnimations().forEach((a) => a.finish())); await B.waitForTimeout(300);
+  await B.evaluate(() => document.getAnimations().forEach((a) => { try { a.finish(); } catch (e) {} })); await B.waitForTimeout(300);
   ok('사진을 눌러도 같은 정보가 열려요', await B.isVisible('#cinfo .ci-panel'));
   await B.evaluate(() => document.querySelectorAll('#cinfo .ci-mem')[0]?.click()); await B.waitForTimeout(1200);
   ok('대화 상대를 누르면 프로필이 떠요', await B.isVisible('.pf-card'));
