@@ -1,4 +1,4 @@
-//! 관리 화면의 베타 종료(모든 데이터 한 번 지우기) 버튼. 설정 탭을 없애면서 여기로 옮겼어요.
+//! 관리 화면의 베타 종료(모든 데이터 지우기) 버튼. 이미 한 번 지웠어도 다시 누르면 다시 지워요. 설정 탭을 없애면서 여기로 옮겼어요.
 
 use wasm_bindgen_futures::spawn_local;
 
@@ -9,15 +9,10 @@ pub fn beta_init() {
     dom::on(&b, "click", |_| {
         spawn_local(async {
             let c = crate::chat::ctx();
-            if let Ok(v) = cloud::call("betaState", &[]).await {
-                if v.as_string().as_deref() == Some("done") {
-                    return c.toast("베타 종료는 이미 했어요");
-                }
-            }
             if !c.ask("베타를 종료할까요?", "모든 사람의 계정 데이터, 멸공, 회사, 대화, 게시물이 지워져요. 되돌릴 수 없어요.", "계속", "취소").await {
                 return;
             }
-            if !c.ask("정말 모두 지울까요?", "딱 한 번만 할 수 있어요. 관리자 데이터도 지워지고, 끝나면 로그아웃돼요.", "모두 지우기", "그만두기").await {
+            if !c.ask("정말 모두 지울까요?", "관리자 데이터도 지워지고, 끝나면 로그아웃돼요. 이미 한 번 지웠어도 다시 지워요.", "모두 지우기", "그만두기").await {
                 return;
             }
             let Some(btn) = by_id("beta-end") else { return };

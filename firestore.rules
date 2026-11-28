@@ -865,11 +865,14 @@ service cloud.firestore {
       allow get, list, delete: if isOwner();
     }
 
-    // ----- 베타 종료 (관리자 한 번만): 상태를 'wiping'으로 정하면 그동안 관리자가 모든 문서를 읽고 지울 수 있어요. 끝나면 'done'이 되고 다시는 못 해요 -----
+    // ----- 베타 종료/초기화 (관리자): 상태를 'wiping'으로 정하면 그동안 관리자가 모든 문서를 읽고 지울 수 있어요. 끝나면 'done'이 되고, 한 번 더 지우려면 관리자가 다시 'wiping'으로 정해요 -----
     match /meta/beta {
       allow get: if signedIn();
       allow create: if isOwner() && request.resource.data.keys().hasOnly(['state', 'at']) && request.resource.data.state == 'wiping' && request.resource.data.at == request.time;
-      allow update: if isOwner() && resource.data.state == 'wiping' && request.resource.data.keys().hasOnly(['state', 'at']) && request.resource.data.state == 'done' && request.resource.data.at == request.time;
+      // wiping → done(끝), done → wiping(다시 시작: 관리자가 한 번 더 모두 지우고 싶을 때)
+      allow update: if isOwner() && request.resource.data.keys().hasOnly(['state', 'at']) && request.resource.data.at == request.time
+        && ((resource.data.state == 'wiping' && request.resource.data.state == 'done')
+          || (resource.data.state == 'done' && request.resource.data.state == 'wiping'));
     }
     function wiping() { return isOwner() && get(/databases/$(database)/documents/meta/beta).data.get('state', '') == 'wiping'; }
     match /{document=**} {

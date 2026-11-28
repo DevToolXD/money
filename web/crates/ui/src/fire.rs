@@ -521,12 +521,12 @@ async fn beta_state() -> R {
     Ok(if exists(&sn) { get(&data(&sn), "state") } else { s("") })
 }
 async fn beta_end() -> R {
+    // 처음이면 만들고, 이미 한 번 끝났어도(done) 관리자가 다시 누르면 다시 시작해요. 지우던 중(wiping)이면 이어서 지워요
     let st0 = st(&beta_state().await?);
-    if st0 == "done" {
-        return Err(fail("done", "베타 종료는 이미 한 번 했어요"));
-    }
     if st0.is_empty() {
         rethrow(set_doc(d(&["meta", "beta"]), o(&[("state", s("wiping")), ("at", ts())])).await)?;
+    } else if st0 == "done" {
+        rethrow(update_doc(d(&["meta", "beta"]), o(&[("state", s("wiping")), ("at", ts())])).await)?;
     }
     let mut total = 0.0;
     // 하위 묶음부터 지우고, 위 문서를 지워요
