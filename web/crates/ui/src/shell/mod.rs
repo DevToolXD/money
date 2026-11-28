@@ -582,6 +582,7 @@ pub fn start() {
     crate::money::init(c.clone());
     crate::notify::init_system();
     crate::invite::init();
+    crate::install::init();
     crate::feedback::init();
     crate::manage::init(c.clone());
     crate::notices::init();

@@ -21,6 +21,7 @@ pub mod reel_comments;
 pub mod shop;
 pub mod algo;
 pub mod contest;
+pub mod install;
 pub mod invite;
 pub mod manage;
 pub mod game;
