@@ -13,6 +13,7 @@ thread_local! {
     static SEEN: RefCell<HashMap<String, f64>> = RefCell::new(HashMap::new());
     static TIMER: Cell<i32> = const { Cell::new(0) };
     static TICKS: Cell<u32> = const { Cell::new(0) };
+    static BUSY: Cell<bool> = const { Cell::new(false) };
 }
 
 /// 3분 안에 들어왔으면 접속 중
@@ -38,12 +39,44 @@ pub fn wrap(avatar: String, uid: &str) -> String {
     }
 }
 
+/// 월급: 앱을 켜 두고 본 시간 10분마다 20 멸공이 들어와요 (받을 게 있으면 지갑 쓰기 줄에 서서 받아요)
+fn pay_salary() {
+    if BUSY.replace(true) {
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        let due = cloud::call("salaryDue", &[]).await.ok().and_then(|v| v.as_f64()).unwrap_or(0.0);
+        if due < 1.0 {
+            BUSY.set(false);
+            return;
+        }
+        let f = Closure::once_into_js(move || cloud::call_now("salaryClaim", &[due.into()]).unwrap_or(JsValue::UNDEFINED));
+        let r = cloud::settle(crate::money::wallet_op(f.unchecked_into()).into()).await;
+        BUSY.set(false);
+        if let Ok(v) = r {
+            let amt = v.as_f64().unwrap_or(0.0);
+            if amt > 0.0 {
+                crate::shell::toast(&format!("월급 {} 멸공이 들어왔어요", amt as i64));
+                crate::money::log(&dom::obj(&[
+                    ("t", js_sys::Date::now().into()),
+                    ("name", "월급 (10분마다 20 멸공)".into()),
+                    ("cat", "월급".into()),
+                    ("icon", "gift".into()),
+                    ("amt", amt.into()),
+                ]));
+            }
+        }
+    });
+}
+
 fn tick() {
     if !cloud::signed_in() || dom::doc_hidden() {
         return;
     }
     wasm_bindgen_futures::spawn_local(async {
-        let _ = cloud::call("presenceBeat", &[]).await;
+        if cloud::call("presenceBeat", &[]).await.is_ok() {
+            pay_salary();
+        }
         // 목록은 두 번에 한 번만 읽어요 (처음은 바로)
         let n = TICKS.get();
         TICKS.set(n.wrapping_add(1));

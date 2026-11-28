@@ -472,6 +472,34 @@ await t("플레이 시간: 실제 지난 시간보다 빨리 늘지 않고, 줄�
   await seed((d) => setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000) }));
   await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 50000 }));
 });
+await t("월급: 본 시간 10분마다 20 멸공, 받은 횟수는 같은 묶음으로만 늘고 본 시간을 넘을 수 없어요", async () => {
+  await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "presence/uA"), { at: Timestamp.fromMillis(Date.now() - 60000), play: 1250000, paid: 0 }); });
+  const A = pw("uA", "alice");
+  const claim = (n, paid, bal = 20 * n) => {
+    const b = writeBatch(A);
+    b.update(doc(A, "wallets/uA"), { bal: increment(bal), wt: serverTimestamp(), op: { kind: "salary", n } });
+    b.update(doc(A, "presence/uA"), { paid });
+    return b.commit();
+  };
+  // 본 시간 1,250,000ms = 10분 2번(1,200,000)
+  await assertFails(claim(3, 3)); // 3번은 아직 안 됐어요 (1,800,000 > 1,250,000)
+  await assertFails(claim(2, 2, 50)); // 20 x 2가 아니에요
+  await assertFails(claim(2, 1)); // 받은 횟수가 n만큼 안 늘었어요
+  await assertFails(claim(2, 3)); // 받은 횟수를 더 늘려요
+  await assertFails(claim(0, 0, 0)); // 0번
+  await assertFails(updateDoc(doc(A, "presence/uA"), { paid: 2 })); // 지갑 없이 받은 횟수만
+  await assertFails(updateDoc(doc(A, "wallets/uA"), { bal: increment(40), wt: serverTimestamp(), op: { kind: "salary", n: 2 } })); // 받은 횟수 없이 돈만
+  await assertSucceeds(claim(2, 2));
+  await sleep(2100);
+  await assertFails(claim(1, 3)); // 이미 다 받았어요 (3번째는 1,800,000 필요)
+  await assertFails(claim(2, 2)); // 같은 걸 또
+  // 1분마다 쓰는 본 시간에서 받은 횟수를 바꿀 수 없어요
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 0 }));
+  await assertFails(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 9 }));
+  await assertSucceeds(setDoc(doc(A, "presence/uA"), { at: serverTimestamp(), play: 1250000 + 55000, paid: 2 }));
+  // 남의 것
+  await assertFails(updateDoc(doc(pw("uB", "bob"), "presence/uA"), { paid: 9 }));
+});
 await t("게임: 팀 고르기·점수는 4초마다 1~200씩, 팀 점수와 같은 묶음으로만", async () => {
   await seed(async (d) => { await seedBase(d); await setDoc(doc(d, "game/main"), { r: 0, b: 0 }); });
   const A = pw("uA", "alice"), B = pw("uB", "bob");

@@ -141,6 +141,7 @@ service cloud.firestore {
     function casinoPath(uid) { return /databases/$(database)/documents/casino/$(uid); }
     function casinoDay() { return math.floor(request.time.toMillis() / 86400000); }
     function casinoBefore(uid) { return exists(casinoPath(uid)) && get(casinoPath(uid)).data.day == casinoDay() ? get(casinoPath(uid)).data.net : 0; }
+    function presencePath(uid) { return /databases/$(database)/documents/presence/$(uid); }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
     // ----- 상점: 프레임 값(멸공, 지금은 모두 100이에요). 앱(shop.rs의 ITEMS)과 같아야 해요 -----
@@ -1048,6 +1049,17 @@ service cloud.firestore {
             && getAfter(casinoPath(uid)).data.day == casinoDay()
             && getAfter(casinoPath(uid)).data.net == casinoBefore(uid) + (request.resource.data.bal - resource.data.bal)
             && getAfter(casinoPath(uid)).data.net <= 100000)
+          ||
+          // 월급: 앱을 켜 두고 본 시간(presence.play) 10분마다 20 멸공. 받은 횟수(presence.paid)가 같은 묶음에서 n만큼 늘고, 10분 x 받은 횟수가 본 시간을 넘지 못해요
+          (request.resource.data.op.kind == 'salary'
+            && request.resource.data.rate == resource.data.rate
+            && request.resource.data.t == resource.data.t
+            && request.resource.data.op.n is int
+            && request.resource.data.op.n >= 1
+            && request.resource.data.op.n <= 6
+            && request.resource.data.bal == resource.data.bal + 20 * request.resource.data.op.n
+            && getAfter(presencePath(uid)).data.get('paid', 0) == get(presencePath(uid)).data.get('paid', 0) + request.resource.data.op.n
+            && getAfter(presencePath(uid)).data.get('paid', 0) * 600000 <= get(presencePath(uid)).data.get('play', 0))
 
         );
 
@@ -1478,16 +1490,28 @@ service cloud.firestore {
     match /presence/{uid} {
       allow get, list: if signedIn();
       allow create: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['at', 'play'])
+        && request.resource.data.keys().hasOnly(['at', 'play', 'paid'])
         && request.resource.data.at == request.time
-        && request.resource.data.play == 0;
+        && request.resource.data.play == 0
+        && request.resource.data.get('paid', 0) == 0;
       allow update: if isMe(uid)
-        && request.resource.data.keys().hasOnly(['at', 'play'])
-        && request.resource.data.at == request.time
-        && request.resource.data.play is int
-        && request.resource.data.play >= resource.data.get('play', 0)
-        && request.resource.data.play - resource.data.get('play', 0) <= 120000
-        && request.resource.data.play - resource.data.get('play', 0) <= request.time.toMillis() - resource.data.at.toMillis();
+        && request.resource.data.keys().hasOnly(['at', 'play', 'paid'])
+        && (
+          // 1분마다: 시각과 본 시간만 늘어요 (받은 횟수 paid는 그대로)
+          (request.resource.data.at == request.time
+            && request.resource.data.play is int
+            && request.resource.data.play >= resource.data.get('play', 0)
+            && request.resource.data.play - resource.data.get('play', 0) <= 120000
+            && request.resource.data.play - resource.data.get('play', 0) <= request.time.toMillis() - resource.data.at.toMillis()
+            && request.resource.data.get('paid', 0) == resource.data.get('paid', 0))
+          ||
+          // 월급 받기: paid만 바뀌고, 같은 묶음의 지갑 쓰기(월급)가 받은 횟수만큼 늘려요
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paid'])
+            && request.resource.data.paid is int
+            && getAfter(walletPath(uid)).data.op.kind == 'salary'
+            && getAfter(walletPath(uid)).data.wt == request.time
+            && request.resource.data.paid == resource.data.get('paid', 0) + getAfter(walletPath(uid)).data.op.n)
+        );
     }
 
     // ----- 게임(독소전쟁 대항전): 팀(r 소련, b 독일)을 한 번 고르고, 누른 횟수를 4초 이상 모아 한 번에 올려요 (한 번에 1~200).

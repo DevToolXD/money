@@ -1429,6 +1429,8 @@ thread_local! {
     /// 내가 모은 플레이 시간(ms)과 마지막으로 잘 쓴 때(내 시계). 모르면 None (처음이거나 쓰기에 실패했어요)
     static PLAY: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
     static PLAY_AT: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
+    /// 월급을 받은 횟수 (presence.paid)
+    static PAID: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
 }
 /// 1분에 한 번: 접속 시각을 쓰고, 지난 박자와 이번 사이 시간(2분 안일 때만, 서버 시각 오차 3초는 빼고)을 플레이 시간에 더해요.
 /// 서버(firestore.rules)는 한 번에 늘어나는 양을 지난 기록과 지금 사이로 막아서, 이 값은 실제 시간보다 빨리 늘 수 없어요
@@ -1443,10 +1445,16 @@ async fn presence_beat() -> R {
         }
         None => {
             let sn = get_doc(r.clone()).await?;
-            if exists(&sn) { num(&get(&data(&sn), "play")).max(0.0).floor() } else { 0.0 }
+            if exists(&sn) {
+                PAID.set(num(&get(&data(&sn), "paid")).max(0.0).floor());
+                num(&get(&data(&sn), "play")).max(0.0).floor()
+            } else {
+                PAID.set(0.0);
+                0.0
+            }
         }
     };
-    match set_doc(r, o(&[("at", ts()), ("play", n(play))])).await {
+    match set_doc(r, o(&[("at", ts()), ("play", n(play)), ("paid", n(PAID.get()))])).await {
         Ok(_) => {
             PLAY.set(Some(play));
             PLAY_AT.set(sent);
@@ -1457,6 +1465,29 @@ async fn presence_beat() -> R {
             Err(e)
         }
     }
+}
+/// 월급: 앱을 켜 두고 본 시간 10분마다 20 멸공 (firestore.rules의 600000·20과 같아요)
+const SALARY_MS: f64 = 600_000.0;
+const SALARY: f64 = 20.0;
+/// 아직 안 받은 월급 횟수 (한 번에 최대 6번). 본 시간을 모를 때는 0
+fn salary_due() -> f64 {
+    match PLAY.get() {
+        Some(p) => ((p / SALARY_MS).floor() - PAID.get()).clamp(0.0, 6.0),
+        None => 0.0,
+    }
+}
+/// 월급 받기: 지갑에 n x 20 멸공이 들어오고, 받은 횟수(presence.paid)가 같은 묶음에서 n 늘어요
+async fn salary_claim(cnt: f64) -> R {
+    let uid = uid_of()?;
+    if cnt < 1.0 || cnt != salary_due() {
+        return Ok(n(0.0));
+    }
+    let b = batch();
+    m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(cnt * SALARY)), ("wt", ts()), ("op", o(&[("kind", s("salary")), ("n", n(cnt))]))])])?;
+    m(&b, "update", &[d(&["presence", &uid]), o(&[("paid", n(PAID.get() + cnt))])])?;
+    rethrow(commit(&b).await)?;
+    PAID.set(PAID.get() + cnt);
+    Ok(n(cnt * SALARY))
 }
 /// 누군가의 플레이 시간(ms)
 async fn play_of(uid: &str) -> f64 {
@@ -2035,6 +2066,8 @@ fn build() -> js_sys::Object {
     am!(api, "reelGifts", |_a| reel_gifts().await);
     am!(api, "decoBag", |_a| deco_bag().await);
     am!(api, "decoBuy", |a| deco_buy(sa(&a[0]), num(&a[1]), a[2].clone()).await);
+    am!(api, "salaryDue", |_a| Ok(n(salary_due())));
+    am!(api, "salaryClaim", |a| salary_claim(num(&a[0])).await);
     am!(api, "casinoBet", |a| casino_bet(num(&a[0]), num(&a[1])).await);
     am!(api, "contestList", |_a| contest_list().await);
     am!(api, "contestCreate", |a| rethrow(set_doc(new_id(c(&["contests"])), o(&[("title", s(&sa(&a[0]))), ("open", true.into()), ("at", ts()), ("n", n(0.0))])).await));
