@@ -56,7 +56,8 @@ jobs:
       - name: 사이트 파일 모으기
         run: |
           mkdir -p _site
-          cp -r index.html manifest.webmanifest CNAME app assets vendor _site/
+          for f in index.html manifest.webmanifest sw.js CNAME app assets vendor; do [ -e "$f" ] && cp -r "$f" _site/; done
+          true
 
       - name: 올리는 방식 확인
         id: mode
