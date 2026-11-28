@@ -129,7 +129,7 @@ async function send(uid: string, phone: string) {
   ])
   if (!w.ok) throw new Error("save otp: " + w.status + " " + w.text)
   try {
-    await zavu.messages.send({ to: p, channel: "sms", text: `[자본주의] 인증번호 ${code}\n5분 안에 입력해 주세요.` })
+    await zavu.messages.send({ to: p, channel: "sms_oneway", text: `[자본주의] 인증번호 ${code}\n5분 안에 입력해 주세요.` })
   } catch (e: any) {
     console.log("sms failed", e?.status, e?.message)
     await commit([del(`otp/${uid}`)])

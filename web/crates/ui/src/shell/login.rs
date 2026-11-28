@@ -242,17 +242,10 @@ async fn submit() {
     if !valid_name(&name) {
         return dom::set_text("login-error", "이름을 1~20자로 적어 주세요");
     }
-    // 임시: 한 기기(브라우저)에서는 계정을 하나만 만들어요
-    let made = dom::store_get("acct-made", "");
-    if !made.is_empty() {
-        return dom::set_text("login-error", &format!("이 기기에서는 이미 계정을 만들었어요 ({made}). 그 계정으로 로그인해 주세요"));
-    }
     let photo = safe_img(&dom::store_get("profile-photo", ""), 40000).to_string();
     let r#ref = dom::store_get("invite-ref", "");
-    let id2 = id.clone();
     run(move |_| cloud::call_now("signUp", &[JsValue::from_str(&id), JsValue::from_str(&pw), JsValue::from_str(&name), JsValue::from_str(&photo), JsValue::from_str(&r#ref)]), false).await;
     if cloud::signed_in() {
-        dom::store_set("acct-made", &id2);
         dom::store_set("invite-ref", "");
     }
 }

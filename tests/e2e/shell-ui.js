@@ -59,7 +59,6 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   let inOk = false;
   for (let i = 0; i < 40 && !inOk; i++) { await p.waitForTimeout(250); inOk = !(await p.evaluate(() => document.getElementById('login').classList.contains('is-open'))); }
   ok('가입하면 로그인 화면이 닫혀요', inOk);
-  ok('이 기기에 계정을 만들었다고 기억해요', (await p.evaluate(() => localStorage.getItem('acct-made'))) === id);
   await p.waitForTimeout(2500);
   ok('계정 화면: 이름과 아이디', (await text(p, '#profile-name')) === '홍길동' && (await text(p, '#profile-id')) === '@' + id);
   ok('로그아웃 줄이 보여요', !(await p.isHidden('#auth-row')));
@@ -103,7 +102,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   ok('로그아웃하면 손님 화면', (await p.evaluate(() => window.cloud?.user)) == null && (await p.evaluate(() => localStorage.getItem('profile-name'))) === null);
 
   // 같은 기기에서는 계정을 또 만들 수 없어요 (임시: 브라우저에 기억)
-  ok('로그아웃해도 이 기기 계정 기억은 남아요', (await p.evaluate(() => localStorage.getItem('acct-made'))) === id);
+  ok('기기에 가입 기록을 남기지 않아요', (await p.evaluate(() => localStorage.getItem('acct-made'))) === null);
   await p.evaluate(() => window.__shell && 0);
   await p.evaluate(() => { const b = document.querySelector('.js-open-login') || document.getElementById('open-login'); if (b) b.click(); }); await p.waitForTimeout(800);
   if (!(await p.evaluate(() => document.getElementById('login').classList.contains('signup')))) { await p.click('#login-switch'); await p.waitForTimeout(500); }
@@ -112,7 +111,7 @@ const active = (p) => p.evaluate(() => document.querySelector('.screen.is-active
   await p.fill('#login-email', 'two' + sfx); await p.fill('#login-pw', 'abc123'); await p.fill('#login-pw2', 'abc123');
   await p.click('#login-submit'); await p.waitForTimeout(400);
   if (await p.isVisible('#alert-ok')) { await p.click('#alert-ok'); await p.waitForTimeout(800); }
-  ok('같은 기기에서 두 번째 가입은 막혀요', (await text(p, '#login-error')).includes('이 기기에서는 이미 계정을 만들었어요'));
+  ok('같은 기기에서도 두 번째 가입이 막히지 않아요', !(await text(p, '#login-error')).includes('이 기기에서는'));
 
   const errs = O.errs;
   ok('화면 오류 없음', errs.length === 0); if (errs.length) console.log(errs.slice(0, 3));
