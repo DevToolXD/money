@@ -455,6 +455,12 @@ pub(crate) fn boot(cloud_v: JsValue) {
         account::apply_profile();
     }
     leptos::task::spawn_local(async move {
+        // 마지막 초기화 전에 만든 계정이면 계정을 지우고 로그아웃해요 (프로필 같은 것도 다시 만들지 않아요)
+        if cloud::call("resetAccount", &[]).await.map(|v| v.is_truthy()).unwrap_or(false) {
+            STARTED.set(false);
+            toast("초기화되어 계정이 지워졌어요. 새로 가입해 주세요");
+            return;
+        }
         if let Err(e) = cloud::call("ensureAccount", &[]).await {
             cloud::warn(&format!("계정 정보를 채우지 못했어요: {}", e.code));
             toast("계정 정보를 만들지 못했어요. 새로고침해 주세요");

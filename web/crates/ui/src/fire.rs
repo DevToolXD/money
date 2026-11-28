@@ -147,6 +147,7 @@ fn messages(code: &str) -> Option<&'static str> {
         "auth/operation-not-allowed" => "이 로그인 방법이 아직 켜지지 않았어요",
         "auth/network-request-failed" => "인터넷 연결을 확인해 주세요",
         "auth/invalid-verification-code" => "인증번호가 맞지 않아요",
+        "account-reset" => "초기화되어 이 계정이 지워졌어요. 새로 가입해 주세요",
         "phone-used" => "이미 이 휴대폰 번호로 가입한 계정이 있어요. 그 계정으로 로그인해 주세요",
         "no-phone" => "휴대폰 인증번호를 먼저 받아 주세요",
         "no-code" => "문자로 받은 인증번호를 입력해 주세요",
@@ -608,6 +609,50 @@ async fn phone_send(phone: String) -> R {
     Ok(s(&num))
 }
 /// 아이디·비밀번호로만 가입해요 (초대 링크로 왔으면 초대 기록도 남겨요)
+/// 마지막 초기화(베타 종료, meta/beta의 done 시각)보다 먼저 만든 계정인가 (관리자 owner는 빼요)
+async fn pre_reset(u: &JsValue) -> bool {
+    if u.is_null() || u.is_undefined() || st(&get(u, "email")) == "owner@money-sim.app" {
+        return false;
+    }
+    let Ok(sn) = get_doc(d(&["meta", "beta"])).await else { return false };
+    if !exists(&sn) || st(&get(&data(&sn), "state")) != "done" {
+        return false;
+    }
+    let at = ms(&get(&data(&sn), "at"));
+    let created = js_sys::Date::parse(&st(&get(&get(u, "metadata"), "creationTime")));
+    created.is_finite() && at > 0.0 && created + 1000.0 < at // 계정 만든 시각은 초 단위로 잘려서 와요
+}
+/// 초기화 전에 만든 계정이면 지우고 로그아웃해요 (켜 둔 지 오래된 로그인은 지우기가 거절될 수 있어서, 그때는 로그아웃만 하고 다시 로그인·가입할 때 지워요). 지웠으면 true
+async fn reset_account() -> R {
+    let u = current();
+    if !pre_reset(&u).await {
+        return Ok(false.into());
+    }
+    let _ = aw(f("deleteUser", &[u])).await;
+    let _ = aw(f("signOut", &[auth()])).await;
+    Ok(true.into())
+}
+/// 로그인: 초기화 전에 만든 계정이면 그 자리에서 지우고 새로 가입하게 안내해요
+async fn sign_in(id: String, pw: String) -> R {
+    let cred = aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await.map_err(wrapped)?;
+    let user = get(&cred, "user");
+    if pre_reset(&user).await {
+        let _ = aw(f("deleteUser", &[user])).await;
+        let _ = aw(f("signOut", &[auth()])).await;
+        return Err(wrapped(fail("account-reset", "")));
+    }
+    Ok(cred)
+}
+/// 가입하려는 아이디가 초기화 전 계정이 쓰던 거면(같은 비밀번호로 로그인되고 초기화 전에 만든 계정) 그 계정을 지워서 아이디를 비워요
+async fn reclaim(id: &str, pw: &str) -> bool {
+    let Ok(cred) = aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(id)), s(pw)])).await else { return false };
+    let user = get(&cred, "user");
+    if pre_reset(&user).await && aw(f("deleteUser", &[user])).await.is_ok() {
+        return true;
+    }
+    let _ = aw(f("signOut", &[auth()])).await;
+    false
+}
 async fn sign_up_plain(id: String, pw: String, name: String, photo: String, ref_: String) -> R {
     let r: R = async {
         let cred = aw(f("createUserWithEmailAndPassword", &[auth(), s(&to_email(&id)), s(&pw)])).await?;
@@ -644,7 +689,13 @@ async fn emu_code() -> Result<String, JsValue> {
 async fn sign_up(id: String, pw: String, name: String, photo: String, code: String, ref_: String) -> R {
     // 지금은 휴대폰 인증 없이 가입해요 (중복 가입은 앱이 기기에서 막아요). 인증번호가 오면 휴대폰 인증 방식으로 가입해요
     if code.trim().is_empty() {
-        return sign_up_plain(id, pw, name, photo, ref_).await;
+        let r = sign_up_plain(id.clone(), pw.clone(), name.clone(), photo.clone(), ref_.clone()).await;
+        if let Err(e) = &r {
+            if st(&get(e, "code")) == "auth/email-already-in-use" && reclaim(&id, &pw).await {
+                return sign_up_plain(id, pw, name, photo, ref_).await;
+            }
+        }
+        return r;
     }
     let r: R = async {
         let code = code.trim().to_string();
@@ -1890,7 +1941,8 @@ fn build() -> js_sys::Object {
     am!(api, "betaState", |_a| beta_state().await);
     am!(api, "betaEnd", |_a| beta_end().await);
     am!(api, "phoneSend", |a| phone_send(sa(&a[0])).await);
-    am!(api, "signIn", |a| aw(f("signInWithEmailAndPassword", &[auth(), s(&to_email(&sa(&a[0]))), a[1].clone()])).await.map_err(wrapped));
+    am!(api, "signIn", |a| sign_in(sa(&a[0]), sa(&a[1])).await);
+    am!(api, "resetAccount", |_a| reset_account().await);
     am!(api, "signOut", |_a| aw(f("signOut", &[auth()])).await);
     am!(api, "ensureAccount", |_a| ensure_account().await);
     /* ----- 내 설정 ----- */

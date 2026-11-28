@@ -37,6 +37,7 @@
 - 화면 시험: `cd tests && npm run build && EMU=1 node build.mjs && sh e2e/run.sh` (화면 하나를 옮길 때마다 돌려요).
 - 회원가입 전화번호 인증은 쓰지 않아요 (한국 통신사가 해외 문자 업체의 문자를 막아서 문자가 안 갔어요). 대신 부계정은 "초대한 친구가 3시간 플레이해야 초대 보상 50 멸공을 받는다"로 막아요 (presence/{uid}.play, firestore.rules). `server/phone-verify`와 phones·verified·otp 규칙은 쓰지 않는 채로 남겨 뒀어요.
 - 안드로이드 앱(APK)은 `android/` (사이트를 감싼 WebView 하나, 자바라서 러스트 원칙의 예외예요). `sh android/build.sh`가 저장소 맨 위 `capitalism.apk`를 만들고 사이트가 내려받게 해요. 서명 열쇠(`android/capitalism.keystore`)와 받은 도구(`android/.tools`)는 올리지 않아요. 앱은 이름표에 `JabonApp`을 붙여서 `install.rs`(설치 안내)가 알아봐요. 앱 모양을 바꿀 때만 다시 빌드해요 (사이트 내용은 WebView가 매번 불러와요).
+- 베타 초기화(관리 탭)는 Firestore를 모두 지우고(`meta/beta`를 done으로), 로그인 계정은 `fire.rs`의 `reset_account`/`sign_in`/`reclaim`이 "초기화 전에 만든 계정"을 사람들이 앱을 열 때·로그인할 때·같은 비밀번호로 가입할 때 스스로 지워요 (브라우저에서는 남의 계정을 지울 수 없어서요. owner는 빼요). 관리자가 다시 누르면 done에서 다시 시작해요.
 - 익명 로그인 금지. 사용자 글·사진은 반드시 `esc()`/`safeImg()`를 거쳐요. 인라인 스크립트는 CSP가 막아요.
 - 서버를 아끼는 구조(최근 40개만 듣기, 프로필 캐시, 이자 10분 정산)와 backdrop 사진 찍기 간격을 느슨하게 되돌리지 않아요.
 - 탭 바 뒤 화면 사진(html2canvas)은 껐어요. 찍을 때마다 화면이 50~430ms 멈춰서(폰처럼 느린 CPU로 쟀어요) 렉의 주범이었어요. 탭 바 유리는 화면 바탕색으로 그려요. 다시 켜지 말아요.
