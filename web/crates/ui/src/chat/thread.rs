@@ -453,6 +453,12 @@ pub fn init() {
             }
         });
     }
+    // 보내기 버튼을 눌러도 입력칸에서 초점이 빠지지 않게 해요 (자판이 내려가지 않게)
+    for id in ["send"] {
+        if let Some(b) = by_id(id) {
+            dom::on_active(&b, "mousedown", |e| e.prevent_default());
+        }
+    }
     if let Some(f) = by_id("composer") {
         dom::on(&f, "submit", |e| {
             e.prevent_default();
@@ -471,6 +477,8 @@ pub fn init() {
             if let Ok(ev) = web_sys::Event::new("input") {
                 let _ = inp.dispatch_event(&ev);
             }
+            // 보낸 뒤에도 자판이 내려가지 않게 입력칸에 초점을 그대로 둬요 (아이폰 메시지처럼 이어서 쓸 수 있어요)
+            let _ = inp.focus();
             leptos::task::spawn_local(async move {
                 let (id, other) = (c.id.clone(), c.other.clone());
                 let payload = dom::obj(&[("type", "text".into()), ("text", JsValue::from_str(&text))]);
