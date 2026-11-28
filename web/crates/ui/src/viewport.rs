@@ -69,11 +69,13 @@ pub fn init() {
         // 자판이 다 올라온 뒤에 한 번 더 맞춰요 (자판이 올라오는 동안에는 크기 알림이 늦게 오기도 해요)
         let cb = Closure::once_into_js(|| {
             schedule();
-            // 로그인 판처럼 글칸이 가운데쯤 있는 곳은, 자판에 가리지 않게 초점 간 칸을 보이는 곳으로 올려요
+            // 글칸이 가운데쯤 있는 판(로그인, 글쓰기, 거래·놀기 글쓰기, 정보 판)은 자판에 가리지 않게 초점 간 칸을 보이는 곳으로 올려요.
+            // 대화 입력줄과 릴스 댓글줄은 늘 맨 아래 붙어 있어서 건드리지 않아요
             if let Some(a) = crate::dom::doc().active_element() {
-                if a.closest(".login-body, .sheet, .ci-panel").ok().flatten().is_some() {
+                let fixed_bar = a.closest("#composer, .rc-bar").ok().flatten().is_some();
+                if !fixed_bar && a.closest(".login-body, .sheet, .ci-panel, .sns-panel, .pl-form, .screen").ok().flatten().is_some() {
                     if let Ok(f) = Reflect::get(&a, &"scrollIntoView".into()).and_then(|f| f.dyn_into::<js_sys::Function>()) {
-                        let _ = f.call1(&a, &crate::dom::obj(&[("block", "center".into())]));
+                        let _ = f.call1(&a, &crate::dom::obj(&[("block", "center".into()), ("behavior", "smooth".into())]));
                     }
                 }
             }

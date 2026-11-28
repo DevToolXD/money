@@ -2932,3 +2932,8 @@ html[data-theme="dark"] .pf-card.lg-card, html[data-theme="dark"] .note-banner {
 .crop-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
 .crop-img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; will-change: transform; -webkit-user-drag: none; }
 .crop-frame { position: absolute; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.62); pointer-events: none; }
+
+/* 자판이 올라오면 글쓰기 판은 보이는 높이를 거의 다 써요 (좁은 칸에 눌려서 쓰려는 칸이 자판 뒤로 숨지 않게). 사진 미리보기는 낮춰요 */
+html.kb-open .sns-sheet .sns-panel, html.kb-open .sns-sheet .sns-panel.tall, html.kb-open .pl-panel { height: calc(100% - var(--safe-top, 0px) - 12px); max-height: calc(100% - var(--safe-top, 0px) - 12px); margin-bottom: 6px; }
+html.kb-open #tr-prev .sns-pv, html.kb-open #pl-prev .sns-pv { height: 96px; }
+html.kb-open .pl-form { scroll-padding: 12px 0; }
