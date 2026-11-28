@@ -534,7 +534,7 @@ async fn beta_end() -> R {
     let groups = ["messages", "c", "lab", "products", "items", "votes", "entries"];
     let tops = [
         "posts", "calls", "chats", "invites", "jobs", "companies", "mining", "vitals", "inventory", "ranks", "noticeReads", "notices", "adminLog", "adminAuth", "bag", "contests", "feedback", "game", "gamePlayers", "lands", "plans",
-        "postGifts", "presence", "trades", "otp", "otpday", "phones", "verified", "owned", "pulls", "users", "wallets", "profiles",
+        "postGifts", "presence", "casino", "trades", "otp", "otpday", "phones", "verified", "owned", "pulls", "users", "wallets", "profiles",
     ];
     for (is_group, names) in [(true, &groups[..]), (false, &tops[..])] {
         for name in names {
@@ -1496,10 +1496,37 @@ async fn deco_buy(k: String, price: f64, items: JsValue) -> R {
 /// 도박장(슬롯): 건 돈(bet)만큼 빠졌다가 배율만큼 돌아와요. 지갑은 net(= 돌려받는 돈 - 건 돈)만큼 바뀌어요.
 /// 서버는 이 모양만 받아요 (100의 배수, 잃으면 -건 돈, 1.5배면 +절반, 10배면 +9배: firestore.rules의 'bet')
 async fn casino_bet(bet: f64, net: f64) -> R {
+    let uid = uid_of()?;
+    let day = (now() / 86_400_000.0).floor();
+    // 오늘 번 돈-잃은 돈: 한 번 읽어 두고 이어 가요 (쓰기에 실패하면 지우고 다음에 다시 읽어요)
+    let before = match CASINO.get() {
+        Some((d, v)) if d == day => v,
+        _ => {
+            let sn = get_doc(d(&["casino", &uid])).await?;
+            if exists(&sn) && num(&get(&data(&sn), "day")) == day { num(&get(&data(&sn), "net")) } else { 0.0 }
+        }
+    };
+    if before + net > CASINO_CAP {
+        return Err(fail("casino-cap", "오늘은 도박장에서 더 딸 수 없어요"));
+    }
     let b = batch();
     m(&b, "update", &[wallet_ref()?, o(&[("bal", inc(net)), ("wt", ts()), ("op", o(&[("kind", s("bet")), ("amt", bet.into())]))])])?;
-    rethrow(commit(&b).await)?;
-    Ok(JsValue::UNDEFINED)
+    m(&b, "set", &[d(&["casino", &uid]), o(&[("day", n(day)), ("net", n(before + net))])])?;
+    match commit(&b).await {
+        Ok(_) => {
+            CASINO.set(Some((day, before + net)));
+            Ok(JsValue::UNDEFINED)
+        }
+        Err(e) => {
+            CASINO.set(None);
+            Err(e)
+        }
+    }
+}
+/// 하루에 도박장에서 딸 수 있는 돈 (firestore.rules의 100000과 같아요)
+const CASINO_CAP: f64 = 100_000.0;
+thread_local! {
+    static CASINO: std::cell::Cell<Option<(f64, f64)>> = const { std::cell::Cell::new(None) };
 }
 /// 장신구 끼기: 낀 장신구 번호 목록 그대로 (gear, 빈 목록이면 모두 빼기). 내 프로필 캐시도 바로 고쳐서 내 화면에 바로 보여요
 async fn deco_set(list: JsValue) -> R {

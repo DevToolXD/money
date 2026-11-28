@@ -331,10 +331,13 @@ await t("전화번호 인증: 인증 전용 계정만 phones·verified·otp를 �
 await t("도박장: 건 돈은 100의 배수, 잃으면 -건 돈, 1.5배는 +절반, 10배는 +9배만 지갑에 들어가요", async () => {
   await seed(seedBase);
   const A = pw("uA", "alice");
-  const bet = (amt, delta) => {
+  const day = Math.floor(Date.now() / 86400000);
+  let net = 0; // 오늘 번 돈-잃은 돈 (앱이 기억해요)
+  const bet = (amt, delta, nextNet = net + delta) => {
     const b = writeBatch(A);
     b.update(doc(A, "wallets/uA"), { bal: increment(delta), wt: serverTimestamp(), op: { kind: "bet", amt } });
-    return b.commit();
+    b.set(doc(A, "casino/uA"), { day, net: nextNet });
+    return b.commit().then((r) => { net = nextNet; return r; });
   };
   await assertSucceeds(bet(100, -100)); // 잃음: 건 돈만큼 빠져요
   await assertFails(bet(100, -100)); // 2초 안에 또 쓸 수 없어요
@@ -353,6 +356,34 @@ await t("도박장: 건 돈은 100의 배수, 잃으면 -건 돈, 1.5배는 +절
   let bal;
   await env.withSecurityRulesDisabled(async (c) => { bal = (await getDoc(doc(c.firestore(), "wallets/uA"))).data().bal; });
   if (bal !== 1250000 - 100 + 50 + 900) throw new Error("지갑이 " + bal + "이에요");
+});
+await t("도박장 하루 상한: 하루에 순이익 10만까지만, 기록을 거짓으로 적거나 따로 쓸 수 없어요", async () => {
+  await seed(seedBase);
+  const A = pw("uA", "alice");
+  const day = Math.floor(Date.now() / 86400000);
+  const put = (delta, amt, c) => {
+    const b = writeBatch(A);
+    b.update(doc(A, "wallets/uA"), { bal: increment(delta), wt: serverTimestamp(), op: { kind: "bet", amt } });
+    b.set(doc(A, "casino/uA"), c);
+    return b.commit();
+  };
+  await assertFails(put(900, 100, { day, net: 0 })); // 이득을 0이라고 거짓으로
+  await assertFails(put(900, 100, { day: day - 1, net: 900 })); // 어제 날짜로
+  await assertFails(put(900, 100, { day, net: 900, extra: 1 })); // 다른 칸
+  await assertFails(setDoc(doc(A, "casino/uA"), { day, net: -999999 })); // 지갑 없이 따로
+  await assertSucceeds(put(900, 100, { day, net: 900 }));
+  // 99,100 근처까지 오른 것으로 두고, 상한을 넘는 승리는 막혀요
+  await seed((d) => setDoc(doc(d, "casino/uA"), { day, net: 99500 }));
+  await sleep(2100);
+  await assertFails(put(900, 100, { day, net: 100400 })); // 10만을 넘어요
+  await assertSucceeds(put(-100, 100, { day, net: 99400 })); // 잃는 것은 언제나
+  await sleep(2100);
+  await assertSucceeds(put(50, 100, { day, net: 99450 })); // 상한 안
+  // 다른 날은 0에서 다시
+  await seed((d) => setDoc(doc(d, "casino/uA"), { day: day - 1, net: 99999 }));
+  await sleep(2100);
+  await assertSucceeds(put(900, 100, { day, net: 900 }));
+  await assertFails(getDoc(doc(pw("uB", "bob"), "casino/uA"))); // 남의 기록
 });
 await t("상점: 정해진 값만 내고 가방에 하나씩, 이미 있으면 못 사고, 가방에 있는 것만 껴요", async () => {
   await seed(seedBase);

@@ -42,6 +42,8 @@ thread_local! {
     /// 내 가방 (산 장신구)
     static BAG: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static LOADED: Cell<bool> = const { Cell::new(false) };
+    /// 가방을 마지막으로 읽은 사람과 때 (탭을 오갈 때마다 다시 읽지 않게, 5분 안에 같은 사람이면 그대로 써요)
+    static BAG_AT: RefCell<(String, f64)> = RefCell::new((String::new(), 0.0));
     static BUSY: Cell<bool> = const { Cell::new(false) };
     static BOUND: Cell<bool> = const { Cell::new(false) };
     /// 고른 카테고리·칩
@@ -195,8 +197,15 @@ pub fn open() {
     close_pager(false);
     paint();
     if cloud::signed_in() {
-        spawn_local(async {
+        let me = cloud::cloud().and_then(|c| cloud::get(&c, "uid").as_string()).unwrap_or_default();
+        let now = js_sys::Date::now();
+        let fresh = BAG_AT.with(|b| { let b = b.borrow(); b.0 == me && now - b.1 < 300_000.0 });
+        if fresh && LOADED.get() {
+            return;
+        }
+        spawn_local(async move {
             load_bag().await;
+            BAG_AT.with(|b| *b.borrow_mut() = (me, js_sys::Date::now()));
             paint();
         });
     }

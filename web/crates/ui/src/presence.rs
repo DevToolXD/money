@@ -1,4 +1,4 @@
-//! 접속 중 표시: 앱이 보이는 동안 1분에 한 번 내 시각을 쓰고, 최근 3분 안에 들어온 사람 목록을 1분에 한 번 읽어요.
+//! 접속 중 표시: 앱이 보이는 동안 1분에 한 번 내 시각을 쓰고, 최근 3분 안에 들어온 사람 목록은 2분에 한 번 읽어요 (읽기를 반으로 아껴요).
 //! 그 사람들의 동그라미 오른쪽 아래에 초록 점을 붙여요 (인스타처럼).
 
 use std::cell::{Cell, RefCell};
@@ -12,6 +12,7 @@ use crate::dom;
 thread_local! {
     static SEEN: RefCell<HashMap<String, f64>> = RefCell::new(HashMap::new());
     static TIMER: Cell<i32> = const { Cell::new(0) };
+    static TICKS: Cell<u32> = const { Cell::new(0) };
 }
 
 /// 3분 안에 들어왔으면 접속 중
@@ -43,6 +44,12 @@ fn tick() {
     }
     wasm_bindgen_futures::spawn_local(async {
         let _ = cloud::call("presenceBeat", &[]).await;
+        // 목록은 두 번에 한 번만 읽어요 (처음은 바로)
+        let n = TICKS.get();
+        TICKS.set(n.wrapping_add(1));
+        if n % 2 != 0 {
+            return;
+        }
         if let Ok(list) = cloud::call("presenceList", &[]).await {
             let mut m = HashMap::new();
             for it in js_sys::Array::from(&list).iter() {

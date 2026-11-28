@@ -137,6 +137,10 @@ service cloud.firestore {
       );
       allow delete: if signedIn() && resource.data.owner == request.auth.uid && landOp('sell', id);
     }
+    // 도박장 하루 이득 상한: casino/{uid}에 오늘(UTC 날짜 번호) 번 돈-잃은 돈을 적고, 10만을 넘으면 못 따요 (결과는 앱이 정하는 거라 서버는 이것으로 피해를 막아요)
+    function casinoPath(uid) { return /databases/$(database)/documents/casino/$(uid); }
+    function casinoDay() { return math.floor(request.time.toMillis() / 86400000); }
+    function casinoBefore(uid) { return exists(casinoPath(uid)) && get(casinoPath(uid)).data.day == casinoDay() ? get(casinoPath(uid)).data.net : 0; }
     function walletPath(uid) { return /databases/$(database)/documents/wallets/$(uid); }
     // ----- 관리자(오너 계정 한 명). 관리 행동은 인증토큰 3개가 서버에 있는 것과 같을 때만, 5분 안에, 한 번만 돼요 -----
     // ----- 상점: 프레임 값(멸공, 지금은 모두 100이에요). 앱(shop.rs의 ITEMS)과 같아야 해요 -----
@@ -1037,7 +1041,10 @@ service cloud.firestore {
             && request.resource.data.op.amt % 100 == 0
             && (request.resource.data.bal - resource.data.bal == -request.resource.data.op.amt
               || (request.resource.data.bal - resource.data.bal) * 2 == request.resource.data.op.amt
-              || request.resource.data.bal - resource.data.bal == request.resource.data.op.amt * 9))
+              || request.resource.data.bal - resource.data.bal == request.resource.data.op.amt * 9)
+            && getAfter(casinoPath(uid)).data.day == casinoDay()
+            && getAfter(casinoPath(uid)).data.net == casinoBefore(uid) + (request.resource.data.bal - resource.data.bal)
+            && getAfter(casinoPath(uid)).data.net <= 100000)
 
         );
 
@@ -1454,6 +1461,15 @@ service cloud.firestore {
   
     // SNS (무제 탭): 글·사진 하나, 좋아요·리포스트는 내 표시만, 댓글 수는 댓글을 쓰는 같은 묶음에서만 1 늘어요
     function postPath(id) { return /databases/$(database)/documents/posts/$(id); }
+    // ----- 도박장 하루 기록: 지갑에서 슬롯을 돌리는 같은 묶음에서만 써요 (값은 지갑 규칙이 맞춰요) -----
+    match /casino/{uid} {
+      allow get: if isMe(uid);
+      allow create, update: if isMe(uid)
+        && request.resource.data.keys().hasOnly(['day', 'net'])
+        && request.resource.data.day is int && request.resource.data.net is int
+        && getAfter(walletPath(uid)).data.op.kind == 'bet'
+        && getAfter(walletPath(uid)).data.wt == request.time;
+    }
     // ----- 접속 중 표시: 앱이 켜져 있는 동안 1분에 한 번 시각만 써요 -----
     // play는 앱을 켜 두고 보고 있던 시간(밀리초)을 모은 값이에요. 한 번에 늘어나는 양은 지난 기록과 지금 사이(서버 시각)와 2분을 넘을 수 없어요 (초대 보상의 3시간 조건에 써요)
     match /presence/{uid} {

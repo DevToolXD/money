@@ -348,6 +348,7 @@ pub fn why(code: &str) -> &'static str {
         "failed-precondition" => "지금 상태에서는 할 수 없어요",
         "not-found" => "찾는 정보가 없어요",
         "insufficient" => "멸공이 모자라요",
+        "casino-cap" => "오늘은 도박장에서 더 딸 수 없어요. 내일 다시 해 보세요",
         "unauthenticated" => "다시 로그인해 주세요",
         _ => "잠시 뒤 다시 해 주세요",
     }
