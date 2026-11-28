@@ -152,14 +152,18 @@ pub async fn ask_permission() -> bool {
 }
 /// 알림을 켜 두었고, 앱이 안 보이고(뒤에 있음), 권한이 있으면 휴대폰 알림을 띄워요
 fn system(chat_id: &str, name: &str, text: &str) {
-    if dom::store_get("notify-on", "") != "1" || permission() != "granted" || !dom::doc().hidden() {
+    system_with(&format!("chat-{chat_id}"), name, text, chat_id, true);
+}
+/// 휴대폰 알림 하나 띄우기. 알림을 켜 두고 권한이 있어야 해요. only_hidden이면 앱이 뒤에 있을 때만
+fn system_with(tag: &str, title: &str, text: &str, chat_id: &str, only_hidden: bool) {
+    if dom::store_get("notify-on", "") != "1" || permission() != "granted" || (only_hidden && !dom::doc().hidden()) {
         return;
     }
     let c = sw();
     if c.is_undefined() {
         return;
     }
-    let (chat_id, title, body) = (chat_id.to_string(), name.to_string(), dom::cut(text, 120));
+    let (tag, chat_id, title, body) = (tag.to_string(), chat_id.to_string(), title.to_string(), dom::cut(text, 120));
     wasm_bindgen_futures::spawn_local(async move {
         let ready = get(&c, "ready");
         let Ok(p) = ready.dyn_into::<js_sys::Promise>() else { return };
@@ -168,9 +172,30 @@ fn system(chat_id: &str, name: &str, text: &str) {
             ("body", JsValue::from_str(&body)),
             ("icon", JsValue::from_str("assets/icons/icon-192.png")),
             ("badge", JsValue::from_str("assets/icons/icon-192.png")),
-            ("tag", JsValue::from_str(&format!("chat-{chat_id}"))),
+            ("tag", JsValue::from_str(&tag)),
             ("data", dom::obj(&[("chat", JsValue::from_str(&chat_id))])),
         ]);
         let _ = call(&reg, "showNotification", &[JsValue::from_str(&title), opts]);
     });
+}
+
+/// 대화가 아닌 알림 (월급처럼): 위쪽에 같은 유리 판이 내려오고, 알림을 켜 뒀으면 진짜 휴대폰 알림도 같이 가요. 눌러도 열리는 대화는 없어요
+pub fn show_info(title: &str, text: &str) {
+    if let Some(e) = el() {
+        OPEN_ID.with(|o| o.borrow_mut().clear());
+        e.set_inner_html(&format!(
+            r#"<span class="nb-av"><i class="nb-coin" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 10c0-1 1-1.6 2.5-1.6s2.5.6 2.5 1.6-1 1.5-2.5 1.9-2.5.9-2.5 1.9 1 1.6 2.5 1.6 2.5-.6 2.5-1.6"/></svg></i></span><span class="nb-main"><b>{}</b><span>{}</span></span><span class="nb-time">지금</span>"#,
+            dom::esc(title),
+            dom::esc(&dom::cut(text, 80))
+        ));
+        e.set_hidden(false);
+        let _ = e.class_list().remove_1("out");
+        let _ = e.offset_width();
+        let _ = e.class_list().add_1("in");
+        dom::vibrate(12);
+        win().clear_timeout_with_handle(TIMER.get());
+        let cb = Closure::once_into_js(hide);
+        TIMER.set(win().set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), 4000).unwrap_or(0));
+    }
+    system_with("salary", title, text, "", false);
 }

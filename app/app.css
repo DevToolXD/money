@@ -2899,3 +2899,6 @@ html[data-theme="dark"] .inst-bar { background: rgba(235, 235, 245, 0.14); color
 @keyframes instFade { from { opacity: 0; } }
 @keyframes instUp { from { transform: translateY(100%); } }
 @media (prefers-reduced-motion: reduce) { .inst-dim, .inst-card { animation: none; } }
+/* 월급 같은 대화가 아닌 알림의 동그라미 (notify.rs show_info) */
+.nb-coin { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 12px; background: var(--apple-blue); color: #fff; }
+.nb-coin svg { width: 26px; height: 26px; }

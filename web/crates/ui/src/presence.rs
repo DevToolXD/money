@@ -56,7 +56,7 @@ fn pay_salary() {
         if let Ok(v) = r {
             let amt = v.as_f64().unwrap_or(0.0);
             if amt > 0.0 {
-                crate::shell::toast(&format!("월급 {} 멸공이 들어왔어요", amt as i64));
+                crate::notify::show_info("월급", &format!("월급 {} 멸공이 들어왔어요", amt as i64));
                 crate::money::log(&dom::obj(&[
                     ("t", js_sys::Date::now().into()),
                     ("name", "월급 (10분마다 20 멸공)".into()),
